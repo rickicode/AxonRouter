@@ -31,6 +31,7 @@ import {
 	buildModelLockUpdate,
 	getEarliestModelLockUntil,
 } from "../../../open-sse/services/accountFallback";
+import { MAX_RATE_LIMIT_COOLDOWN_MS } from "../../../open-sse/config/errorConfig";
 import {
 	resolveProviderId,
 	FREE_PROVIDERS,
@@ -623,7 +624,7 @@ export async function markAccountUnavailable(
 	let shouldFallback, cooldownMs, newBackoffLevel;
 	if (resetsAtMs && resetsAtMs > Date.now()) {
 		shouldFallback = true;
-		cooldownMs = resetsAtMs - Date.now();
+		cooldownMs = Math.min(resetsAtMs - Date.now(), MAX_RATE_LIMIT_COOLDOWN_MS);
 		newBackoffLevel = 0;
 	} else {
 		({ shouldFallback, cooldownMs, newBackoffLevel } = checkFallbackError(
