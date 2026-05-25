@@ -2,7 +2,7 @@
   "id": "FEAT-001",
   "type": "fix",
   "description": "Ensure eligible status is always clean (no dirty metadata) and fix authState invalid/revoked -> disabled in centralized resolver",
-  "status": "in_progress",
+  "status": "completed",
   "steps": [
     "Step 1: Fix src/sse/services/auth.tsx - In the transient fallback path (line ~862), when isProviderTransientProcessingError || isTransientFallbackStatus is true, the Object.assign MUST NOT set healthStatus:'degraded', reasonCode, or reasonDetail. For the transient case: only keep the model lock (already applied via lockUpdate). Do NOT assign healthStatus, reasonCode, or reasonDetail into connectionPatch for transient cases. The non-transient (blocked) case can keep its dirty fields since blocked is allowed to have them. Specifically, change the Object.assign block so that when the connection is staying eligible due to being transient, it ONLY sets routingStatus:'eligible' and lastCheckedAt - nothing else dirty. The model lock already provides the cooldown mechanism.",
 
@@ -31,5 +31,5 @@
     "npm run lint"
   ],
   "blocked_reason": null,
-  "findings": ""
+  "findings": "All 6 steps implemented successfully. authState invalid/revoked now maps to disabled. The 429 path in markAccountUnavailable goes through the transientRateLimit path (canonicalBlockedPatch is set) so it never reaches the fallback block - routingStatus is not explicitly set but no dirty fields are written either. Two additional test files (localdb-status-write, provider-limits-counts) needed expectation updates because authState:invalid now resolves to disabled instead of blocked."
 }
