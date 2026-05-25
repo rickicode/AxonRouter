@@ -80,6 +80,8 @@ API:       http://localhost:12711/v1
 
 Default port is `12711`.
 
+First-run dashboard password is `12345677`. Sign in once, then change it immediately in **Settings -> Security**.
+
 ### Docker
 
 ```bash
@@ -99,12 +101,14 @@ Docker stores runtime data in the mounted `~/.axonrouter` directory. The image a
 ## First Setup
 
 1. Open `http://localhost:12711/dashboard`.
-2. Add a provider in **Providers**.
-3. Optionally create an API key in **Keys**.
-4. Optionally create a fallback combo in **Combos**.
-5. Point your tool at `http://localhost:12711/v1`.
+2. Sign in with the default dashboard password `12345677`.
+3. Change the dashboard password in **Settings -> Security**.
+4. Add a provider in **Providers**.
+5. Optionally create an API key in **Keys**.
+6. Optionally create a fallback combo in **Combos**.
+7. Point your tool at `http://localhost:12711/v1`.
 
-You can change the dashboard password from **Settings**. API-key routing is open by default until you create or configure an AxonRouter API key; after that, use keys from **Keys** for clients that call `/v1`.
+AxonRouter does not support env-based dashboard password overrides. API-key routing is open by default until you create or configure an AxonRouter API key; after that, use keys from **Keys** for clients that call `/v1`.
 
 ---
 

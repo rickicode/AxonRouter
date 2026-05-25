@@ -13,7 +13,7 @@ services:
     ports:
       - "80:80"
       - "443:443"
-      - "443:443/udp"  # For QUIC
+      - "443:443/udp" # For QUIC
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
       - caddy-data:/data
@@ -42,7 +42,6 @@ services:
       - HOSTNAME=0.0.0.0
       # Security
       - JWT_SECRET=${JWT_SECRET:?Set JWT_SECRET to a stable random production secret}
-      - INITIAL_PASSWORD=${INITIAL_PASSWORD:?Set INITIAL_PASSWORD to a strong production password}
       - API_KEY_SECRET=${API_KEY_SECRET:?Set API_KEY_SECRET to a random production secret}
       - REQUIRE_API_KEY=${REQUIRE_API_KEY:-false}
       - AUTH_COOKIE_SECURE=${AUTH_COOKIE_SECURE:-true}
@@ -58,7 +57,8 @@ services:
       - axonrouter-net
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "wget", "-q", "--spider", "http://localhost:12711/api/health"]
+      test:
+        ["CMD", "wget", "-q", "--spider", "http://localhost:12711/api/health"]
       interval: 10s
       timeout: 5s
       retries: 3
@@ -95,7 +95,7 @@ services:
       - axonrouter-net
     restart: unless-stopped
     profiles:
-      - mitm  # Only start with: docker compose --profile mitm up -d
+      - mitm # Only start with: docker compose --profile mitm up -d
 
   # ============================================
   # Init Container (runs once)

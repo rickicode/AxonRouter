@@ -63,13 +63,15 @@ If you answer `y`, `TUNNEL_TOKEN` becomes required and the script will prompt fo
 
 ## Configuration
 
-Edit `docker/.env.docker`:
+Edit `docker/.env.docker`.
+
+First-run dashboard password is `12345677`. Sign in once, then change it immediately in Settings -> Security.
+
 
 ```bash
 REPLICAS=4                    # Number of app instances
 DATA_PATH=./data              # Host path mounted as /home/bun/.axonrouter
 JWT_SECRET=your-secret-here    # CHANGE THIS!
-INITIAL_PASSWORD=your-password
 LOG_LEVEL=info                # debug, info, warn, error
 ```
 
