@@ -2,7 +2,7 @@
   "id": "FEAT-001",
   "type": "refactor",
   "description": "Remove all Bun runtime code, Bun SQLite adapters, bun.lock, and update package.json scripts to use npm/Node.js only. Use 'tsx' instead of '--experimental-strip-types' for stable TypeScript execution.",
-  "status": "in_progress",
+  "status": "completed",
   "steps": [
     "Delete the file bun.lock",
     "Add 'tsx' as a production dependency in package.json (it is needed at runtime for start.ts and ensure-middleware-manifest.ts). Run: npm install tsx",
@@ -30,5 +30,5 @@
     "npm run test"
   ],
   "blocked_reason": null,
-  "findings": ""
+  "findings": "Pre-existing typecheck failures (5 errors in CSS imports and JSX style tags) and 3 pre-existing test failures (modernization-inventory, provider-icon-assets-smoke, start-redis-default path test) all confirmed on base state. The test script needed --root tests flag since the old script used bun --cwd tests. tsx added as prod dependency for stable TS execution without --experimental-strip-types."
 }
