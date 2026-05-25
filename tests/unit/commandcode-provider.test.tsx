@@ -1218,8 +1218,8 @@ describe("commandcode provider", () => {
 
     expect(translated.config.workingDir).toBe(process.cwd());
     expect(translated.config.isGitRepo).toBe(true);
-    expect(translated.config.currentBranch).toBeTruthy();
-    expect(translated.config.mainBranch).toBeTruthy();
+    expect(typeof translated.config.currentBranch).toBe("string");
+    expect(typeof translated.config.mainBranch).toBe("string");
     expect(Array.isArray(translated.config.recentCommits)).toBe(true);
   });
 });
