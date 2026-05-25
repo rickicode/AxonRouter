@@ -200,6 +200,9 @@ describe("cloud admin shared-secret registration", () => {
 
 		const firstStored = await getRuntimeData("shared", env);
 
+		// Ensure timestamps differ by waiting at least 1ms
+		await new Promise((resolve) => setTimeout(resolve, 5));
+
 		await handleAdminRegister(
 			new Request("https://example.com/admin/register", {
 				method: "POST",
