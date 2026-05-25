@@ -908,25 +908,43 @@ export async function refreshConnectionUsage(
 										resetAt: connection?.resetAt ?? null,
 										lastCheckedAt,
 									}
-								: {
-										routingStatus: "blocked",
-										healthStatus: "degraded",
-										quotaState: "ok",
-										authState: "ok",
-										reasonCode: isConfirmedAuthBlockedError(error, {
-											statusCode: status,
-										})
-											? "auth_invalid"
-											: "usage_request_failed",
-										reasonDetail: "Usage check failed",
-										lastCheckedAt,
-										nextRetryAt: connection?.nextRetryAt ?? null,
-										...getOperationalUsageSnapshot(
-											connection,
-											"Usage check failed.",
-											{ checkedAt: lastCheckedAt },
-										),
-									}),
+								: (status === 502 || status === 504)
+									? {
+											routingStatus: connection?.routingStatus && connection.routingStatus !== "unknown"
+												? connection.routingStatus
+												: "eligible",
+											healthStatus: "degraded",
+											quotaState: connection?.quotaState || "ok",
+											authState: connection?.authState || "ok",
+											reasonCode: "transient_upstream_error",
+											reasonDetail: "Usage check temporarily unavailable",
+											lastCheckedAt,
+											nextRetryAt: new Date(Date.now() + 10_000).toISOString(),
+											...getOperationalUsageSnapshot(
+												connection,
+												"Usage check temporarily unavailable",
+												{ checkedAt: lastCheckedAt },
+											),
+										}
+									: {
+											routingStatus: "blocked",
+											healthStatus: "degraded",
+											quotaState: "ok",
+											authState: "ok",
+											reasonCode: isConfirmedAuthBlockedError(error, {
+												statusCode: status,
+											})
+												? "auth_invalid"
+												: "usage_request_failed",
+											reasonDetail: "Usage check failed",
+											lastCheckedAt,
+											nextRetryAt: connection?.nextRetryAt ?? null,
+											...getOperationalUsageSnapshot(
+												connection,
+												"Usage check failed.",
+												{ checkedAt: lastCheckedAt },
+											),
+										}),
 						},
 					);
 				}

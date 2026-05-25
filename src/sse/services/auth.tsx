@@ -860,14 +860,15 @@ export async function markAccountUnavailable(
 	};
 
 	if (!canonicalBlockedPatch && !kiroRetestValid) {
+		const isTransientFallbackStatus = Number(status) === 429 || Number(status) === 502 || Number(status) === 504;
 		Object.assign(connectionPatch, {
-			routingStatus: isProviderTransientProcessingError
+			routingStatus: (isProviderTransientProcessingError || isTransientFallbackStatus)
 				? "eligible"
 				: "blocked",
 			healthStatus: "degraded",
 			quotaState: "ok",
 			authState: "ok",
-			reasonCode: isProviderTransientProcessingError
+			reasonCode: (isProviderTransientProcessingError || isTransientFallbackStatus)
 				? "transient_upstream_error"
 				: "usage_request_failed",
 			reasonDetail: reason,
