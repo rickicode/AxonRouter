@@ -5,6 +5,7 @@
 src/node_modules/
 /.pnp
 .pnp.*
+bun.lock
 .yarn/*
 !.yarn/patches
 !.yarn/plugins
@@ -65,7 +66,6 @@ PUBLIC.md
 Thanks.md
 PUBLIC.en.md
 PR/*
-package-lock.json
 
 
 #Ignore vscode AI rules
