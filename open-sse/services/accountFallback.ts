@@ -2,17 +2,93 @@ import {
 	ERROR_RULES,
 	BACKOFF_CONFIG,
 	TRANSIENT_COOLDOWN_MS,
+	MAX_RATE_LIMIT_COOLDOWN_MS,
 } from "../config/errorConfig";
+import {
+	getUseUpstreamRetryHints,
+	getProviderProfile as getProviderProfileFromSettings,
+} from "../utils/abort";
+
+/**
+ * Parse Retry-After or X-RateLimit-Reset headers to get precision cooldown.
+ * @param headers - Response headers (Headers object or plain Record<string, string>)
+ * @returns cooldownMs - milliseconds until reset, or null if no parseable header
+ */
+export function parseRetryAfterHeader(headers: any): number | null {
+	if (!headers) return null;
+
+	const getHeader = (name: string): string | null => {
+		if (typeof headers.get === "function") return headers.get(name);
+		if (typeof headers === "object") {
+			return headers[name] ?? headers[name.toLowerCase()] ?? null;
+		}
+		return null;
+	};
+
+	// Check Retry-After header
+	const retryAfter = getHeader("retry-after") ?? getHeader("Retry-After");
+	if (retryAfter) {
+		const trimmed = retryAfter.trim();
+		// If pure integer, treat as seconds
+		if (/^\d+$/.test(trimmed)) {
+			const seconds = parseInt(trimmed, 10);
+			const ms = seconds * 1000;
+			return ms > 0 ? ms : null;
+		}
+		// Otherwise try to parse as HTTP-date
+		const date = new Date(trimmed);
+		const timestamp = date.getTime();
+		if (Number.isFinite(timestamp)) {
+			const remaining = timestamp - Date.now();
+			return remaining > 0 ? remaining : null;
+		}
+	}
+
+	// Check X-RateLimit-Reset header
+	const rateLimitReset = getHeader("x-ratelimit-reset") ?? getHeader("X-RateLimit-Reset");
+	if (rateLimitReset) {
+		const trimmed = rateLimitReset.trim();
+		const numValue = Number(trimmed);
+		if (Number.isFinite(numValue) && numValue > 0) {
+			let resetTimestampMs: number;
+			// If > 10000000000, treat as milliseconds timestamp
+			if (numValue > 10000000000) {
+				resetTimestampMs = numValue;
+			} else {
+				// Otherwise treat as seconds timestamp
+				resetTimestampMs = numValue * 1000;
+			}
+			const remaining = resetTimestampMs - Date.now();
+			return remaining > 0 ? remaining : null;
+		}
+	}
+
+	return null;
+}
+
+/**
+ * Resolve provider profile with defaults.
+ * Merges settings-stored profile with hardcoded defaults.
+ */
+export function resolveProviderProfile(providerId?: string) {
+	const profile = providerId ? getProviderProfileFromSettings(providerId) : null;
+	return {
+		baseCooldownMs: profile?.baseCooldownMs ?? BACKOFF_CONFIG.base,
+		maxBackoffSteps: profile?.maxBackoffSteps ?? BACKOFF_CONFIG.maxLevel,
+		useUpstreamRetryHints: profile?.useUpstreamRetryHints ?? getUseUpstreamRetryHints(),
+	};
+}
 
 /**
  * Calculate exponential backoff cooldown for rate limits (429)
  * Level 1: 1s, Level 2: 2s, Level 3: 4s... → max 4 min
  * @param {number} backoffLevel - Current backoff level
+ * @param {number} base - Base cooldown in milliseconds (default: BACKOFF_CONFIG.base)
  * @returns {number} Cooldown in milliseconds
  */
-export function getQuotaCooldown(backoffLevel = 0) {
+export function getQuotaCooldown(backoffLevel = 0, base = BACKOFF_CONFIG.base) {
 	const level = Math.max(0, backoffLevel - 1);
-	const cooldown = BACKOFF_CONFIG.base * 2 ** level;
+	const cooldown = base * 2 ** level;
 	return Math.min(cooldown, BACKOFF_CONFIG.max);
 }
 
@@ -22,9 +98,10 @@ export function getQuotaCooldown(backoffLevel = 0) {
  * @param {number} status - HTTP status code
  * @param {string} errorText - Error message text
  * @param {number} backoffLevel - Current backoff level for exponential backoff
+ * @param {object} options - Optional: { headers, providerId }
  * @returns {{ shouldFallback: boolean, cooldownMs: number, newBackoffLevel?: number }}
  */
-export function checkFallbackError(status, errorText, backoffLevel = 0) {
+export function checkFallbackError(status, errorText, backoffLevel = 0, options?: { headers?: any; providerId?: string }) {
 	const lowerError = errorText
 		? (typeof errorText === "string"
 				? errorText
@@ -52,10 +129,25 @@ export function checkFallbackError(status, errorText, backoffLevel = 0) {
 		// Text-based rule: match substring in error message
 		if (rule.text && lowerError && lowerError.includes(rule.text)) {
 			if (rule.backoff) {
-				const newLevel = Math.min(backoffLevel + 1, BACKOFF_CONFIG.maxLevel);
+				const profile = resolveProviderProfile(options?.providerId);
+				const newLevel = Math.min(backoffLevel + 1, profile.maxBackoffSteps);
+
+				// Try upstream retry hint if enabled
+				if (options?.headers && profile.useUpstreamRetryHints) {
+					const parsedCooldown = parseRetryAfterHeader(options.headers);
+					if (parsedCooldown != null && parsedCooldown > 0) {
+						const cappedCooldown = Math.min(parsedCooldown, MAX_RATE_LIMIT_COOLDOWN_MS);
+						return {
+							shouldFallback: true,
+							cooldownMs: cappedCooldown,
+							newBackoffLevel: newLevel,
+						};
+					}
+				}
+
 				return {
 					shouldFallback: true,
-					cooldownMs: getQuotaCooldown(newLevel),
+					cooldownMs: getQuotaCooldown(newLevel, profile.baseCooldownMs),
 					newBackoffLevel: newLevel,
 				};
 			}
@@ -65,10 +157,25 @@ export function checkFallbackError(status, errorText, backoffLevel = 0) {
 		// Status-based rule: match HTTP status code
 		if (rule.status && rule.status === status) {
 			if (rule.backoff) {
-				const newLevel = Math.min(backoffLevel + 1, BACKOFF_CONFIG.maxLevel);
+				const profile = resolveProviderProfile(options?.providerId);
+				const newLevel = Math.min(backoffLevel + 1, profile.maxBackoffSteps);
+
+				// Try upstream retry hint if enabled
+				if (options?.headers && profile.useUpstreamRetryHints) {
+					const parsedCooldown = parseRetryAfterHeader(options.headers);
+					if (parsedCooldown != null && parsedCooldown > 0) {
+						const cappedCooldown = Math.min(parsedCooldown, MAX_RATE_LIMIT_COOLDOWN_MS);
+						return {
+							shouldFallback: true,
+							cooldownMs: cappedCooldown,
+							newBackoffLevel: newLevel,
+						};
+					}
+				}
+
 				return {
 					shouldFallback: true,
-					cooldownMs: getQuotaCooldown(newLevel),
+					cooldownMs: getQuotaCooldown(newLevel, profile.baseCooldownMs),
 					newBackoffLevel: newLevel,
 				};
 			}

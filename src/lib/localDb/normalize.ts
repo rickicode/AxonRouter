@@ -29,6 +29,15 @@ const DEFAULT_CHAT_RUNTIME_SETTINGS = Object.freeze({
   observabilityMode: "full",
   observabilitySampleRate: 0.1,
   highThroughputSelection: true,
+  sseHeartbeatIntervalMs: 15000,
+  streamReadinessTimeoutMs: 80000,
+  useUpstreamRetryHints: true,
+  circuitBreaker: Object.freeze({
+    enabled: true,
+    failureThreshold: 5,
+    resetTimeoutMs: 60000,
+  }),
+  providerProfiles: Object.freeze({}),
 });
 
 export function isPlainObject(value: any): value is Record<string, any> {
@@ -297,8 +306,43 @@ function normalizeUnitInterval(value, fallback) {
   return Number.isFinite(number) && number >= 0 && number <= 1 ? number : fallback;
 }
 
+function normalizeNonNegativeInteger(value, fallback) {
+  const number = Number(value);
+  return Number.isFinite(number) && number >= 0 ? Math.trunc(number) : fallback;
+}
+
+function normalizeProviderProfiles(value) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return {};
+  const result = {};
+  for (const [key, entry] of Object.entries(value)) {
+    if (!entry || typeof entry !== "object" || Array.isArray(entry)) continue;
+    const profile: any = {};
+    const src = entry as any;
+    if (src.baseCooldownMs !== undefined) {
+      const parsed = Number(src.baseCooldownMs);
+      if (Number.isFinite(parsed) && parsed > 0) {
+        profile.baseCooldownMs = Math.trunc(parsed);
+      }
+    }
+    if (src.maxBackoffSteps !== undefined) {
+      const parsed = Number(src.maxBackoffSteps);
+      if (Number.isFinite(parsed) && parsed > 0) {
+        profile.maxBackoffSteps = Math.trunc(parsed);
+      }
+    }
+    if (src.useUpstreamRetryHints !== undefined) {
+      profile.useUpstreamRetryHints = src.useUpstreamRetryHints === true;
+    }
+    result[key] = profile;
+  }
+  return result;
+}
+
 export function normalizeChatRuntimeSettings(settings: any = {}) {
   const source: any = settings && typeof settings === "object" && !Array.isArray(settings) ? settings : {};
+  const sourceCircuitBreaker = source.circuitBreaker && typeof source.circuitBreaker === "object" && !Array.isArray(source.circuitBreaker)
+    ? source.circuitBreaker
+    : {};
   return {
     upstreamTimeoutMs: normalizeOptionalPositiveInteger(source.upstreamTimeoutMs, DEFAULT_CHAT_RUNTIME_SETTINGS.upstreamTimeoutMs),
     compactUpstreamTimeoutMs: normalizeOptionalPositiveInteger(source.compactUpstreamTimeoutMs, DEFAULT_CHAT_RUNTIME_SETTINGS.compactUpstreamTimeoutMs),
@@ -313,6 +357,18 @@ export function normalizeChatRuntimeSettings(settings: any = {}) {
       : DEFAULT_CHAT_RUNTIME_SETTINGS.observabilityMode,
     observabilitySampleRate: normalizeUnitInterval(source.observabilitySampleRate, DEFAULT_CHAT_RUNTIME_SETTINGS.observabilitySampleRate),
     highThroughputSelection: source.highThroughputSelection !== false,
+    sseHeartbeatIntervalMs: (() => {
+      const raw = normalizeNonNegativeInteger(source.sseHeartbeatIntervalMs, DEFAULT_CHAT_RUNTIME_SETTINGS.sseHeartbeatIntervalMs);
+      return raw === 0 ? 0 : Math.max(5000, raw);
+    })(),
+    streamReadinessTimeoutMs: normalizePositiveInteger(source.streamReadinessTimeoutMs, DEFAULT_CHAT_RUNTIME_SETTINGS.streamReadinessTimeoutMs),
+    useUpstreamRetryHints: source.useUpstreamRetryHints !== false,
+    circuitBreaker: {
+      enabled: sourceCircuitBreaker.enabled !== false,
+      failureThreshold: normalizePositiveInteger(sourceCircuitBreaker.failureThreshold, DEFAULT_CHAT_RUNTIME_SETTINGS.circuitBreaker.failureThreshold),
+      resetTimeoutMs: normalizePositiveInteger(sourceCircuitBreaker.resetTimeoutMs, DEFAULT_CHAT_RUNTIME_SETTINGS.circuitBreaker.resetTimeoutMs),
+    },
+    providerProfiles: normalizeProviderProfiles(source.providerProfiles),
   };
 }
 

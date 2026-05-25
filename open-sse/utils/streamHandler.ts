@@ -1,5 +1,5 @@
 // Stream handler with disconnect detection - shared for all providers
-import { getStreamIdleTimeoutMs } from "./abort";
+import { getStreamIdleTimeoutMs, getSseHeartbeatIntervalMs, getStreamReadinessTimeoutMs } from "./abort";
 
 // Get HH:MM:SS timestamp
 function getTimeString() {
@@ -94,11 +94,15 @@ export function createDisconnectAwareStream(transformStream, streamController, o
   const reader = transformStream.readable.getReader();
   const writer = transformStream.writable.getWriter();
   const baseIdleTimeoutMs = getStreamIdleTimeoutMs();
+  const streamReadinessTimeoutMs = getStreamReadinessTimeoutMs();
+  const heartbeatIntervalMs = getSseHeartbeatIntervalMs();
   const modelName = (options?.model || "").toLowerCase();
   const isThinkingModel = modelName.includes("thinking") || modelName.includes("-r1") || modelName.endsWith("/r1");
   const THINKING_FIRST_CHUNK_TIMEOUT_MS = 300_000;
   let firstChunkReceived = false;
   let idleTimer = null;
+  let heartbeatTimer = null;
+  const encoder = new TextEncoder();
 
   const clearIdleTimer = () => {
     if (idleTimer) {
@@ -106,13 +110,42 @@ export function createDisconnectAwareStream(transformStream, streamController, o
       idleTimer = null;
     }
   };
+
+  const clearHeartbeatTimer = () => {
+    if (heartbeatTimer) {
+      clearInterval(heartbeatTimer);
+      heartbeatTimer = null;
+    }
+  };
+
+  const startHeartbeat = (controller) => {
+    clearHeartbeatTimer();
+    if (!heartbeatIntervalMs) return;
+    heartbeatTimer = setInterval(() => {
+      try {
+        controller.enqueue(encoder.encode(`: heartbeat ${Date.now()}\n\n`));
+      } catch {}
+    }, heartbeatIntervalMs);
+  };
+
+  const resetHeartbeat = (controller) => {
+    if (!heartbeatIntervalMs) return;
+    startHeartbeat(controller);
+  };
+
   const refreshIdleTimer = (controller) => {
     clearIdleTimer();
-    const idleTimeoutMs = (!firstChunkReceived && isThinkingModel) ? THINKING_FIRST_CHUNK_TIMEOUT_MS : baseIdleTimeoutMs;
+    let idleTimeoutMs: number;
+    if (!firstChunkReceived) {
+      idleTimeoutMs = isThinkingModel ? THINKING_FIRST_CHUNK_TIMEOUT_MS : streamReadinessTimeoutMs;
+    } else {
+      idleTimeoutMs = baseIdleTimeoutMs;
+    }
     idleTimer = setTimeout(() => {
       const error: any = new Error(`stream idle timeout after ${idleTimeoutMs}ms`);
       error.name = "AbortError";
       error.code = "STREAM_IDLE_TIMEOUT";
+      clearHeartbeatTimer();
       streamController.handleError(error);
       reader.cancel(error).catch(() => {});
       writer.abort(error).catch(() => {});
@@ -123,9 +156,14 @@ export function createDisconnectAwareStream(transformStream, streamController, o
   };
 
   return new ReadableStream({
+    start(controller) {
+      startHeartbeat(controller);
+    },
+
     async pull(controller) {
       if (!streamController.isConnected()) {
         clearIdleTimer();
+        clearHeartbeatTimer();
         controller.close();
         return;
       }
@@ -135,18 +173,21 @@ export function createDisconnectAwareStream(transformStream, streamController, o
         const { done, value } = await reader.read();
         clearIdleTimer();
         if (done) {
+          clearHeartbeatTimer();
           streamController.handleComplete();
           controller.close();
           return;
         }
         firstChunkReceived = true;
+        resetHeartbeat(controller);
         controller.enqueue(value);
       } catch (error) {
         clearIdleTimer();
+        clearHeartbeatTimer();
         streamController.handleError(error);
         // Send [DONE] signal before closing on error so clients know the stream ended
         try {
-          controller.enqueue(new TextEncoder().encode("data: [DONE]\n\n"));
+          controller.enqueue(encoder.encode("data: [DONE]\n\n"));
         } catch {}
         // Cleanup reader/writer to avoid orphaned streams
         reader.cancel().catch(() => {});
@@ -157,6 +198,7 @@ export function createDisconnectAwareStream(transformStream, streamController, o
 
     cancel(reason) {
       clearIdleTimer();
+      clearHeartbeatTimer();
       streamController.handleDisconnect(reason || "cancelled");
       reader.cancel();
       writer.abort();
@@ -178,4 +220,3 @@ export function pipeWithDisconnect(providerResponse, transformStream, streamCont
     options
   );
 }
-

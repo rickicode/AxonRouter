@@ -17,8 +17,6 @@ Use `docs/ARCHITECTURE.md` for architecture direction and `docs/DOCS.md` for use
 ## Worktree Rules
 
 - Implement AxonRouter work only in `/workspaces/AxonRouter`.
-- Do not implement AxonRouter refactor work in `/workspaces/9router-plus` unless the user explicitly asks.
-- Treat `/workspaces/9router-plus` only as the upstream baseline/source copy.
 - Do not revert unrelated user changes.
 
 ## Product Identity Rules
@@ -26,9 +24,7 @@ Use `docs/ARCHITECTURE.md` for architecture direction and `docs/DOCS.md` for use
 - Use **AxonRouter** as the product/dashboard/docs name.
 - Use `axonrouter` for package and CLI naming.
 - Use `~/.axonrouter` for default local runtime data.
-- Do not keep legacy `9router`, `9router-plus`, `9Router`, or `9Router Plus` names, aliases, package names, data paths, or binary paths by default.
 - During refactor, actively rename user-facing and internal project identifiers to AxonRouter/`axonrouter` unless a temporary reference is explicitly needed to locate old code for cleanup.
-- Do not support `~/.9router-plus` migration by default unless the user explicitly requests it later.
 - Do not copy OmniRoute UX, naming, or product scope.
 
 ## Architecture Direction

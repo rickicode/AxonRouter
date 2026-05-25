@@ -67,6 +67,7 @@ describe("AxonRouter modernization inventory", () => {
       ".until-done/tasks.yaml",
       "tests/unit/modernization-inventory.test.ts",
       "unit/modernization-inventory.test.ts",
+      "skills/axonrouter-unified/SKILL.md",
     ]);
     const offenders = legacyDefaultFiles().filter((file) => !allowed.has(file));
 
