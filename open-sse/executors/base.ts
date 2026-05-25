@@ -235,9 +235,12 @@ export class BaseExecutor {
           : attachDeadlineToResponseBody(response, deadline);
         if (stream) deadline?.clear();
 
-        // Retry based on status code config
-        if (await tryRetry(urlIndex, responseWithDeadline.status, `status ${responseWithDeadline.status}`)) {
+        // Retry based on status code config - drain body before delay to release connection
+        const retryEntry = resolveRetryEntry(retryConfig[responseWithDeadline.status]);
+        if (retryEntry.attempts > 0 && retryAttemptsByUrl[urlIndex] < retryEntry.attempts) {
           await responseWithDeadline.body?.cancel?.().catch(() => {});
+        }
+        if (await tryRetry(urlIndex, responseWithDeadline.status, `status ${responseWithDeadline.status}`)) {
           urlIndex--;
           continue;
         }
