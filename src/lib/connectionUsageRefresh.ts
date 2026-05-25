@@ -26,6 +26,12 @@ import {
 import { mergeCodexUsageProviderSpecificData } from "./oauth/codexAccount";
 
 import { getProviderStrategy } from "./usageRefresh/providerStrategy";
+import {
+	getCodexDualWindowCooldownMs,
+	type CodexQuotaSnapshot,
+} from "../../open-sse/executors/codex";
+import { buildModelLockUpdate } from "../../open-sse/services/accountFallback";
+import { MAX_RATE_LIMIT_COOLDOWN_MS } from "../../open-sse/config/errorConfig";
 
 const TRANSIENT_USAGE_RETRY_DELAY_MS = 750;
 const TRANSIENT_USAGE_MAX_ATTEMPTS = 3;
@@ -461,6 +467,40 @@ async function fetchUsageWithTransientRetry(connection: any) {
 	throw lastError || new Error("Usage fetch failed");
 }
 
+async function applyPreemptiveCodexCooldown(connection: any, usage: any) {
+	if (connection?.provider !== "codex") return;
+	if (!usage?.quotas) return;
+
+	const session = usage.quotas.session;
+	const weekly = usage.quotas.weekly;
+
+	const quota: CodexQuotaSnapshot = {
+		usage5h: session?.usedPercent ?? 0,
+		limit5h: 100,
+		resetAt5h: session?.resetAt ?? null,
+		usage7d: weekly?.usedPercent ?? 0,
+		limit7d: 100,
+		resetAt7d: weekly?.resetAt ?? null,
+	};
+
+	const { cooldownMs, window } = getCodexDualWindowCooldownMs(quota);
+	if (cooldownMs <= 0) return;
+
+	const cappedCooldown = Math.min(cooldownMs, MAX_RATE_LIMIT_COOLDOWN_MS);
+
+	const codexScopeKey = `__scope_codex`;
+	const codexLock = buildModelLockUpdate(codexScopeKey, cappedCooldown);
+	await updateCurrentProviderConnection(connection.id, codexLock);
+
+	const sparkScopeKey = `__scope_spark`;
+	const sparkLock = buildModelLockUpdate(sparkScopeKey, cappedCooldown);
+	await updateCurrentProviderConnection(connection.id, sparkLock);
+
+	console.log(
+		`[UsageRefresh] Codex preemptive ${window} cooldown applied for ${connection.id?.slice(0, 8)} (${Math.round(cappedCooldown / 1000)}s)`,
+	);
+}
+
 export async function refreshConnectionUsage(
 	connectionId: any,
 	options: any = {},
@@ -706,6 +746,8 @@ export async function refreshConnectionUsage(
 						? { globalExhaustedThreshold: resolvedGlobalExhaustedThreshold }
 						: {}),
 				});
+
+				await applyPreemptiveCodexCooldown(connection, usage);
 
 				return { connection, usage, testResult, skipped: false };
 			} catch (error: any) {
