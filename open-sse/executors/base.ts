@@ -247,6 +247,18 @@ export class BaseExecutor {
         return { response: responseWithDeadline, url, headers, transformedBody };
       } catch (error) {
         lastError = error;
+        if (error.name === "AbortError") throw error;
+
+        // Map network/fetch exceptions to 502 retry config (same pattern as 9router)
+        const { attempts: netRetries, delayMs: netDelay } = resolveRetryEntry(retryConfig[HTTP_STATUS.BAD_GATEWAY]);
+        if (netRetries > 0 && retryAttemptsByUrl[urlIndex] < netRetries) {
+          retryAttemptsByUrl[urlIndex]++;
+          log?.debug?.("RETRY", `network "${error.message}" retry ${retryAttemptsByUrl[urlIndex]}/${netRetries} after ${netDelay / 1000}s`);
+          await new Promise(resolve => setTimeout(resolve, netDelay));
+          urlIndex--;
+          continue;
+        }
+
         if (urlIndex + 1 < fallbackCount) {
           log?.debug?.("RETRY", `Error on ${url}, trying fallback ${urlIndex + 1}`);
           continue;
