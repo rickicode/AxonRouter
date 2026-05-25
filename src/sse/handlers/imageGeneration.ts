@@ -176,8 +176,8 @@ export async function handleImageGeneration(request) {
           providerSpecificData: newCreds.providerSpecificData,
         });
       },
-      onRequestSuccess: async () => {
-        await auth.clearAccountError(credentials.connectionId, credentials, model);
+      onRequestSuccess: async (responseHeaders?: any) => {
+        await auth.clearAccountError(credentials.connectionId, credentials, model, responseHeaders);
       }
     });
 

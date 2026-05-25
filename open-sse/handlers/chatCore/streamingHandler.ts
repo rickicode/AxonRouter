@@ -124,7 +124,7 @@ export function handleStreamingResponse({
 	onStreamComplete,
 	streamDetailId,
 }) {
-	if (onRequestSuccess) onRequestSuccess();
+	if (onRequestSuccess) onRequestSuccess(providerResponse?.headers);
 
 	const transformStream = buildTransformStream({
 		provider,

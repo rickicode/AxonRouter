@@ -161,8 +161,8 @@ export async function handleEmbeddings(request) {
           providerSpecificData: newCreds.providerSpecificData,
         });
       },
-      onRequestSuccess: async () => {
-        await clearAccountError(credentials.connectionId, credentials, model);
+      onRequestSuccess: async (responseHeaders?: any) => {
+        await clearAccountError(credentials.connectionId, credentials, model, responseHeaders);
       }
     });
 
