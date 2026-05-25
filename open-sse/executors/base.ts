@@ -249,7 +249,7 @@ export class BaseExecutor {
         lastError = error;
         if (error.name === "AbortError") throw error;
 
-        // Map network/fetch exceptions to 502 retry config (same pattern as 9router)
+        // Map network/fetch exceptions to 502 retry config
         const { attempts: netRetries, delayMs: netDelay } = resolveRetryEntry(retryConfig[HTTP_STATUS.BAD_GATEWAY]);
         if (netRetries > 0 && retryAttemptsByUrl[urlIndex] < netRetries) {
           retryAttemptsByUrl[urlIndex]++;
