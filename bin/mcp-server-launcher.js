@@ -12,7 +12,7 @@ const loaderImport = `data:text/javascript,import { register } from "node:module
 
 const child = spawn(
   process.execPath,
-  ["--experimental-strip-types", "--disable-warning=ExperimentalWarning", "--import", loaderImport, serverBin],
+  ["--import", "tsx", "--import", loaderImport, serverBin],
   { cwd: projectRoot, stdio: "inherit", env: process.env }
 );
 
