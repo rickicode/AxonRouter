@@ -39,6 +39,7 @@ import {
 import { canCodexConnectionUseModel } from "@/lib/codexModelAccess";
 import * as log from "../utils/logger";
 import { getHighThroughputSelectionEnabled } from "../../../open-sse/utils/abort";
+import { circuitBreakerRegistry } from "../../../open-sse/services/circuitBreaker";
 
 function sortByPriority(connections = []) {
 	return [...connections].sort(
@@ -212,6 +213,7 @@ function buildSelectionPool(
 	const availableConnections = connections.filter((c) => {
 		if (excludeSet.has(c.id)) return false;
 		if (isModelLockActive(c, model)) return false;
+		if (!circuitBreakerRegistry.canExecute(c.id)) return false;
 		return true;
 	});
 
@@ -499,6 +501,7 @@ export async function getProviderCredentials(
 			if (excludeSet.has(c.id)) return false;
 			if (isModelLockActive(c, model)) return false;
 			if (!canCodexConnectionUseModel(c, model)) return false;
+			if (!circuitBreakerRegistry.canExecute(c.id)) return false;
 			return true;
 		});
 
@@ -634,6 +637,8 @@ export async function markAccountUnavailable(
 		));
 	}
 	if (!shouldFallback) return { shouldFallback: false, cooldownMs: 0 };
+
+	circuitBreakerRegistry.recordFailure(connectionId);
 
 	const rawError = typeof errorText === "string" ? errorText : "";
 	const reason = rawError.slice(0, 200) || "Provider error";
@@ -869,6 +874,7 @@ export async function clearAccountError(
 	model = null,
 ) {
 	if (!connectionId || connectionId === "noauth") return;
+	circuitBreakerRegistry.recordSuccess(connectionId);
 	const selectedConn = currentConnection._connection || currentConnection;
 	const provider =
 		selectedConn?.provider || currentConnection?.provider || null;
