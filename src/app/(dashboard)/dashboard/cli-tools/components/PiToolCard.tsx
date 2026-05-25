@@ -266,10 +266,6 @@ export default function PiToolCard({ tool, isExpanded, onToggle, baseUrl, apiKey
                       <p className="text-text-muted mb-1">npm:</p>
                       <code className="block px-3 py-2 bg-black/5 dark:bg-white/5 rounded font-mono text-xs">npm install -g @mariozechner/pi-coding-agent</code>
                     </div>
-                    <div>
-                      <p className="text-text-muted mb-1">bun:</p>
-                      <code className="block px-3 py-2 bg-black/5 dark:bg-white/5 rounded font-mono text-xs">bun install -g @mariozechner/pi-coding-agent</code>
-                    </div>
                     <p className="text-text-muted">After installation, run <code className="px-1 bg-black/5 dark:bg-white/5 rounded">pi</code> to verify.</p>
                   </div>
                 </div>
