@@ -57,6 +57,8 @@
     "tests/tmp",
     "tests/**/*.test.ts",
     "tests/**/*.test.tsx",
+    "tests/setup.ts",
+    "tests/vitest.config.ts",
     "tests/autopilot-plugin.test.ts"
   ]
 }

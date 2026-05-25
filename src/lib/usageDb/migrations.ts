@@ -9,6 +9,12 @@ export const USAGE_SQLITE_MIGRATIONS = [
     version: 1,
     name: "initial_usage_schema",
     path: path.join(MIGRATIONS_DIR, "001_initial.sql"),
+    requiredTables: [
+      "usage_events",
+      "usage_daily_summary",
+      "usage_request_logs",
+      "usage_writer_state",
+    ],
     requiredIndexes: [
       "idx_usage_events_timestamp",
       "idx_usage_events_provider_timestamp",
@@ -32,6 +38,9 @@ export const USAGE_SQLITE_MIGRATIONS = [
     version: 2,
     name: "usage_events_total_tokens",
     path: path.join(MIGRATIONS_DIR, "002_usage_events_total_tokens.sql"),
+    requiredColumns: {
+      usage_events: ["total_tokens"],
+    },
     requiredIndexes: [],
   },
 ];

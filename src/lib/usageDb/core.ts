@@ -2,6 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { createRequire } from "node:module";
 import { DATA_DIR } from "../dataDir";
+import { ensureUsageSchema } from "./bootstrap";
 
 const nodeRequire = createRequire(import.meta.url);
 const DEFAULT_SQLITE_MMAP_SIZE = 256 * 1024 * 1024;
@@ -166,11 +167,15 @@ export function getUsageDbInstance() {
 }
 
 export function prepareUsageStatement(sql: string) {
-  return getUsageDbInstance().prepare(sql);
+  const db = getUsageDbInstance();
+  ensureUsageSchema(db);
+  return db.prepare(sql);
 }
 
 export function withUsageTransaction<T extends (...args: any[]) => any>(callback: T) {
-  return getUsageDbInstance().transaction(callback);
+  const db = getUsageDbInstance();
+  ensureUsageSchema(db);
+  return db.transaction(callback);
 }
 
 let _usageSchemaEnsured = false;
