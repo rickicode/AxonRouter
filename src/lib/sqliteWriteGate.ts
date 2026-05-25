@@ -1,12 +1,12 @@
 /**
- * SQLite Write Gate — serializes ALL writes to db.sqlite.
+ * SQLite Write Gate - serializes ALL writes to db.sqlite.
  *
- * Bun's SQLite throws "Another write batch or compaction is already active"
- * when a transaction or write is attempted while another is in progress on
- * the same connection. This gate ensures only one write runs at a time.
+ * Prevents concurrent write conflicts when multiple synchronous operations
+ * attempt to write at the same time on the same connection.
+ * This gate ensures only one write runs at a time.
  *
  * The gate is RE-ENTRANT: nested calls within the same synchronous stack
- * pass through without queuing (since bun:sqlite is synchronous, nested
+ * pass through without queuing (since better-sqlite3 is synchronous, nested
  * calls within a single gate invocation are safe).
  */
 

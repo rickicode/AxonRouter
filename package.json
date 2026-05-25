@@ -26,12 +26,12 @@
     "axonrouter-mcp": "bin/mcp-server-launcher.js"
   },
   "scripts": {
-    "dev": "bun --bun next dev --hostname 127.0.0.1 --turbopack --port 12712",
-    "build": "NODE_ENV=production next build --turbopack && bun ./scripts/ensure-middleware-manifest.ts",
-    "start": "NODE_ENV=production bun ./scripts/start.ts",
+    "dev": "next dev --hostname 127.0.0.1 --turbopack --port 12712",
+    "build": "NODE_ENV=production next build --turbopack && tsx ./scripts/ensure-middleware-manifest.ts",
+    "start": "NODE_ENV=production tsx ./scripts/start.ts",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
-    "test": "bun --cwd tests vitest run --reporter=verbose",
+    "test": "vitest run --reporter=verbose --root tests",
     "prepack": "npm run build"
   },
   "dependencies": {
@@ -69,6 +69,7 @@
     "recharts": "^3.7.0",
     "sonner": "^2.0.7",
     "tailwind-merge": "^3.6.0",
+    "tsx": "^4.19.0",
     "undici": "^7.19.2",
     "uuid": "^13.0.2",
     "zustand": "^5.0.10"

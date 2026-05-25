@@ -1,0 +1,32 @@
+{
+  "id": "FEAT-002",
+  "type": "chore",
+  "description": "Update Dockerfile to use Node.js base image instead of Bun, update CI workflows to use npm instead of bun install, and update all documentation (README, DOCKER.md, docs/DOCS.md, docs/ARCHITECTURE.md, docker/README.md, docker/docker-compose.yml) to remove Bun references",
+  "status": "pending",
+  "steps": [
+    "Rewrite Dockerfile: Replace 'oven/bun:1.3.13-alpine' base image with 'node:22-alpine'. Update builder stage to use 'npm ci' instead of 'bun install --frozen-lockfile'. Remove 'bun.lock' from COPY. Update runner stage to use node:22-alpine base (remove BUN_IMAGE ARG). Remove apk add nodejs from runner (already in node image). Update COPY paths - change /home/bun to /home/node. Update entrypoint to use /home/node/.axonrouter and run as 'node' user instead of 'bun'. Change CMD to 'npx tsx ./scripts/start.ts' (tsx is installed as a dependency so npx will find it directly from node_modules/.bin).",
+    "Update .github/workflows/release.yml: Remove the 'uses: oven-sh/setup-bun@v2' step and bun-version. Change 'bun install --frozen-lockfile' to 'npm ci'. Change 'bun install' in tests working-directory to 'npm ci'.",
+    "Update .github/workflows/agentic-validation.yml: Remove the 'uses: oven-sh/setup-bun@v2' step and bun-version. Change 'bun install --frozen-lockfile' to 'npm ci'.",
+    "Update docker/docker-compose.yml: Change all '/home/bun/.axonrouter' volume mount paths to '/home/node/.axonrouter'.",
+    "Update README.md: Remove the 'Bun' section entirely (the bun add -g, bunx lines). Update 'Run directly' description to just say 'npm'. Remove 'with Bun or npm' phrasing. Change Docker volume mount from /home/bun/.axonrouter to /home/node/.axonrouter. Update 'Install From Source' section to remove bun commands (keep only npm commands).",
+    "Update DOCKER.md: Change all /home/bun/.axonrouter references to /home/node/.axonrouter.",
+    "Update docs/DOCS.md: Change /home/bun/.axonrouter to /home/node/.axonrouter in Docker examples and text.",
+    "Update docs/ARCHITECTURE.md: Line 28 change 'npm/Bun distribution' to 'npm distribution'. Line 208 remove 'or bun:sqlite (Bun)'. Line 740 remove the bun:sqlite reference. Line 1127 remove Bun packaging reference. Lines 1147-1148 update 'Operational Verification Checklist' to use npm commands only (npm install -g, npx). Remove 'bun install && bun run build' reference.",
+    "Update docker/README.md: Change '/home/bun/.axonrouter' to '/home/node/.axonrouter' in the DATA_PATH comment."
+  ],
+  "acceptance_criteria": [
+    "Dockerfile uses node:22-alpine base image and npm ci for installs",
+    "No Bun references remain in any .github/workflows/*.yml file",
+    "No /home/bun/ paths remain in docker-compose.yml or documentation",
+    "README.md has no Bun installation instructions",
+    "docs/ARCHITECTURE.md mentions only better-sqlite3 (Node) as the driver",
+    "npm run lint passes",
+    "npm run build passes"
+  ],
+  "verification": [
+    "npm run lint",
+    "npm run build"
+  ],
+  "blocked_reason": null,
+  "findings": ""
+}

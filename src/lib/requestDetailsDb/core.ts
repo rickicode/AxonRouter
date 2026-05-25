@@ -23,28 +23,11 @@ type SQLiteDatabaseLike = {
 
 type DatabaseDriver = (filePath: string) => SQLiteDatabaseLike;
 
-type BunLike = {
-  sqlite?: {
-    Database?: new (filePath: string) => {
-      query: (sql: string) => SQLiteStatementLike;
-      exec: (sql: string) => any;
-      close: () => any;
-      transaction: (callback: () => any) => () => any;
-    };
-  };
-};
-
-const BunRuntime = globalThis as typeof globalThis & { Bun?: BunLike };
-
 let Database: DatabaseDriver | null = null;
 let requestDetailsDb: SQLiteDatabaseLike | null = null;
 
 function loadDatabaseDriver(): DatabaseDriver {
   if (Database) return Database;
-  if (typeof BunRuntime.Bun !== "undefined") {
-    Database = BunSQLiteDatabase;
-    return Database;
-  }
   Database = NodeSQLiteDatabase;
   return Database;
 }
@@ -52,53 +35,6 @@ function loadDatabaseDriver(): DatabaseDriver {
 function NodeSQLiteDatabase(filePath: string) {
   const BetterSqliteDatabase = nodeRequire("better-sqlite3");
   return new BetterSqliteDatabase(filePath);
-}
-
-class BunSQLiteStatement implements SQLiteStatementLike {
-  statement: SQLiteStatementLike;
-
-  constructor(statement: SQLiteStatementLike) {
-    this.statement = statement;
-  }
-
-  run(...args: any[]) { return this.statement.run(...args); }
-  get(...args: any[]) { return this.statement.get(...args); }
-  all(...args: any[]) { return this.statement.all(...args); }
-}
-
-class BunSQLiteAdapter implements SQLiteDatabaseLike {
-  db: {
-    query: (sql: string) => SQLiteStatementLike;
-    exec: (sql: string) => any;
-    close: () => any;
-    transaction: (callback: () => any) => () => any;
-  };
-
-  constructor(filePath: string) {
-    const bunSqlite = nodeRequire("bun:sqlite");
-    const BunBuiltinDatabase = bunSqlite?.Database;
-    if (!BunBuiltinDatabase) {
-      throw new Error("bun:sqlite is required when running request details SQLite storage under Bun");
-    }
-    this.db = new BunBuiltinDatabase(filePath);
-  }
-  pragma(sql: string, options: { simple?: boolean } = {}) {
-    const rows = this.db.query(`PRAGMA ${sql}`).all();
-    if (options?.simple) {
-      const first = rows?.[0];
-      if (!first) return undefined;
-      return Object.values(first)[0];
-    }
-    return rows;
-  }
-  exec(sql: string) { return this.db.exec(sql); }
-  prepare(sql: string) { return new BunSQLiteStatement(this.db.query(sql)); }
-  transaction(callback: (...args: any[]) => any) { return (...args: any[]) => this.db.transaction(() => callback(...args))(); }
-  close() { return this.db.close(); }
-}
-
-function BunSQLiteDatabase(filePath: string) {
-  return new BunSQLiteAdapter(filePath);
 }
 
 export function ensureRequestDetailsDbDir() {
