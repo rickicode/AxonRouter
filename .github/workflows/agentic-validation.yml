@@ -20,10 +20,6 @@ jobs:
         with:
           node-version: "22"
 
-      - uses: actions/setup-go@v6
-        with:
-          go-version-file: go-router/go.mod
-
       - name: Install dependencies
         run: npm ci
 
@@ -52,13 +48,6 @@ jobs:
 
       - name: Test
         run: npm run test
-
-      - name: Go router check
-        run: |
-          mkdir -p /tmp/go-cache /tmp/go-mod-cache
-          env GOCACHE=/tmp/go-cache GOMODCACHE=/tmp/go-mod-cache go test ./...
-          env GOCACHE=/tmp/go-cache GOMODCACHE=/tmp/go-mod-cache go build -o /tmp/axonrouter-go-router ./cmd/axonrouter-go-router
-        working-directory: go-router
 
       - name: Build
         run: npm run build

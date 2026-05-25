@@ -28,7 +28,6 @@ export const config = {
     "/api/skills/:path*",
     "/api/translator/:path*",
     "/api/morph/:path*",
-    "/api/go-router/:path*",
     "/morphllm/:path*",
   ],
 };

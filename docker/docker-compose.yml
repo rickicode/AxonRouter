@@ -34,8 +34,6 @@ services:
   # ============================================
   app:
     image: axonrouter:latest
-    ports:
-      - "12778:12778"
     environment:
       - NODE_ENV=production
       - PORT=12711

@@ -114,7 +114,6 @@ Additional surfaces:
 - `/morphllm/v1/*`
 - `/api/mcp/*`
 - `/api/protocols/*`
-- `/api/go-router/*`
 
 ## Docker
 
@@ -125,7 +124,6 @@ docker build -t axonrouter .
 docker run -d \
   --name axonrouter \
   -p 12711:12711 \
-  -p 12778:12778 \
   -v "$HOME/.axonrouter:/home/node/.axonrouter" \
   axonrouter
 ```
@@ -138,8 +136,6 @@ docker compose -f docker/docker-compose.yml up -d --build
 
 The container stores AxonRouter data at `/home/node/.axonrouter`.
 
-The Docker image also includes the Go router binary. When the Go router is enabled in Dashboard -> Settings, AxonRouter copies the binary into `/home/node/.axonrouter/bin/axonrouter-go-router` and manages it as a child process. Publish port `12778` if you want to access that alternative endpoint from outside the container, and set the Go router host to `0.0.0.0` in Settings for host access.
-
 ## Security
 
 Recommended production settings:
@@ -151,7 +147,7 @@ Recommended production settings:
 - Keep `~/.axonrouter` persistent across restarts.
 - Treat request logs as sensitive when `ENABLE_REQUEST_LOGS=true`.
 
-Management APIs are protected by dashboard authentication or explicit route-level checks. Critical routes such as shutdown, database settings, updater, tunnel controls, and Go router controls should not be exposed without auth.
+Management APIs are protected by dashboard authentication or explicit route-level checks. Critical routes such as shutdown, database settings, updater, and tunnel controls should not be exposed without auth.
 
 ## Environment Variables
 
