@@ -29,7 +29,7 @@ export function useInvalidate() {
     proxyPools: () => invalidate(queryKeys.proxyPools()),
     combos: () => invalidate(queryKeys.combos()),
     keys: () => invalidate(queryKeys.keys()),
-    goRouter: () => invalidate(queryKeys.goRouter()),
+
     r2Settings: () => invalidate(queryKeys.r2Settings()),
     cliTools: () => invalidate(queryKeys.cliToolsBootstrap()),
     openCode: () => invalidate(queryKeys.openCodeBootstrap()),
