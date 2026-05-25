@@ -861,19 +861,24 @@ export async function markAccountUnavailable(
 
 	if (!canonicalBlockedPatch && !kiroRetestValid) {
 		const isTransientFallbackStatus = Number(status) === 429 || Number(status) === 502 || Number(status) === 504;
-		Object.assign(connectionPatch, {
-			routingStatus: (isProviderTransientProcessingError || isTransientFallbackStatus)
-				? "eligible"
-				: "blocked",
-			healthStatus: "degraded",
-			quotaState: "ok",
-			authState: "ok",
-			reasonCode: (isProviderTransientProcessingError || isTransientFallbackStatus)
-				? "transient_upstream_error"
-				: "usage_request_failed",
-			reasonDetail: reason,
-			lastCheckedAt,
-		});
+		if (isProviderTransientProcessingError || isTransientFallbackStatus) {
+			// Transient case: keep eligible + clean. The model lock already provides cooldown.
+			Object.assign(connectionPatch, {
+				routingStatus: "eligible",
+				lastCheckedAt,
+			});
+		} else {
+			// Non-transient: mark blocked with dirty fields
+			Object.assign(connectionPatch, {
+				routingStatus: "blocked",
+				healthStatus: "degraded",
+				quotaState: "ok",
+				authState: "ok",
+				reasonCode: "usage_request_failed",
+				reasonDetail: reason,
+				lastCheckedAt,
+			});
+		}
 	}
 
 	await updateCurrentProviderConnection(connectionId, connectionPatch);

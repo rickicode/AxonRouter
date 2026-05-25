@@ -100,8 +100,8 @@ describe("localDb provider connection status writes", () => {
       { testStatus: "active" },
     ])).toEqual({
       connected: 1,
-      error: 1,
-      unknown: 1,
+      error: 0,
+      unknown: 2,
       total: 3,
       allDisabled: false,
     });

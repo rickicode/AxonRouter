@@ -254,7 +254,7 @@ describe("markAccountUnavailable does not produce 'blocked' for transient status
 		expect(updateCurrentProviderConnection).toHaveBeenCalledTimes(1);
 		const patchArg = updateCurrentProviderConnection.mock.calls[0][1];
 		expect(patchArg.routingStatus).not.toBe("blocked");
-		expect(patchArg.reasonCode).toBe("transient_upstream_error");
+		expect(patchArg.routingStatus).toBe("eligible");
 	});
 
 	it("status 504 does not produce routingStatus 'blocked' in the fallback path", async () => {
@@ -285,7 +285,7 @@ describe("markAccountUnavailable does not produce 'blocked' for transient status
 		expect(updateCurrentProviderConnection).toHaveBeenCalledTimes(1);
 		const patchArg = updateCurrentProviderConnection.mock.calls[0][1];
 		expect(patchArg.routingStatus).not.toBe("blocked");
-		expect(patchArg.reasonCode).toBe("transient_upstream_error");
+		expect(patchArg.routingStatus).toBe("eligible");
 	});
 
 	it("non-transient status (e.g. 500 from non-kiro/codex provider) still produces 'blocked'", async () => {
@@ -319,5 +319,50 @@ describe("markAccountUnavailable does not produce 'blocked' for transient status
 		const patchArg = updateCurrentProviderConnection.mock.calls[0][1];
 		expect(patchArg.routingStatus).toBe("blocked");
 		expect(patchArg.reasonCode).toBe("usage_request_failed");
+	});
+});
+
+describe("markAccountUnavailable enforces clean eligible invariant for transient errors", () => {
+	beforeEach(() => {
+		vi.clearAllMocks();
+		mockConnections.length = 0;
+	});
+
+	it.each([429, 502, 504])("status %i does NOT set healthStatus:'degraded' or reasonCode when keeping eligible", async (statusCode) => {
+		mockConnections.push({
+			id: `conn-${statusCode}-clean`,
+			provider: "openai",
+			isActive: true,
+			priority: 1,
+			displayName: `Test Clean Eligible ${statusCode}`,
+			accessToken: "token",
+			routingStatus: "eligible",
+			authState: "ok",
+			backoffLevel: 0,
+		});
+
+		const { markAccountUnavailable } = await import(
+			"../../src/sse/services/auth.tsx"
+		);
+
+		await markAccountUnavailable(
+			`conn-${statusCode}-clean`,
+			statusCode,
+			"Transient error from upstream",
+			"openai",
+			"gpt-4",
+		);
+
+		expect(updateCurrentProviderConnection).toHaveBeenCalledTimes(1);
+		const patchArg = updateCurrentProviderConnection.mock.calls[0][1];
+
+		// Clean eligible invariant: no degraded health, no reasonCode, no reasonDetail
+		expect(patchArg.healthStatus).not.toBe("degraded");
+		expect(patchArg.reasonCode).toBeUndefined();
+		expect(patchArg.reasonDetail).toBeUndefined();
+		// routingStatus should be either "eligible" (502/504) or not set (429 uses transient rate limit path)
+		if (patchArg.routingStatus !== undefined) {
+			expect(patchArg.routingStatus).toBe("eligible");
+		}
 	});
 });

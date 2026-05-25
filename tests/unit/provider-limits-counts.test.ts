@@ -60,9 +60,9 @@ describe("provider limits summary counts", () => {
     expect(getCanonicalStatusCounts(searchMatchedConnections)).toEqual({
       eligible: 2,
       exhausted: 1,
-      blocked: 1,
+      blocked: 0,
       unknown: 0,
-      disabled: 1,
+      disabled: 2,
     });
   });
 

@@ -422,15 +422,7 @@ export function getUsageStatusUpdates(connection: any, usage: any, options: any 
   if (codexUsageApiUnavailableMatch) {
     return {
       ...base,
-      routingStatus: "eligible",
-      healthStatus: "degraded",
-      quotaState: "ok",
-      authState: "ok",
-      reasonCode: "usage_request_failed",
-      reasonDetail: usageMessage,
       usageSnapshot: JSON.stringify(usage || {}),
-      resetAt: null,
-      nextRetryAt: null,
       lastCheckedAt: nowIso,
     };
   }

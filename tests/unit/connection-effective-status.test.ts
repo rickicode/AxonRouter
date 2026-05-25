@@ -128,7 +128,9 @@ describe("getConnectionEffectiveStatus", () => {
     expect(getConnectionCentralizedStatus({ quotaState: "blocked" })).toBe("exhausted");
     expect(getConnectionCentralizedStatus({ quotaState: "cooldown" })).toBe("unknown");
     expect(getConnectionCentralizedStatus({ quotaState: "exhausted" })).toBe("exhausted");
-    expect(getConnectionCentralizedStatus({ authState: "invalid" })).toBe("blocked");
+    expect(getConnectionCentralizedStatus({ authState: "invalid" })).toBe("disabled");
+    expect(getConnectionCentralizedStatus({ authState: "revoked" })).toBe("disabled");
+    expect(getConnectionCentralizedStatus({ authState: "expired" })).toBe("blocked");
     expect(getConnectionCentralizedStatus({ isActive: false, routingStatus: "eligible" })).toBe("disabled");
     expect(getConnectionCentralizedStatus({ testStatus: "active" })).toBe("unknown");
     expect(getConnectionCentralizedStatus({ testStatus: "unavailable", rateLimitedUntil: new Date(Date.now() + 10_000).toISOString() })).toBe("unknown");

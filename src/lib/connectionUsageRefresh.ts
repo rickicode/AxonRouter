@@ -767,20 +767,33 @@ export async function refreshConnectionUsage(
 					// Persist minimal snapshot so UI knows the worker tried
 					if (connection?.id && !connection?.usageSnapshot) {
 						const checkedAt = new Date().toISOString();
-						await syncUsageStatus(connection, {
-							routingStatus: connection?.routingStatus || "eligible",
-							healthStatus: "degraded",
-							quotaState: connection?.quotaState || "ok",
-							authState: connection?.authState || "ok",
-							reasonCode: "transient_connectivity_error",
-							reasonDetail: "Usage check temporarily unavailable",
-							lastCheckedAt: checkedAt,
-							usageSnapshot: JSON.stringify({
-								provider: connection?.provider || null,
-								checkedAt,
-								quotas: {},
-							}),
-						});
+						const preservedStatus = connection?.routingStatus || "eligible";
+						if (preservedStatus === "eligible") {
+							await syncUsageStatus(connection, {
+								routingStatus: "eligible",
+								lastCheckedAt: checkedAt,
+								usageSnapshot: JSON.stringify({
+									provider: connection?.provider || null,
+									checkedAt,
+									quotas: {},
+								}),
+							});
+						} else {
+							await syncUsageStatus(connection, {
+								routingStatus: preservedStatus,
+								healthStatus: "degraded",
+								quotaState: connection?.quotaState || "ok",
+								authState: connection?.authState || "ok",
+								reasonCode: "transient_connectivity_error",
+								reasonDetail: "Usage check temporarily unavailable",
+								lastCheckedAt: checkedAt,
+								usageSnapshot: JSON.stringify({
+									provider: connection?.provider || null,
+									checkedAt,
+									quotas: {},
+								}),
+							});
+						}
 					}
 					return {
 						connection,
@@ -801,21 +814,35 @@ export async function refreshConnectionUsage(
 						// Persist minimal snapshot so UI knows the worker tried
 						if (!connection?.usageSnapshot) {
 							const checkedAt = new Date().toISOString();
-							await syncUsageStatus(connection, {
-								routingStatus: connection?.routingStatus || "eligible",
-								healthStatus: "degraded",
-								quotaState: connection?.quotaState || "ok",
-								authState: connection?.authState || "ok",
-								reasonCode: "usage_quota_unavailable",
-								reasonDetail: "Quota details unavailable",
-								lastCheckedAt: checkedAt,
-								usageSnapshot: JSON.stringify({
-									provider: connection?.provider || null,
-									checkedAt,
-									quotas: {},
-									usageUnavailable: true,
-								}),
-							});
+							const preservedStatus = connection?.routingStatus || "eligible";
+							if (preservedStatus === "eligible") {
+								await syncUsageStatus(connection, {
+									routingStatus: "eligible",
+									lastCheckedAt: checkedAt,
+									usageSnapshot: JSON.stringify({
+										provider: connection?.provider || null,
+										checkedAt,
+										quotas: {},
+										usageUnavailable: true,
+									}),
+								});
+							} else {
+								await syncUsageStatus(connection, {
+									routingStatus: preservedStatus,
+									healthStatus: "degraded",
+									quotaState: connection?.quotaState || "ok",
+									authState: connection?.authState || "ok",
+									reasonCode: "usage_quota_unavailable",
+									reasonDetail: "Quota details unavailable",
+									lastCheckedAt: checkedAt,
+									usageSnapshot: JSON.stringify({
+										provider: connection?.provider || null,
+										checkedAt,
+										quotas: {},
+										usageUnavailable: true,
+									}),
+								});
+							}
 						}
 						return {
 							connection,
@@ -826,28 +853,45 @@ export async function refreshConnectionUsage(
 						};
 					}
 
-					await syncUsageStatus(connection, {
-						routingStatus:
-							connection?.routingStatus &&
+					await syncUsageStatus(connection, (() => {
+						const preservedStatus = connection?.routingStatus &&
 							connection.routingStatus !== "unknown"
 								? connection.routingStatus
-								: "eligible",
-						healthStatus: "degraded",
-						quotaState: connection?.quotaState || "ok",
-						authState: connection?.authState || "ok",
-						reasonCode: "usage_quota_unavailable",
-						reasonDetail: "Quota details unavailable",
-						lastCheckedAt,
-						usageSnapshot: JSON.stringify(
-							error.usage || {
-								provider: connection?.provider || null,
-								checkedAt: lastCheckedAt,
-								quotas: {},
-								usageUnavailable: true,
-								reasonCode: "usage_quota_unavailable",
-							},
-						),
-					});
+								: "eligible";
+						if (preservedStatus === "eligible") {
+							return {
+								routingStatus: "eligible",
+								lastCheckedAt,
+								usageSnapshot: JSON.stringify(
+									error.usage || {
+										provider: connection?.provider || null,
+										checkedAt: lastCheckedAt,
+										quotas: {},
+										usageUnavailable: true,
+										reasonCode: "usage_quota_unavailable",
+									},
+								),
+							};
+						}
+						return {
+							routingStatus: preservedStatus,
+							healthStatus: "degraded",
+							quotaState: connection?.quotaState || "ok",
+							authState: connection?.authState || "ok",
+							reasonCode: "usage_quota_unavailable",
+							reasonDetail: "Quota details unavailable",
+							lastCheckedAt,
+							usageSnapshot: JSON.stringify(
+								error.usage || {
+									provider: connection?.provider || null,
+									checkedAt: lastCheckedAt,
+									quotas: {},
+									usageUnavailable: true,
+									reasonCode: "usage_quota_unavailable",
+								},
+							),
+						};
+					})());
 					error.statusSynced = true;
 					throw error;
 				}
@@ -860,21 +904,34 @@ export async function refreshConnectionUsage(
 				) {
 					const hasKnownRoutingStatus =
 						connection?.routingStatus && connection.routingStatus !== "unknown";
-					await syncUsageStatus(connection, {
-						routingStatus: hasKnownRoutingStatus
-							? connection.routingStatus
-							: "eligible",
-						healthStatus: "degraded",
-						quotaState: connection?.quotaState || "ok",
-						authState: connection?.authState || "ok",
-						reasonCode: connection?.reasonCode ?? null,
-						lastCheckedAt,
-						usageSnapshot: JSON.stringify({
-							provider: connection?.provider || null,
-							checkedAt: lastCheckedAt,
-							quotas: {},
-						}),
-					});
+					const preservedStatus = hasKnownRoutingStatus
+						? connection.routingStatus
+						: "eligible";
+					if (preservedStatus === "eligible") {
+						await syncUsageStatus(connection, {
+							routingStatus: "eligible",
+							lastCheckedAt,
+							usageSnapshot: JSON.stringify({
+								provider: connection?.provider || null,
+								checkedAt: lastCheckedAt,
+								quotas: {},
+							}),
+						});
+					} else {
+						await syncUsageStatus(connection, {
+							routingStatus: preservedStatus,
+							healthStatus: "degraded",
+							quotaState: connection?.quotaState || "ok",
+							authState: connection?.authState || "ok",
+							reasonCode: connection?.reasonCode ?? null,
+							lastCheckedAt,
+							usageSnapshot: JSON.stringify({
+								provider: connection?.provider || null,
+								checkedAt: lastCheckedAt,
+								quotas: {},
+							}),
+						});
+					}
 					throw error;
 				}
 
@@ -909,23 +966,38 @@ export async function refreshConnectionUsage(
 										lastCheckedAt,
 									}
 								: (status === 502 || status === 504)
-									? {
-											routingStatus: connection?.routingStatus && connection.routingStatus !== "unknown"
+									? (() => {
+											const preservedStatus = connection?.routingStatus && connection.routingStatus !== "unknown"
 												? connection.routingStatus
-												: "eligible",
-											healthStatus: "degraded",
-											quotaState: connection?.quotaState || "ok",
-											authState: connection?.authState || "ok",
-											reasonCode: "transient_upstream_error",
-											reasonDetail: "Usage check temporarily unavailable",
-											lastCheckedAt,
-											nextRetryAt: new Date(Date.now() + 10_000).toISOString(),
-											...getOperationalUsageSnapshot(
-												connection,
-												"Usage check temporarily unavailable",
-												{ checkedAt: lastCheckedAt },
-											),
-										}
+												: "eligible";
+											if (preservedStatus === "eligible") {
+												return {
+													routingStatus: "eligible",
+													lastCheckedAt,
+													nextRetryAt: new Date(Date.now() + 10_000).toISOString(),
+													...getOperationalUsageSnapshot(
+														connection,
+														"Usage check temporarily unavailable",
+														{ checkedAt: lastCheckedAt },
+													),
+												};
+											}
+											return {
+												routingStatus: preservedStatus,
+												healthStatus: "degraded",
+												quotaState: connection?.quotaState || "ok",
+												authState: connection?.authState || "ok",
+												reasonCode: "transient_upstream_error",
+												reasonDetail: "Usage check temporarily unavailable",
+												lastCheckedAt,
+												nextRetryAt: new Date(Date.now() + 10_000).toISOString(),
+												...getOperationalUsageSnapshot(
+													connection,
+													"Usage check temporarily unavailable",
+													{ checkedAt: lastCheckedAt },
+												),
+											};
+										})()
 									: {
 											routingStatus: "blocked",
 											healthStatus: "degraded",
