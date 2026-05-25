@@ -1,0 +1,52 @@
+# VCS
+.git
+**/.git
+
+# Editor
+.vscode
+**/.vscode
+
+# Dependencies and build output
+node_modules
+**/node_modules
+.next
+**/.next
+out
+build
+dist
+coverage
+
+# Runtime data and logs
+data
+logs
+tmp
+tests/tmp
+docker/data
+
+# Local env files (inject at runtime via --env-file or -e)
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+docker/.env.docker
+
+# Debug logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+
+# Local agent/editor artifacts
+.a5c
+.claude
+.opencode
+.serena/cache
+.serena/memories
+.playwright-mcp
+.ralph
+.rpiv
+.wrangler
+**/.wrangler
+**/.pi-lens
+*.tsbuildinfo

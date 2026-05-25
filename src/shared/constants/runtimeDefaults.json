@@ -1,0 +1,5 @@
+{
+  "defaultPort": "12711",
+  "defaultBaseUrl": "http://localhost:12711",
+  "defaultApiBaseUrl": "http://localhost:12711/v1"
+}

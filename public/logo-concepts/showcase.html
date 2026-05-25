@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>AxonRouter Logo Concepts</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --ink: #181015;
+      --muted: #7a6a73;
+      --paper: #fff8fb;
+      --line: rgba(120, 35, 80, 0.14);
+      --pink: #ec4899;
+      --rose: #fb7185;
+      --violet: #a855f7;
+      --sky: #38bdf8;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      color: var(--ink);
+      background:
+        radial-gradient(circle at 14% 12%, rgba(251, 113, 133, 0.2), transparent 30rem),
+        radial-gradient(circle at 88% 20%, rgba(56, 189, 248, 0.14), transparent 26rem),
+        linear-gradient(135deg, #fffafd 0%, #fff1f7 44%, #fdf7ff 100%);
+    }
+    main { width: min(1180px, calc(100% - 40px)); margin: 0 auto; padding: 72px 0 88px; }
+    header { display: grid; gap: 14px; margin-bottom: 42px; }
+    .eyebrow { font-size: 12px; letter-spacing: 0.22em; text-transform: uppercase; color: var(--pink); font-weight: 800; }
+    h1 { margin: 0; max-width: 780px; font-size: clamp(42px, 7vw, 88px); line-height: 0.9; letter-spacing: -0.08em; }
+    .intro { max-width: 620px; margin: 0; color: var(--muted); font-size: 17px; line-height: 1.65; }
+    .grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 18px; }
+    .card {
+      display: grid;
+      gap: 20px;
+      min-height: 440px;
+      padding: 24px;
+      border: 1px solid var(--line);
+      border-radius: 30px;
+      background: rgba(255,255,255,0.62);
+      box-shadow: 0 24px 70px rgba(157, 23, 77, 0.08);
+      backdrop-filter: blur(18px);
+      transition: transform 260ms ease, box-shadow 260ms ease, border-color 260ms ease;
+    }
+    .card:hover { transform: translateY(-5px); border-color: rgba(236, 72, 153, 0.28); box-shadow: 0 30px 90px rgba(157, 23, 77, 0.14); }
+    .tile {
+      display: grid;
+      place-items: center;
+      min-height: 220px;
+      border-radius: 24px;
+      background:
+        linear-gradient(135deg, rgba(244,114,182,0.95), rgba(236,72,153,0.96) 54%, rgba(56,189,248,0.82));
+      color: white;
+      box-shadow: inset 0 1px 0 rgba(255,255,255,0.32);
+    }
+    .tile img { width: 132px; height: 132px; filter: drop-shadow(0 12px 22px rgba(126, 22, 76, 0.22)); }
+    h2 { margin: 0; font-size: 20px; letter-spacing: -0.035em; }
+    .tag { margin: -12px 0 0; font-size: 12px; text-transform: uppercase; letter-spacing: 0.16em; color: var(--pink); font-weight: 800; }
+    p { margin: 0; color: var(--muted); line-height: 1.55; }
+    .path { margin-top: auto; padding-top: 14px; border-top: 1px solid var(--line); font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px; color: #9f5679; overflow-wrap: anywhere; }
+    @media (max-width: 920px) { .grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+    @media (max-width: 640px) { main { width: min(100% - 28px, 1180px); padding-top: 42px; } .grid { grid-template-columns: 1fr; } .card { min-height: auto; } }
+  </style>
+</head>
+<body>
+  <main>
+    <header>
+      <div class="eyebrow">AxonRouter / logo exploration</div>
+      <h1>Six foreground marks.</h1>
+      <p class="intro">White marks only, shown on the same pink AxonRouter gradient tile. No embedded app tile inside the SVG, no pasted text, no black border.</p>
+    </header>
+
+    <section class="grid">
+      <article class="card">
+        <div class="tile"><img src="variant-01-flow-loop.svg" alt="Flow Loop" width="132" height="132" /></div>
+        <h2>01 Prism Loop</h2>
+        <div class="tag">rounded route</div>
+        <p>A continuous loop with a cut-through route. It feels more like one app-symbol surface than separate line art.</p>
+        <div class="path">/logo-concepts/variant-01-flow-loop.svg</div>
+      </article>
+      <article class="card">
+        <div class="tile"><img src="variant-02-gateway-ribbon.svg" alt="Gateway Ribbon" width="132" height="132" /></div>
+        <h2>02 Vector Gate</h2>
+        <div class="tag">directional gateway</div>
+        <p>A clean gateway path with a secondary handoff lane. Useful if the logo should feel like infrastructure and routing.</p>
+        <div class="path">/logo-concepts/variant-02-gateway-ribbon.svg</div>
+      </article>
+      <article class="card">
+        <div class="tile"><img src="variant-03-negative-aperture.svg" alt="Negative Aperture" width="132" height="132" /></div>
+        <h2>03 Split Gateway</h2>
+        <div class="tag">cut route</div>
+        <p>A split gateway shape with a route cut through the middle. Bold, simple, and readable as an app icon.</p>
+        <div class="path">/logo-concepts/variant-03-negative-aperture.svg</div>
+      </article>
+      <article class="card">
+        <div class="tile"><img src="variant-04-orbit-nodes.svg" alt="Orbit Nodes" width="132" height="132" /></div>
+        <h2>04 Orbit Nodes</h2>
+        <div class="tag">selected direction</div>
+        <p>The previous best direction preserved as a clean foreground mark, with no embedded gradient tile.</p>
+        <div class="path">/logo-concepts/variant-04-orbit-nodes.svg</div>
+      </article>
+      <article class="card">
+        <div class="tile"><img src="variant-05-lane-switch.svg" alt="Lane Switch" width="132" height="132" /></div>
+        <h2>05 Model Weave</h2>
+        <div class="tag">model lanes</div>
+        <p>Three provider/model lanes woven into one output. More direct to AxonRouter's routing product concept.</p>
+        <div class="path">/logo-concepts/variant-05-lane-switch.svg</div>
+      </article>
+      <article class="card">
+        <div class="tile"><img src="variant-06-pulse-gateway.svg" alt="Pulse Gateway" width="132" height="132" /></div>
+        <h2>06 Signal Fold</h2>
+        <div class="tag">handoff path</div>
+        <p>A folded signal path for handoffs between endpoints. The center cut keeps it from feeling like a pasted symbol.</p>
+        <div class="path">/logo-concepts/variant-06-pulse-gateway.svg</div>
+      </article>
+    </section>
+  </main>
+</body>
+</html>

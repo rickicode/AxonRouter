@@ -1,0 +1,78 @@
+"use client";
+
+import AppIcon from "@/shared/components/AppIcon";
+import { cn } from "@/shared/utils/cn";
+import type { ComponentProps } from "react";
+
+type InputProps = ComponentProps<"input"> & {
+  label?: string;
+  error?: string;
+  hint?: string;
+  icon?: string;
+  inputClassName?: string;
+};
+
+export default function Input({
+  label,
+  type = "text",
+  placeholder,
+  value,
+  onChange,
+  error,
+  hint,
+  icon,
+  disabled = false,
+  required = false,
+  className,
+  inputClassName,
+  ...props
+}: InputProps) {
+  return (
+    <div className={cn("flex flex-col gap-1.5", className)}>
+      {label && (
+        <label className="text-sm font-medium text-[var(--color-text-main)]">
+          {label}
+          {required && <span className="text-[var(--color-danger)] ml-1">*</span>}
+        </label>
+      )}
+      <div className="relative">
+        {icon && (
+          <div className="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none text-[var(--color-text-muted)]">
+            <AppIcon name={icon} size={20} />
+          </div>
+        )}
+        <input
+          type={type}
+          placeholder={placeholder}
+          value={value}
+          onChange={onChange}
+          disabled={disabled}
+          className={cn(
+            "w-full py-2 px-3 text-sm text-[var(--color-text-main)]",
+            "bg-[var(--color-input-bg)] border border-[var(--color-border)] rounded",
+            "placeholder-[var(--color-text-muted)]/60",
+            "focus:ring-1 focus:ring-[var(--ring-color)]/30 focus:border-[var(--ring-color)]/50 focus:outline-none",
+            "transition-all disabled:opacity-50 disabled:cursor-not-allowed",
+            // iOS zoom fix
+            "text-[16px] sm:text-sm",
+            icon && "pl-10",
+            error
+              ? "border-[var(--color-danger)] focus:border-[var(--color-danger)] focus:ring-[var(--color-danger)]/20"
+              : "",
+            inputClassName
+          )}
+          {...props}
+        />
+      </div>
+      {error && (
+        <p className="text-xs text-[var(--color-danger)] flex items-center gap-1">
+          <AppIcon name="error" size={14} />
+          {error}
+        </p>
+      )}
+      {hint && !error && (
+        <p className="text-xs text-[var(--color-text-muted)]">{hint}</p>
+      )}
+    </div>
+  );
+}

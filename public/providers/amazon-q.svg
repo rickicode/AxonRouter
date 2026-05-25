@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" role="img" aria-labelledby="title desc">
+  <title id="title">Amazon Q</title>
+  <desc id="desc">Stylized Amazon Q icon with AWS orange gradient and smile underline.</desc>
+  <defs>
+    <linearGradient id="aqGrad" x1="32" y1="32" x2="224" y2="224" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#FFB347"/>
+      <stop offset="1" stop-color="#FF9900"/>
+    </linearGradient>
+  </defs>
+  <rect x="24" y="24" width="208" height="208" rx="52" fill="#111827"/>
+  <path d="M128 62c-36.45 0-66 29.55-66 66s29.55 66 66 66c14.23 0 27.41-4.5 38.2-12.16l18.98 18.98c4.69 4.69 12.29 4.69 16.97 0s4.69-12.29 0-16.97l-18.98-18.98C191.5 155.41 196 142.23 196 128c0-36.45-29.55-66-68-66Zm0 28c20.99 0 38 17.01 38 38s-17.01 38-38 38-38-17.01-38-38 17.01-38 38-38Z" fill="url(#aqGrad)"/>
+  <path d="M82 180c22 16 58 17 90 2 2.9-1.37 5.89 1.93 3.32 4.6-24.24 25.15-73.76 29.12-96.91 4.58-1.79-1.89.98-4.76 3.59-3.18Z" fill="#FF9900"/>
+  <path d="M176.64 176.84c-3.08-3.95-20.37-1.87-28.13-.94-2.35.28-2.71-1.76-.59-3.24 13.74-9.66 36.25-6.87 38.87-3.65 2.62 3.23-.69 25.76-13.56 36.53-1.98 1.66-3.86.78-2.99-1.41 2.86-7.16 9.48-23.17 6.4-27.29Z" fill="#FF9900"/>
+</svg>

@@ -1,0 +1,43 @@
+import { beforeEach, describe, expect, it, vi } from "vitest";
+
+const getSettings = vi.fn();
+const publishRuntimeArtifactsFromSettings = vi.fn();
+const backupUsageToAll = vi.fn();
+
+vi.mock("@/lib/localDb", () => ({
+  getSettings,
+}));
+
+vi.mock("@/lib/r2BackupClient", () => ({
+  publishRuntimeArtifactsFromSettings,
+  backupUsageToAll,
+}));
+
+describe("r2BackupScheduler", () => {
+  beforeEach(() => {
+    vi.resetModules();
+    getSettings.mockReset();
+    publishRuntimeArtifactsFromSettings.mockReset();
+    backupUsageToAll.mockReset();
+  });
+
+  it("triggerSqliteBackupNow does not publish when only auto publish is enabled", async () => {
+    getSettings.mockResolvedValue({ r2AutoPublishEnabled: true, r2BackupEnabled: false });
+
+    const { triggerSqliteBackupNow } = await import("@/lib/r2BackupScheduler");
+
+    await triggerSqliteBackupNow();
+
+    expect(publishRuntimeArtifactsFromSettings).not.toHaveBeenCalled();
+  });
+
+  it("triggerSqliteBackupNow does not publish when both R2 backup toggles are off", async () => {
+    getSettings.mockResolvedValue({ r2AutoPublishEnabled: false, r2BackupEnabled: false });
+
+    const { triggerSqliteBackupNow } = await import("@/lib/r2BackupScheduler");
+
+    await triggerSqliteBackupNow();
+
+    expect(publishRuntimeArtifactsFromSettings).not.toHaveBeenCalled();
+  });
+});

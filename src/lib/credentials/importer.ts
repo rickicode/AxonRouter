@@ -1,0 +1,142 @@
+/**
+ * Credential import orchestration
+ *
+ * Behavior:
+ *   - Always upserts: existing connections matched by id/email/name/fingerprint
+ *     are updated, anything else becomes a new connection.
+ *   - Never deletes existing connections that are not present in the payload.
+ *     Imports are strictly additive — there is no "replace" mode anymore.
+ */
+
+import {
+  createCurrentProviderConnection,
+  getCurrentProviderConnections,
+  updateCurrentProviderConnection,
+} from "@/lib/connectionAccess";
+import { testSingleConnection } from "@/app/api/providers/[id]/test/testUtils";
+import { ConnectionMatcher, validateNoDuplicateImports } from "./matcher";
+import { normalizeInputRecord, extractInputRecords } from "./normalizer";
+import { sanitizeCredentialRecord } from "./validator";
+
+async function isExistingConnectionStillValid(connectionId: string) {
+  try {
+    const result = await testSingleConnection(connectionId, { persistStatus: false });
+    return result?.valid === true;
+  } catch (error) {
+    console.warn("[CredentialImport] Existing credential validation failed", {
+      connectionId,
+      message: error instanceof Error ? error.message : String(error),
+    });
+    return false;
+  }
+}
+
+export async function importCredentials(payload: any) {
+  const inputRecords = extractInputRecords(payload);
+  if (!inputRecords) {
+    const error: any = new Error("Payload must contain credentials array or equivalent entries");
+    error.code = "INVALID_IMPORT_PAYLOAD";
+    error.status = 400;
+    throw error;
+  }
+
+  // Normalize all records first
+  const normalizedRecords = [];
+  const skipReasons = [];
+
+  for (const item of inputRecords) {
+    const index = normalizedRecords.length + skipReasons.length + 1;
+    const normalized = normalizeInputRecord(item);
+    if (!normalized) {
+      skipReasons.push({
+        index,
+        code: "INVALID_RECORD",
+        message: "Credential record must be an object",
+      });
+      continue;
+    }
+
+    try {
+      const sanitized = sanitizeCredentialRecord(normalized);
+
+      normalizedRecords.push({
+        index,
+        sourceId: typeof normalized.id === "string" ? normalized.id : null,
+        data: sanitized,
+      });
+    } catch (error: any) {
+      skipReasons.push({
+        index,
+        code: error?.code || "INVALID_RECORD",
+        message: error?.message || "Credential record is invalid",
+      });
+    }
+  }
+
+  // Validate no duplicate imports
+  const duplicates = validateNoDuplicateImports(
+    normalizedRecords.map((r) => r.data),
+  );
+  if (duplicates.length > 0) {
+    const details = duplicates
+      .map((d) => `Record ${d.index} duplicates record ${d.firstIndex} (${d.key})`)
+      .join("; ");
+    const error: any = new Error(`Duplicate import records detected: ${details}`);
+    error.code = "DUPLICATE_IMPORT_RECORDS";
+    error.status = 400;
+    throw error;
+  }
+
+  // Fetch existing connections and build matcher
+  const existing = await getCurrentProviderConnections();
+  const matcher = new ConnectionMatcher(existing);
+  const restoredIds = new Set();
+
+  let created = 0;
+  let updated = 0;
+  let preserved = 0;
+
+  for (const { sourceId, data } of normalizedRecords) {
+    const existingConnection = matcher.findMatch(data, sourceId);
+
+    if (existingConnection) {
+      const existingIsValid = await isExistingConnectionStillValid(existingConnection.id);
+      if (existingIsValid) {
+        matcher.markProcessed(existingConnection.id);
+        restoredIds.add(existingConnection.id);
+        preserved += 1;
+        continue;
+      }
+
+      await updateCurrentProviderConnection(existingConnection.id, data);
+      matcher.updateConnection(existingConnection.id, data);
+      matcher.markProcessed(existingConnection.id);
+      restoredIds.add(existingConnection.id);
+      updated += 1;
+    } else {
+      if (data.authType === "apikey" && !data.name) {
+        skipReasons.push({
+          code: "INVALID_RECORD",
+          message: "API key credential record is missing name",
+        });
+        continue;
+      }
+
+      const createdConnection = await createCurrentProviderConnection(data);
+      matcher.addConnection(createdConnection);
+      matcher.markProcessed(createdConnection.id);
+      restoredIds.add(createdConnection.id);
+      created += 1;
+    }
+  }
+
+  return {
+    created,
+    updated,
+    deleted: 0,
+    skipped: skipReasons.length,
+    imported: created + updated,
+    preserved,
+    skipReasons,
+  };
+}

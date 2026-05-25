@@ -1,0 +1,425 @@
+/**
+ * Codex executor: verify remote image URLs are fetched and inlined as
+ * base64 data URIs BEFORE the request body reaches the upstream API.
+ *
+ * Covers bug #575:
+ *  - prefetchImages must await async image fetches
+ *  - execute() must run prefetchImages before super.execute so the body
+ *    sent to upstream contains base64 data, not remote URLs
+ */
+
+import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
+
+vi.mock("stream", async () => await import("node:stream"));
+vi.mock("/workspaces/axonrouter/.claude/worktrees/canonical-status-phase1/stream", async () => await import("node:stream"));
+
+import { CodexExecutor } from "../../open-sse/executors/codex.tsx";
+import * as proxyFetchModule from "../../open-sse/utils/proxyFetch.ts";
+
+const IMAGE_1MB_BYTES = 1024 * 1024;
+const REMOTE_URL = "https://example.com/big.jpg";
+const DATA_URI = "data:image/png;base64,iVBORw0KGgo=";
+
+function makeImageBuffer(sizeBytes) {
+  const buf = new Uint8Array(sizeBytes);
+  for (let i = 0; i < sizeBytes; i++) buf[i] = i & 0xff;
+  return buf.buffer;
+}
+
+function mockImageFetch(sizeBytes, mimeType = "image/jpeg") {
+  return {
+    ok: true,
+    headers: { get: (k) => (k === "Content-Type" ? mimeType : null) },
+    arrayBuffer: async () => makeImageBuffer(sizeBytes),
+  };
+}
+
+describe("CodexExecutor image handling", () => {
+  let originalFetch;
+
+  beforeEach(() => {
+    originalFetch = global.fetch;
+  });
+
+  afterEach(() => {
+    global.fetch = originalFetch;
+    vi.restoreAllMocks();
+  });
+
+  it("fetches 1MB remote image and inlines it as base64 data URI", async () => {
+    global.fetch = vi.fn(async () => mockImageFetch(IMAGE_1MB_BYTES));
+
+    const executor = new CodexExecutor();
+    const body = {
+      input: [
+        {
+          role: "user",
+          content: [
+            { type: "input_text", text: "describe this" },
+            { type: "image_url", image_url: { url: REMOTE_URL, detail: "high" } },
+          ],
+        },
+      ],
+    };
+
+    await executor.prefetchImages(body);
+
+    const imgBlock = body.input[0].content.find((c) => c.type === "input_image");
+    expect(imgBlock, "input_image block must be present after prefetch").toBeDefined();
+    expect(imgBlock.image_url.startsWith("data:image/jpeg;base64,")).toBe(true);
+    expect(imgBlock.detail).toBe("high");
+
+    const base64Payload = imgBlock.image_url.split(",")[1];
+    const decodedLen = Buffer.from(base64Payload, "base64").length;
+    expect(decodedLen).toBe(IMAGE_1MB_BYTES);
+    expect(global.fetch).toHaveBeenCalledTimes(1);
+  });
+
+  it("passes through existing data URIs without calling fetch", async () => {
+    global.fetch = vi.fn();
+
+    const executor = new CodexExecutor();
+    const body = {
+      input: [
+        {
+          role: "user",
+          content: [{ type: "image_url", image_url: { url: DATA_URI } }],
+        },
+      ],
+    };
+
+    await executor.prefetchImages(body);
+
+    const imgBlock = body.input[0].content.find((c) => c.type === "input_image");
+    expect(imgBlock.image_url).toBe(DATA_URI);
+    expect(global.fetch).not.toHaveBeenCalled();
+  });
+
+  it("converts input_file with image/* mime + raw base64 to inline input_image", async () => {
+    global.fetch = vi.fn();
+
+    const executor = new CodexExecutor();
+    const body = {
+      input: [
+        {
+          role: "user",
+          content: [
+            { type: "input_text", text: "look at this" },
+            {
+              type: "input_file",
+              file_data: "iVBORw0KGgo=",
+              mime_type: "image/png",
+              filename: "clipboard.png",
+            },
+          ],
+        },
+      ],
+    };
+
+    await executor.prefetchImages(body);
+
+    const imgBlock = body.input[0].content.find((c) => c.type === "input_image");
+    expect(imgBlock, "input_file with image mime must be promoted to input_image").toBeDefined();
+    expect(imgBlock.image_url).toBe("data:image/png;base64,iVBORw0KGgo=");
+    expect(imgBlock.detail).toBe("auto");
+    expect(global.fetch).not.toHaveBeenCalled();
+  });
+
+  it("passes through input_file when file_data is already a data URI", async () => {
+    global.fetch = vi.fn();
+
+    const executor = new CodexExecutor();
+    const body = {
+      input: [
+        {
+          role: "user",
+          content: [
+            {
+              type: "input_file",
+              file_data: "data:image/png;base64,iVBORw0KGgo=",
+              mime_type: "image/png",
+            },
+          ],
+        },
+      ],
+    };
+
+    await executor.prefetchImages(body);
+
+    const imgBlock = body.input[0].content.find((c) => c.type === "input_image");
+    expect(imgBlock.image_url).toBe("data:image/png;base64,iVBORw0KGgo=");
+    expect(global.fetch).not.toHaveBeenCalled();
+  });
+
+  it("preserves non-image input_file blocks unchanged", async () => {
+    global.fetch = vi.fn();
+
+    const executor = new CodexExecutor();
+    const body = {
+      input: [
+        {
+          role: "user",
+          content: [
+            {
+              type: "input_file",
+              file_data: "JVBERi0xLjQK",
+              mime_type: "application/pdf",
+              filename: "doc.pdf",
+            },
+          ],
+        },
+      ],
+    };
+
+    await executor.prefetchImages(body);
+
+    const block = body.input[0].content[0];
+    expect(block.type).toBe("input_file");
+    expect(block.file_data).toBe("JVBERi0xLjQK");
+    expect(block.mime_type).toBe("application/pdf");
+    expect(global.fetch).not.toHaveBeenCalled();
+  });
+
+  it("inlines remote URL when receiving an input_image block (post-translation shape)", async () => {
+    global.fetch = vi.fn(async () => mockImageFetch(64 * 1024, "image/png"));
+
+    const executor = new CodexExecutor();
+    const body = {
+      input: [
+        {
+          role: "user",
+          content: [
+            { type: "input_image", image_url: REMOTE_URL, detail: "low" },
+          ],
+        },
+      ],
+    };
+
+    await executor.prefetchImages(body);
+
+    const imgBlock = body.input[0].content[0];
+    expect(imgBlock.type).toBe("input_image");
+    expect(imgBlock.image_url.startsWith("data:image/png;base64,")).toBe(true);
+    expect(imgBlock.detail).toBe("low");
+    expect(global.fetch).toHaveBeenCalledTimes(1);
+  });
+
+  it("normalizes input_image with object-form image_url (Codex schema requires plain string)", async () => {
+    global.fetch = vi.fn();
+
+    const executor = new CodexExecutor();
+    const body = {
+      input: [
+        {
+          role: "user",
+          content: [
+            { type: "input_image", image_url: { url: DATA_URI, detail: "high" } },
+          ],
+        },
+      ],
+    };
+
+    await executor.prefetchImages(body);
+
+    const imgBlock = body.input[0].content[0];
+    expect(imgBlock.type).toBe("input_image");
+    expect(imgBlock.image_url).toBe(DATA_URI);
+    expect(imgBlock.detail).toBe("high");
+    expect(global.fetch).not.toHaveBeenCalled();
+  });
+
+  it("falls back to original URL when remote fetch fails", async () => {
+    global.fetch = vi.fn(async () => { throw new Error("network down"); });
+
+    const executor = new CodexExecutor();
+    const body = {
+      input: [
+        {
+          role: "user",
+          content: [{ type: "image_url", image_url: { url: REMOTE_URL } }],
+        },
+      ],
+    };
+
+    await executor.prefetchImages(body);
+
+    const imgBlock = body.input[0].content.find((c) => c.type === "input_image");
+    expect(imgBlock.image_url).toBe(REMOTE_URL);
+  });
+
+  it("transformRequest registers image_generation tool so Codex enables vision input", async () => {
+    const executor = new CodexExecutor();
+    const body = {
+      input: [
+        {
+          role: "user",
+          content: [
+            { type: "input_text", text: "look" },
+            { type: "input_image", image_url: DATA_URI, detail: "auto" },
+          ],
+        },
+      ],
+    };
+    const out = executor.transformRequest("gpt-5.4", body, true, {
+      accessToken: "x",
+      accountId: "y",
+    });
+    expect(Array.isArray(out.tools)).toBe(true);
+    const imgTool = out.tools.find((t) => t?.type === "image_generation");
+    expect(imgTool, "image_generation tool must be present").toBeDefined();
+    expect(imgTool.output_format).toBe("png");
+  });
+
+  it("transformRequest does not duplicate image_generation when caller already provided it", async () => {
+    const executor = new CodexExecutor();
+    const body = {
+      input: [
+        {
+          role: "user",
+          content: [{ type: "input_text", text: "x" }],
+        },
+      ],
+      tools: [
+        { type: "image_generation", output_format: "webp" },
+        { type: "function", name: "do_thing" },
+      ],
+    };
+    const out = executor.transformRequest("gpt-5.4", body, true, {});
+    const imgTools = out.tools.filter((t) => t?.type === "image_generation");
+    expect(imgTools).toHaveLength(1);
+    expect(imgTools[0].output_format).toBe("webp");
+    expect(out.tools.find((t) => t?.type === "function")).toBeDefined();
+  });
+
+  it("transformRequest skips image_generation tool for spark models", async () => {
+    const executor = new CodexExecutor();
+    const body = {
+      input: [{ role: "user", content: [{ type: "input_text", text: "x" }] }],
+    };
+    const out = executor.transformRequest("gpt-5.3-codex-spark", body, true, {});
+    if (Array.isArray(out.tools)) {
+      expect(out.tools.find((t) => t?.type === "image_generation")).toBeUndefined();
+    } else {
+      expect(out.tools).toBeUndefined();
+    }
+  });
+
+  it("transformRequest skips image_generation tool for free-plan credentials", async () => {
+    const executor = new CodexExecutor();
+    const body = {
+      input: [{ role: "user", content: [{ type: "input_text", text: "x" }] }],
+    };
+    const out = executor.transformRequest("gpt-5.4", body, true, { plan_type: "free" });
+    if (Array.isArray(out.tools)) {
+      expect(out.tools.find((t) => t?.type === "image_generation")).toBeUndefined();
+    } else {
+      expect(out.tools).toBeUndefined();
+    }
+  });
+
+  it("transformRequest injects built-in CODEX_DEFAULT_INSTRUCTIONS when no resolution stash and no caller instructions", async () => {
+    const executor = new CodexExecutor();
+    const body = {
+      input: [{ role: "user", content: [{ type: "input_text", text: "x" }] }],
+    };
+    const out = executor.transformRequest("gpt-5.4", body, true, { accessToken: "x", accountId: "y" });
+    expect(typeof out.instructions).toBe("string");
+    expect(out.instructions.length).toBeGreaterThan(1000); // built-in is ~11KB
+    expect(out.instructions.startsWith("You are Codex")).toBe(true);
+  });
+
+  it("transformRequest honors user-disabled mode (empty instructions saved by execute())", async () => {
+    const executor = new CodexExecutor();
+    // Simulate execute() having already resolved settings to "disabled".
+    const body = {
+      _resolvedCodexInstructions: "",
+      input: [{ role: "user", content: [{ type: "input_text", text: "x" }] }],
+    };
+    const out = executor.transformRequest("gpt-5.4", body, true, {});
+    expect(out.instructions).toBe("");
+    expect("_resolvedCodexInstructions" in out).toBe(false);
+  });
+
+  it("transformRequest honors user-custom mode (.md content stashed by execute())", async () => {
+    const executor = new CodexExecutor();
+    const body = {
+      _resolvedCodexInstructions: "My custom Codex prompt.",
+      input: [{ role: "user", content: [{ type: "input_text", text: "x" }] }],
+    };
+    const out = executor.transformRequest("gpt-5.4", body, true, {});
+    expect(out.instructions).toBe("My custom Codex prompt.");
+  });
+
+  it("transformRequest preserves caller-supplied instructions verbatim (overrides resolver)", async () => {
+    const executor = new CodexExecutor();
+    const body = {
+      instructions: "You are Codex Mini, custom prompt here.",
+      _resolvedCodexInstructions: "should be ignored because body.instructions is set",
+      input: [{ role: "user", content: [{ type: "input_text", text: "x" }] }],
+    };
+    const out = executor.transformRequest("gpt-5.4", body, true, {});
+    expect(out.instructions).toBe("You are Codex Mini, custom prompt here.");
+  });
+
+  it("transformRequest enables parallel_tool_calls by default", async () => {
+    const executor = new CodexExecutor();
+    const body = {
+      input: [{ role: "user", content: [{ type: "input_text", text: "x" }] }],
+    };
+    const out = executor.transformRequest("gpt-5.4", body, true, {});
+    expect(out.parallel_tool_calls).toBe(true);
+  });
+
+  it("transformRequest preserves caller-supplied parallel_tool_calls=false", async () => {
+    const executor = new CodexExecutor();
+    const body = {
+      parallel_tool_calls: false,
+      input: [{ role: "user", content: [{ type: "input_text", text: "x" }] }],
+    };
+    const out = executor.transformRequest("gpt-5.4", body, true, {});
+    expect(out.parallel_tool_calls).toBe(false);
+  });
+
+  it("transformRequest defaults reasoning.effort to 'low' (token-saving default)", async () => {
+    const executor = new CodexExecutor();
+    const body = {
+      input: [{ role: "user", content: [{ type: "input_text", text: "x" }] }],
+    };
+    const out = executor.transformRequest("gpt-5.4", body, true, {});
+    expect(out.reasoning?.effort).toBe("low");
+    expect(out.reasoning?.summary).toBe("auto");
+  });
+
+  it("execute() prefetches images before sending to upstream", async () => {
+    global.fetch = vi.fn(async () => mockImageFetch(IMAGE_1MB_BYTES));
+
+    let capturedBodyString = null;
+    vi.spyOn(proxyFetchModule, "proxyAwareFetch").mockImplementation(async (url, init) => {
+      capturedBodyString = init.body;
+      return { ok: true, status: 200, headers: new Map() };
+    });
+
+    const executor = new CodexExecutor();
+    const body = {
+      input: [
+        {
+          role: "user",
+          content: [{ type: "image_url", image_url: { url: REMOTE_URL } }],
+        },
+      ],
+    };
+
+    await executor.execute({
+      model: "gpt-5.3-codex",
+      body,
+      stream: true,
+      credentials: { accessToken: "test" },
+    });
+
+    expect(capturedBodyString).toBeTypeOf("string");
+    expect(capturedBodyString).not.toBe("{}");
+    const parsed = JSON.parse(capturedBodyString);
+    const imgBlock = parsed.input[0].content.find((c) => c.type === "input_image");
+    expect(imgBlock.image_url.startsWith("data:image/jpeg;base64,")).toBe(true);
+  });
+});

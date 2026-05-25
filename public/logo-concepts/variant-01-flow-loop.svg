@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" color="#FFFFFF" role="img" aria-labelledby="title desc">
+  <title id="title">Prism Loop</title>
+  <desc id="desc">A rounded loop mark for fast local AI routing.</desc>
+  <defs>
+    <mask id="cut">
+      <rect width="100" height="100" fill="white"/>
+      <circle cx="50" cy="50" r="10" fill="black"/>
+      <path d="M50 50h22" stroke="black" stroke-width="7" stroke-linecap="round"/>
+    </mask>
+  </defs>
+  <g mask="url(#cut)" fill="none" stroke="currentColor" stroke-width="11" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M28 67c-9-15-5-36 10-47 17-12 40-8 52 9" opacity="0.82"/>
+    <path d="M72 33c9 15 5 36-10 47-17 12-40 8-52-9"/>
+  </g>
+  <circle cx="28" cy="67" r="7" fill="currentColor"/>
+  <circle cx="72" cy="33" r="7" fill="currentColor"/>
+</svg>

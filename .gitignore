@@ -1,0 +1,157 @@
+# See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
+
+# dependencies
+/node_modules
+src/node_modules/
+/.pnp
+.pnp.*
+.yarn/*
+!.yarn/patches
+!.yarn/plugins
+!.yarn/releases
+!.yarn/versions
+
+# testing
+/coverage
+/.logs
+/.ocx
+# next.js
+/.next/
+/out/
+product
+# production
+/build
+.idea/
+
+# misc
+.DS_Store
+*.pem
+
+# debug
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+
+# env files (can opt-in for committing if needed)
+.env*
+!.env.example
+
+# vercel
+.vercel
+
+# typescript
+*.tsbuildinfo
+next-env.d.ts
+
+.bin/*
+data/
+!src/shared/components/data/
+!src/shared/components/data/**
+logs/*
+source/*
+.cursor/*
+
+test/*
+bin/*
+!bin/axonrouter.js
+!bin/mcp-server-launcher.js
+!bin/mcp-server.ts
+open-sse/test/*
+RM.vn.md
+RM.md
+cursor/*
+PUBLIC.md
+Thanks.md
+PUBLIC.en.md
+PR/*
+package-lock.json
+
+
+#Ignore vscode AI rules
+.github/instructions/codacy.instructions.md
+README1.md
+deploy*.sh
+!docker/deploy.sh
+ecosystem.config.*
+.worktrees/
+
+# Taskplane runtime artifacts (machine-specific, do not commit)
+.pi/batch-state.json
+.pi/batch-history.json
+.pi/lane-state-*
+.pi/merge-result-*
+.pi/merge-request-*
+.pi/worker-conversation-*
+.pi/orch-logs/
+.pi/orch-abort-signal
+.pi/settings.json
+.taskplane-tasks/
+taskplane-tasks/
+
+# Pi project-local packages (if using pi install -l)
+.pi/npm/
+
+# AI assistant artifacts
+context*.md
+context*.json
+progress.md
+session*.md
+state.md
+.a5c/
+.claude/
+.opencode/
+.serena/memories/
+.serena/cache/
+tmp/
+
+BUG_FIXES_SUMMARY.md
+FINAL_BUG_SCAN.md
+TESTING_NOTES.md
+.pi/agents/supervisor.md
+.pi/taskplane.json
+state.md
+session-log.md
+.worktrees/
+.logs/
+tests/tmp/
+tests/tests/tmp/
+.playwright-mcp/
+.wrangler/
+playwright-*.log
+playwright-*.md
+playwright-*.json
+
+# Playwright artifacts
+.playwright/
+
+# Development plans (do not commit)
+plans/
+.ralph/
+
+# Artifact files
+*.tgz
+false
+
+# Plan files
+PLAN.md
+project-map.md
+tester/
+
+# Sisyphus runtime artifacts
+.sisyphus/
+
+# Large unused provider file
+cliproxyapi-provider.json
+
+# Pi runtime artifacts
+.rpiv/
+.pi-lens/
+
+# Docker
+docker/data/
+
+# WorkerProxy artifacts
+WorkerProxy/node_modules/
+WorkerProxy/.wrangler/
+WorkerProxy/dist/

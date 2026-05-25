@@ -1,0 +1,49 @@
+# Database files - NEVER publish
+data/
+**/data/
+**/db.json
+
+# Development (not in "files", block anyway)
+docs/
+test/
+agents/
+worker/
+shared-sse/
+copilot-api/
+CLIProxyAPI/
+
+# Config files
+*.md
+!README.md
+.gitignore
+.env*
+jsconfig.json
+eslint.config.ts
+postcss.config.ts
+next.config.ts
+tsconfig.json
+
+# Build artifacts not in "files"
+.next/cache/
+.next/standalone/data/
+out/
+coverage/
+
+# Nested projects and tests
+cloud/
+tests/
+src/node_modules/
+src/package.json
+src/package-lock.json
+
+# Local/editor/tooling artifacts
+.vscode/
+.ocx/
+.understand-anything/
+.a5c/
+.opencode/
+.playwright/
+.playwright-mcp/
+
+# Root odd files / local artifacts
+false

@@ -1,0 +1,142 @@
+import { afterEach, describe, expect, it, vi } from "vitest";
+
+describe("Codex usage parsing", () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+    vi.resetModules();
+  });
+
+  it("omits session quota when primary_window is absent and keeps weekly quota", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => ({
+        ok: true,
+        json: async () => ({
+          plan_type: "free",
+          rate_limit: {
+            secondary_window: {
+              used_percent: 100,
+              reset_at: 1760000000,
+            },
+          },
+        }),
+      }))
+    );
+
+    const { getUsageForProvider } = await import("../../open-sse/services/usage.ts");
+
+    const result = await getUsageForProvider({
+      provider: "codex",
+      accessToken: "token",
+      providerSpecificData: {},
+    });
+
+    expect(result.quotas.session).toBeUndefined();
+    expect(result.quotas.weekly).toEqual(
+      expect.objectContaining({
+        used: 100,
+        total: 100,
+        remaining: 0,
+      })
+    );
+    expect(result.hasSessionWindow).toBe(false);
+    expect(result.hasWeeklyWindow).toBe(true);
+    expect(result.usageWindowType).toBe("weekly_only");
+  });
+
+  it("keeps both session and weekly quotas when both windows exist", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => ({
+        ok: true,
+        json: async () => ({
+          plan_type: "pro",
+          rate_limit: {
+            primary_window: {
+              used_percent: 40,
+              reset_at: 1760000000,
+            },
+            secondary_window: {
+              used_percent: 65,
+              reset_at: 1761000000,
+            },
+          },
+        }),
+      }))
+    );
+
+    const { getUsageForProvider } = await import("../../open-sse/services/usage.ts");
+
+    const result = await getUsageForProvider({
+      provider: "codex",
+      accessToken: "token",
+      providerSpecificData: {},
+    });
+
+    expect(result.quotas.session).toEqual(
+      expect.objectContaining({ used: 40, remaining: 60 })
+    );
+    expect(result.quotas.weekly).toEqual(
+      expect.objectContaining({ used: 65, remaining: 35 })
+    );
+    expect(result.hasSessionWindow).toBe(true);
+    expect(result.hasWeeklyWindow).toBe(true);
+    expect(result.usageWindowType).toBe("session_and_weekly");
+  });
+
+  it("normalizes Codex remaining_percent payloads as remaining quota", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => ({
+        ok: true,
+        json: async () => ({
+          plan_type: "pro",
+          rate_limit: {
+            secondary_window: {
+              remaining_percent: 1,
+              reset_at: 1761000000,
+            },
+          },
+        }),
+      }))
+    );
+
+    const { getUsageForProvider } = await import("../../open-sse/services/usage.ts");
+
+    const result = await getUsageForProvider({
+      provider: "codex",
+      accessToken: "token",
+      providerSpecificData: {},
+    });
+
+    expect(result.quotas.weekly).toEqual(
+      expect.objectContaining({
+        used: 99,
+        total: 100,
+        remaining: 1,
+        remainingPercentage: 1,
+      })
+    );
+  });
+
+  it("fails Codex usage refresh when rate-limit windows are missing", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => ({
+        ok: true,
+        json: async () => ({
+          plan_type: "pro",
+          rate_limit: {},
+        }),
+      }))
+    );
+
+    const { getUsageForProvider } = await import("../../open-sse/services/usage.ts");
+
+    await expect(getUsageForProvider({
+      provider: "codex",
+      accessToken: "token",
+      providerSpecificData: {},
+    })).rejects.toThrow("Codex usage response missing rate-limit windows");
+  });
+});

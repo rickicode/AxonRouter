@@ -1,0 +1,101 @@
+:root,
+.dark {
+  color-scheme: dark;
+  --background: #09090b;
+  --foreground: #fafafa;
+  --card: #18181b;
+  --card-foreground: #fafafa;
+  --popover: #18181b;
+  --popover-foreground: #fafafa;
+  --primary: #ec4899;
+  --primary-foreground: #ffffff;
+  --secondary: #27272a;
+  --secondary-foreground: #fafafa;
+  --muted: #27272a;
+  --muted-foreground: #a1a1aa;
+  --accent: #27272a;
+  --accent-foreground: #fafafa;
+  --destructive: #f87171;
+  --border: rgba(255, 255, 255, 0.11);
+  --input: rgba(255, 255, 255, 0.12);
+  --ring: #ec4899;
+  --sidebar: #0f0f11;
+  --sidebar-foreground: #fafafa;
+  --sidebar-primary: #ec4899;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: #1f1f23;
+  --sidebar-accent-foreground: #fafafa;
+  --sidebar-border: rgba(255, 255, 255, 0.1);
+  --sidebar-ring: #ec4899;
+  --color-bg: var(--background);
+  --color-bg-alt: var(--secondary);
+  --color-surface: var(--card);
+  --color-border: var(--border);
+  --color-text-main: var(--foreground);
+  --color-text-muted: var(--muted-foreground);
+  --color-primary: var(--primary);
+  --color-success: #34d399;
+  --color-warning: #fbbf24;
+  --color-info: #60a5fa;
+  --radius: 0.75rem;
+}
+
+html,
+body {
+  min-height: 100%;
+  margin: 0;
+  background: var(--background);
+  color: var(--foreground);
+}
+
+body {
+  font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+* {
+  box-sizing: border-box;
+  border-color: var(--border);
+}
+
+.rr-dark-shell {
+  min-height: 100dvh;
+  background:
+    radial-gradient(circle at top left, rgba(236, 72, 153, 0.12), transparent 34rem),
+    var(--background);
+  color: var(--foreground);
+}
+
+.rr-main-scroll {
+  min-height: 0;
+  flex: 1 1 auto;
+  overflow-y: auto;
+  padding: 1.25rem 1.5rem 2.5rem;
+}
+
+.rr-main-inner {
+  margin-inline: auto;
+  display: flex;
+  width: 100%;
+  max-width: 1440px;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+.rr-main-scroll--basic-chat {
+  overflow: hidden;
+  padding: 0;
+}
+
+.rr-main-inner--basic-chat {
+  height: 100%;
+  max-width: none;
+  gap: 0;
+}
+
+@media (max-width: 640px) {
+  .rr-main-scroll {
+    padding-inline: 0.75rem;
+  }
+}

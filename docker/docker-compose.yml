@@ -1,0 +1,128 @@
+# AxonRouter - Multi-Instance Docker Setup
+# Usage:
+#   docker compose -f docker/docker-compose.yml up -d --build
+#   docker compose -f docker/docker-compose.yml up -d --scale app=8
+
+services:
+  # ============================================
+  # Load Balancer - Caddy
+  # ============================================
+  caddy:
+    image: caddy:2-alpine
+    container_name: axonrouter-caddy
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"  # For QUIC
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+    depends_on:
+      app:
+        condition: service_healthy
+    networks:
+      - axonrouter-net
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:80/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # ============================================
+  # App Instances (scalable)
+  # ============================================
+  app:
+    image: axonrouter:latest
+    ports:
+      - "12778:12778"
+    environment:
+      - NODE_ENV=production
+      - PORT=12711
+      - HOSTNAME=0.0.0.0
+      # Security
+      - JWT_SECRET=${JWT_SECRET:?Set JWT_SECRET to a stable random production secret}
+      - INITIAL_PASSWORD=${INITIAL_PASSWORD:?Set INITIAL_PASSWORD to a strong production password}
+      - API_KEY_SECRET=${API_KEY_SECRET:?Set API_KEY_SECRET to a random production secret}
+      - REQUIRE_API_KEY=${REQUIRE_API_KEY:-false}
+      - AUTH_COOKIE_SECURE=${AUTH_COOKIE_SECURE:-true}
+      # Database
+      - SQLITE_SHARED=true
+      # Observability
+      - NEXT_TELEMETRY_DISABLED=1
+      - LOG_LEVEL=${LOG_LEVEL:-info}
+    volumes:
+      - ${DATA_PATH:-./data}:/home/bun/.axonrouter
+      - ./middleware.json:/app/src/middleware.json:ro
+    networks:
+      - axonrouter-net
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:12711/api/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+
+  # ============================================
+  # Cloudflare Tunnel (optional)
+  # ============================================
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    command: ["tunnel", "--no-autoupdate", "run", "--token", "${TUNNEL_TOKEN}"]
+    depends_on:
+      - caddy
+    networks:
+      - axonrouter-net
+    restart: unless-stopped
+    profiles:
+      - tunnel
+
+  # ============================================
+  # MITM Proxy Server (optional)
+  # ============================================
+  mitm:
+    image: axonrouter:latest
+    container_name: axonrouter-mitm
+    command: ["node", "--experimental-strip-types", "./src/mitm/server.ts"]
+    environment:
+      - NODE_ENV=production
+      - MITM_PORT=20129
+      - HOSTNAME=0.0.0.0
+    volumes:
+      - ${DATA_PATH:-./data}:/home/bun/.axonrouter
+    networks:
+      - axonrouter-net
+    restart: unless-stopped
+    profiles:
+      - mitm  # Only start with: docker compose --profile mitm up -d
+
+  # ============================================
+  # Init Container (runs once)
+  # ============================================
+  app-init:
+    image: axonrouter:latest
+    container_name: axonrouter-init
+    entrypoint: ["echo", "AxonRouter data directory initialized"]
+    volumes:
+      - ${DATA_PATH:-./data}:/home/bun/.axonrouter
+    networks:
+      - axonrouter-net
+    restart: "no"
+
+# ============================================
+# Volumes
+# ============================================
+volumes:
+  caddy-data:
+    driver: local
+
+# ============================================
+# Networks
+# ============================================
+networks:
+  axonrouter-net:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.28.0.0/16

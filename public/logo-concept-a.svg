@@ -1,0 +1,30 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-labelledby="title desc">
+  <title id="title">AxonRouter Concept A</title>
+  <desc id="desc">Integrated abstract relay loop without pasted lettering.</desc>
+  <defs>
+    <linearGradient id="bg" x1="72" y1="40" x2="438" y2="470" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#FDA4AF"/>
+      <stop offset="0.28" stop-color="#F472B6"/>
+      <stop offset="0.7" stop-color="#EC4899"/>
+      <stop offset="1" stop-color="#A78BFA"/>
+    </linearGradient>
+    <linearGradient id="stroke" x1="136" y1="112" x2="386" y2="402" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#FFFFFF"/>
+      <stop offset="1" stop-color="#FFE4F1"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse" gradientTransform="translate(162 116) rotate(55) scale(280)">
+      <stop stop-color="#FFFFFF" stop-opacity="0.42"/>
+      <stop offset="1" stop-color="#FFFFFF" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <rect width="512" height="512" rx="126" fill="url(#bg)"/>
+  <rect width="512" height="512" rx="126" fill="url(#glow)"/>
+  <path d="M122 340c42 57 126 74 200 42 82-35 130-116 108-188-18-58-74-91-140-82-62 8-113 49-135 103" fill="none" stroke="#fff" stroke-width="30" stroke-linecap="round" opacity="0.34"/>
+  <path d="M389 172c-42-38-112-47-177-18-82 36-130 116-108 188 18 58 74 91 140 82 62-8 113-49 135-103" fill="none" stroke="url(#stroke)" stroke-width="38" stroke-linecap="round"/>
+  <path d="M226 189c51-27 117-18 151 22 30 35 25 87-12 124-38 38-101 49-153 26" fill="none" stroke="#fff" stroke-width="34" stroke-linecap="round" opacity="0.92"/>
+  <path d="M289 176l92 34-52 84" fill="none" stroke="#fff" stroke-width="34" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="166" cy="342" r="29" fill="#fff"/>
+  <circle cx="386" cy="172" r="29" fill="#fff"/>
+  <circle cx="256" cy="256" r="44" fill="#fff"/>
+  <circle cx="256" cy="256" r="20" fill="#DB2777" opacity="0.9"/>
+</svg>

@@ -1,0 +1,93 @@
+import AppIcon from "@/shared/components/AppIcon";
+import PropTypes from "prop-types";
+import { Button } from "@/components/ui/button";
+import { rowHoverClass, subtleCodeClass, toneClasses } from "../designSystem";
+
+export default function ModelRow({ model, fullModel, alias, copied, onCopy, testStatus, isCustom, isFree, onDeleteAlias, onTest, isTesting }) {
+  const borderColor = testStatus === "ok"
+    ? toneClasses.success.border
+    : testStatus === "error"
+    ? toneClasses.danger.border
+    : "border-border";
+
+  const iconColor = testStatus === "ok"
+    ? "#22c55e"
+    : testStatus === "error"
+    ? "#ef4444"
+    : undefined;
+
+  return (
+    <div className={`group rounded border px-3 py-2 ${borderColor} ${rowHoverClass}`}>
+      <div className="flex items-center gap-2">
+        <AppIcon
+          name={testStatus === "ok" ? "check_circle" : testStatus === "error" ? "cancel" : "smart_toy"}
+          size={16}
+          style={iconColor ? { color: iconColor } : undefined}
+        />
+        <div className="flex flex-col gap-1">
+          <code className={subtleCodeClass}>{fullModel}</code>
+          {model.name && <span className="text-[9px] text-text-muted/70 italic pl-1">{model.name}</span>}
+        </div>
+        {onTest && (
+          <div className="relative group/btn">
+            <Button
+              onClick={onTest}
+              disabled={isTesting}
+              variant="ghost"
+              size="icon-xs"
+              className={`rounded-lg text-text-muted transition-opacity hover:text-primary ${isTesting ? "opacity-100" : "opacity-0 group-hover:opacity-100"}`}
+            >
+              <AppIcon
+                name={isTesting ? "progress_activity" : "science"}
+                style={isTesting ? { animation: "spin 1s linear infinite" } : undefined}
+              />
+            </Button>
+            <span className="pointer-events-none absolute mt-1 top-5 left-1/2 -translate-x-1/2 text-[10px] text-text-muted whitespace-nowrap opacity-0 group-hover/btn:opacity-100 transition-opacity">
+              {isTesting ? "Testing..." : "Test"}
+            </span>
+          </div>
+        )}
+        <div className="relative group/btn">
+          <Button
+            onClick={() => onCopy(fullModel, `model-${model.id}`)}
+            variant="ghost"
+            size="icon-xs"
+            className="rounded-lg text-text-muted hover:text-primary"
+          >
+            <AppIcon name={copied === `model-${model.id}` ? "check" : "content_copy"} />
+          </Button>
+          <span className="pointer-events-none absolute mt-1 top-5 left-1/2 -translate-x-1/2 text-[10px] text-text-muted whitespace-nowrap opacity-0 group-hover/btn:opacity-100 transition-opacity">
+            {copied === `model-${model.id}` ? "Copied!" : "Copy"}
+          </span>
+        </div>
+        {isCustom && (
+          <Button
+            onClick={onDeleteAlias}
+            variant="ghost"
+            size="icon-xs"
+            className="ml-auto rounded-lg text-text-muted opacity-0 transition-opacity group-hover:opacity-100 hover:bg-[color:color-mix(in_srgb,var(--color-danger)_10%,transparent)] hover:text-[var(--color-danger)]"
+            title="Remove custom model"
+          >
+            <AppIcon name="close" />
+          </Button>
+        )}
+      </div>
+    </div>
+  );
+}
+
+ModelRow.propTypes = {
+  model: PropTypes.shape({
+    id: PropTypes.string.isRequired,
+  }).isRequired,
+  fullModel: PropTypes.string.isRequired,
+  alias: PropTypes.string,
+  copied: PropTypes.string,
+  onCopy: PropTypes.func.isRequired,
+  testStatus: PropTypes.oneOf(["ok", "error"]),
+  isCustom: PropTypes.bool,
+  isFree: PropTypes.bool,
+  onDeleteAlias: PropTypes.func,
+  onTest: PropTypes.func,
+  isTesting: PropTypes.bool,
+};

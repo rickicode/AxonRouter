@@ -1,0 +1,31 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-labelledby="title desc">
+  <title id="title">AxonRouter Concept C</title>
+  <desc id="desc">Integrated gateway loop with negative-space route center.</desc>
+  <defs>
+    <linearGradient id="bg" x1="78" y1="40" x2="432" y2="472" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#F9A8D4"/>
+      <stop offset="0.36" stop-color="#EC4899"/>
+      <stop offset="0.78" stop-color="#DB2777"/>
+      <stop offset="1" stop-color="#60A5FA"/>
+    </linearGradient>
+    <linearGradient id="mark" x1="140" y1="118" x2="372" y2="396" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#FFFFFF"/>
+      <stop offset="1" stop-color="#FFE4F1"/>
+    </linearGradient>
+    <mask id="cut">
+      <rect width="512" height="512" fill="white"/>
+      <path d="M236 210l96 46-96 46z" fill="black"/>
+      <circle cx="256" cy="256" r="16" fill="black"/>
+    </mask>
+  </defs>
+  <rect width="512" height="512" rx="126" fill="url(#bg)"/>
+  <path d="M118 404C76 319 87 212 151 142c59-64 150-86 226-50 22 11 19 42-4 49-76 24-133 65-173 124-33 49-52 99-58 151-3 25-14 22-24-12Z" fill="#fff" opacity="0.14"/>
+  <g mask="url(#cut)">
+    <path d="M256 127c76 0 132 52 132 122 0 76-60 136-136 136h-83" fill="none" stroke="url(#mark)" stroke-width="46" stroke-linecap="round"/>
+    <path d="M169 385c-34 0-61-27-61-61s27-61 61-61h176" fill="none" stroke="#fff" stroke-width="46" stroke-linecap="round" opacity="0.92"/>
+  </g>
+  <circle cx="256" cy="127" r="25" fill="#fff"/>
+  <circle cx="388" cy="249" r="25" fill="#fff"/>
+  <circle cx="169" cy="385" r="25" fill="#fff"/>
+  <circle cx="345" cy="263" r="18" fill="#fff" opacity="0.8"/>
+</svg>

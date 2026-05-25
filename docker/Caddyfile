@@ -1,0 +1,102 @@
+# Caddyfile - AxonRouter Load Balancer
+# Auto-enables HTTPS for any domain used
+{
+	# Disable admin API (security)
+	admin off
+
+	# Logging
+	log {
+		level INFO
+		output file /data/access.log {
+			roll_size 100mb
+			roll_keep 5
+			roll_keep_for 720h
+		}
+
+		# Also output to stdout for docker logs
+		format console
+	}
+
+	# Auto HTTPS
+	auto_https off # Set to email for Let's Encrypt
+
+	# Performance
+	http_port 80
+	https_port 443
+}
+
+:80 {
+	# ============================================
+	# Upstream - AxonRouter App
+	# ============================================
+	reverse_proxy {
+		# Resolve all Docker Compose app replicas dynamically.
+		dynamic a {
+			name app
+			port 12711
+			refresh 2s
+		}
+
+		# Load balancing - send to least busy server
+		lb_policy least_conn
+
+		# Health check / retry behavior
+		fail_duration 30s
+		lb_try_duration 5s
+		lb_try_interval 250ms
+
+		# Preserve original client info
+		header_up X-Real-IP {remote_host}
+		header_up Host {host}
+
+		# SSE/Streaming support
+		flush_interval -1
+
+		# Connection pooling
+		transport http {
+			keepalive 60s
+		}
+	}
+
+	# ============================================
+	# Health Check Endpoint
+	# ============================================
+	handle /health {
+		respond "OK" 200
+	}
+
+	# ============================================
+	# Rate Limiting (optional, per-IP)
+	# ============================================
+	# Uncomment to enable basic rate limiting:
+	# @rate_limit {
+	#     remote_ip is axonrouter-clients
+	# }
+	# handle @rate_limit {
+	#     rate_limit {
+	#         rate 1000
+	#         burst 100
+	#         key {remote_host}
+	#     }
+	# }
+}
+
+# HTTPS configuration (uncomment when using with domain)
+# :443, yourdomain.com, www.yourdomain.com {
+#     reverse_proxy {
+#         dynamic a {
+#             name app
+#             port 12711
+#             refresh 2s
+#         }
+#         lb_policy least_conn
+#         flush_interval -1
+#         header_up X-Real-IP {remote_host}
+#     }
+#
+#     # TLS config (optional)
+#     tls {
+#         max_certs 100
+#         alpn http/1.1
+#     }
+# }

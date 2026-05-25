@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" color="#FFFFFF" role="img" aria-labelledby="title desc">
+  <title id="title">Vector Gate</title>
+  <desc id="desc">A clean gateway mark formed from one directional path.</desc>
+  <path d="M24 75V34c0-11 8-19 19-19h19c17 0 29 11 29 27 0 17-12 28-29 28H43" fill="none" stroke="currentColor" stroke-width="10" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M43 70l26 15" fill="none" stroke="currentColor" stroke-width="10" stroke-linecap="round" opacity="0.76"/>
+  <path d="M52 42h36" fill="none" stroke="currentColor" stroke-width="6" stroke-linecap="round" opacity="0.4"/>
+  <circle cx="24" cy="75" r="7" fill="currentColor"/>
+  <circle cx="69" cy="85" r="7" fill="currentColor" opacity="0.76"/>
+</svg>
