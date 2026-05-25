@@ -647,8 +647,6 @@ export async function markAccountUnavailable(
 	}
 	if (!shouldFallback) return { shouldFallback: false, cooldownMs: 0 };
 
-	circuitBreakerRegistry.recordFailure(connectionId);
-
 	const rawError = typeof errorText === "string" ? errorText : "";
 	const reason = rawError.slice(0, 200) || "Provider error";
 	const normalizedFull = rawError.toLowerCase();
@@ -699,6 +697,29 @@ export async function markAccountUnavailable(
 	const isDirectFetchTimeout =
 		normalizedReason.includes("direct fetch failed") &&
 		normalizedReason.includes("timed out");
+
+	// Direct fetch timeout = cooldown only, no status change, no usage snapshot write.
+	// The model lock provides short-term unavailability without persisting error state.
+	if (isDirectFetchTimeout) {
+		const connectionPatch = {
+			...lockUpdate,
+			backoffLevel: 0,
+		};
+		await updateCurrentProviderConnection(connectionId, connectionPatch);
+
+		const connName =
+			conn?.displayName || conn?.name || conn?.email || connectionId.slice(0, 8);
+		const lockKey = Object.keys(lockUpdate)[0];
+		log.warn(
+			"AUTH",
+			`${connName} locked ${lockKey} for ${Math.round(cooldownMs / 1000)}s [direct-fetch-timeout]`,
+		);
+
+		return { shouldFallback: true, cooldownMs };
+	}
+
+	circuitBreakerRegistry.recordFailure(connectionId);
+
 	const isNetworkTransient502 =
 		Number(status) === 502 &&
 		(normalizedReason.includes("phase=direct") ||
@@ -706,8 +727,7 @@ export async function markAccountUnavailable(
 			normalizedReason.includes("phase=relay") ||
 			normalizedReason.includes("etimedout") ||
 			normalizedReason.includes("econnreset") ||
-			normalizedReason.includes("socket hang up") ||
-			isDirectFetchTimeout);
+			normalizedReason.includes("socket hang up"));
 	const transientUpstreamPatch =
 		!authBlockedPatch &&
 		!isRuntimeQuotaOrRateLimited &&
