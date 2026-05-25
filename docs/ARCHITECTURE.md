@@ -25,7 +25,7 @@ Core capabilities:
 - Custom skills CRUD and import/export
 - Usage worker system with prioritized batch scheduling
 - Proxy pools for provider connection outbound routing
-- npm/Bun distribution with standalone Next.js output, `axonrouter` CLI, and `axonrouter-mcp` MCP helper
+- npm distribution with standalone Next.js output, `axonrouter` CLI, and `axonrouter-mcp` MCP helper
 
 Primary runtime model:
 
@@ -205,7 +205,7 @@ Primary state DB (SQLite-backed):
 
 - `src/lib/localDb.ts` — SQLite-first with JSON migration path
 - Primary file: `~/.axonrouter/db.sqlite` (with `sqliteHelpers.ts` and `sqliteMigrations.ts`)
-- Driver: `better-sqlite3` (Node) or `bun:sqlite` (Bun). Published npm packages include the standalone native binary and Turbopack external alias; `node-gyp` is dependency-level fallback for platforms that must rebuild the native addon.
+- Driver: `better-sqlite3`. Published npm packages include the standalone native binary and Turbopack external alias; `node-gyp` is dependency-level fallback for platforms that must rebuild the native addon.
 - Collections: providerConnections, providerNodes, proxyPools, modelAliases, customModels, disabledModels, customSkills, mitmAlias, combos, apiKeys, settings, pricing
 - Provider identity is data-driven, so `kiro` and `amazon-q` connections persist separately even though they share most OAuth/executor mechanics
 - Singletons: opencodeSync, runtimeConfig, tunnelState
@@ -737,7 +737,7 @@ flowchart LR
 ### Persistence
 
 - `src/lib/localDb.ts`: persistent config/state (SQLite-first, JSON migration)
-- `src/lib/sqliteHelpers.ts`: SQLite driver abstraction (better-sqlite3/bun:sqlite)
+- `src/lib/sqliteHelpers.ts`: SQLite driver abstraction (better-sqlite3)
 - `src/lib/sqliteMigrations.ts`: versioned schema migrations
 - `src/lib/usageDb.ts`: usage history and rolling request logs
 - `src/lib/morphUsageDb.ts`: Morph-specific usage tracking stored in the shared usage SQLite database
@@ -1124,7 +1124,7 @@ Transparent HTTPS interception proxy for provider credential capture:
 ## Known Architectural Notes
 
 1. Runtime defaults are centralized in `src/shared/constants/runtimeDefaults.json`; avoid new hardcoded default ports/base URLs in runtime code.
-2. npm/Bun packaging materializes Turbopack external aliases under `.next/standalone/.next/node_modules` so native externals such as `better-sqlite3-<hash>` survive `npm pack`.
+2. npm packaging materializes Turbopack external aliases under `.next/standalone/.next/node_modules` so native externals such as `better-sqlite3-<hash>` survive `npm pack`.
 3. The package exposes `axonrouter` and `axonrouter-mcp`; avoid generic `mcp-server` binaries.
 4. Primary state is now SQLite-backed (`db.sqlite`); JSON `db.json` path exists only for migration.
 5. `usageDb` now follows `~/.axonrouter` with SQLite-first storage in `~/.axonrouter/usage.sqlite`, while legacy `usage.json` reads remain fallback-only for older data.
@@ -1144,10 +1144,10 @@ Transparent HTTPS interception proxy for provider credential capture:
 
 ## Operational Verification Checklist
 
-- Install package: `bun add -g axonrouter` (npm global install also works when Bun is unavailable)
-- Start package CLI: `axonrouter` or `bunx axonrouter` (default port `12711`)
+- Install package: `npm install -g axonrouter`
+- Start package CLI: `axonrouter` or `npx axonrouter` (default port `12711`)
 - MCP helper binary: `axonrouter-mcp`
-- Build from source: `cd /root/dev/axonrouter && bun install && bun run build`
+- Build from source: `cd /root/dev/axonrouter && npm install && npm run build`
 - Build Docker image: `cd /root/dev/axonrouter && docker build -t axonrouter .`
 - Start service and verify:
 - `GET /api/settings`

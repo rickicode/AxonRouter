@@ -2,7 +2,7 @@
   "id": "FEAT-002",
   "type": "chore",
   "description": "Update Dockerfile to use Node.js base image instead of Bun, update CI workflows to use npm instead of bun install, and update all documentation (README, DOCKER.md, docs/DOCS.md, docs/ARCHITECTURE.md, docker/README.md, docker/docker-compose.yml) to remove Bun references",
-  "status": "pending",
+  "status": "in_progress",
   "steps": [
     "Rewrite Dockerfile: Replace 'oven/bun:1.3.13-alpine' base image with 'node:22-alpine'. Update builder stage to use 'npm ci' instead of 'bun install --frozen-lockfile'. Remove 'bun.lock' from COPY. Update runner stage to use node:22-alpine base (remove BUN_IMAGE ARG). Remove apk add nodejs from runner (already in node image). Update COPY paths - change /home/bun to /home/node. Update entrypoint to use /home/node/.axonrouter and run as 'node' user instead of 'bun'. Change CMD to 'npx tsx ./scripts/start.ts' (tsx is installed as a dependency so npx will find it directly from node_modules/.bin).",
     "Update .github/workflows/release.yml: Remove the 'uses: oven-sh/setup-bun@v2' step and bun-version. Change 'bun install --frozen-lockfile' to 'npm ci'. Change 'bun install' in tests working-directory to 'npm ci'.",

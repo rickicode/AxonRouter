@@ -70,7 +70,7 @@ First-run dashboard password is `12345677`. Sign in once, then change it immedia
 
 ```bash
 REPLICAS=4                    # Number of app instances
-DATA_PATH=./data              # Host path mounted as /home/bun/.axonrouter
+DATA_PATH=./data              # Host path mounted as /home/node/.axonrouter
 JWT_SECRET=your-secret-here    # CHANGE THIS!
 LOG_LEVEL=info                # debug, info, warn, error
 ```
