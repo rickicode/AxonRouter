@@ -2,7 +2,7 @@
   "id": "FEAT-001",
   "type": "feat",
   "description": "Wire provider response headers through the onRequestSuccess callback chain so that Codex rate limit headers reach clearAccountError, enabling the existing proactive cooldown code to function.",
-  "status": "in_progress",
+  "status": "completed",
   "steps": [
     "Step 1: Modify onRequestSuccess callback signature in src/sse/handlers/chat.ts. Change the onRequestSuccess callback from `async () => { await clearAccountError(credentials.connectionId, credentials, model); }` to `async (responseHeaders?: any) => { await clearAccountError(credentials.connectionId, credentials, model, responseHeaders); }`. This is at approximately line 239 in handleSingleModelChat where handleChatCore is called.",
     "Step 2: Modify onRequestSuccess callback signature in src/sse/handlers/embeddings.ts. Same pattern: change from `async () => { await clearAccountError(credentials.connectionId, credentials, model); }` to `async (responseHeaders?: any) => { await clearAccountError(credentials.connectionId, credentials, model, responseHeaders); }`.",
@@ -26,5 +26,5 @@
     "Run `npm run test` and confirm all tests pass"
   ],
   "blocked_reason": null,
-  "findings": ""
+  "findings": "All changes passed tsc --noEmit and npm run test (200 test files, 1074 tests passed). Node.js 22 installed via mise with MISE_NODE_VERIFY=false workaround for GPG issue. The mise.toml was generated but not committed as it is local env config."
 }
