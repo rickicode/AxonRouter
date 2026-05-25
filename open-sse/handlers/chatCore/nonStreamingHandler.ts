@@ -453,7 +453,7 @@ export async function handleNonStreamingResponse({
 			responseBody,
 		}));
 	}
-	if (onRequestSuccess) await onRequestSuccess();
+	if (onRequestSuccess) await onRequestSuccess(providerResponse?.headers);
 
 	const usage = extractUsageFromResponse(responseBody);
 	appendLog({ tokens: usage, status: "200 OK" });

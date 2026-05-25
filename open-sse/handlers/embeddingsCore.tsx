@@ -285,7 +285,7 @@ export async function handleEmbeddingsCore({
   }
 
   if (onRequestSuccess) {
-    await onRequestSuccess();
+    await onRequestSuccess(providerResponse?.headers);
   }
 
   const normalized = normalizeEmbeddingsResponse(responseBody, model, provider);

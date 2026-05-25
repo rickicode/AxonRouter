@@ -302,7 +302,7 @@ export async function handleImageGenerationCore({
   }
 
   if (onRequestSuccess) {
-    await onRequestSuccess();
+    await onRequestSuccess(providerResponse?.headers);
   }
 
   const normalized = normalizeImageResponse(responseBody, provider, body.prompt);
