@@ -7,6 +7,7 @@ import { normalizeResponsesInput } from "../translator/helpers/responsesApiHelpe
 import { fetchImageAsBase64 } from "../translator/helpers/imageHelper";
 import { getConsistentMachineId } from "../../src/shared/utils/machineId";
 import { getChatRuntimeSettings } from "../utils/abort";
+import { MAX_RATE_LIMIT_COOLDOWN_MS } from "../config/errorConfig";
 
 // In-memory map: hash(machineId + first assistant content) → { sessionId, lastUsed }
 const SESSION_TTL_MS = 60 * 60 * 1000; // 1 hour
@@ -164,6 +165,100 @@ function resolveConversationSessionId(input, machineId) {
   }
   assistantSessionMap.set(hash, { sessionId, lastUsed: Date.now() });
   return sessionId;
+}
+
+/**
+ * Determine rate-limit scope for a Codex model.
+ * "spark" models have separate rate limits from "codex" models.
+ */
+const CODEX_SCOPE_PATTERNS: Array<{ pattern: string; scope: "codex" | "spark" }> = [
+  { pattern: "codex-spark", scope: "spark" },
+  { pattern: "spark", scope: "spark" },
+  { pattern: "codex", scope: "codex" },
+  { pattern: "gpt-5", scope: "codex" },
+];
+
+export function getCodexModelScope(model: string): "codex" | "spark" {
+  const lower = (model || "").toLowerCase();
+  for (const { pattern, scope } of CODEX_SCOPE_PATTERNS) {
+    if (lower.includes(pattern)) return scope;
+  }
+  return "codex";
+}
+
+export function getCodexRateLimitKey(connectionId: string, model: string): string {
+  return `${connectionId}:${getCodexModelScope(model)}`;
+}
+
+export interface CodexQuotaSnapshot {
+  usage5h: number;
+  limit5h: number;
+  resetAt5h: string | null;
+  usage7d: number;
+  limit7d: number;
+  resetAt7d: string | null;
+}
+
+/**
+ * Parse Codex-specific quota headers from response.
+ * Returns null if no quota headers present.
+ */
+export function parseCodexQuotaHeaders(headers: Headers | Record<string, string>): CodexQuotaSnapshot | null {
+  const get = (name: string) => {
+    if (typeof (headers as any).get === "function") return (headers as any).get(name);
+    return (headers as any)[name] || null;
+  };
+
+  const usage5h = get("x-codex-5h-usage");
+  const limit5h = get("x-codex-5h-limit");
+  const resetAt5h = get("x-codex-5h-reset-at");
+  const usage7d = get("x-codex-7d-usage");
+  const limit7d = get("x-codex-7d-limit");
+  const resetAt7d = get("x-codex-7d-reset-at");
+
+  if (!usage5h && !limit5h && !resetAt5h && !usage7d && !limit7d && !resetAt7d) {
+    return null;
+  }
+
+  return {
+    usage5h: usage5h ? parseFloat(usage5h) : 0,
+    limit5h: limit5h ? parseFloat(limit5h) : Infinity,
+    resetAt5h: resetAt5h ?? null,
+    usage7d: usage7d ? parseFloat(usage7d) : 0,
+    limit7d: limit7d ? parseFloat(limit7d) : Infinity,
+    resetAt7d: resetAt7d ?? null,
+  };
+}
+
+/**
+ * Compute minimum cooldown based on which quota window is exhausted.
+ * @param threshold - Usage ratio that triggers cooldown (default 0.95)
+ * @returns { cooldownMs, window } - 0 means no cooldown needed
+ */
+export function getCodexDualWindowCooldownMs(
+  quota: CodexQuotaSnapshot,
+  threshold = 0.95
+): { cooldownMs: number; window: "7d" | "5h" | "none" } {
+  const now = Date.now();
+
+  const ratio7d = quota.limit7d > 0 && Number.isFinite(quota.limit7d)
+    ? quota.usage7d / quota.limit7d : 0;
+  const ratio5h = quota.limit5h > 0 && Number.isFinite(quota.limit5h)
+    ? quota.usage5h / quota.limit5h : 0;
+
+  // 7d window priority (wider window, harder limit)
+  if (ratio7d >= threshold && quota.resetAt7d) {
+    const resetTime = new Date(quota.resetAt7d).getTime();
+    if (resetTime > now) return { cooldownMs: Math.min(resetTime - now, MAX_RATE_LIMIT_COOLDOWN_MS), window: "7d" };
+  }
+
+  // 5h window
+  if (ratio5h >= threshold && quota.resetAt5h) {
+    const resetTime = new Date(quota.resetAt5h).getTime();
+    if (resetTime > now) return { cooldownMs: Math.min(resetTime - now, MAX_RATE_LIMIT_COOLDOWN_MS), window: "5h" };
+  }
+
+  return { cooldownMs: 0, window: "none" };
 }
 
 /**

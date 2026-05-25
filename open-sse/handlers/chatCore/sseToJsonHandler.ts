@@ -10,7 +10,7 @@ import { ollamaBodyToOpenAI } from "../../translator/response/ollama-to-openai";
 import { tryParsePseudoToolCalls } from "../../translator/response/commandcode-to-openai";
 import { decloakToolNames } from "../../utils/claudeCloaking";
 import { createErrorResult } from "../../utils/error";
-import { createTimeoutError, getChatRuntimeSettings, getStreamIdleTimeoutMs } from "../../utils/abort";
+import { createTimeoutError, getChatRuntimeSettings, getStreamIdleTimeoutMs, getStreamReadinessTimeoutMs } from "../../utils/abort";
 import {
 	buildRequestDetail,
 	extractRequestConfig,
@@ -417,8 +417,8 @@ export async function readBufferedSSETextWithProgressTimeout(providerResponse, o
 	const firstChunkTimeoutMs = Math.max(
 		1000,
 		Number(options.firstChunkTimeoutMs)
-			|| Number(runtime?.codexNonCompactTimeoutMs)
-			|| 75_000,
+			|| Number(getStreamReadinessTimeoutMs())
+			|| 80_000,
 	);
 	const idleTimeoutMs = Math.max(
 		1000,

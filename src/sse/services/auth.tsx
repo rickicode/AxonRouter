@@ -39,6 +39,12 @@ import {
 import { canCodexConnectionUseModel } from "@/lib/codexModelAccess";
 import * as log from "../utils/logger";
 import { getHighThroughputSelectionEnabled } from "../../../open-sse/utils/abort";
+import { circuitBreakerRegistry } from "../../../open-sse/services/circuitBreaker";
+import {
+	getCodexModelScope,
+	parseCodexQuotaHeaders,
+	getCodexDualWindowCooldownMs,
+} from "../../../open-sse/executors/codex";
 
 function sortByPriority(connections = []) {
 	return [...connections].sort(
@@ -212,6 +218,9 @@ function buildSelectionPool(
 	const availableConnections = connections.filter((c) => {
 		if (excludeSet.has(c.id)) return false;
 		if (isModelLockActive(c, model)) return false;
+		// Also check scope-level lock for Codex
+		if (providerId === "codex" && isModelLockActive(c, `__scope_${getCodexModelScope(model || "")}`)) return false;
+		if (!circuitBreakerRegistry.canExecute(c.id)) return false;
 		return true;
 	});
 
@@ -498,7 +507,10 @@ export async function getProviderCredentials(
 		const availableConnections = connections.filter((c) => {
 			if (excludeSet.has(c.id)) return false;
 			if (isModelLockActive(c, model)) return false;
+			// Also check scope-level lock for Codex
+			if (providerId === "codex" && isModelLockActive(c, `__scope_${getCodexModelScope(model || "")}`)) return false;
 			if (!canCodexConnectionUseModel(c, model)) return false;
+			if (!circuitBreakerRegistry.canExecute(c.id)) return false;
 			return true;
 		});
 
@@ -638,7 +650,11 @@ export async function markAccountUnavailable(
 	const rawError = typeof errorText === "string" ? errorText : "";
 	const reason = rawError.slice(0, 200) || "Provider error";
 	const normalizedFull = rawError.toLowerCase();
-	const lockUpdate = buildModelLockUpdate(model, cooldownMs);
+	// For Codex, use scope-keyed lock so spark and codex models have independent locks
+	const lockModel = providerId === "codex"
+		? `__scope_${getCodexModelScope(model || "")}`
+		: model;
+	const lockUpdate = buildModelLockUpdate(lockModel, cooldownMs);
 	const lastCheckedAt = new Date().toISOString();
 	const transientRetryAt = new Date(Date.now() + cooldownMs).toISOString();
 
@@ -681,6 +697,29 @@ export async function markAccountUnavailable(
 	const isDirectFetchTimeout =
 		normalizedReason.includes("direct fetch failed") &&
 		normalizedReason.includes("timed out");
+
+	// Direct fetch timeout = cooldown only, no status change, no usage snapshot write.
+	// The model lock provides short-term unavailability without persisting error state.
+	if (isDirectFetchTimeout) {
+		const connectionPatch = {
+			...lockUpdate,
+			backoffLevel: 0,
+		};
+		await updateCurrentProviderConnection(connectionId, connectionPatch);
+
+		const connName =
+			conn?.displayName || conn?.name || conn?.email || connectionId.slice(0, 8);
+		const lockKey = Object.keys(lockUpdate)[0];
+		log.warn(
+			"AUTH",
+			`${connName} locked ${lockKey} for ${Math.round(cooldownMs / 1000)}s [direct-fetch-timeout]`,
+		);
+
+		return { shouldFallback: true, cooldownMs };
+	}
+
+	circuitBreakerRegistry.recordFailure(connectionId);
+
 	const isNetworkTransient502 =
 		Number(status) === 502 &&
 		(normalizedReason.includes("phase=direct") ||
@@ -688,8 +727,7 @@ export async function markAccountUnavailable(
 			normalizedReason.includes("phase=relay") ||
 			normalizedReason.includes("etimedout") ||
 			normalizedReason.includes("econnreset") ||
-			normalizedReason.includes("socket hang up") ||
-			isDirectFetchTimeout);
+			normalizedReason.includes("socket hang up"));
 	const transientUpstreamPatch =
 		!authBlockedPatch &&
 		!isRuntimeQuotaOrRateLimited &&
@@ -867,8 +905,10 @@ export async function clearAccountError(
 	connectionId,
 	currentConnection,
 	model = null,
+	responseHeaders?: any,
 ) {
 	if (!connectionId || connectionId === "noauth") return;
+	circuitBreakerRegistry.recordSuccess(connectionId);
 	const selectedConn = currentConnection._connection || currentConnection;
 	const provider =
 		selectedConn?.provider || currentConnection?.provider || null;
@@ -919,6 +959,20 @@ export async function clearAccountError(
 	}
 
 	await updateCurrentProviderConnection(connectionId, clearObj);
+
+	// Proactive quota header check for Codex - set cooldown before quota is fully exhausted
+	if (provider === "codex" && responseHeaders) {
+		const quota = parseCodexQuotaHeaders(responseHeaders);
+		if (quota) {
+			const { cooldownMs, window } = getCodexDualWindowCooldownMs(quota);
+			if (cooldownMs > 0) {
+				const scopeKey = `__scope_${getCodexModelScope(model || "")}`;
+				const proactiveLock = buildModelLockUpdate(scopeKey, Math.min(cooldownMs, MAX_RATE_LIMIT_COOLDOWN_MS));
+				await updateCurrentProviderConnection(connectionId, proactiveLock);
+				log.info("AUTH", `${connectionId.slice(0, 8)} proactive ${window} cooldown for ${Math.round(cooldownMs / 1000)}s`);
+			}
+		}
+	}
 }
 
 /**

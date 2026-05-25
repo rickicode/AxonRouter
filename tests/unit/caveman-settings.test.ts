@@ -42,7 +42,7 @@ describe("caveman settings", () => {
 
   it("resolves prompts only when enabled", () => {
     expect(resolveCavemanPrompt({ enabled: false, level: "full" })).toBe("");
-    expect(resolveCavemanPrompt({ enabled: true, level: "lite" })).toContain("Caveman Mode Lite");
-    expect(resolveCavemanPrompt({ enabled: true, level: "ultra" })).toContain("Caveman Mode Ultra");
+    expect(resolveCavemanPrompt({ enabled: true, level: "lite" })).toContain("Respond tersely");
+    expect(resolveCavemanPrompt({ enabled: true, level: "ultra" })).toContain("ultra-terse");
   });
 });
