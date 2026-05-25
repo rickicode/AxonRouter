@@ -27,7 +27,7 @@ describe("caveman translator integration", () => {
     );
 
     const systemText = result.system.map((part: any) => part.text || "").join("\n");
-    expect(systemText).toContain("Caveman Mode Full enabled");
+    expect(systemText).toContain("terse caveman");
     expect(result.messages.some((message: any) => message.role === "system")).toBe(false);
   });
 
@@ -46,7 +46,7 @@ describe("caveman translator integration", () => {
       cavemanModifier,
     );
 
-    expect(result.systemInstruction.parts[0].text).toContain("Caveman Mode Full enabled");
+    expect(result.systemInstruction.parts[0].text).toContain("terse caveman");
   });
 
   it("uses Responses developer input when source and target are both Responses", async () => {
@@ -65,7 +65,7 @@ describe("caveman translator integration", () => {
     );
 
     expect(result.input[0]).toMatchObject({ type: "message", role: "developer" });
-    expect(result.input[0].content[0].text).toContain("Caveman Mode Full enabled");
+    expect(result.input[0].content[0].text).toContain("terse caveman");
     expect(result.instructions).toBe("");
   });
 
@@ -84,6 +84,6 @@ describe("caveman translator integration", () => {
       cavemanModifier,
     );
 
-    expect(result.params.system).toContain("Caveman Mode Full enabled");
+    expect(result.params.system).toContain("terse caveman");
   });
 });
