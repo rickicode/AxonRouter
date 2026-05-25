@@ -56,7 +56,7 @@ function formatDiagnosticError(prefix, error, extra: any = {}) {
   if (phase) diagnostic.phase = phase;
   if (targetUrl) diagnostic.targetUrl = targetUrl;
   if (proxyUrl) diagnostic.proxyUrl = proxyUrl;
-  if (code === "UPSTREAM_TIMEOUT" || code === "STREAM_IDLE_TIMEOUT") {
+  if (code === "UPSTREAM_TIMEOUT" || code === "STREAM_IDLE_TIMEOUT" || error?.name === "AbortError") {
     diagnostic.name = "AbortError";
     diagnostic.timeoutMs = error?.timeoutMs ?? error?.cause?.timeoutMs ?? null;
   }

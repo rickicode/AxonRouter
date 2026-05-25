@@ -205,6 +205,15 @@ export class BaseExecutor {
 
       if (!retryAttemptsByUrl[urlIndex]) retryAttemptsByUrl[urlIndex] = 0;
 
+      const tryRetry = async (urlIdx, statusKey, reason) => {
+        const { attempts, delayMs } = resolveRetryEntry(retryConfig[statusKey]);
+        if (attempts <= 0 || retryAttemptsByUrl[urlIdx] >= attempts) return false;
+        retryAttemptsByUrl[urlIdx]++;
+        log?.debug?.("RETRY", `${reason} retry ${retryAttemptsByUrl[urlIdx]}/${attempts} after ${delayMs / 1000}s`);
+        await new Promise(resolve => setTimeout(resolve, delayMs));
+        return true;
+      };
+
       try {
         const deadline = timeoutMs ? createDeadlineSignal(timeoutMs, `${this.provider} upstream`) : null;
         const requestSignal = deadline ? mergeAbortSignals([signal, deadline.signal]) : signal;
@@ -227,12 +236,8 @@ export class BaseExecutor {
         if (stream) deadline?.clear();
 
         // Retry based on status code config
-        const { attempts: maxRetries, delayMs } = resolveRetryEntry(retryConfig[responseWithDeadline.status]);
-        if (maxRetries > 0 && retryAttemptsByUrl[urlIndex] < maxRetries) {
-          retryAttemptsByUrl[urlIndex]++;
-          log?.debug?.("RETRY", `${responseWithDeadline.status} retry ${retryAttemptsByUrl[urlIndex]}/${maxRetries} after ${delayMs / 1000}s`);
+        if (await tryRetry(urlIndex, responseWithDeadline.status, `status ${responseWithDeadline.status}`)) {
           await responseWithDeadline.body?.cancel?.().catch(() => {});
-          await new Promise(resolve => setTimeout(resolve, delayMs));
           urlIndex--;
           continue;
         }
@@ -247,6 +252,11 @@ export class BaseExecutor {
         return { response: responseWithDeadline, url, headers, transformedBody };
       } catch (error) {
         lastError = error;
+        if (error.name === "AbortError") throw error;
+
+        // Map network/fetch exceptions to 502 retry config (same pattern as 9router)
+        if (await tryRetry(urlIndex, HTTP_STATUS.BAD_GATEWAY, `network "${error.message}"`)) { urlIndex--; continue; }
+
         if (urlIndex + 1 < fallbackCount) {
           log?.debug?.("RETRY", `Error on ${url}, trying fallback ${urlIndex + 1}`);
           continue;

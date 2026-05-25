@@ -38,6 +38,7 @@ import {
 import { canCodexConnectionUseModel } from "@/lib/codexModelAccess";
 import * as log from "../utils/logger";
 import { getHighThroughputSelectionEnabled } from "../../../open-sse/utils/abort";
+import { MAX_RATE_LIMIT_COOLDOWN_MS } from "../../../open-sse/config/errorConfig";
 
 function sortByPriority(connections = []) {
 	return [...connections].sort(
@@ -623,7 +624,7 @@ export async function markAccountUnavailable(
 	let shouldFallback, cooldownMs, newBackoffLevel;
 	if (resetsAtMs && resetsAtMs > Date.now()) {
 		shouldFallback = true;
-		cooldownMs = resetsAtMs - Date.now();
+		cooldownMs = Math.min(resetsAtMs - Date.now(), MAX_RATE_LIMIT_COOLDOWN_MS);
 		newBackoffLevel = 0;
 	} else {
 		({ shouldFallback, cooldownMs, newBackoffLevel } = checkFallbackError(

@@ -4,8 +4,8 @@ export const DEFAULT_COMPACT_UPSTREAM_TIMEOUT_MS = null;
 export const DEFAULT_CHAT_RUNTIME_SETTINGS = Object.freeze({
   upstreamTimeoutMs: DEFAULT_UPSTREAM_TIMEOUT_MS,
   compactUpstreamTimeoutMs: DEFAULT_COMPACT_UPSTREAM_TIMEOUT_MS,
-  codexNonCompactTimeoutMs: 75_000,
-  codexAgenticTimeoutMs: 45_000,
+  codexNonCompactTimeoutMs: 180_000,
+  codexAgenticTimeoutMs: 120_000,
   streamIdleTimeoutMs: DEFAULT_STREAM_IDLE_TIMEOUT_MS,
   maxInflight: 2000,
   providerMaxInflight: 600,

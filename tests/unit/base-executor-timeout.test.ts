@@ -176,19 +176,19 @@ describe("BaseExecutor upstream timeout", () => {
   it("uses shorter timeouts for non-compact Codex requests", () => {
     const executor = new CodexExecutor();
 
-    expect(executor.getTimeoutMs({ body: { input: [] }, stream: false })).toBe(75000);
+    expect(executor.getTimeoutMs({ body: { input: [] }, stream: false })).toBe(180000);
     expect(
       executor.getTimeoutMs({
         body: { input: [], tools: [{ type: "function", function: { name: "ls" } }] },
         stream: false,
       }),
-    ).toBe(45000);
+    ).toBe(120000);
     expect(
       executor.getTimeoutMs({
         body: { input: [], reasoning_effort: "high" },
         stream: false,
       }),
-    ).toBe(45000);
+    ).toBe(120000);
     expect(executor.getTimeoutMs({ body: { input: [], _compact: true }, stream: false })).toBeNull();
   });
 
