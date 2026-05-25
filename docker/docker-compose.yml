@@ -51,7 +51,7 @@ services:
       - NEXT_TELEMETRY_DISABLED=1
       - LOG_LEVEL=${LOG_LEVEL:-info}
     volumes:
-      - ${DATA_PATH:-./data}:/home/bun/.axonrouter
+      - ${DATA_PATH:-./data}:/home/node/.axonrouter
       - ./middleware.json:/app/src/middleware.json:ro
     networks:
       - axonrouter-net
@@ -84,13 +84,13 @@ services:
   mitm:
     image: axonrouter:latest
     container_name: axonrouter-mitm
-    command: ["node", "--experimental-strip-types", "./src/mitm/server.ts"]
+    command: ["tsx", "./src/mitm/server.ts"]
     environment:
       - NODE_ENV=production
       - MITM_PORT=20129
       - HOSTNAME=0.0.0.0
     volumes:
-      - ${DATA_PATH:-./data}:/home/bun/.axonrouter
+      - ${DATA_PATH:-./data}:/home/node/.axonrouter
     networks:
       - axonrouter-net
     restart: unless-stopped
@@ -105,7 +105,7 @@ services:
     container_name: axonrouter-init
     entrypoint: ["echo", "AxonRouter data directory initialized"]
     volumes:
-      - ${DATA_PATH:-./data}:/home/bun/.axonrouter
+      - ${DATA_PATH:-./data}:/home/node/.axonrouter
     networks:
       - axonrouter-net
     restart: "no"

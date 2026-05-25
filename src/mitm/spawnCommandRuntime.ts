@@ -10,7 +10,8 @@ function buildSudoInlineCommand({ homeDir, apiKey, mitmRouterBase, execPath, ser
     `MITM_ROUTER_BASE=${shellQuoteSingle(mitmRouterBase)}`,
     "NODE_ENV=production",
     shellQuoteSingle(execPath),
-    "--experimental-strip-types",
+    "--import",
+    "tsx",
     shellQuoteSingle(serverPath),
   ].join(" ");
 }

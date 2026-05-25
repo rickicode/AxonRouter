@@ -42,7 +42,7 @@ describe("start script helpers", () => {
       .toEqual({ forwardArgs: ["--hostname", "0.0.0.0", "--keepAliveTimeout", "60000"], port: null });
   });
 
-  it("resolves the local Next CLI for direct node/bun start execution", () => {
+  it("resolves the local Next CLI for direct node start execution", () => {
     expect(resolveNextCliPath()).toMatch(/next[/\\]dist[/\\]bin[/\\]next$/);
   });
 });

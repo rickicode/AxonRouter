@@ -32,82 +32,14 @@ type DatabaseDriver = (new (filePath: string) => SQLiteDatabaseLike) | ((filePat
 
 let Database: DatabaseDriver | null = null;
 
-function isBunRuntime(): boolean {
-  return typeof globalThis === 'object' && 'Bun' in globalThis;
-}
-
 function loadDatabaseDriver(): DatabaseDriver {
   if (Database) return Database;
-  if (isBunRuntime()) {
-    Database = BunSQLiteDatabase;
-    return Database;
-  }
   Database = NodeSQLiteDatabase;
   return Database;
 }
 
 function NodeSQLiteDatabase(filePath: string): SQLiteDatabaseLike {
   return new (BetterSqliteDatabase as unknown as new (filePath: string) => SQLiteDatabaseLike)(filePath);
-}
-
-class BunSQLiteStatement implements SQLiteStatementLike {
-  statement: SQLiteStatementLike;
-
-  constructor(statement: SQLiteStatementLike) {
-    this.statement = statement;
-  }
-
-  run(...args) {
-    return this.statement.run(...args);
-  }
-
-  get(...args) {
-    return this.statement.get(...args);
-  }
-
-  all(...args) {
-    return this.statement.all(...args);
-  }
-}
-
-class BunSQLiteAdapter implements SQLiteDatabaseLike {
-  db: any;
-
-  constructor(filePath: string) {
-    // Use require("bun:sqlite") to access Bun's built-in SQLite
-    const { Database: BunDatabase } = require("bun:sqlite");
-    this.db = new BunDatabase(filePath);
-  }
-
-  pragma(sql: string, options: { simple?: boolean } = {}) {
-    const rows = this.db.query(`PRAGMA ${sql}`).all();
-    if (options?.simple) {
-      const first = rows?.[0];
-      if (!first) return undefined;
-      return Object.values(first)[0];
-    }
-    return rows;
-  }
-
-  exec(sql: string) {
-    return this.db.exec(sql);
-  }
-
-  prepare(sql: string) {
-    return new BunSQLiteStatement(this.db.query(sql));
-  }
-
-  transaction(callback: (...args: unknown[]) => unknown) {
-    return (...args) => this.db.transaction(() => callback(...args))();
-  }
-
-  close() {
-    return this.db.close();
-  }
-}
-
-function BunSQLiteDatabase(filePath: string): SQLiteDatabaseLike {
-  return new BunSQLiteAdapter(filePath);
 }
 
 const DB_SQLITE_FILE = path.join(/*turbopackIgnore: true*/ getDataDir(), 'db.sqlite');

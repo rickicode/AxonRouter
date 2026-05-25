@@ -186,7 +186,7 @@ async function startServer(apiKey, sudoPassword) {
     // Spawn directly — process already has admin rights
     serverProcess = spawn(
       process.execPath,
-      ["--experimental-strip-types", getServerPath()],
+      ["--import", "tsx", getServerPath()],
       {
         detached: false,
         windowsHide: true,
@@ -219,7 +219,7 @@ async function startServer(apiKey, sudoPassword) {
     serverProcess.stdin.end();
   } else {
     // Docker/minimal images: no sudo — same as Windows-style direct spawn
-    serverProcess = spawn(process.execPath, ["--experimental-strip-types", getServerPath()], {
+    serverProcess = spawn(process.execPath, ["--import", "tsx", getServerPath()], {
       detached: false,
       windowsHide: true,
       stdio: ["ignore", "pipe", "pipe"],

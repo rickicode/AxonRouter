@@ -126,7 +126,7 @@ docker run -d \
   --name axonrouter \
   -p 12711:12711 \
   -p 12778:12778 \
-  -v "$HOME/.axonrouter:/home/bun/.axonrouter" \
+  -v "$HOME/.axonrouter:/home/node/.axonrouter" \
   axonrouter
 ```
 
@@ -136,9 +136,9 @@ Compose deployment:
 docker compose -f docker/docker-compose.yml up -d --build
 ```
 
-The container stores AxonRouter data at `/home/bun/.axonrouter`.
+The container stores AxonRouter data at `/home/node/.axonrouter`.
 
-The Docker image also includes the Go router binary. When the Go router is enabled in Dashboard -> Settings, AxonRouter copies the binary into `/home/bun/.axonrouter/bin/axonrouter-go-router` and manages it as a child process. Publish port `12778` if you want to access that alternative endpoint from outside the container, and set the Go router host to `0.0.0.0` in Settings for host access.
+The Docker image also includes the Go router binary. When the Go router is enabled in Dashboard -> Settings, AxonRouter copies the binary into `/home/node/.axonrouter/bin/axonrouter-go-router` and manages it as a child process. Publish port `12778` if you want to access that alternative endpoint from outside the container, and set the Go router host to `0.0.0.0` in Settings for host access.
 
 ## Security
 

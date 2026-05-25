@@ -40,23 +40,10 @@ Runtime data is stored in `~/.axonrouter` on macOS/Linux and `%APPDATA%\axonrout
 
 Choose one:
 
-- **Run directly** with Bun or npm when AxonRouter should run on your machine as a local app.
+- **Run directly** with npm when AxonRouter should run on your machine as a local app.
 - **Run with Docker** when you want an isolated service with a mounted `~/.axonrouter` data directory.
 
 ### Run Directly
-
-#### Bun
-
-```bash
-bun add -g axonrouter
-axonrouter
-```
-
-Run without global install:
-
-```bash
-bunx axonrouter
-```
 
 #### npm
 
@@ -90,11 +77,11 @@ docker run -d \
   --name axonrouter \
   -p 12711:12711 \
   -p 12778:12778 \
-  -v "$HOME/.axonrouter:/home/bun/.axonrouter" \
+  -v "$HOME/.axonrouter:/home/node/.axonrouter" \
   axonrouter
 ```
 
-Docker stores runtime data in the mounted `~/.axonrouter` directory. The image also includes the optional Go router binary and copies it into `/home/bun/.axonrouter/bin` at startup. If you enable the Go router and need host access to port `12778`, set the Go router host to `0.0.0.0` in **Settings**.
+Docker stores runtime data in the mounted `~/.axonrouter` directory. The image also includes the optional Go router binary and copies it into `/home/node/.axonrouter/bin` at startup. If you enable the Go router and need host access to port `12778`, set the Go router host to `0.0.0.0` in **Settings**.
 
 ---
 
@@ -148,16 +135,6 @@ More tool-specific notes are in [docs/DOCS.md](./docs/DOCS.md).
 ---
 
 ## Install From Source
-
-```bash
-git clone https://github.com/rickicode/AxonRouter.git
-cd AxonRouter
-bun install
-bun run build
-bun run start
-```
-
-With npm:
 
 ```bash
 git clone https://github.com/rickicode/AxonRouter.git

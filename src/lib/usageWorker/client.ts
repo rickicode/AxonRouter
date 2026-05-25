@@ -88,8 +88,7 @@ function createWorkerEnv() {
 		...env,
 		NODE_OPTIONS: [
 			NODE_OPTIONS,
-			"--experimental-strip-types",
-			"--disable-warning=ExperimentalWarning",
+			"--import tsx",
 		]
 			.filter(Boolean)
 			.join(" "),

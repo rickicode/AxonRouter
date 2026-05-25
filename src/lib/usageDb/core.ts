@@ -8,8 +8,6 @@ const nodeRequire = createRequire(import.meta.url);
 const DEFAULT_SQLITE_MMAP_SIZE = 256 * 1024 * 1024;
 const USAGE_DB_SQLITE_FILE = path.join(DATA_DIR, "usage.sqlite");
 
-type SQLiteRow = Record<string, unknown>;
-
 type SQLiteStatementLike = {
   run: (...args: unknown[]) => unknown;
   get: (...args: unknown[]) => unknown;
@@ -26,27 +24,12 @@ type SQLiteDatabaseLike = {
 
 type DatabaseDriver = new (filePath: string) => SQLiteDatabaseLike;
 
-type BunDatabaseCtor = new (filePath: string) => {
-  query: (sql: string) => {
-    run: (...args: unknown[]) => unknown;
-    get: (...args: unknown[]) => unknown;
-    all: (...args: unknown[]) => SQLiteRow[];
-  };
-  exec: (sql: string) => unknown;
-  transaction: <T extends (...args: any[]) => any>(callback: T) => T;
-  close: () => unknown;
-};
-
 let Database: DatabaseDriver | null = null;
 let usageDb: SQLiteDatabaseLike | null = null;
 let usageWalCheckpointTimer: ReturnType<typeof setInterval> | null = null;
 
 function loadDatabaseDriver(): DatabaseDriver {
   if (Database) return Database;
-  if (typeof (globalThis as any).Bun !== "undefined") {
-    Database = BunSQLiteDatabase;
-    return Database;
-  }
   Database = NodeSQLiteDatabase;
   return Database;
 }
@@ -55,67 +38,6 @@ const NodeSQLiteDatabase: DatabaseDriver = function NodeSQLiteDatabase(filePath:
   const BetterSqliteDatabase = nodeRequire("better-sqlite3");
   return new BetterSqliteDatabase(filePath) as SQLiteDatabaseLike;
 } as unknown as DatabaseDriver;
-
-class BunSQLiteStatement implements SQLiteStatementLike {
-  statement: SQLiteStatementLike;
-
-  constructor(statement: SQLiteStatementLike) {
-    this.statement = statement;
-  }
-
-  run(...args: unknown[]) {
-    return this.statement.run(...args);
-  }
-
-  get(...args: unknown[]) {
-    return this.statement.get(...args);
-  }
-
-  all(...args: unknown[]) {
-    return this.statement.all(...args);
-  }
-}
-
-class BunSQLiteAdapter implements SQLiteDatabaseLike {
-  db: InstanceType<BunDatabaseCtor>;
-
-  constructor(filePath: string) {
-    const bunSqlite = nodeRequire("bun:sqlite") as { Database?: BunDatabaseCtor };
-    const BunBuiltinDatabase = bunSqlite?.Database;
-    if (!BunBuiltinDatabase) {
-      throw new Error("bun:sqlite is required when running usage SQLite storage under Bun");
-    }
-    this.db = new BunBuiltinDatabase(filePath);
-  }
-
-  pragma(sql: string, options: { simple?: boolean } = {}) {
-    const rows = this.db.query(`PRAGMA ${sql}`).all();
-    if (options?.simple) {
-      const first = rows?.[0];
-      if (!first) return undefined;
-      return Object.values(first)[0];
-    }
-    return rows;
-  }
-
-  exec(sql: string) {
-    return this.db.exec(sql);
-  }
-
-  prepare(sql: string) {
-    return new BunSQLiteStatement(this.db.query(sql));
-  }
-
-  transaction<T extends (...args: any[]) => any>(callback: T): T {
-    return ((...args: Parameters<T>) => this.db.transaction(() => callback(...args))()) as T;
-  }
-
-  close() {
-    return this.db.close();
-  }
-}
-
-const BunSQLiteDatabase: DatabaseDriver = BunSQLiteAdapter;
 
 export function getUsageSqliteFile() {
   return USAGE_DB_SQLITE_FILE;
