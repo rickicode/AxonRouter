@@ -361,7 +361,10 @@ export function normalizeChatRuntimeSettings(settings: any = {}) {
       : DEFAULT_CHAT_RUNTIME_SETTINGS.observabilityMode,
     observabilitySampleRate: normalizeUnitInterval(source.observabilitySampleRate, DEFAULT_CHAT_RUNTIME_SETTINGS.observabilitySampleRate),
     highThroughputSelection: source.highThroughputSelection !== false,
-    sseHeartbeatIntervalMs: normalizeNonNegativeInteger(source.sseHeartbeatIntervalMs, DEFAULT_CHAT_RUNTIME_SETTINGS.sseHeartbeatIntervalMs),
+    sseHeartbeatIntervalMs: (() => {
+      const raw = normalizeNonNegativeInteger(source.sseHeartbeatIntervalMs, DEFAULT_CHAT_RUNTIME_SETTINGS.sseHeartbeatIntervalMs);
+      return raw === 0 ? 0 : Math.max(5000, raw);
+    })(),
     streamReadinessTimeoutMs: normalizePositiveInteger(source.streamReadinessTimeoutMs, DEFAULT_CHAT_RUNTIME_SETTINGS.streamReadinessTimeoutMs),
     useUpstreamRetryHints: source.useUpstreamRetryHints !== false,
     circuitBreaker: {

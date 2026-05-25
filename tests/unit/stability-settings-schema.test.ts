@@ -71,6 +71,23 @@ describe("normalizeChatRuntimeSettings - stability fields", () => {
     expect(result.sseHeartbeatIntervalMs).toBe(0);
   });
 
+  it("clamps sseHeartbeatIntervalMs below 5000 to 5000 (minimum floor)", () => {
+    const result = normalizeChatRuntimeSettings({
+      sseHeartbeatIntervalMs: 1,
+    });
+    expect(result.sseHeartbeatIntervalMs).toBe(5000);
+
+    const result2 = normalizeChatRuntimeSettings({
+      sseHeartbeatIntervalMs: 4999,
+    });
+    expect(result2.sseHeartbeatIntervalMs).toBe(5000);
+
+    const result3 = normalizeChatRuntimeSettings({
+      sseHeartbeatIntervalMs: 5000,
+    });
+    expect(result3.sseHeartbeatIntervalMs).toBe(5000);
+  });
+
   it("falls back to defaults for invalid negative sseHeartbeatIntervalMs", () => {
     const result = normalizeChatRuntimeSettings({
       sseHeartbeatIntervalMs: -1,

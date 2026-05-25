@@ -7,6 +7,7 @@ import { normalizeResponsesInput } from "../translator/helpers/responsesApiHelpe
 import { fetchImageAsBase64 } from "../translator/helpers/imageHelper";
 import { getConsistentMachineId } from "../../src/shared/utils/machineId";
 import { getChatRuntimeSettings } from "../utils/abort";
+import { MAX_RATE_LIMIT_COOLDOWN_MS } from "../config/errorConfig";
 
 // In-memory map: hash(machineId + first assistant content) → { sessionId, lastUsed }
 const SESSION_TTL_MS = 60 * 60 * 1000; // 1 hour
@@ -248,13 +249,13 @@ export function getCodexDualWindowCooldownMs(
   // 7d window priority (wider window, harder limit)
   if (ratio7d >= threshold && quota.resetAt7d) {
     const resetTime = new Date(quota.resetAt7d).getTime();
-    if (resetTime > now) return { cooldownMs: resetTime - now, window: "7d" };
+    if (resetTime > now) return { cooldownMs: Math.min(resetTime - now, MAX_RATE_LIMIT_COOLDOWN_MS), window: "7d" };
   }
 
   // 5h window
   if (ratio5h >= threshold && quota.resetAt5h) {
     const resetTime = new Date(quota.resetAt5h).getTime();
-    if (resetTime > now) return { cooldownMs: resetTime - now, window: "5h" };
+    if (resetTime > now) return { cooldownMs: Math.min(resetTime - now, MAX_RATE_LIMIT_COOLDOWN_MS), window: "5h" };
   }
 
   return { cooldownMs: 0, window: "none" };

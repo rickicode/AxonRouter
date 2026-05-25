@@ -91,7 +91,10 @@ export function normalizeChatRuntimeSettings(settings: any = {}) {
     observabilityMode: ["full", "sampled", "minimal", "off"].includes(source.observabilityMode) ? source.observabilityMode : DEFAULT_CHAT_RUNTIME_SETTINGS.observabilityMode,
     observabilitySampleRate: parseUnitInterval(source.observabilitySampleRate, DEFAULT_CHAT_RUNTIME_SETTINGS.observabilitySampleRate),
     highThroughputSelection: source.highThroughputSelection !== false,
-    sseHeartbeatIntervalMs: parseNonNegativeInteger(source.sseHeartbeatIntervalMs, DEFAULT_CHAT_RUNTIME_SETTINGS.sseHeartbeatIntervalMs),
+    sseHeartbeatIntervalMs: (() => {
+      const raw = parseNonNegativeInteger(source.sseHeartbeatIntervalMs, DEFAULT_CHAT_RUNTIME_SETTINGS.sseHeartbeatIntervalMs);
+      return raw === 0 ? 0 : Math.max(5000, raw);
+    })(),
     streamReadinessTimeoutMs: parsePositiveInteger(source.streamReadinessTimeoutMs, DEFAULT_CHAT_RUNTIME_SETTINGS.streamReadinessTimeoutMs),
     useUpstreamRetryHints: source.useUpstreamRetryHints !== false,
     circuitBreaker: {

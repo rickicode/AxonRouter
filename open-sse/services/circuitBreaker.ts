@@ -71,6 +71,8 @@ class CircuitBreakerRegistry {
     entry.failureCount = 0;
     entry.lastFailureAt = null;
     entry.openedAt = null;
+
+    this.maybeCleanup();
   }
 
   /** Record a failed request - increments failure count, may open circuit */

@@ -158,7 +158,7 @@ describe("getCodexDualWindowCooldownMs", () => {
 
   it("7d takes priority over 5h when both exceeded", () => {
     const futureReset7d = new Date(Date.now() + 7200_000).toISOString(); // 2 hours from now
-    const futureReset5h = new Date(Date.now() + 1800_000).toISOString(); // 30 min from now
+    const futureReset5h = new Date(Date.now() + 600_000).toISOString(); // 10 min from now
     const quota: CodexQuotaSnapshot = {
       usage5h: 96,
       limit5h: 100,
@@ -170,6 +170,24 @@ describe("getCodexDualWindowCooldownMs", () => {
 
     const result = getCodexDualWindowCooldownMs(quota);
     expect(result.window).toBe("7d");
-    expect(result.cooldownMs).toBeGreaterThan(1800_000); // longer than the 5h reset
+    expect(result.cooldownMs).toBeGreaterThan(600_000); // longer than the 5h reset
+  });
+
+  it("caps cooldownMs at MAX_RATE_LIMIT_COOLDOWN_MS (30 minutes)", () => {
+    // Set reset 3 days from now - would be unbounded without the cap
+    const futureReset = new Date(Date.now() + 3 * 24 * 60 * 60 * 1000).toISOString();
+    const quota: CodexQuotaSnapshot = {
+      usage5h: 50,
+      limit5h: 100,
+      resetAt5h: null,
+      usage7d: 960,
+      limit7d: 1000,
+      resetAt7d: futureReset,
+    };
+
+    const result = getCodexDualWindowCooldownMs(quota);
+    expect(result.window).toBe("7d");
+    // MAX_RATE_LIMIT_COOLDOWN_MS = 30 * 60 * 1000 = 1,800,000ms
+    expect(result.cooldownMs).toBe(1800000);
   });
 });
