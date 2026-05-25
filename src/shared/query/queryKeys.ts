@@ -18,7 +18,7 @@ export const queryKeys = {
   modelAliases: () => ["models", "alias"] as const,
   disabledModels: () => ["models", "disabled"] as const,
   providerModels: () => ["provider-models"] as const,
-  goRouter: () => ["go-router"] as const,
+
   morphUsage: (period: string) => ["morph", "usage", period] as const,
   usageStats: (period: string) => ["usage", "stats", period] as const,
   usageAnalytics: (period: string) => ["usage", "analytics", period] as const,

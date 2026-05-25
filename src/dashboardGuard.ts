@@ -42,7 +42,6 @@ const PROTECTED_API_PATHS = [
 	"/api/skills",
 	"/api/translator",
 	"/api/morph",
-	"/api/go-router",
 ];
 
 function classifyTokenError(error) {

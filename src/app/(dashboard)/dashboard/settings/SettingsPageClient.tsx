@@ -55,13 +55,6 @@ const STATUS_TONE_CLASSNAMES = {
 
 const BACKUP_SCHEDULE_OPTIONS = ["daily", "weekly", "monthly"];
 
-type GoRouterStatusResponse = {
-  enabled?: boolean;
-  host?: string;
-  port?: number | string;
-  [key: string]: unknown;
-};
-
 function formatRelativeTimestamp(value, fallback) {
   if (!value) return fallback;
 
@@ -159,19 +152,9 @@ export default function SettingsPageClient() {
   const [r2ActionFeedback, setR2ActionFeedback] = useState({ type: "", message: "" });
   const [r2StatusSummary, setR2StatusSummary] = useState("");
   const [restorePreview, setRestorePreview] = useState(null);
-  const [goRouterStatus, setGoRouterStatus] = useState(null);
-  const [goRouterDraft, setGoRouterDraft] = useState({ enabled: false, host: "127.0.0.1", port: 12778 });
-  const [loadingGoRouter, setLoadingGoRouter] = useState(true);
-  const [savingGoRouter, setSavingGoRouter] = useState(false);
-  const [restartingGoRouter, setRestartingGoRouter] = useState(false);
-  const [goRouterFeedback, setGoRouterFeedback] = useState({ type: "", message: "" });
   const [otelSettings, setOtelSettings] = useState({ enabled: false, jaegerOtlpHttpEndpoint: "" });
   const [savingOtel, setSavingOtel] = useState(false);
   const [otelFeedback, setOtelFeedback] = useState({ type: "", message: "" });
-  const goRouterQuery = useQuery({
-    queryKey: queryKeys.goRouter(),
-    queryFn: ({ signal }) => fetchJson<GoRouterStatusResponse>("/api/go-router", { signal }),
-  });
   const modelSyncQuery = useQuery({
     queryKey: queryKeys.modelSync(),
     queryFn: ({ signal }) => fetchJson("/api/model-sync", { signal }),
@@ -203,19 +186,6 @@ export default function SettingsPageClient() {
   }, [settingsQuery.data]);
 
   useEffect(() => {
-    if (!goRouterQuery.data) return;
-    const data = goRouterQuery.data;
-    queueMicrotask(() => {
-      setGoRouterStatus(data);
-      setGoRouterDraft({
-        enabled: data.enabled === true,
-        host: data.host || "127.0.0.1",
-        port: Number(data.port) || 12778,
-      });
-    });
-  }, [goRouterQuery.data]);
-
-  useEffect(() => {
     if (!modelSyncQuery.data) return;
     queueMicrotask(() => setModelSyncState(modelSyncQuery.data));
   }, [modelSyncQuery.data]);
@@ -238,15 +208,6 @@ export default function SettingsPageClient() {
 
   useEffect(() => {
     queueMicrotask(() => {
-      setLoadingGoRouter(goRouterQuery.isPending);
-      if (goRouterQuery.isError) {
-        setGoRouterFeedback({ type: "error", message: goRouterQuery.error?.message || "Failed to load Go router status" });
-      }
-    });
-  }, [goRouterQuery.error, goRouterQuery.isError, goRouterQuery.isPending]);
-
-  useEffect(() => {
-    queueMicrotask(() => {
       setLoadingModelSync(modelSyncQuery.isPending);
       if (modelSyncQuery.isError) {
         setModelSyncFeedback({ type: "error", message: modelSyncQuery.error?.message || "Failed to load model sync settings" });
@@ -264,10 +225,6 @@ export default function SettingsPageClient() {
       }
     });
   }, [r2SettingsQuery.error, r2SettingsQuery.isError, r2SettingsQuery.isPending]);
-
-  async function loadGoRouterStatus() {
-    await goRouterQuery.refetch();
-  }
 
   async function loadModelSyncSettings() {
     await modelSyncQuery.refetch();
@@ -550,61 +507,6 @@ export default function SettingsPageClient() {
     saveSettingsMutation.mutate(undefined, { onSettled: () => setSavingRoutingProfile(false) });
   };
 
-  const saveGoRouterMutation = useMutation({
-    retry: false,
-    mutationFn: async () => {
-      return fetchJson<GoRouterStatusResponse>("/api/go-router", {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          enabled: goRouterDraft.enabled,
-          host: goRouterDraft.host,
-          port: Number(goRouterDraft.port) || 12778,
-        }),
-      });
-    },
-    onSuccess: (data) => {
-      setGoRouterStatus(data);
-      setGoRouterDraft({
-        enabled: data.enabled === true,
-        host: data.host || "127.0.0.1",
-        port: Number(data.port) || 12778,
-      });
-      setGoRouterFeedback({ type: "success", message: "Go router settings saved." });
-      inv.goRouter();
-    },
-    onError: (error: any) => {
-      setGoRouterFeedback({ type: "error", message: error.message || "Failed to save Go router settings" });
-    },
-  });
-
-  function handleSaveGoRouter() {
-    setSavingGoRouter(true);
-    setGoRouterFeedback({ type: "", message: "" });
-    saveGoRouterMutation.mutate(undefined, { onSettled: () => setSavingGoRouter(false) });
-  }
-
-  const restartGoRouterMutation = useMutation({
-    retry: false,
-    mutationFn: async () => {
-      return fetchJson("/api/go-router/restart", { method: "POST" });
-    },
-    onSuccess: (data) => {
-      setGoRouterStatus(data);
-      setGoRouterFeedback({ type: "success", message: "Go router restarted." });
-      inv.goRouter();
-    },
-    onError: (error: any) => {
-      setGoRouterFeedback({ type: "error", message: error.message || "Failed to restart Go router" });
-    },
-  });
-
-  function handleRestartGoRouter() {
-    setRestartingGoRouter(true);
-    setGoRouterFeedback({ type: "", message: "" });
-    restartGoRouterMutation.mutate(undefined, { onSettled: () => setRestartingGoRouter(false) });
-  }
-
   async function handleSaveOtelSettings() {
     setSavingOtel(true);
     setOtelFeedback({ type: "", message: "" });
@@ -708,88 +610,6 @@ export default function SettingsPageClient() {
               )}
             </div>
             <ProfileSettingsContent />
-            </div>
-          </CardContent></Card>
-
-          <Card><CardHeader><div><CardTitle>Go Router</CardTitle></div></CardHeader><CardContent>
-            <div className="flex flex-col gap-4">
-              {goRouterFeedback.message ? (
-                <Alert
-                  variant={goRouterFeedback.type === "error" ? "destructive" : "default"}
-                  className="rounded-[4px]"
-                >
-                  <AlertDescription>{goRouterFeedback.message}</AlertDescription>
-                </Alert>
-              ) : null}
-
-              {loadingGoRouter ? (
-                <Skeleton className="h-44 w-full" />
-              ) : (
-                <>
-                  <div className="grid gap-4 sm:grid-cols-3">
-                    <div className="rounded-[4px] border border-[var(--color-border)] bg-[var(--color-bg-alt)]/78 p-4">
-                      <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[var(--color-text-muted)]">Status</p>
-                      <p className="mt-2 text-lg font-semibold text-[var(--color-text-main)]">
-                        {goRouterStatus?.running ? "Running" : goRouterStatus?.enabled ? "Enabled, waiting to start" : "Disabled"}
-                      </p>
-                    </div>
-                    <div className="rounded-[4px] border border-[var(--color-border)] bg-[var(--color-bg-alt)]/78 p-4">
-                      <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[var(--color-text-muted)]">Endpoint</p>
-                      <p className="mt-2 break-all text-sm font-semibold text-[var(--color-text-main)]">{goRouterStatus?.endpointUrl || "-"}</p>
-                    </div>
-                    <div className="rounded-[4px] border border-[var(--color-border)] bg-[var(--color-bg-alt)]/78 p-4">
-                      <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[var(--color-text-muted)]">Binary</p>
-                      <p className="mt-2 break-all text-sm font-semibold text-[var(--color-text-main)]">{goRouterStatus?.binaryPath || "-"}</p>
-                    </div>
-                  </div>
-
-                  <label className="flex gap-3 rounded-[4px] border border-[var(--color-border)] bg-[var(--color-bg-alt)]/78 p-4 text-sm text-[var(--color-text-main)]">
-                    <Switch
-                      checked={goRouterDraft.enabled === true}
-                      onToggle={(checked) => setGoRouterDraft((current) => ({ ...current, enabled: checked }))}
-                      disabled={savingGoRouter || restartingGoRouter}
-                    />
-                    <span className="flex flex-col gap-1">
-                      <span className="block font-medium">Enable Go router</span>
-                    </span>
-                  </label>
-
-                  <div className="grid gap-4 sm:grid-cols-2">
-                    <Input
-                      type="text"
-                      value={goRouterDraft.host}
-                      onChange={(event) => setGoRouterDraft((current) => ({ ...current, host: event.target.value }))}
-                      disabled={savingGoRouter || restartingGoRouter}
-                    />
-                    <Input
-                      type="number"
-                      min="1"
-                      max="65535"
-                      value={goRouterDraft.port}
-                      onChange={(event) => setGoRouterDraft((current) => ({ ...current, port: Number(event.target.value) || 12778 }))}
-                      disabled={savingGoRouter || restartingGoRouter}
-                    />
-                  </div>
-
-                  <div className="rounded-[4px] border border-[var(--color-border)] bg-[var(--color-bg-alt)]/78 p-4 text-sm leading-6 text-[var(--color-text-muted)]">
-                    <p>PID: {goRouterStatus?.pid ?? "not running"} · Last error: {goRouterStatus?.lastError || "none"}</p>
-                  </div>
-
-                  <div className="flex flex-wrap gap-2">
-                    <Button onClick={handleSaveGoRouter} disabled={savingGoRouter || restartingGoRouter}>
-                      {savingGoRouter ? <Spinner data-icon="inline-start" /> : null}
-                      {savingGoRouter ? "Saving" : "Save Go Router Settings"}
-                    </Button>
-                    <Button variant="secondary" onClick={handleRestartGoRouter} disabled={!goRouterDraft.enabled || savingGoRouter || restartingGoRouter}>
-                      {restartingGoRouter ? <Spinner data-icon="inline-start" /> : null}
-                      {restartingGoRouter ? "Restarting" : "Restart Go Router"}
-                    </Button>
-                    <Button variant="outline" onClick={() => void loadGoRouterStatus()} disabled={savingGoRouter || restartingGoRouter}>
-                      Refresh Status
-                    </Button>
-                  </div>
-                </>
-              )}
             </div>
           </CardContent></Card>
 

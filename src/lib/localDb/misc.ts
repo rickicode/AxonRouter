@@ -628,10 +628,7 @@ export async function updateSettings(updates) {
         ...(db.data.settings?.usageWorker || {}),
         ...(nextUpdates?.usageWorker || {}),
       },
-      goRouter: {
-        ...(db.data.settings?.goRouter || {}),
-        ...(nextUpdates?.goRouter || {}),
-      },
+
     });
     await persistDbWrite(db);
     result = db.data.settings;

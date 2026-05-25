@@ -80,7 +80,6 @@ flowchart LR
         CORE[SSE + Translation Core\nopen-sse + src/sse]
         MORPH[Morph Intelligence\nsrc/lib/morph +\napi/morph]
         TUNNEL[Tunnel Manager\nCloudflare + Tailscale]
-        GOROUTER[Managed Go Router\nseparate child process]
         DB[(db.sqlite)]
         UDB[(usage.sqlite)]
         MDB[(usage.sqlite morph tables)]
@@ -111,12 +110,10 @@ flowchart LR
     MORPHHTTP --> MORPH
     DASH --> DB
     DASH --> TUNNEL
-    DASH --> GOROUTER
     CORE --> DB
     CORE --> UDB
     MORPH --> MDB
     MORPH --> P4
-    GOROUTER --> CORE
 
     CORE --> P1
     CORE --> P2
@@ -1044,12 +1041,6 @@ OpenTelemetry coverage:
 - `src/app/api/incidents/*`: derived routing/health/quota incidents and action hints
 - `src/app/api/evals/*`: lightweight evaluation snapshots and run history persisted in settings
 - `src/app/api/outcome-intelligence/*`: spend, enterprise, and virtual-model insight summaries
-
-### Go Router Alternative
-- `src/lib/goRouter/manager.ts`: child-process lifecycle for the separate Go `/v1/*` router
-- `src/shared/services/initializeApp.ts`: auto-starts the Go router when enabled during app bootstrap
-- `src/app/api/go-router/*`: dashboard status/update/restart controls for host/port/enabled state
-- `go-router/`: separate Go module containing the alternative router binary
 
 ### Worker Relay Proxy
 - `WorkerProxy/`: standalone Cloudflare Worker relay proxy for outbound provider routing

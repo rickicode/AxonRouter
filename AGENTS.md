@@ -10,9 +10,9 @@ When instructions conflict, use this priority order:
 
 ## Product Goal
 
-AxonRouter is a new, separate product derived from the current 9Router Plus codebase. It should become a fast, local-first AI routing gateway with a lightweight dashboard, production-safe behavior, TypeScript-first architecture with no application JS files left behind, and an automatically managed Go API router alternative on a separate port.
+AxonRouter is a new, separate product derived from the current 9Router Plus codebase. It should become a fast, local-first AI routing gateway with a lightweight dashboard, production-safe behavior, and TypeScript-first architecture with no application JS files left behind.
 
-Use `docs/ARCHITECTURE.md` for architecture direction and `docs/DOCS.md` for user-facing setup/runtime behavior before large refactors, feature work, rebrand work, Go router work, production-readiness changes, test organization changes, or build/test behavior changes.
+Use `docs/ARCHITECTURE.md` for architecture direction and `docs/DOCS.md` for user-facing setup/runtime behavior before large refactors, feature work, rebrand work, production-readiness changes, test organization changes, or build/test behavior changes.
 
 ## Worktree Rules
 
@@ -26,7 +26,6 @@ Use `docs/ARCHITECTURE.md` for architecture direction and `docs/DOCS.md` for use
 - Use **AxonRouter** as the product/dashboard/docs name.
 - Use `axonrouter` for package and CLI naming.
 - Use `~/.axonrouter` for default local runtime data.
-- Use `~/.axonrouter/bin` for Go router binaries.
 - Do not keep legacy `9router`, `9router-plus`, `9Router`, or `9Router Plus` names, aliases, package names, data paths, or binary paths by default.
 - During refactor, actively rename user-facing and internal project identifiers to AxonRouter/`axonrouter` unless a temporary reference is explicitly needed to locate old code for cleanup.
 - Do not support `~/.9router-plus` migration by default unless the user explicitly requests it later.
@@ -41,7 +40,6 @@ Use `docs/ARCHITECTURE.md` for architecture direction and `docs/DOCS.md` for use
 - TypeScript migration is required. Refactor incrementally, but the final state must have no application `.js`/`.jsx` files remaining.
 - Add schemas/contracts for new or risky API boundaries when practical.
 - Keep the JS `/v1/*` endpoint primary/default on the main AxonRouter server.
-- Build the Go router as a separate automatically managed alternative endpoint, not as a replacement/fallback system.
 
 ## Frontend Performance Rules
 
@@ -61,16 +59,6 @@ Use `docs/ARCHITECTURE.md` for architecture direction and `docs/DOCS.md` for use
 - Prefer inline `className` Tailwind composition in React components over adding new global CSS selectors.
 - Use semantic Tailwind tokens where available; avoid raw color styling inside reusable UI components unless implementing approved AxonRouter theme accents.
 - Follow Tailwind style rules: use `gap-*` instead of `space-*`, `size-*` for square dimensions, `truncate` shorthand, `cn()` for conditional classes, and accessible titles for `Dialog`, `Sheet`, and `Drawer`.
-
-## Go Router Rules
-
-- Go router must run as a separate child process/service on its own port.
-- Go router must be controlled by the AxonRouter launcher/dashboard in normal operation.
-- Dashboard must expose status, endpoint URL, enable/disable, restart, and host/port settings.
-- Go router binary path is `~/.axonrouter/bin`.
-- Go router should focus on `/v1/*` API hot paths, not dashboard management APIs.
-- Go router must preserve OpenAI-compatible request/response and streaming SSE formats as much as practical.
-- JS `/v1/*` remains the primary/default endpoint; Go router is an alternative endpoint.
 
 ## TypeScript Rules
 

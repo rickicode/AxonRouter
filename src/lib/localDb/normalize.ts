@@ -223,11 +223,7 @@ const DEFAULT_SETTINGS = {
   caveman: DEFAULT_CAVEMAN_SETTINGS,
   chatRuntime: DEFAULT_CHAT_RUNTIME_SETTINGS,
   rateLimitPerKey: 600,  // requests per minute per API key (0 = unlimited)
-  goRouter: {
-    enabled: false,
-    host: "127.0.0.1",
-    port: 12778,
-  },
+
   observability: {
     otel: {
       enabled: false,

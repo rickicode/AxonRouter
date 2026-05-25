@@ -6,7 +6,6 @@ import { closeUsageDb } from "@/lib/usageDb/core";
 import { drainUsageQueue } from "@/lib/usageDb/backgroundQueue";
 import { getCloudUsagePoller } from "@/shared/services/cloudUsagePoller";
 import { autoStartMitmIfEnabled, bootstrapMitmRuntimeFromInitializeApp } from "@/lib/mitm/initializeMitmAccess";
-import { ensureGoRouter, stopGoRouter } from "@/lib/goRouter/manager";
 
 import os from "os";
 
@@ -51,10 +50,6 @@ async function cleanupAppResources() {
 
   try {
     await getUsageWorkerClient().stop();
-  } catch {}
-
-  try {
-    await stopGoRouter();
   } catch {}
 
   try {
@@ -131,10 +126,6 @@ export async function initializeApp() {
     // Start usage worker in a standalone process so background usage checks do not contend with request handling.
     getUsageWorkerClient().start().catch((error) => {
       console.warn("[InitApp] Usage worker unavailable:", error?.message || error);
-    });
-
-    ensureGoRouter().catch((error) => {
-      console.warn("[InitApp] Go router unavailable:", error?.message || error);
     });
 
     // Start cloud usage poller if enabled

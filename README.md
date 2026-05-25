@@ -76,12 +76,11 @@ docker build -t axonrouter .
 docker run -d \
   --name axonrouter \
   -p 12711:12711 \
-  -p 12778:12778 \
   -v "$HOME/.axonrouter:/home/node/.axonrouter" \
   axonrouter
 ```
 
-Docker stores runtime data in the mounted `~/.axonrouter` directory. The image also includes the optional Go router binary and copies it into `/home/node/.axonrouter/bin` at startup. If you enable the Go router and need host access to port `12778`, set the Go router host to `0.0.0.0` in **Settings**.
+Docker stores runtime data in the mounted `~/.axonrouter` directory.
 
 ---
 
@@ -129,7 +128,6 @@ More tool-specific notes are in [docs/DOCS.md](./docs/DOCS.md).
 - **Format translation** between OpenAI, Claude, Gemini, and Responses-style flows.
 - **Usage visibility** with token/request stats, request details, and route diagnostics.
 - **Security controls** for dashboard auth, API keys, protected management routes, and audit logs.
-- **Optional Go router** as a separate `/v1/*` hot-path endpoint.
 - **Docker/VPS support** for persistent self-hosted deployments.
 
 ---
