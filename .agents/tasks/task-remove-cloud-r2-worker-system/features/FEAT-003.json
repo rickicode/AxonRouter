@@ -2,7 +2,7 @@
   "id": "FEAT-003",
   "type": "docs",
   "description": "Update CHANGELOG.md with a new version entry documenting all removals and noting WorkerRelay as relay proxy alternative. Final verification pass.",
-  "status": "in_progress",
+  "status": "completed",
   "steps": [
     "Add a new version entry at the top of CHANGELOG.md (e.g., v0.6.0) with sections: Removed (listing cloud worker system, R2 backup/restore system, usage worker process system, node-machine-id dependency, WorkerProxy directory), Fixed (machineId ESM compatibility - now uses node:crypto + node:os), Changed (usage scheduling now runs in-process via usageRefreshQueue instead of separate worker process), Notes (WorkerRelay can be used as relay proxy alternative for remote access).",
     "Run npx tsc --noEmit to verify no type errors remain.",
@@ -23,5 +23,5 @@
     "CHANGELOG.md contains WorkerRelay mention"
   ],
   "blocked_reason": null,
-  "findings": ""
+  "findings": "Removed stray cloudWorkerId field from usageDb/events.ts normalization and replaced event.cloudWorkerId with null in writer.ts. The SQL column cloud_worker_id is preserved for backward compatibility with existing databases but will always be null. All verification passed: tsc 0 errors, 998 tests pass, grep audit clean."
 }
