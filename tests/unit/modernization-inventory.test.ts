@@ -41,7 +41,15 @@ const allowedRuntimeJsFiles = new Set([
 const legacyDefaultFiles = () => {
   const pattern = "9router|9router-plus|\\.9router";
   try {
-    return runGit(["grep", "-IlEi", pattern, "--"]);
+    return runGit([
+      "grep",
+      "-IlEi",
+      pattern,
+      "--",
+      ":!:*-lock.json",
+      ":!:cloud/**",
+      ":!:WorkerProxy/**",
+    ]);
   } catch {
     return [];
   }
