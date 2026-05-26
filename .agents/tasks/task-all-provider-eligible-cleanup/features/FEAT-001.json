@@ -2,7 +2,7 @@
   "id": "FEAT-001",
   "type": "fix",
   "description": "Enforce clean eligible invariant for ALL providers: transientUpstreamPatch, transientRateLimitPatch, syncUsageStatus skip, expand isProviderTransientProcessingError to all providers, and remove nextRetryAt from connectionUsageRefresh eligible path",
-  "status": "in_progress",
+  "status": "completed",
   "steps": [
     "Step 1 - transientUpstreamPatch in src/sse/services/auth.tsx (around line 731): When the transientUpstreamPatch is being built AND conn?.routingStatus === 'eligible' (or null/undefined which defaults to eligible), replace the dirty fields with ONLY { lastCheckedAt }. The model lock (lockUpdate) already provides cooldown. If the connection is NOT currently eligible, keep the existing patch as-is. Change the ternary to check conn?.routingStatus: if eligible, produce { lastCheckedAt } only; otherwise keep the full degraded patch.",
     "Step 2 - transientRateLimitPatch in src/sse/services/auth.tsx (around line 761): Same pattern. When conn?.routingStatus === 'eligible' (or null/undefined), the transientRateLimitPatch should be { lastCheckedAt } only (no nextRetryAt). The model lock handles cooldown. If not eligible, keep { nextRetryAt: transientRetryAt, resetAt: null, lastCheckedAt }.",
@@ -28,5 +28,5 @@
     "export PATH=/root/.local/share/mise/installs/bun/1.2.14/bin:$PATH && bun x vitest run --reporter=verbose --root tests -- tests/unit/status-handling-transient-auth.test.ts"
   ],
   "blocked_reason": null,
-  "findings": ""
+  "findings": "All changes applied successfully. Typecheck passes. All target tests pass. The model-combo-mapping-routes test failures (z.object undefined) are pre-existing and unrelated to this change. Also updated the amazon-q-ui-and-routes test which expected nextRetryAt in the syncUsageStatus call for eligible 429 connections - now expects lastCheckedAt instead."
 }
