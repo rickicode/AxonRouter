@@ -1,0 +1,7 @@
+{
+  "task_id": "task-remove-cloud-r2-worker-system",
+  "task_description": "Remove all cloud worker, R2 backup/restore, and usage worker systems from AxonRouter. Fix the machineId ESM error by replacing the broken require-based implementation with an ESM-compatible one using node:crypto + node:os. Update CHANGELOG.md documenting all removals and noting WorkerRelay as relay proxy alternative.",
+  "status": "in_progress",
+  "feature_order": ["FEAT-001", "FEAT-002", "FEAT-003"],
+  "blocked_reason": null
+}

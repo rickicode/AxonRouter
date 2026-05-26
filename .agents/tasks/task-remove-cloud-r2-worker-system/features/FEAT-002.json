@@ -1,0 +1,37 @@
+{
+  "id": "FEAT-002",
+  "type": "refactor",
+  "description": "Clean up all remaining imports and references to deleted cloud/R2/usageWorker modules across the codebase. Update all affected files to remove dead references.",
+  "status": "pending",
+  "steps": [
+    "Update src/shared/services/initializeApp.ts: Remove imports of getUsageWorkerClient, getCloudUsagePoller, isCloudEnabled. Remove the usage worker start block, cloud usage poller start block, cloud sync scheduler start block, and R2 backup scheduler start block. Keep tunnel, MITM, watchdog, and network monitor intact. In cleanupAppResources, remove the getUsageWorkerClient().stop() call.",
+    "Update src/lib/localDb/normalize.ts: Remove the import of normalizeUsageWorkerSettings from usageWorker/config. Remove all r2* and cloud* keys from DEFAULT_SETTINGS (r2BackupEnabled, r2SqliteBackupSchedule, r2AutoPublishEnabled, r2RuntimePublicBaseUrl, r2RuntimeCacheTtlSeconds, r2LastRuntimePublishAt, r2LastRuntimeArtifactHash, r2LastBackupAt, r2LastRestoreAt, r2LastSqliteBackupFingerprint, r2BackupEncryptionKey, r2Config, cloudUsageSync, cloudEnabled, cloudUrls, cloudSharedSecret, cloudUsagePollingEnabled). Remove the DEFAULT_R2_CONFIG constant. Remove the usageWorker settings block from DEFAULT_SETTINGS and the merged.usageWorker normalization in mergeSettingsWithDefaults. Remove normalizeRuntimeCacheTtlSeconds function. Remove merged.r2Config normalization block and merged.cloudUsagePollingEnabled line from mergeSettingsWithDefaults.",
+    "Update src/lib/localDb/core.ts: Remove the cloudUrls deduplication and filtering logic from ensureDbShape (the two if blocks that process Array.isArray(next.settings.cloudUrls)). Remove the isCloud import if it is no longer used elsewhere.",
+    "Update src/lib/localDb/misc.ts: Remove the isCloudEnabled and getCloudUrl functions.",
+    "Update src/lib/localDb.ts (barrel): Remove the re-exports of isCloudEnabled and getCloudUrl.",
+    "Update src/lib/settingsAccess.ts: Remove the isCurrentCloudEnabled function and its import of isCloudEnabled from localDb.",
+    "Update src/app/api/settings/route.ts: Remove the import of getUsageWorkerClient. Remove the cloud sync trigger block (import cloudSync + isCurrentCloudEnabled check + syncToCloud call). Remove the shouldRefreshUsageWorker block. Remove the isCurrentCloudEnabled import.",
+    "Update src/app/(dashboard)/dashboard/endpoint/EndpointPageClient.tsx: Remove the CloudTab import and the cloud tab rendering. Remove the 'cloud' entry from the ToggleGroup items array. Update activeTab logic to not include 'cloud'.",
+    "Update src/app/(dashboard)/dashboard/settings/SettingsPageClient.tsx: Remove all r2-related imports from r2SettingsUi.tsx (buildR2SettingsPayload, DEFAULT_R2_SETTINGS_RESPONSE, getDirtyR2Config, getNextR2Config, getR2ConnectionState, hasUnsavedR2Changes, isPrivateR2Configured) and any R2 UI sections.",
+    "Update src/app/(dashboard)/dashboard/cli-tools/CLIToolsPageClient.tsx: Remove cloudEnabled state, cloudUrl state, and the cloud URL comment. Remove setting of cloudEnabled/cloudUrl from settings data. Remove passing cloudEnabled/cloudUrl props to child components.",
+    "Update src/app/(dashboard)/dashboard/cli-tools/components/ClaudeToolCard.tsx: Remove cloudUrl and cloudEnabled props. Remove the cloudMatch logic. Remove the conditional key selection based on cloudEnabled.",
+    "Update src/app/(dashboard)/dashboard/cli-tools/components/CodexToolCard.tsx: Remove cloudEnabled prop. Remove the conditional key selection based on cloudEnabled.",
+    "Update open-sse/executors/codex.tsx: Change the machineId import from '../../src/shared/utils/machineId' to '../../src/shared/utils/machineId' (same path but it will resolve to the new .ts file since .tsx is deleted).",
+    "Update scripts/ensure-middleware-manifest.js: Remove the entire usageWorker copy block at the end (the block that copies src/lib/usageWorker to standalone).",
+    "Update src/lib/usageRefreshQueue.ts: Remove the import of instrumentUsageWorker from './observability/otel' (it was only used for usage worker telemetry spans; if it wraps queue functions, replace with direct calls or remove the wrapping).",
+    "Update docs/ARCHITECTURE.md: Remove mentions of cloud sync, R2 backup/restore, usage worker system from the executive summary and scope sections."
+  ],
+  "acceptance_criteria": [
+    "No TypeScript file in the project imports any deleted module",
+    "npx tsc --noEmit passes with no errors",
+    "No references to cloudSync, cloudWorker, r2Backup, r2Object, r2Runtime, usageWorker/client, usageWorker/worker remain in source",
+    "The settings route no longer triggers cloud sync or usage worker refresh",
+    "initializeApp.ts only starts tunnel, MITM, watchdog, and network monitor"
+  ],
+  "verification": [
+    "Run npx tsc --noEmit and confirm 0 errors",
+    "Run grep -r 'cloudSync\\|cloudWorker\\|r2Backup\\|usageWorker/client\\|getUsageWorkerClient\\|isCloudEnabled\\|cloudUsagePoller' src/ open-sse/ scripts/ --include='*.ts' --include='*.tsx' --include='*.js' and confirm no matches"
+  ],
+  "blocked_reason": null,
+  "findings": ""
+}
