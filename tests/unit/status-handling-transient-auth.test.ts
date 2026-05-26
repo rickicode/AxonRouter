@@ -525,4 +525,41 @@ describe("markAccountUnavailable enforces clean eligible invariant for transient
 
 		expect(syncUsageStatus).not.toHaveBeenCalled();
 	});
+
+	it("writes dirty fields for transient upstream when conn is NOT currently eligible (e.g. already blocked)", async () => {
+		mockConnections.push({
+			id: "conn-non-eligible-transient",
+			provider: "openai",
+			isActive: true,
+			priority: 1,
+			displayName: "Test Non-Eligible Transient",
+			accessToken: "token",
+			routingStatus: "blocked",
+			authState: "ok",
+			backoffLevel: 0,
+		});
+
+		isTransientUpstreamTimeoutError.mockReturnValue(true);
+
+		const { markAccountUnavailable } = await import(
+			"../../src/sse/services/auth.tsx"
+		);
+
+		await markAccountUnavailable(
+			"conn-non-eligible-transient",
+			504,
+			"Upstream timed out after 30s",
+			"openai",
+			"gpt-4",
+		);
+
+		expect(updateCurrentProviderConnection).toHaveBeenCalledTimes(1);
+		const patchArg = updateCurrentProviderConnection.mock.calls[0][1];
+
+		// When NOT eligible, dirty fields SHOULD be written
+		expect(patchArg.healthStatus).toBe("degraded");
+		expect(patchArg.reasonCode).toBe("upstream_timeout");
+		expect(patchArg.reasonDetail).toBe("Provider temporarily timed out");
+		expect(patchArg.nextRetryAt).toBeDefined();
+	});
 });

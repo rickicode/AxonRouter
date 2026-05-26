@@ -817,7 +817,8 @@ export async function markAccountUnavailable(
 		canonicalBlockedPatch = null;
 	}
 
-	const skipTransientSync = canonicalBlockedPatch === transientUpstreamPatch && isCurrentlyEligible;
+	const isCanonicalTransientUpstream = !authBlockedPatch && Boolean(transientUpstreamPatch);
+	const skipTransientSync = isCanonicalTransientUpstream && isCurrentlyEligible;
 	if (canonicalBlockedPatch && !liveQuotaSignal && !skipTransientSync) {
 		await syncUsageStatus(
 			{
