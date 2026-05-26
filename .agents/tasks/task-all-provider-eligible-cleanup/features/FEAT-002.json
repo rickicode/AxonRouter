@@ -2,7 +2,7 @@
   "id": "FEAT-002",
   "type": "fix",
   "description": "Address review findings: replace reference-equality gate with boolean flag and add non-eligible branch test coverage",
-  "status": "in_progress",
+  "status": "completed",
   "steps": [
     "Step 1 - Replace reference-equality gate in src/sse/services/auth.tsx: Add `const isCanonicalTransientUpstream = !authBlockedPatch && Boolean(transientUpstreamPatch);` and use it instead of `canonicalBlockedPatch === transientUpstreamPatch`",
     "Step 2 - Add test for non-eligible transient path in tests/unit/status-handling-transient-auth.test.ts",
@@ -19,5 +19,5 @@
     "export PATH=/root/.local/share/mise/installs/bun/1.2.14/bin:$PATH && bun x vitest run --reporter=verbose --root tests -- tests/unit/status-handling-transient-auth.test.ts"
   ],
   "blocked_reason": null,
-  "findings": null
+  "findings": "Both review issues addressed. Typecheck passes. All status-handling-transient-auth tests pass (including new non-eligible test). The model-combo-mapping-routes test failures (z.object undefined) remain pre-existing and unrelated."
 }
