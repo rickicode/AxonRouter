@@ -2,7 +2,7 @@
   "id": "FEAT-002",
   "type": "refactor",
   "description": "Clean up all remaining imports and references to deleted cloud/R2/usageWorker modules across the codebase. Update all affected files to remove dead references.",
-  "status": "in_progress",
+  "status": "completed",
   "steps": [
     "Update src/shared/services/initializeApp.ts: Remove imports of getUsageWorkerClient, getCloudUsagePoller, isCloudEnabled. Remove the usage worker start block, cloud usage poller start block, cloud sync scheduler start block, and R2 backup scheduler start block. Keep tunnel, MITM, watchdog, and network monitor intact. In cleanupAppResources, remove the getUsageWorkerClient().stop() call.",
     "Update src/lib/localDb/normalize.ts: Remove the import of normalizeUsageWorkerSettings from usageWorker/config. Remove all r2* and cloud* keys from DEFAULT_SETTINGS (r2BackupEnabled, r2SqliteBackupSchedule, r2AutoPublishEnabled, r2RuntimePublicBaseUrl, r2RuntimeCacheTtlSeconds, r2LastRuntimePublishAt, r2LastRuntimeArtifactHash, r2LastBackupAt, r2LastRestoreAt, r2LastSqliteBackupFingerprint, r2BackupEncryptionKey, r2Config, cloudUsageSync, cloudEnabled, cloudUrls, cloudSharedSecret, cloudUsagePollingEnabled). Remove the DEFAULT_R2_CONFIG constant. Remove the usageWorker settings block from DEFAULT_SETTINGS and the merged.usageWorker normalization in mergeSettingsWithDefaults. Remove normalizeRuntimeCacheTtlSeconds function. Remove merged.r2Config normalization block and merged.cloudUsagePollingEnabled line from mergeSettingsWithDefaults.",
@@ -33,5 +33,5 @@
     "Run grep -r 'cloudSync\\|cloudWorker\\|r2Backup\\|usageWorker/client\\|getUsageWorkerClient\\|isCloudEnabled\\|cloudUsagePoller' src/ open-sse/ scripts/ --include='*.ts' --include='*.tsx' --include='*.js' and confirm no matches"
   ],
   "blocked_reason": null,
-  "findings": ""
+  "findings": "Removed all cloud/R2/usageWorker references from listed files. Also cleaned open-sse/mcp-server/handlers/basic.ts (cloudEnabled in health check, usageWorkerStatus function). ProfileSettingsContent.tsx still has local state variables named usageWorkerForm/usageWorkerStatus that control the usage refresh scheduler cadence UI - these are local variable names, not imports of deleted modules, and the feature spec does not list this file. All 998 tests pass, tsc --noEmit clean."
 }
