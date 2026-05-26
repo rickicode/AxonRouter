@@ -39,7 +39,6 @@ describe("/api/settings caveman settings", () => {
 
   it("PATCH updates enabled without losing current level", async () => {
     const currentSettings = {
-      cloudEnabled: false,
       caveman: { enabled: false, level: "ultra", applyToPassthrough: false },
     };
     const updatedSettings = {
@@ -65,7 +64,6 @@ describe("/api/settings caveman settings", () => {
 
   it("PATCH normalizes invalid level while preserving enabled state", async () => {
     const currentSettings = {
-      cloudEnabled: false,
       caveman: { enabled: true, level: "lite", applyToPassthrough: true },
     };
     const updatedSettings = {

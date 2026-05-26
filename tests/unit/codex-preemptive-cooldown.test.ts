@@ -50,7 +50,7 @@ vi.mock("@/lib/usageStatus", () => ({
 }));
 
 vi.mock("@/lib/observability/otel", () => ({
-	instrumentUsageWorker: vi.fn(async (_name: any, _attrs: any, fn: any) =>
+	instrumentUsageRefresh: vi.fn(async (_name: any, _attrs: any, fn: any) =>
 		fn(),
 	),
 }));

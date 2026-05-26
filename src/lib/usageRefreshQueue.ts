@@ -1,4 +1,4 @@
-import { instrumentUsageWorker } from "./observability/otel";
+import { instrumentUsageRefresh } from "./observability/otel";
 
 /**
  * In-process FIFO queue with bounded concurrency for usage refresh jobs.
@@ -142,7 +142,7 @@ export async function runUsageRefreshJob(
 		throw new Error("runUsageRefreshJob requires a connectionId and handler");
 	}
 
-	return instrumentUsageWorker(
+	return instrumentUsageRefresh(
 		"queue.enqueue",
 		{
 			"usage_worker.connection_id": connectionId,
@@ -151,7 +151,7 @@ export async function runUsageRefreshJob(
 		},
 		() =>
 			withMemoryQueue(connectionId, () =>
-				instrumentUsageWorker(
+				instrumentUsageRefresh(
 					"queue.execute",
 					{
 						"usage_worker.connection_id": connectionId,
@@ -174,7 +174,7 @@ export async function runDedupedUsageRefreshJob(
 
 	const cached = IN_FLIGHT_BY_CONNECTION.get(connectionId);
 	if (cached) {
-		return instrumentUsageWorker(
+		return instrumentUsageRefresh(
 			"queue.dedupe_hit",
 			{
 				"usage_worker.connection_id": connectionId,

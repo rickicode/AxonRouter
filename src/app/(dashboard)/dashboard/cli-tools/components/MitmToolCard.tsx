@@ -30,7 +30,6 @@ export default function MitmToolCard({
   activeProviders,
   hasActiveProviders,
   modelAliases = {},
-  cloudEnabled,
   onDnsChange,
 }) {
   const inv = useInvalidate();

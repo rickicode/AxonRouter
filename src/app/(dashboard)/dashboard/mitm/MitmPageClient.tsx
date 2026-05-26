@@ -11,7 +11,6 @@ export default function MitmPageClient() {
   const [apiKeys, setApiKeys] = useState([]);
   const [modelAliases, setModelAliases] = useState({});
   const [providerModelsByProvider, setProviderModelsByProvider] = useState({});
-  const [cloudEnabled, setCloudEnabled] = useState(false);
   const [expandedTool, setExpandedTool] = useState(null);
   const [mitmStatus, setMitmStatus] = useState({ running: false, certExists: false, dnsStatus: {}, hasCachedPassword: false });
 
@@ -45,8 +44,7 @@ export default function MitmPageClient() {
           setProviderModelsByProvider(data.models || {});
         }
         if (!cancelled && settingsRes.ok) {
-          const data = await settingsRes.json();
-          setCloudEnabled(data.cloudEnabled || false);
+          await settingsRes.json();
         }
       } catch {
         // ignore initial load failures
@@ -78,7 +76,6 @@ export default function MitmPageClient() {
       {/* MITM Server Card */}
       <MitmServerCard
         apiKeys={apiKeys}
-        cloudEnabled={cloudEnabled}
         onStatusChange={setMitmStatus}
       />
 
@@ -97,7 +94,6 @@ export default function MitmPageClient() {
             activeProviders={getActiveProviders()}
             hasActiveProviders={hasActiveProviders()}
             modelAliases={modelAliases}
-            cloudEnabled={cloudEnabled}
             onDnsChange={(data) => setMitmStatus(prev => ({ ...prev, dnsStatus: data.dnsStatus ?? prev.dnsStatus }))}
           />
         ))}

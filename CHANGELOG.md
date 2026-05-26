@@ -1,3 +1,21 @@
+# v0.6.0 (2026-05-22)
+
+## Removed
+- Removed entire R2 backup/restore system (library, API routes, settings UI, scheduler)
+- Removed cloud worker infrastructure references (cloudEnabled, cloudUrls, cloudSharedSecret, cloud sync)
+- Removed usage worker standalone copy from build script
+- Removed cloud_worker_id column from usage event inserts
+
+## Changed
+- Renamed `instrumentUsageWorker` to `instrumentUsageRefresh` for clarity (usage refresh queue remains)
+- CLI tools no longer reference cloud URLs or cloud-enabled state; always use local key fallback
+- Settings no longer include R2 configuration fields or backup scheduling
+- Simplified settings page by removing R2 Storage card
+
+## Notes
+- The usage refresh queue system (for checking provider usage snapshots) remains intact
+- For remote relay access, use WorkerRelay proxy (WorkerProxy/ directory) instead of cloud workers
+
 # v0.5.4 (2026-05-10)
 
 ## Added

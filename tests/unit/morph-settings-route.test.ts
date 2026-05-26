@@ -46,7 +46,6 @@ describe("/api/settings morph settings", () => {
 
   it("GET returns morph defaults when not yet configured", async () => {
     getSettings.mockResolvedValue({
-      cloudEnabled: false,
       morph: {
         baseUrl: "https://api.morphllm.com",
         apiKeys: [],
@@ -69,7 +68,6 @@ describe("/api/settings morph settings", () => {
 
   it("PATCH updates morph fields and GET returns updated values", async () => {
     const initialSettings = {
-      cloudEnabled: false,
       morph: {
         baseUrl: "https://api.morphllm.com",
         apiKeys: [],
@@ -138,7 +136,6 @@ describe("/api/settings morph settings", () => {
 
   it("PATCH returns 400 for invalid baseUrl before Morph key validation runs", async () => {
     getSettings.mockResolvedValue({
-      cloudEnabled: false,
       morph: {
         baseUrl: "https://api.morphllm.com",
         apiKeys: [{ email: "one@example.com", key: "mk-1", status: "active", isExhausted: false, lastCheckedAt: null, lastError: "" }],
@@ -171,7 +168,6 @@ describe("/api/settings morph settings", () => {
 
   it("PATCH keeps keys retryable when Morph validation fails transiently", async () => {
     const currentSettings = {
-      cloudEnabled: false,
       morph: {
         baseUrl: "https://api.morphllm.com",
         apiKeys: [],
@@ -224,7 +220,6 @@ describe("/api/settings morph settings", () => {
 
   it("partial PATCH preserves unset morph fields", async () => {
     const currentSettings = {
-      cloudEnabled: false,
       morph: {
         baseUrl: "https://persisted.example.com",
         apiKeys: [{ email: "keep@example.com", key: "mk-keep", status: "active", isExhausted: false, lastCheckedAt: "2026-04-28T00:00:00.000Z", lastError: "", nextRetryAt: null }],
@@ -270,7 +265,6 @@ describe("/api/settings morph settings", () => {
 
   it("PATCH with invalid baseUrl returns 400", async () => {
     getSettings.mockResolvedValue({
-      cloudEnabled: false,
       morph: {
         baseUrl: "https://api.morphllm.com",
         apiKeys: [],
@@ -297,7 +291,6 @@ describe("/api/settings morph settings", () => {
 
   it("PATCH morphInstructions persists normalized Morph instruction settings", async () => {
     const currentSettings = {
-      cloudEnabled: false,
       morphInstructions: {
         enabled: true,
         mode: "default",
@@ -334,7 +327,6 @@ describe("/api/settings morph settings", () => {
 
   it("PATCH morph does not affect unrelated settings", async () => {
     const currentSettings = {
-      cloudEnabled: false,
       providerStrategies: { openai: "priority" },
       roundRobin: true,
       morph: {

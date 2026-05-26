@@ -121,7 +121,6 @@ describe("localDb mitmAlias SQLite authority", () => {
       combos: [],
       apiKeys: [],
       pricing: {},
-      settings: { cloudEnabled: false },
     });
 
     expect(sqliteHelpers.loadSingletonFromSqlite("mitmAlias")).toEqual({

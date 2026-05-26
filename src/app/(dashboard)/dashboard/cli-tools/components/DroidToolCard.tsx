@@ -11,19 +11,16 @@ import ProviderIcon from "@/shared/components/ProviderIcon";
 import { useInvalidate } from "@/shared/query";
 import { useMutation } from "@tanstack/react-query";
 
-// `cloudUrl` is now passed in as a prop sourced from settings.cloudUrls
-// instead of being read from process.env at build time.
+// Cloud URL system has been removed.
 
 export default function DroidToolCard({
   tool,
-  cloudUrl,
   isExpanded,
   onToggle,
   baseUrl,
   hasActiveProviders,
   apiKeys,
   activeProviders,
-  cloudEnabled,
   initialStatus,
 }) {
   const inv = useInvalidate();
@@ -60,9 +57,8 @@ export default function DroidToolCard({
     const currentConfig = droidStatus.settings?.customModels?.find(m => m.id?.startsWith("custom:AxonRouter"));
     if (!currentConfig) return "not_configured";
     const localMatch = currentConfig.baseUrl?.includes("localhost") || currentConfig.baseUrl?.includes("127.0.0.1");
-    const cloudMatch = cloudEnabled && cloudUrl && currentConfig.baseUrl?.startsWith(cloudUrl);
     const tunnelMatch = baseUrl && currentConfig.baseUrl?.startsWith(baseUrl);
-    if (localMatch || cloudMatch || tunnelMatch) return "configured";
+    if (localMatch || tunnelMatch) return "configured";
     return "other";
   };
 
@@ -154,7 +150,7 @@ export default function DroidToolCard({
     retry: false,
     mutationFn: async () => {
       const keyToUse = effectiveSelectedApiKey?.trim()
-        || (!cloudEnabled ? "sk_axonrouter" : null);
+        || ("sk_axonrouter");
       const res = await fetch("/api/cli-tools/droid-settings", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -211,7 +207,7 @@ export default function DroidToolCard({
   const getManualConfigs = () => {
     const keyToUse = effectiveSelectedApiKey?.trim()
       ? effectiveSelectedApiKey
-      : (!cloudEnabled ? "sk_axonrouter" : "<API_KEY_FROM_DASHBOARD>");
+      : "sk_axonrouter";
 
     const settingsContent = {
       customModels: modelList.map((m, i) => ({
@@ -349,7 +345,7 @@ export default function DroidToolCard({
                     </select>
                   ) : (
                     <span className="flex-1 text-xs text-text-muted px-2 py-1.5">
-                      {cloudEnabled ? "No API keys - Create one in Keys page" : "sk_axonrouter (default)"}
+                      sk_axonrouter (default)
                     </span>
                   )}
                 </div>

@@ -16,14 +16,11 @@ Core capabilities:
 - OAuth + API-key provider connection management
 - Local persistence for providers, keys, aliases, combos, settings, pricing
 - Usage/cost tracking and request logging
-- Optional cloud sync for multi-device/state sync
 - Morph intelligence layer (auto-routing, key failover, instruction injection, reasoning normalization)
 - Caveman control surface with implemented dashboard/config/modifier layers active on the main chat request pipeline for translated and native passthrough chat paths
 - Tunnel system (Cloudflare Quick Tunnel + Tailscale Funnel) for remote access
-- R2 backup/restore with encrypted SQLite artifacts
 - SQLite-backed primary state store with migration from JSON
 - Custom skills CRUD and import/export
-- Usage worker system with prioritized batch scheduling
 - Proxy pools for provider connection outbound routing
 - npm distribution with standalone Next.js output, `axonrouter` CLI, and `axonrouter-mcp` MCP helper
 
@@ -43,13 +40,10 @@ Primary runtime model:
 - Kiro-compatible multi-provider surface for both `kiro` and `amazon-q`
 - Request translation and SSE streaming
 - Local state + usage persistence (SQLite-backed with JSON migration)
-- Cloud worker sync with R2 artifact publication
 - Morph intelligence layer (auto-routing, key failover, instruction injection, reasoning)
 - Caveman concise-output controls with dashboard/config support active on the main chat request pipeline
 - Tunnel system (Cloudflare Quick Tunnel + Tailscale Funnel)
-- R2 backup/restore with encrypted SQLite artifacts
 - Custom skills management (CRUD, import/export)
-- Usage worker scheduling with prioritized batching
 - Proxy pools for outbound provider routing
 - Opencode sync integration
 - Internal proxy tokens for credential resolution
@@ -93,11 +87,6 @@ flowchart LR
         P4[Web Providers\nGrok-Web / Perplexity-Web]
     end
 
-    subgraph Cloud[Cloud Worker Infrastructure]
-        WORKER[Worker Nodes\ncloud-urls config]
-        R2[R2 Storage\nBackup + Artifacts]
-    end
-
     C1 --> API
     C2 --> API
     C3 --> API
@@ -118,10 +107,6 @@ flowchart LR
     CORE --> P1
     CORE --> P2
     CORE --> P3
-
-    DASH --> WORKER
-    DASH --> R2
-    TUNNEL -->|registration| WORKER
 ```
 
 ## Core Runtime Components
@@ -159,8 +144,6 @@ Management domains:
 - OAuth: `src/app/api/oauth/*` (includes Kiro-compatible flows reused by both `kiro` and `amazon-q`)
 - Keys/aliases/combos/pricing: `src/app/api/keys*`, `src/app/api/models`, `src/app/api/combos*`, `src/app/api/pricing`
 - Usage: `src/app/api/usage/*`, `src/app/api/usage-worker/*`
-- Cloud/worker URLs: `src/app/api/cloud-urls/*` (replaced old `/api/sync/*` and `/api/cloud/*`)
-- R2 backup/restore: `src/app/api/r2/*`
 - CLI tooling helpers: `src/app/api/cli-tools/*`
 - Tunnel: `src/app/api/tunnel/*` (Cloudflare Quick Tunnel + Tailscale Funnel)
 - Morph: `src/app/api/morph/*` (Morph capability dispatch)
@@ -229,15 +212,6 @@ Request Details DB:
 - Rich diagnostic records: provider/model/connection/timestamp/status, latency, tokens, request/response payloads
 - Payload storage helpers, background write queue, SQLite migrations, and configurable retention controls
 
-R2 Backup/Restore:
-
-- `src/lib/r2BackupClient.ts`, `r2BackupScheduler.ts`, `r2ObjectClient.ts`, `r2RuntimeArtifacts.ts`
-- Scheduled backup cadence: daily/weekly/monthly
-- Artifacts: backup, runtime, eligible, credentials, runtimeConfig, SQLite binary
-- AES-256-GCM encrypted envelopes for JSON and SQLite artifacts
-- SQLite fingerprint-based change detection, artifact hash deduplication
-- Direct restore from signed private R2 objects
-
 ## 4) Auth + Security Surfaces
 
 - Dashboard cookie auth: `src/proxy.ts`, `src/app/api/auth/login/route.ts`
@@ -252,44 +226,6 @@ R2 Backup/Restore:
 - Provider secrets persisted in `providerConnections` entries
 - Kiro-compatible OAuth routes can create either `kiro` or `amazon-q` connections via target-provider selection while sharing the same AWS Builder ID / imported refresh-token mechanics
 - Optional proxy support for upstream calls via env proxy variables (`open-sse/utils/proxyFetch.ts`)
-
-## 5) Cloud Worker Infrastructure (replaces old Cloud Sync model)
-
-Worker Registry:
-
-- `src/lib/cloudUrlResolver.ts` — dashboard-configured worker URLs (no env fallback)
-- `src/lib/cloudRequestAuth.ts` — origin/CSRF validation for cloud routes
-- `src/app/api/cloud-urls/*` — worker URL management (add/probe/register/unregister)
-- Global `cloudSharedSecret` for worker authentication
-
-Worker Client:
-
-- `src/lib/cloudWorkerClient.ts` — worker admin protocol:
-  - Health (`GET /admin/health`), registration (`POST /admin/register`)
-  - Status/logs/runtime push/usage events/unregister
-
-Cloud Sync Pipeline:
-
-- `src/lib/cloudSync.ts` — two-stage sync:
-  1. Publish runtime artifacts to private R2 (backup/runtime/eligible/credentials/runtimeConfig)
-  2. Push runtime sync to each worker via `/sync/shared`
-- Worker status tracking: online/offline/unauthorized/not_registered/error with latency
-
-Cloud Usage Sync:
-
-- `src/lib/cloudUsageSync.ts` — event-based usage pull per worker
-- Cursor + dedup tracking in `settings.cloudUsageSync`
-- Writes to local usage DB, request logs, and morph usage DB
-
-Dual Usage Pathways:
-
-- Snapshot poller: `src/shared/services/cloudUsagePoller.ts` (15s, `GET /worker/usage`)
-- Event pull: `r2BackupScheduler` (30s, `GET /admin/usage/events`)
-
-Schedulers:
-
-- `src/shared/services/initializeApp.ts` — starts CloudSyncScheduler (15min), CloudUsagePoller, R2BackupScheduler
-- `src/shared/services/cloudSyncScheduler.ts` — periodic `syncToCloud()`
 
 ## Request Lifecycle (`/v1/chat/completions`)
 
@@ -414,50 +350,6 @@ sequenceDiagram
 
 Refresh during live traffic is executed inside `open-sse/handlers/chatCore.ts` via executor `refreshCredentials()`.
 
-## Cloud Worker Sync Lifecycle (replaces old single-endpoint model)
-
-```mermaid
-sequenceDiagram
-    autonumber
-    participant UI as Dashboard UI
-    participant CloudUrls as /api/cloud-urls
-    participant DB as localDb (SQLite)
-    participant CloudSync as cloudSync.ts
-    participant R2Client as r2BackupClient
-    participant R2 as R2 Storage
-    participant Worker as Worker Node
-
-    UI->>CloudUrls: POST add worker URL
-    CloudUrls->>Worker: health probe + register handshake
-    Worker-->>CloudUrls: registered with metadata
-    CloudUrls->>DB: store in settings.cloudUrls + generate cloudSharedSecret
-    CloudUrls-->>UI: worker added
-
-    UI->>CloudUrls: trigger sync
-    CloudUrls->>CloudSync: syncToCloud()
-    CloudSync->>DB: validate r2Config (accountId/key/bucket)
-    CloudSync->>R2Client: publishRuntimeArtifacts()
-    R2Client->>R2: PUT backup/runtime/credentials/config (encrypted)
-    R2-->>R2Client: published
-    CloudSync->>Worker: POST /sync/shared (runtime artifact)
-    Worker-->>CloudSync: synced
-    CloudSync-->>UI: sync complete
-
-    CloudSync->>CloudSync: periodic 15min (CloudSyncScheduler)
-    CloudSync->>CloudSync: pull usage events (30s)
-    CloudSync->>Worker: GET /admin/usage/events
-    Worker-->>CloudSync: usage event list
-    CloudSync->>DB: persist to usage/morph-usage DB
-
-    UI->>CloudUrls: DELETE unregister worker
-    CloudUrls->>Worker: POST /admin/unregister
-    CloudUrls->>DB: remove local entry
-    CloudUrls-->>UI: worker removed
-```
-
-Periodic sync and usage pulls managed by `CloudSyncScheduler` + `R2BackupScheduler`.
-R2 backup cadence: daily/weekly/monthly with SQLite fingerprint-based change detection.
-
 ## Data Model and Storage Map
 
 ```mermaid
@@ -466,18 +358,13 @@ erDiagram
     PROVIDER_NODE ||--o{ PROVIDER_CONNECTION : backs_compatible_provider
     PROVIDER_CONNECTION ||--o{ USAGE_ENTRY : emits_usage
     SETTINGS ||--o{ HOT_STATE : cache
-    SETTINGS ||--o{ CLOUD_URL : registry
-    SETTINGS ||--o{ R2_CONFIG : backup
 
     SETTINGS {
-      boolean cloudEnabled
       number stickyRoundRobinLimit
       boolean requireLogin
       string password_hash
       json routing (strategy, sticky, provider/combo)
       json morph (config, instructions, chatRuntime)
-      json r2 (config, backup timestamps, artifact hash, encryption key)
-      json cloudUsageSync (cursors by worker, seen event IDs)
       json observability (mode, rate)
       string[] ipWhitelist
       boolean trustedProxyEnabled
@@ -548,13 +435,6 @@ erDiagram
       string content
     }
 
-    CLOUD_URL {
-      string id
-      string url
-      string status
-      string lastProbeAt
-    }
-
     HOT_STATE {
       string connectionId
       string provider
@@ -580,7 +460,6 @@ Physical storage files:
 - legacy usage fallback source: `~/.axonrouter/usage.json` when older pre-SQLite data exists
 - request details: `~/.axonrouter/request-details.sqlite`
 - audit log: `~/.axonrouter/audit.log` (when enabled)
-- R2 artifacts: backup/runtime/credentials/runtimeConfig (encrypted)
 - optional translator/request debug sessions: `<repo>/logs/...`
 
 ## Deployment Topology
@@ -604,8 +483,6 @@ flowchart LR
 
     subgraph External[External Services]
         Providers[AI Providers]
-        Workers[Cloud Worker Nodes]
-        R2[R2 Storage]
         Tunnel[Tunnel Endpoints\nCloudflare/Tailscale]
     end
 
@@ -618,8 +495,6 @@ flowchart LR
     Core --> UsageDB
     Core --> Providers
     Morph --> MorphDB
-    Next --> Workers
-    Next --> R2
     Next --> Tunnel
 ```
 
@@ -636,9 +511,6 @@ flowchart LR
 - `src/app/api/combos*`: fallback combo management
 - `src/app/api/pricing`: pricing overrides for cost calculation
 - `src/app/api/usage/*`: usage and logs APIs
-- `src/app/api/usage-worker/*`: usage worker scheduling
-- `src/app/api/cloud-urls/*`: cloud worker URL registry (replaces old `/api/sync/*` and `/api/cloud/*`)
-- `src/app/api/r2/*`: R2 backup/restore configuration
 - `src/app/api/cli-tools/*`: local CLI config writers/checkers
 - `src/app/api/tunnel/*`: tunnel enable/disable/status
 - `src/app/api/morph/*`: Morph capability dispatch
@@ -739,26 +611,18 @@ flowchart LR
 - `src/lib/usageDb.ts`: usage history and rolling request logs
 - `src/lib/morphUsageDb.ts`: Morph-specific usage tracking stored in the shared usage SQLite database
 - `src/lib/requestDetailsDb.ts`: rich request/response diagnostic records
-- `src/lib/observability/otel.ts`: OpenTelemetry manager for request spans, Morph nested spans, worker/job spans, streaming lifecycle timing, and settings-aware exporter reload
+- `src/lib/observability/otel.ts`: OpenTelemetry manager for request spans, Morph nested spans, usage refresh spans, streaming lifecycle timing, and settings-aware exporter reload
 - `src/lib/providerHotState.ts`: hot state in SQLite with metadata invalidation
 - `src/lib/dataDir.ts`: AxonRouter home storage path resolution
 - `src/lib/hotStateKeys.ts`: hot state key definitions
-- `src/lib/r2BackupClient.ts`: R2 backup/restore client
-- `src/lib/r2BackupScheduler.ts`: scheduled backup/usage sync
-- `src/lib/r2ObjectClient.ts`: SigV4 R2 object operations
-- `src/lib/r2RuntimeArtifacts.ts`: runtime artifact building
-- `src/lib/r2SqliteFingerprint.ts`: SQLite fingerprint for R2 change detection
 - `src/lib/usageStatus.ts`: usage status tracking and aggregation
 - `src/lib/usageRefreshQueue.ts`: usage refresh queue management
 - `src/lib/connectionUsageRefresh.ts`: connection usage refresh
 - `src/lib/connectionStatus.ts`: connection status tracking
 - `src/lib/runtimeConfig.ts`: runtime configuration
 - `src/lib/toolNameSanitizer.ts`: tool name sanitization for compatibility
-- `src/lib/cloudRequestAuth.ts`: cloud request authentication
-- `src/lib/cloudUrlResolver.ts`: cloud URL resolution
 - `src/lib/appUpdater.ts`: application update detection
 - `src/lib/consoleLogBuffer.ts`: console log buffering
-- `src/lib/initCloudSync.ts`: cloud sync initialization
 
 ### Shared Component Library (`src/shared/`)
 
@@ -784,7 +648,6 @@ flowchart LR
 - `src/shared/utils/`: shared utilities
   - `api.tsx` + `apiKey.ts`: API utilities
   - `clineAuth.ts`: Cline authentication
-  - `cloud.ts`: cloud utilities
   - `machineId.tsx` + `machine.ts`: machine ID generation
   - `providerModelsFetcher.ts`: provider model fetching
   - `cn.ts`: className merging utility
@@ -794,10 +657,7 @@ flowchart LR
   - `useUrlQueryControls.ts`: URL query controls
   - `useCopyToClipboard.ts`: clipboard utility
 - `src/shared/services/`: shared services
-  - `cloudSyncScheduler.ts`: cloud sync scheduling
-  - `cloudUsagePoller.ts`: cloud usage polling
   - `initializeApp.ts`: application initialization
-  - `initializeCloudSync.ts`: cloud sync initialization
 
 ## Provider Executor Coverage
 
@@ -871,19 +731,11 @@ Translations are selected dynamically based on source payload shape and provider
 - translation stream with end-of-stream flush and `[DONE]` handling
 - usage estimation fallback when provider usage metadata is missing
 
-## 4) Cloud Worker Degradation
-
-- sync errors are surfaced but local runtime continues
-- worker status persisted (online/offline/unauthorized/not_registered/error)
-- scheduler has retry-capable logic, single-attempt sync by default
-- R2 publish failures block sync but do not stop local operation
-
 ## 5) Data Integrity
 
 - SQLite schema migration + index repair on bootstrap
 - JSON→SQLite migration with validation
 - corrupt JSON reset safeguards for localDb and usageDb
-- R2 restore creates local DB backup before replacement
 
 ## 6) Tunnel Resilience
 
@@ -916,8 +768,6 @@ Runtime visibility sources:
 - Dashboard session auth uses PASETO tokens signed by generated/persisted local keypairs
 - API key HMAC secret (`API_KEY_SECRET`) secures generated local API key format
 - Provider secrets (API keys/tokens) are persisted in local DB and should be protected at filesystem level
-- Cloud worker endpoints rely on `cloudSharedSecret` for authentication
-- R2 encryption key (`r2BackupEncryptionKey`) protects backup artifacts (AES-256-GCM)
 - Internal proxy tokens (`resolveToken`/`reportToken`) for credential resolution
 - Tunnel access control: `tunnelDashboardAccess` flag blocks dashboard auth from tunnel hosts
 - IP whitelist (`ipWhitelist` + CIDR matching) with trusted proxy mode (`trustedProxyEnabled`)
@@ -932,7 +782,6 @@ Environment variables actively used by code:
 - Storage path resolution: home-directory based AxonRouter storage (`~/.axonrouter` or `%APPDATA%\\axonrouter`)
 - Security hashing: `API_KEY_SECRET`
 - Logging: `ENABLE_REQUEST_LOGS`, `ENABLE_TRANSLATOR`
-- Sync/cloud URLing: `NEXT_PUBLIC_BASE_URL` (note: `NEXT_PUBLIC_CLOUD_URL` env fallback removed)
 - Outbound proxy: `HTTP_PROXY`, `HTTPS_PROXY`, `ALL_PROXY`, `NO_PROXY` and lowercase variants
 - Platform/runtime helpers (not app-specific config): `APPDATA`, `NODE_ENV`, `PORT`, `HOSTNAME`
 - Shutdown: `SHUTDOWN_SECRET`
@@ -986,36 +835,9 @@ flowchart LR
     Compat --> Morph["Morph capability spans\ntranslate -> resolve -> compact -> upstream"]
     V1 --> Core[Standard provider path]
 
-    Operator[/Operator call/] --> UsageAPI[/api/usage-worker/* span/]
-    UsageAPI --> Parent[Parent worker client spans]
-    Parent --> Child[Worker boot/command spans]
-    Child --> Scheduler[Scheduler run spans]
-    Scheduler --> Queue[Queue spans]
-    Queue --> Refresh[Per-connection refresh spans]
-
     Morph --> Exporter[OTLP HTTP exporter]
     Core --> Exporter
-    Refresh --> Exporter
 ```
-
-## Usage Worker System
-
-Components:
-
-- `src/lib/usageWorker/scheduler.ts`: batch scheduling with priority queues
-- `src/lib/usageWorker/prioritizer.ts`: usage refresh prioritization
-- `src/lib/usageWorker/client.ts`: worker client with slot management
-- `src/lib/usageWorker/aliasLoader.ts`: alias loading for worker context
-- `src/app/api/usage-worker/*`: worker status/run endpoints
-
-OpenTelemetry coverage:
-
-- `src/app/api/usage-worker/status/route.ts` and `src/app/api/usage-worker/run/route.ts` emit API-facing control spans for operator-triggered status and run requests.
-- `src/lib/usageWorker/client.ts` traces parent-process worker startup/reconnect and IPC request latency.
-- `src/lib/usageWorker/worker.ts` traces worker boot and each inbound IPC command.
-- `src/lib/usageWorker/scheduler.ts` traces scheduler start, full/batch runs, and per-connection refresh loop iterations.
-- `src/lib/usageRefreshQueue.ts` traces queue enqueue/execute/dedupe-hit behavior.
-- `src/lib/connectionUsageRefresh.ts` traces the deepest connection usage refresh operation, including credential refresh, usage fetch, and persistence outcomes.
 
 ## New Feature Systems
 
@@ -1120,18 +942,15 @@ Transparent HTTPS interception proxy for provider credential capture:
 4. Primary state is now SQLite-backed (`db.sqlite`); JSON `db.json` path exists only for migration.
 5. `usageDb` now follows `~/.axonrouter` with SQLite-first storage in `~/.axonrouter/usage.sqlite`, while legacy `usage.json` reads remain fallback-only for older data.
 6. `/api/v1/route.ts` returns a static model list and is not the main models source used by `/v1/models`.
-7. Cloud sync now requires private R2 configuration; old env-based cloud URL fallback removed.
-8. `ENABLE_REQUEST_LOGS=true` writes full headers/body; treat log directory as sensitive.
+7. `ENABLE_REQUEST_LOGS=true` writes full headers/body; treat log directory as sensitive.
 9. Audit log at `~/.axonrouter/audit.log` captures login events when enabled.
 10. Tunnel manager registers Cloudflare tunnel to worker endpoint (`TUNNEL_WORKER_URL`, default `https://axonrouter.com`).
 11. Morph auto-routing (`morph/auto`, `morph/auto-manual`) requires Morph API keys configured in settings.
-12. Cloud worker sync requires valid `r2Config` and `cloudSharedSecret` before publishing.
-13. Request details store uses configurable sampling; observability mode controls persistence volume.
+12. Request details store uses configurable sampling; observability mode controls persistence volume.
 14. OpenTelemetry settings live under `settings.observability.otel`; the OTLP HTTP exporter is lazy-initialized and reused with periodic settings reload.
 15. `/v1/*` tracing includes HTTP metadata plus route/model/provider attributes, and streaming responses record first-chunk timing before span completion.
 16. Morph tracing is multi-phase: compatibility translation, auto-routing, fast-apply/compact preprocessing, upstream capability dispatch, and usage persistence each emit nested spans.
-17. Usage worker tracing spans parent IPC, child worker boot/commands, scheduler runs, queue behavior, and per-connection refresh work.
-18. Provider hot state uses SQLite `hot_state` table; remaining Redis-oriented paths exist only as compatibility or test fallback.
+17. Provider hot state uses SQLite `hot_state` table; remaining Redis-oriented paths exist only as compatibility or test fallback.
 
 ## Operational Verification Checklist
 

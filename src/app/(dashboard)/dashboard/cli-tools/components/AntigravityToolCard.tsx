@@ -21,7 +21,6 @@ export default function AntigravityToolCard({
   apiKeys,
   activeProviders,
   hasActiveProviders,
-  cloudEnabled,
   initialStatus,
 }) {
   const inv = useInvalidate();
@@ -120,7 +119,7 @@ export default function AntigravityToolCard({
     retry: false,
     mutationFn: async (password: string) => {
       const keyToUse = effectiveSelectedApiKey?.trim()
-        || (!cloudEnabled ? "sk_axonrouter" : null);
+        || ("sk_axonrouter");
 
       const res = await fetch("/api/cli-tools/antigravity-mitm", {
         method: "POST",
@@ -351,7 +350,7 @@ export default function AntigravityToolCard({
                   </select>
                 ) : (
                   <span className="flex-1 text-xs text-text-muted px-2 py-1.5">
-                    {cloudEnabled ? "No API keys - Create one in Keys page" : "sk_axonrouter (default)"}
+                    sk_axonrouter (default)
                   </span>
                 )}
               </div>

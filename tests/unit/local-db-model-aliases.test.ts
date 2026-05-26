@@ -118,7 +118,6 @@ describe("localDb modelAliases SQLite authority", () => {
       combos: [],
       apiKeys: [],
       pricing: {},
-      settings: { cloudEnabled: false },
     });
 
     await expect(localDb.getModelAliases()).resolves.toEqual({

@@ -1,4 +1,4 @@
-import { instrumentUsageWorker } from "@/lib/observability/otel";
+import { instrumentUsageRefresh } from "@/lib/observability/otel";
 import "../../open-sse/utils/proxyFetch";
 
 import {
@@ -504,7 +504,7 @@ export async function refreshConnectionUsage(
 	connectionId: any,
 	options: any = {},
 ) {
-	return instrumentUsageWorker(
+	return instrumentUsageRefresh(
 		"connection_usage_refresh",
 		{
 			"usage_worker.connection_id": String(connectionId || ""),

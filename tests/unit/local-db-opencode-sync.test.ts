@@ -146,7 +146,6 @@ describe("localDb opencodeSync SQLite authority", () => {
 
     await localDb.importDb({
       format: "axonrouter-db-v1",
-      settings: { cloudEnabled: false },
       opencodeSync: {
         preferences: { variant: "custom", customTemplate: "imported" },
         tokens: [{ id: "imported-token" }],

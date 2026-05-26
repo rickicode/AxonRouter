@@ -17,8 +17,8 @@ function insertUsageEvent(db, event) {
       account_name_cache, api_key_id, api_key_name_cache, api_key_value_hash,
       endpoint, status, success, tokens_input, tokens_output, tokens_cache_read,
       tokens_cache_creation, tokens_reasoning, total_tokens, cost_total, latency_ms, ttft_ms,
-      source, category, cloud_worker_id, error_code, created_at
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      source, category, error_code, created_at
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `);
 
   stmt.run(
@@ -46,7 +46,6 @@ function insertUsageEvent(db, event) {
     event.ttftMs,
     event.source,
     event.category,
-    event.cloudWorkerId,
     event.errorCode,
     event.createdAt
   );

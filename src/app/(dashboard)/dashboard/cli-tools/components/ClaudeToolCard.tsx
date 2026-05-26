@@ -13,12 +13,10 @@ import ProviderIcon from "@/shared/components/ProviderIcon";
 import EndpointPresetControl from "./EndpointPresetControl";
 import { useInvalidate } from "@/shared/query";
 
-// `cloudUrl` is now passed in as a prop sourced from settings.cloudUrls
-// instead of being read from process.env at build time.
+// `cloudUrl` is now removed - cloud worker system has been removed.
 
 export default function ClaudeToolCard({
   tool,
-  cloudUrl,
   isExpanded,
   onToggle,
   activeProviders,
@@ -27,7 +25,6 @@ export default function ClaudeToolCard({
   baseUrl,
   hasActiveProviders,
   apiKeys,
-  cloudEnabled,
   initialStatus,
 }) {
   const inv = useInvalidate();
@@ -52,9 +49,8 @@ export default function ClaudeToolCard({
     const currentUrl = claudeStatus.settings?.env?.ANTHROPIC_BASE_URL;
     if (!currentUrl) return "not_configured";
     const localMatch = currentUrl.includes("localhost") || currentUrl.includes("127.0.0.1");
-    const cloudMatch = cloudEnabled && cloudUrl && currentUrl.startsWith(cloudUrl);
     const tunnelMatch = baseUrl && currentUrl.startsWith(baseUrl);
-    if (localMatch || cloudMatch || tunnelMatch) return "configured";
+    if (localMatch || tunnelMatch) return "configured";
     return "other";
   };
 
@@ -166,8 +162,7 @@ export default function ClaudeToolCard({
     retry: false,
     mutationFn: async () => {
       const env: any = { ANTHROPIC_BASE_URL: getEffectiveBaseUrl() };
-      const keyToUse = effectiveSelectedApiKey?.trim() 
-        || (!cloudEnabled ? "sk_axonrouter" : null);
+      const keyToUse = effectiveSelectedApiKey?.trim() || "sk_axonrouter";
       if (keyToUse) {
         env.ANTHROPIC_AUTH_TOKEN = keyToUse;
       }
@@ -237,7 +232,7 @@ export default function ClaudeToolCard({
   const getManualConfigs = () => {
     const keyToUse = effectiveSelectedApiKey?.trim()
       ? effectiveSelectedApiKey
-      : (!cloudEnabled ? "sk_axonrouter" : "<API_KEY_FROM_DASHBOARD>");
+      : "sk_axonrouter";
     const env = { ANTHROPIC_BASE_URL: getEffectiveBaseUrl(), ANTHROPIC_AUTH_TOKEN: keyToUse };
     tool.defaultModels.forEach((model) => {
       const targetModel = modelMappings[model.alias];
@@ -367,7 +362,7 @@ export default function ClaudeToolCard({
                     </select>
                   ) : (
                     <span className="flex-1 text-xs text-text-muted px-2 py-1.5">
-                      {cloudEnabled ? "No API keys - Create one in Keys page" : "sk_axonrouter (default)"}
+                      sk_axonrouter (default)
                     </span>
                   )}
                 </div>

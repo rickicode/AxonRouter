@@ -406,15 +406,15 @@ export async function instrumentV1Request(
 	});
 }
 
-export async function instrumentUsageWorker<T>(
+export async function instrumentUsageRefresh<T>(
 	name: string,
 	attributes: SpanAttributes,
 	handler: () => Promise<T> | T,
 ): Promise<T> {
 	return withOtelSpan(
-		`usage_worker.${name}`,
+		`usage_refresh.${name}`,
 		{
-			"axonrouter.worker": "usage",
+			"axonrouter.worker": "usage_refresh",
 			...attributes,
 		},
 		handler,

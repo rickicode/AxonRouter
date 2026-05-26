@@ -126,7 +126,6 @@ describe("settings database route SQLite integration", () => {
       isActive: true,
     });
     await sourceLocalDb.updateSettings({
-      cloudEnabled: true,
       outboundProxyEnabled: true,
       outboundProxyUrl: "http://127.0.0.1:8899",
       outboundNoProxy: "localhost,127.0.0.1",
@@ -144,7 +143,6 @@ describe("settings database route SQLite integration", () => {
       name: "Primary",
     });
     expect(exportResponse.body.settings).toMatchObject({
-      cloudEnabled: true,
       outboundProxyUrl: "http://127.0.0.1:8899",
       quotaExhaustedThresholdPercent: 17,
     });
@@ -176,7 +174,6 @@ describe("settings database route SQLite integration", () => {
       }),
     ]);
     expect(await restoredLocalDb.getSettings()).toMatchObject({
-      cloudEnabled: true,
       outboundProxyEnabled: true,
       outboundProxyUrl: "http://127.0.0.1:8899",
       quotaExhaustedThresholdPercent: 17,
@@ -188,7 +185,6 @@ describe("settings database route SQLite integration", () => {
       }),
     ]);
     expect(sqliteHelpers.loadSingletonFromSqlite("settings")).toMatchObject({
-      cloudEnabled: true,
       outboundProxyUrl: "http://127.0.0.1:8899",
       quotaExhaustedThresholdPercent: 17,
     });
@@ -206,7 +202,6 @@ describe("settings database route SQLite integration", () => {
       }),
     ]);
     await expect(reloadedLocalDb.getSettings()).resolves.toMatchObject({
-      cloudEnabled: true,
       outboundProxyEnabled: true,
       outboundProxyUrl: "http://127.0.0.1:8899",
       quotaExhaustedThresholdPercent: 17,
@@ -238,7 +233,6 @@ describe("settings database route SQLite integration", () => {
       isActive: true,
     });
     await localDb.updateSettings({
-      cloudEnabled: true,
       quotaExhaustedThresholdPercent: 19,
     });
 
@@ -262,7 +256,6 @@ describe("settings database route SQLite integration", () => {
     expect(await localDb.getSettings()).toEqual(beforeSettings);
     expect(sqliteHelpers.loadCollectionFromSqlite("providerConnections")).toEqual(beforeConnections);
     expect(sqliteHelpers.loadSingletonFromSqlite("settings")).toMatchObject({
-      cloudEnabled: true,
       quotaExhaustedThresholdPercent: 19,
     });
   });
@@ -280,7 +273,6 @@ describe("settings database route SQLite integration", () => {
       isActive: true,
     });
     await localDb.updateSettings({
-      cloudEnabled: false,
       quotaExhaustedThresholdPercent: 23,
     });
 
@@ -305,7 +297,6 @@ describe("settings database route SQLite integration", () => {
     expect(await localDb.getSettings()).toEqual(beforeSettings);
     expect(sqliteHelpers.loadCollectionFromSqlite("providerConnections")).toEqual(beforeConnections);
     expect(sqliteHelpers.loadSingletonFromSqlite("settings")).toMatchObject({
-      cloudEnabled: false,
       quotaExhaustedThresholdPercent: 23,
     });
   });

@@ -13,9 +13,6 @@ import { useInvalidate } from "@/shared/query";
 import { useMutation } from "@tanstack/react-query";
 import { DEFAULT_AXONROUTER_BASE_URL } from "@/shared/constants/runtimeDefaults";
 
-// `cloudUrl` is now passed in as a prop sourced from settings.cloudUrls
-// instead of being read from process.env at build time.
-
 const ENDPOINT = "/api/cli-tools/hermes-settings";
 
 export default function HermesToolCard({
@@ -26,7 +23,6 @@ export default function HermesToolCard({
   hasActiveProviders,
   apiKeys,
   activeProviders,
-  cloudEnabled,
   initialStatus,
 }) {
   const inv = useInvalidate();
@@ -138,7 +134,7 @@ export default function HermesToolCard({
     retry: false,
     mutationFn: async () => {
       const keyToUse = effectiveSelectedApiKey?.trim()
-        || (!cloudEnabled ? "sk_axonrouter" : null);
+        || ("sk_axonrouter");
       const res = await fetch(ENDPOINT, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -199,7 +195,7 @@ export default function HermesToolCard({
   const getManualConfigs = () => {
     const keyToUse = effectiveSelectedApiKey?.trim()
       ? effectiveSelectedApiKey
-      : (!cloudEnabled ? "sk_axonrouter" : "<API_KEY_FROM_DASHBOARD>");
+      : "sk_axonrouter";
 
     const yamlContent = `model:\n  default: "${selectedModel || "provider/model-id"}"\n  provider: "custom"\n  base_url: "${getEffectiveBaseUrl()}"\n`;
     const envContent = `OPENAI_API_KEY=${keyToUse}\n`;
@@ -306,7 +302,7 @@ export default function HermesToolCard({
                     </select>
                   ) : (
                     <span className="flex-1 text-xs text-text-muted px-2 py-1.5">
-                      {cloudEnabled ? "No API keys - Create one in Keys page" : "sk_axonrouter (default)"}
+                      sk_axonrouter (default)
                     </span>
                   )}
                 </div>

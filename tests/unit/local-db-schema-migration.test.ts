@@ -77,7 +77,6 @@ describe("localDb schema migration", () => {
           model: { input: 1, output: 2 },
         },
       },
-      settings: { cloudEnabled: false },
     });
 
     expect(imported.modelComboMappings).toEqual([]);

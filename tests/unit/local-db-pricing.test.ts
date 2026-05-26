@@ -117,7 +117,6 @@ describe("localDb pricing SQLite authority", () => {
       combos: [],
       apiKeys: [],
       pricing: { custom: { imported: { input: 7, output: 8 } } },
-      settings: { cloudEnabled: false },
     });
 
     expect(sqliteHelpers.loadSingletonFromSqlite("pricing")).toBeNull();

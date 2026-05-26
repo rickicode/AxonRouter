@@ -4,46 +4,16 @@ import AppIcon from "@/shared/components/AppIcon";
 import { useEffect, useState } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardAction, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@/components/ui/empty";
 import { Field, FieldDescription, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Spinner } from "@/components/ui/spinner";
 import { Switch } from "@/components/ui/switch";
 import ProfileSettingsContent from "@/shared/components/settings/ProfileSettingsContent";
 import { fetchJson, queryKeys, useInvalidate } from "@/shared/query";
-import {
-  buildR2SettingsPayload,
-  DEFAULT_R2_SETTINGS_RESPONSE,
-  getDirtyR2Config,
-  getNextR2Config,
-  getR2ConnectionState,
-  hasUnsavedR2Changes,
-  isPrivateR2Configured,
-  isPrivateR2Ready,
-  normalizeR2SettingsResponse,
-  sanitizeR2RuntimeCacheTtlSeconds,
-} from "./r2SettingsUi";
-
-const R2_FIELD_DEFINITIONS = [
-  { key: "accountId", label: "Account ID", required: true, autoComplete: "off" },
-  { key: "accessKeyId", label: "Access Key ID", required: true, autoComplete: "off" },
-  {
-    key: "secretAccessKey",
-    label: "Secret Access Key",
-    required: true,
-    autoComplete: "off",
-    type: "password",
-  },
-  { key: "bucket", label: "Bucket Name", required: true, autoComplete: "off" },
-  { key: "endpoint", label: "Endpoint", required: true, autoComplete: "url" },
-  { key: "region", label: "Region", required: true, autoComplete: "off" },
-  { key: "publicUrl", label: "Public/Base URL", autoComplete: "url" },
-];
 
 const STATUS_TONE_CLASSNAMES = {
   idle: "border-[var(--color-border)] bg-[var(--color-bg-alt)] text-[var(--color-text-muted)]",
@@ -52,8 +22,6 @@ const STATUS_TONE_CLASSNAMES = {
   success: "border-[var(--color-success)]/30 bg-[var(--color-success)]/10 text-[var(--color-text-main)]",
   error: "border-[var(--color-danger)]/30 bg-[var(--color-danger)]/10 text-[var(--color-text-main)]",
 };
-
-const BACKUP_SCHEDULE_OPTIONS = ["daily", "weekly", "monthly"];
 
 function formatRelativeTimestamp(value, fallback) {
   if (!value) return fallback;
@@ -101,34 +69,6 @@ function getModelSyncLastStatusTone(status) {
   return "idle";
 }
 
-function formatArtifactState(label, artifact) {
-  if (!artifact) return `${label} unavailable`;
-  if (artifact.skipped) return `${label} skipped`;
-  if (artifact.uploaded || artifact.ok) return `${label} uploaded`;
-  return `${label} failed`;
-}
-
-function formatDirectBackupMessage(data: any = {}) {
-  const parts = [
-    formatArtifactState("backup", data.backup),
-    formatArtifactState("runtime", data.runtime),
-    formatArtifactState("SQLite", data.sqlite),
-  ];
-
-  return data.success
-    ? `R2 publish complete: ${parts.join(", ")}.`
-    : `R2 publish finished with issues: ${parts.join(", ")}.`;
-}
-
-function formatDirectR2Status(data: any = {}) {
-  if (data.status?.summary) return data.status.summary;
-  if (!data.configured) return "R2 direct runtime storage is not configured.";
-
-  const backupAt = formatRelativeTimestamp(data.r2LastBackupAt, "not recorded");
-  const runtimeAt = formatRelativeTimestamp(data.r2LastRuntimePublishAt, "not recorded");
-  return `Direct R2 status loaded. Last backup ${backupAt}. Last runtime publish ${runtimeAt}.`;
-}
-
 
 export default function SettingsPageClient() {
   const inv = useInvalidate();
@@ -140,28 +80,12 @@ export default function SettingsPageClient() {
   const [savingModelSync, setSavingModelSync] = useState(false);
   const [runningModelSync, setRunningModelSync] = useState(false);
   const [modelSyncFeedback, setModelSyncFeedback] = useState({ type: "", message: "" });
-  const [r2Settings, setR2Settings] = useState(DEFAULT_R2_SETTINGS_RESPONSE);
-  const [savedR2Settings, setSavedR2Settings] = useState(DEFAULT_R2_SETTINGS_RESPONSE);
-  const [loadingR2, setLoadingR2] = useState(true);
-  const [savingR2, setSavingR2] = useState(false);
-  const [testingR2, setTestingR2] = useState(false);
-  const [r2Feedback, setR2Feedback] = useState({ type: "", message: "" });
-  const [runningBackup, setRunningBackup] = useState(false);
-  const [loadingR2Status, setLoadingR2Status] = useState(false);
-  const [restoringR2, setRestoringR2] = useState(false);
-  const [r2ActionFeedback, setR2ActionFeedback] = useState({ type: "", message: "" });
-  const [r2StatusSummary, setR2StatusSummary] = useState("");
-  const [restorePreview, setRestorePreview] = useState(null);
   const [otelSettings, setOtelSettings] = useState({ enabled: false, jaegerOtlpHttpEndpoint: "" });
   const [savingOtel, setSavingOtel] = useState(false);
   const [otelFeedback, setOtelFeedback] = useState({ type: "", message: "" });
   const modelSyncQuery = useQuery({
     queryKey: queryKeys.modelSync(),
     queryFn: ({ signal }) => fetchJson("/api/model-sync", { signal }),
-  });
-  const r2SettingsQuery = useQuery({
-    queryKey: queryKeys.r2Settings(),
-    queryFn: ({ signal }) => fetchJson("/api/r2", { signal }),
   });
   const settingsQuery = useQuery({
     queryKey: queryKeys.settings(),
@@ -170,7 +94,7 @@ export default function SettingsPageClient() {
   const routingProfilePreviewQuery = useQuery({
     queryKey: queryKeys.routingProfilePreview(routingProfile),
     queryFn: ({ signal }) => fetchJson(`/api/routing/profile-preview?profile=${encodeURIComponent(routingProfile)}`, { signal, cache: "no-store" }),
-    enabled: !r2SettingsQuery.isPending,
+    enabled: !settingsQuery.isPending,
   });
 
   useEffect(() => {
@@ -182,6 +106,7 @@ export default function SettingsPageClient() {
         enabled: otel?.enabled === true,
         jaegerOtlpHttpEndpoint: typeof otel?.jaegerOtlpHttpEndpoint === "string" ? otel.jaegerOtlpHttpEndpoint : "",
       });
+      setRoutingProfile(settings.routingProfile || settings.routing?.profile || "balanced");
     });
   }, [settingsQuery.data]);
 
@@ -189,17 +114,6 @@ export default function SettingsPageClient() {
     if (!modelSyncQuery.data) return;
     queueMicrotask(() => setModelSyncState(modelSyncQuery.data));
   }, [modelSyncQuery.data]);
-
-  useEffect(() => {
-    if (!r2SettingsQuery.data) return;
-    const data: any = r2SettingsQuery.data;
-    const normalized = normalizeR2SettingsResponse(data);
-    queueMicrotask(() => {
-      setSavedR2Settings(normalized);
-      setR2Settings(normalized);
-      setRoutingProfile(data.routingProfile || data.routing?.profile || "balanced");
-    });
-  }, [r2SettingsQuery.data]);
 
   useEffect(() => {
     const data: any = routingProfilePreviewQuery.data;
@@ -215,214 +129,9 @@ export default function SettingsPageClient() {
     });
   }, [modelSyncQuery.error, modelSyncQuery.isError, modelSyncQuery.isPending]);
 
-  useEffect(() => {
-    queueMicrotask(() => {
-      setLoadingR2(r2SettingsQuery.isPending);
-      if (r2SettingsQuery.isError) {
-        setR2Feedback({ type: "error", message: r2SettingsQuery.error?.message || "Failed to load R2 settings" });
-        setR2Settings(DEFAULT_R2_SETTINGS_RESPONSE);
-        setSavedR2Settings(DEFAULT_R2_SETTINGS_RESPONSE);
-      }
-    });
-  }, [r2SettingsQuery.error, r2SettingsQuery.isError, r2SettingsQuery.isPending]);
-
   async function loadModelSyncSettings() {
     await modelSyncQuery.refetch();
   }
-
-  async function loadR2Settings() {
-    await r2SettingsQuery.refetch();
-  }
-
-  const handleR2FieldChange = (field, value) => {
-    setR2Settings((current) => ({
-      ...current,
-      r2Config: getNextR2Config(current.r2Config, value, field),
-    }));
-  };
-
-  const handleR2SettingsChange = (field, value) => {
-    setR2Settings((current) => ({
-      ...current,
-      [field]: value,
-    }));
-  };
-
-  const saveR2Mutation = useMutation({
-    retry: false,
-    mutationFn: async () => {
-      const response = await fetch("/api/r2", {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(buildR2SettingsPayload(r2Settings, savedR2Settings)),
-      });
-      const data = await response.json().catch(() => ({}));
-      if (!response.ok) throw new Error(data.error || "Failed to save R2 settings");
-      return data;
-    },
-    onSuccess: (data) => {
-      const normalized = normalizeR2SettingsResponse({
-        ...savedR2Settings,
-        ...data,
-        r2Config: data.r2Config || savedR2Settings.r2Config,
-        r2LastRuntimePublishAt: data.r2LastRuntimePublishAt ?? savedR2Settings.r2LastRuntimePublishAt,
-        r2LastBackupAt: data.r2LastBackupAt ?? savedR2Settings.r2LastBackupAt,
-        r2LastRestoreAt: data.r2LastRestoreAt ?? savedR2Settings.r2LastRestoreAt,
-      });
-      setSavedR2Settings(normalized);
-      setR2Settings(normalized);
-      setR2Feedback({ type: "success", message: "R2 settings saved." });
-      inv.r2Settings();
-    },
-    onError: (error: any) => {
-      setR2Feedback({ type: "error", message: error.message || "Failed to save R2 settings" });
-    },
-  });
-
-  const handleSaveR2Settings = () => {
-    setSavingR2(true);
-    setR2Feedback({ type: "", message: "" });
-    saveR2Mutation.mutate(undefined, { onSettled: () => setSavingR2(false) });
-  };
-
-  const testR2Mutation = useMutation({
-    retry: false,
-    mutationFn: async () => {
-      const response = await fetch("/api/r2/test", { method: "POST" });
-      const data = await response.json().catch(() => ({}));
-      if (!response.ok) throw new Error(data.error || "Connection test failed");
-      return data;
-    },
-    onSuccess: () => {
-      loadR2Settings();
-      setR2Feedback({ type: "success", message: "R2 connection verified." });
-    },
-    onError: (error: any) => {
-      loadR2Settings();
-      setR2Feedback({ type: "error", message: error.message || "Connection test failed" });
-    },
-  });
-
-  const handleTestR2Connection = () => {
-    if (hasUnsavedR2Changes(r2Settings, savedR2Settings)) {
-      setR2Feedback({ type: "error", message: "Save your R2 changes before testing the persisted connection." });
-      return;
-    }
-    setTestingR2(true);
-    setR2Feedback({ type: "", message: "" });
-    testR2Mutation.mutate(undefined, { onSettled: () => setTestingR2(false) });
-  };
-
-  const backupR2Mutation = useMutation({
-    retry: false,
-    mutationFn: async () => {
-      const response = await fetch("/api/r2/backup", { method: "POST" });
-      const data = await response.json().catch(() => ({}));
-      if (!response.ok) throw new Error(data.error || "Backup failed");
-      return data;
-    },
-    onSuccess: (data) => {
-      loadR2Settings();
-      const message = data.error || formatDirectBackupMessage(data);
-      setR2ActionFeedback({ type: data.success ? "success" : "error", message });
-      if (data.success) inv.r2Settings();
-    },
-    onError: (error: any) => {
-      loadR2Settings();
-      setR2ActionFeedback({ type: "error", message: error.message || "Backup failed" });
-    },
-  });
-
-  const handleBackupNow = () => {
-    setRunningBackup(true);
-    setR2ActionFeedback({ type: "", message: "" });
-    backupR2Mutation.mutate(undefined, { onSettled: () => setRunningBackup(false) });
-  };
-
-  const handleViewR2Status = async () => {
-    setLoadingR2Status(true);
-    setR2ActionFeedback({ type: "", message: "" });
-    try {
-      const response = await fetch("/api/r2/info");
-      const data = await response.json().catch(() => ({}));
-      if (!response.ok) {
-        throw new Error(data.error || "Failed to load R2 status");
-      }
-
-      setR2StatusSummary(formatDirectR2Status(data));
-      setRestorePreview(
-        data.restoreReady && data.backupArtifact?.sqlite
-          ? {
-              key: data.backupArtifact.sqlite.key,
-              generatedAt: data.backupArtifact.generatedAt,
-              machineId: data.backupArtifact.machineId,
-              size: data.backupArtifact.sqlite.size,
-            }
-          : null
-      );
-      setR2ActionFeedback({ type: "success", message: "R2 status loaded." });
-    } catch (error) {
-      setR2StatusSummary("");
-      setRestorePreview(null);
-      setR2ActionFeedback({ type: "error", message: error.message || "Failed to load R2 status" });
-    } finally {
-      setLoadingR2Status(false);
-    }
-  };
-
-  const restoreR2Mutation = useMutation({
-    retry: false,
-    mutationFn: async () => {
-      const restoreListResponse = await fetch("/api/r2/restore");
-      const restoreListData = await restoreListResponse.json().catch(() => ({}));
-      if (!restoreListResponse.ok) throw new Error(restoreListData.error || "Failed to load restore information");
-
-      const backup = Array.isArray(restoreListData.backups) ? restoreListData.backups[0] : null;
-      if (!backup?.key) throw new Error("No SQLite backup is available to restore.");
-
-      setRestorePreview({
-        key: backup.key,
-        generatedAt: backup.generatedAt || null,
-        machineId: backup.machineId || null,
-        size: Number.isFinite(backup.size) ? backup.size : null,
-      });
-
-      const generatedAt = formatRelativeTimestamp(backup.generatedAt, "unknown time");
-      const machineLabel = backup.machineId || "this workspace";
-      const confirmed = window.confirm(
-        `Restore the latest SQLite backup from ${machineLabel} generated at ${generatedAt}? This overwrites the current local database.`
-      );
-      if (!confirmed) throw new Error("Restore canceled before any local data was overwritten.");
-
-      const response = await fetch("/api/r2/restore", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ confirmRestore: true, key: backup.key }),
-      });
-      const data = await response.json().catch(() => ({}));
-      if (!response.ok || !data.success) throw new Error(data.error || "Restore failed");
-      return { data, backup };
-    },
-    onSuccess: ({ data, backup }) => {
-      loadR2Settings();
-      setR2ActionFeedback({
-        type: "success",
-        message:
-          `Restore complete from ${data.restoredBackup?.machineId || backup.machineId || "R2"}. ` +
-          `Latest backup timestamp: ${formatRelativeTimestamp(data.restoredBackup?.generatedAt || backup.generatedAt, "unknown")}.`,
-      });
-      inv.r2Settings(); inv.settings(); inv.providers();
-    },
-    onError: (error: any) => {
-      setR2ActionFeedback({ type: "error", message: error.message || "Restore failed" });
-    },
-  });
-
-  const handleRestoreFromR2 = () => {
-    setRestoringR2(true);
-    setR2ActionFeedback({ type: "", message: "" });
-    restoreR2Mutation.mutate(undefined, { onSettled: () => setRestoringR2(false) });
-  };
 
   const saveModelSyncMutation = useMutation({
     retry: false,
@@ -477,15 +186,6 @@ export default function SettingsPageClient() {
     runModelSyncMutation.mutate(undefined, { onSettled: () => setRunningModelSync(false) });
   };
 
-  const r2IsDirty = hasUnsavedR2Changes(r2Settings, savedR2Settings);
-  const r2ConnectionState = getR2ConnectionState(r2Settings.r2Config, testingR2, r2IsDirty);
-  const r2Busy = savingR2 || testingR2 || runningBackup || restoringR2 || loadingR2Status;
-  const privateR2Configured = isPrivateR2Configured(r2Settings.r2Config);
-  const privateR2Ready = isPrivateR2Ready(r2Settings.r2Config, r2IsDirty);
-  const canTestConnection = !loadingR2 && !savingR2 && !testingR2 && !r2IsDirty && privateR2Configured;
-  const canOperateR2Backup = privateR2Ready && !loadingR2 && !r2Busy;
-  const canViewR2Status = privateR2Ready && !loadingR2 && !savingR2 && !testingR2 && !loadingR2Status && !restoringR2;
-  const canRestoreFromR2 = canOperateR2Backup && Boolean(restorePreview?.key || savedR2Settings.r2LastBackupAt);
   const saveSettingsMutation = useMutation({
     retry: false,
     mutationFn: async () => {
@@ -767,228 +467,6 @@ export default function SettingsPageClient() {
                 </>
               ) : (
                 <Empty><EmptyHeader><EmptyMedia><AppIcon name="sync_problem" /></EmptyMedia><EmptyTitle>Model sync settings unavailable</EmptyTitle><EmptyDescription>AxonRouter could not load automatic /models sync settings for this runtime.</EmptyDescription></EmptyHeader></Empty>
-              )}
-            </div>
-          </CardContent></Card>
-
-          <Card><CardHeader><div><CardTitle>R2 Storage</CardTitle></div></CardHeader><CardContent>
-            <div className="space-y-5">
-              <div className="grid gap-3 sm:grid-cols-3">
-                <div className="rounded-[4px] border border-[var(--color-border)] bg-[var(--color-bg-alt)]/78 p-4">
-                  <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[var(--color-text-subtle)]">Connection</p>
-                  <p className="mt-3 text-lg font-semibold text-[var(--color-text-main)]">{r2ConnectionState.label}</p>
-                </div>
-                <div className="rounded-[4px] border border-[var(--color-border)] bg-[var(--color-bg-alt)]/78 p-4">
-                  <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[var(--color-text-subtle)]">Last Backup</p>
-                  <p className="mt-3 text-lg font-semibold text-[var(--color-text-main)]">{formatRelativeTimestamp(r2Settings.r2LastBackupAt, "Not recorded")}</p>
-                </div>
-                <div className="rounded-[4px] border border-[var(--color-border)] bg-[var(--color-bg-alt)]/78 p-4">
-                  <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[var(--color-text-subtle)]">Last Publish</p>
-                  <p className="mt-3 text-lg font-semibold text-[var(--color-text-main)]">{formatRelativeTimestamp(r2Settings.r2LastRuntimePublishAt, "Not recorded")}</p>
-                </div>
-              </div>
-
-              <div
-                className={`rounded-[4px] border p-4 ${STATUS_TONE_CLASSNAMES[r2ConnectionState.tone]}`}
-                role="status"
-                aria-live="polite"
-              >
-                <div className="flex flex-wrap items-center justify-between gap-3">
-                  <div>
-                    <p className="text-xs font-semibold uppercase tracking-[0.16em]">
-                      Connection Status
-                    </p>
-                    <p className="mt-1 text-lg font-semibold text-[var(--color-text-main)]">
-                      {r2ConnectionState.label}
-                    </p>
-                  </div>
-                  <span className="rounded border border-current/20 px-3 py-1 text-xs font-medium uppercase tracking-[0.12em]">
-                    {r2ConnectionState.tone}
-                  </span>
-                </div>
-                <p className="mt-3 text-sm leading-6">{r2ConnectionState.detail}</p>
-              </div>
-
-              {r2Feedback.message ? (
-                <Alert
-                  variant={r2Feedback.type === "error" ? "destructive" : "default"}
-                  className="rounded-[4px]"
-                >
-                  <AlertDescription>{r2Feedback.message}</AlertDescription>
-                </Alert>
-              ) : null}
-
-              {r2ActionFeedback.message ? (
-                <Alert
-                  variant={r2ActionFeedback.type === "error" ? "destructive" : "default"}
-                  className="rounded-[4px]"
-                >
-                  <AlertDescription>{r2ActionFeedback.message}</AlertDescription>
-                </Alert>
-              ) : null}
-
-              {loadingR2 ? (
-                <Skeleton className="h-44 w-full" />
-              ) : (
-                <>
-                  <div className="grid gap-4 sm:grid-cols-2">
-                    {R2_FIELD_DEFINITIONS.map((field) => (
-                      <Input
-                        key={field.key}
-                        type={field.type || "text"}
-                        value={r2Settings.r2Config[field.key] || ""}
-                        onChange={(event) => handleR2FieldChange(field.key, event.target.value)}
-                        autoComplete={field.autoComplete}
-                        disabled={r2Busy}
-                        spellCheck={false}
-                      />
-                    ))}
-                  </div>
-
-                  <div className="rounded-[4px] border border-[var(--color-border)] bg-[var(--color-bg-alt)]/78 p-4 text-sm leading-6 text-[var(--color-text-muted)]">
-                    {r2IsDirty ? (
-                      <p>Save changes before testing connection.</p>
-                    ) : null}
-                    {!privateR2Configured ? (
-                      <p>Complete all R2 fields to enable backup/restore.</p>
-                    ) : null}
-                    {privateR2Configured && !privateR2Ready ? (
-                      <p>Run a connection test before using backup/restore.</p>
-                    ) : null}
-                  </div>
-
-                  <div className="grid gap-5 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
-                    <div className="space-y-4 sm:col-span-2">
-                      <div className="space-y-1">
-                        <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[var(--color-text-muted)]">
-                          Runtime publishing
-                        </p>
-                      </div>
-
-                      <div className="grid gap-4 sm:grid-cols-2">
-                        <Input
-                          type="url"
-                          value={r2Settings.r2RuntimePublicBaseUrl}
-                          onChange={(event) =>
-                            handleR2SettingsChange("r2RuntimePublicBaseUrl", event.target.value)
-                          }
-                          autoComplete="url"
-                          disabled={r2Busy}
-                        />
-
-                        <Input
-                          type="number"
-                          min="1"
-                          max="300"
-                          value={r2Settings.r2RuntimeCacheTtlSeconds}
-                          onChange={(event) =>
-                            handleR2SettingsChange(
-                              "r2RuntimeCacheTtlSeconds",
-                              sanitizeR2RuntimeCacheTtlSeconds(event.target.value)
-                            )
-                          }
-                          disabled={r2Busy}
-                        />
-                      </div>
-
-                      <label className="flex gap-3 rounded-[4px] border border-[var(--color-border)] bg-[var(--color-bg-alt)]/78 p-4 text-sm text-[var(--color-text-main)]">
-                        <Switch
-                          checked={r2Settings.r2AutoPublishEnabled}
-                          onToggle={(checked) =>
-                            handleR2SettingsChange("r2AutoPublishEnabled", checked)
-                          }
-                          disabled={r2Busy}
-                        />
-                        <span className="flex flex-col gap-1">
-                          <span className="block font-medium">Automatic runtime publish</span>
-                        </span>
-                      </label>
-
-                      <p className="text-sm leading-6 text-[var(--color-text-muted)]">
-                        Last runtime publish: {formatRelativeTimestamp(r2Settings.r2LastRuntimePublishAt, "Not recorded")}
-                      </p>
-                    </div>
-
-                    <Field>
-                      <FieldLabel>Automatic backups</FieldLabel>
-                      <Select value={r2Settings.r2BackupEnabled ? "enabled" : "disabled"} onValueChange={(value) => handleR2SettingsChange("r2BackupEnabled", value === "enabled")} disabled={r2Busy}>
-                        <SelectTrigger><SelectValue /></SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="disabled">Disabled</SelectItem>
-                          <SelectItem value="enabled">Enabled</SelectItem>
-                        </SelectContent>
-                      </Select>
-                      <FieldDescription>Enable/disable scheduled backups.</FieldDescription>
-                    </Field>
-
-                    <Field>
-                      <FieldLabel>Backup schedule</FieldLabel>
-                      <Select value={r2Settings.r2SqliteBackupSchedule} onValueChange={(value) => handleR2SettingsChange("r2SqliteBackupSchedule", value)} disabled={r2Busy}>
-                        <SelectTrigger><SelectValue /></SelectTrigger>
-                        <SelectContent>
-                          {BACKUP_SCHEDULE_OPTIONS.map((schedule) => (
-                            <SelectItem key={schedule} value={schedule}>{schedule.charAt(0).toUpperCase() + schedule.slice(1)}</SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                      <FieldDescription>Backup frequency when enabled.</FieldDescription>
-                    </Field>
-
-                    <div className="space-y-2 text-sm leading-6 text-[var(--color-text-muted)] sm:col-span-2">
-                      <p>
-                        Last backup: {formatRelativeTimestamp(r2Settings.r2LastBackupAt, "Not recorded")}
-                      </p>
-                      <p>
-                        Last restore: {formatRelativeTimestamp(r2Settings.r2LastRestoreAt, "Not recorded")}
-                      </p>
-                      {restorePreview?.key ? (
-                        <p>
-                          Restore candidate: {restorePreview.key} · {formatRelativeTimestamp(restorePreview.generatedAt, "unknown time")}
-                        </p>
-                      ) : null}
-                      {r2StatusSummary ? <p>{r2StatusSummary}</p> : null}
-                    </div>
-                  </div>
-
-                  <div className="flex flex-wrap gap-2">
-                    <Button onClick={handleSaveR2Settings} disabled={r2Busy}>
-                      {savingR2 ? <Spinner data-icon="inline-start" /> : null}
-                      {savingR2 ? "Saving" : "Save"}
-                    </Button>
-                    <Button
-                      variant="secondary"
-                      onClick={handleTestR2Connection}
-                      disabled={!canTestConnection}
-                    >
-                      {testingR2 ? <Spinner data-icon="inline-start" /> : null}
-                      {testingR2 ? "Testing" : "Test Connection"}
-                    </Button>
-                    <Button
-                      variant="secondary"
-                      onClick={handleBackupNow}
-                      disabled={!canOperateR2Backup}
-                    >
-                      {runningBackup ? <Spinner data-icon="inline-start" /> : null}
-                      {runningBackup ? "Backing Up" : "Backup Now"}
-                    </Button>
-                    <Button
-                      variant="secondary"
-                      onClick={handleViewR2Status}
-                      disabled={!canViewR2Status}
-                    >
-                      {loadingR2Status ? <Spinner data-icon="inline-start" /> : null}
-                      {loadingR2Status ? "Loading Status" : "View R2 Status"}
-                    </Button>
-                    <Button
-                      variant="secondary"
-                      onClick={handleRestoreFromR2}
-                      disabled={!canRestoreFromR2}
-                    >
-                      {restoringR2 ? <Spinner data-icon="inline-start" /> : null}
-                      {restoringR2 ? "Restoring" : "Restore from R2"}
-                    </Button>
-                  </div>
-                </>
               )}
             </div>
           </CardContent></Card>

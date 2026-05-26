@@ -117,17 +117,6 @@ export async function initializeApp() {
     // Network monitor: detect sleep/wake + network changes → restart tunnel
     startNetworkMonitor();
 
-    // Start R2 backup scheduler only when scheduled backups are enabled.
-    if (settings.r2BackupEnabled) {
-      try {
-        const { startR2BackupScheduler } = await import("@/lib/r2BackupScheduler");
-        startR2BackupScheduler();
-        console.log('[INIT] R2 backup scheduler started');
-      } catch (error) {
-        console.error('[INIT] Failed to start R2 backup scheduler:', error);
-      }
-    }
-
     // Auto-start MITM if it was enabled before restart
     autoStartMitm();
   } catch (error) {

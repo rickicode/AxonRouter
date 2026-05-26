@@ -571,9 +571,9 @@ export async function getSettings() {
   }
 
   const db = await getDb();
-  const normalizedSettings = mergeSettingsWithDefaults(db.data.settings || { cloudEnabled: false });
+  const normalizedSettings = mergeSettingsWithDefaults(db.data.settings || {});
 
-  if (JSON.stringify(normalizedSettings) !== JSON.stringify(db.data.settings || { cloudEnabled: false })) {
+  if (JSON.stringify(normalizedSettings) !== JSON.stringify(db.data.settings || {})) {
     db.data.settings = normalizedSettings;
     await persistDbWrite(db);
   }
@@ -591,7 +591,7 @@ export async function atomicUpdateSettings(mutator) {
 
   await withLocalDbMutex(async () => {
     await safeRead(db);
-    const current = mergeSettingsWithDefaults(db.data.settings || { cloudEnabled: false });
+    const current = mergeSettingsWithDefaults(db.data.settings || {});
     const updated = await mutator(structuredClone(current));
 
     if (!updated || typeof updated !== "object" || Array.isArray(updated)) {
