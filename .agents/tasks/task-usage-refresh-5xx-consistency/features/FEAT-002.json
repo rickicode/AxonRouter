@@ -2,7 +2,7 @@
   "id": "FEAT-002",
   "type": "feat",
   "description": "Add a unit test that specifically validates 500 errors in the usage refresh path keep eligible connections clean (same as the request path), to prevent regression.",
-  "status": "in_progress",
+  "status": "completed",
   "steps": [
     "Create a new test file tests/unit/usage-refresh-5xx-transient.test.ts that tests the usage refresh fallback handling for 5xx errors.",
     "The test should mock the same modules as tests/unit/status-handling-transient-auth.test.ts (use it as a pattern reference) but focus on the connectionUsageRefresh error handling path.",
@@ -22,5 +22,5 @@
     "bun run typecheck"
   ],
   "blocked_reason": null,
-  "findings": ""
+  "findings": "All 5 tests pass. The key insight is that connections need authType:'oauth' to bypass the early skip in loadUsageConnection. The test exercises the full refreshConnectionUsage flow by mocking getUsageForProvider to throw errors with specific .status codes, verifying the patch passed to syncUsageStatus matches expectations."
 }
