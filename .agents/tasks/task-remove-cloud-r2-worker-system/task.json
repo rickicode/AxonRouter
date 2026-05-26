@@ -9,6 +9,6 @@
     "tests": "pass",
     "test_quality": "pass",
     "docker_build": "skipped",
-    "summary": "tsc --noEmit passes with 0 errors. All 998 tests pass (22 skipped, 1 test file skipped). Grep audit confirms zero stray references to removed systems. CHANGELOG.md updated with v0.6.0 entry including WorkerRelay note. Review fixes applied: removed stale route guards, orphaned query key, dead test mocks, and ESM inconsistency in tunnelConnectionRuntime."
+    "summary": "tsc --noEmit passes with 0 errors. All 998 tests pass (22 skipped, 1 test file skipped). Grep audit confirms zero stray references to removed systems. CHANGELOG.md updated with v0.6.0 entry including WorkerRelay note. Review fixes applied: removed stale route guards, orphaned query key, dead test mocks, and ESM inconsistency in tunnelConnectionRuntime. V2 review fixes applied: removed dead scheduler status UI from ProviderLimits (replaced Refresh All with per-connection refresh), removed Usage Worker settings card from ProfileSettings."
   }
 }
