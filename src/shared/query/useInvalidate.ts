@@ -30,7 +30,6 @@ export function useInvalidate() {
     combos: () => invalidate(queryKeys.combos()),
     keys: () => invalidate(queryKeys.keys()),
 
-    r2Settings: () => invalidate(queryKeys.r2Settings()),
     cliTools: () => invalidate(queryKeys.cliToolsBootstrap()),
     openCode: () => invalidate(queryKeys.openCodeBootstrap()),
     disabledModels: () => invalidate(queryKeys.disabledModels()),

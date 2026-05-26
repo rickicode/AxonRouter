@@ -99,33 +99,6 @@ export function ensureDbShape(data) {
         next.settings = mergedSettings;
         changed = true;
       }
-
-      if (Array.isArray(next.settings.cloudUrls)) {
-        const seen = new Set();
-        const deduped = next.settings.cloudUrls.filter((url) => {
-          const key = String(url?.url ?? "").toLowerCase();
-          if (seen.has(key)) return false;
-          seen.add(key);
-          return true;
-        });
-
-        if (deduped.length !== next.settings.cloudUrls.length) {
-          next.settings.cloudUrls = deduped;
-          changed = true;
-        }
-      }
-
-      if (Array.isArray(next.settings.cloudUrls)) {
-        const filtered = next.settings.cloudUrls.filter((entry) => {
-          const u = String(entry?.url ?? "").toLowerCase();
-          if (!u) return false;
-          return u !== "http://localhost:8787" && u !== "http://localhost:8787/";
-        });
-        if (filtered.length !== next.settings.cloudUrls.length) {
-          next.settings.cloudUrls = filtered;
-          changed = true;
-        }
-      }
     }
 
     if (key === "apiKeys" && Array.isArray(next.apiKeys)) {

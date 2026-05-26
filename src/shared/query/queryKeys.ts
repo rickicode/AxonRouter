@@ -23,7 +23,6 @@ export const queryKeys = {
   usageStats: (period: string) => ["usage", "stats", period] as const,
   usageAnalytics: (period: string) => ["usage", "analytics", period] as const,
   routingProfilePreview: (profile: string) => ["routing", "profile-preview", profile] as const,
-  r2Settings: () => ["r2"] as const,
   modelSync: () => ["model-sync"] as const,
   mcpRuntime: () => ["mcp", "runtime"] as const,
   cliToolsBootstrap: () => ["cli-tools", "bootstrap"] as const,

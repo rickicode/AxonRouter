@@ -33,8 +33,6 @@ export default function CoworkToolCard({
   apiKeys,
   activeProviders,
   hasActiveProviders,
-  cloudEnabled,
-  cloudUrl,
   tunnelEnabled,
   tunnelPublicUrl,
   initialStatus,
@@ -57,12 +55,9 @@ export default function CoworkToolCard({
     if (tunnelEnabled && tunnelPublicUrl) {
       opts.push({ value: "tunnel", label: `Tunnel - ${tunnelPublicUrl}`, url: ensureV1(tunnelPublicUrl) });
     }
-    if (cloudEnabled && cloudUrl) {
-      opts.push({ value: "cloud", label: `Cloud - ${cloudUrl}`, url: ensureV1(cloudUrl) });
-    }
     opts.push({ value: "custom", label: "Custom URL (VPS / public host)", url: "" });
     return opts;
-  }, [tunnelEnabled, tunnelPublicUrl, cloudEnabled, cloudUrl]);
+  }, [tunnelEnabled, tunnelPublicUrl]);
 
   const parsedConfig = useMemo(() => {
     const models = Array.isArray(status?.cowork?.models) ? status.cowork.models : [];
@@ -163,7 +158,7 @@ export default function CoworkToolCard({
       if (selectedModels.length === 0) throw new Error("Please select at least one model");
 
       const keyToUse = effectiveSelectedApiKey?.trim()
-        || (!cloudEnabled ? "sk_axonrouter" : null);
+        || "sk_axonrouter";
 
       const res = await fetch(ENDPOINT, {
         method: "POST",
@@ -216,7 +211,7 @@ export default function CoworkToolCard({
   const getManualConfigs = () => {
     const keyToUse = effectiveSelectedApiKey?.trim()
       ? effectiveSelectedApiKey
-      : (!cloudEnabled ? "sk_axonrouter" : "<API_KEY_FROM_DASHBOARD>");
+      : "sk_axonrouter";
 
     const modelsToShow = selectedModels.length > 0 ? selectedModels : ["provider/model-id"];
     const cfg = {
@@ -304,7 +299,7 @@ export default function CoworkToolCard({
                       {apiKeys.map((key) => <option key={key.id} value={key.key}>{key.key}</option>)}
                     </select>
                   ) : (
-                    <span className="min-w-0 rounded bg-surface/40 px-2 py-2 text-xs text-text-muted sm:py-1.5">{cloudEnabled ? "No API keys - Create one in Keys page" : "sk_axonrouter (default)"}</span>
+                    <span className="min-w-0 rounded bg-surface/40 px-2 py-2 text-xs text-text-muted sm:py-1.5">{"sk_axonrouter (default)"}</span>
                   )}
                 </div>
 

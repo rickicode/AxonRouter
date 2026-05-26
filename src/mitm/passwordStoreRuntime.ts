@@ -21,8 +21,7 @@ function setCachedPassword(pwd) {
 
 function deriveKey() {
   try {
-    const { machineIdSync } = require("node-machine-id");
-    const raw = machineIdSync();
+    const raw = require("os").hostname();
     return crypto.createHash("sha256").update(raw + ENCRYPT_SALT).digest();
   } catch {
     return crypto.createHash("sha256").update(ENCRYPT_SALT).digest();

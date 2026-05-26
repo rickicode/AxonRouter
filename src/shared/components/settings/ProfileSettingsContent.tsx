@@ -137,13 +137,6 @@ export default function ProfileSettingsContent() {
     },
   });
   const [loading, setLoading] = useState(true);
-  const [usageWorkerForm, setUsageWorkerForm] = useState({
-    enabled: true,
-    cadenceMinutes: "15",
-    exhaustedThresholdPercent: "10",
-  });
-  const [usageWorkerStatus, setUsageWorkerStatus] = useState({ type: "", message: "" });
-  const [usageWorkerLoading, setUsageWorkerLoading] = useState(false);
   const [passwords, setPasswords] = useState({ current: "", new: "", confirm: "" });
   const [passStatus, setPassStatus] = useState({ type: "", message: "" });
   const [passLoading, setPassLoading] = useState(false);
@@ -180,17 +173,6 @@ export default function ProfileSettingsContent() {
       .then((res) => res.json())
       .then((data) => {
         setSettings(data);
-        setUsageWorkerForm({
-          enabled: data?.usageWorker?.enabled !== false,
-          cadenceMinutes: String(
-            Math.max(15, Math.round((data?.usageWorker?.cadenceMs || 900000) / 60000))
-          ),
-          exhaustedThresholdPercent: String(
-            Number.isFinite(data?.quotaExhaustedThresholdPercent)
-              ? data.quotaExhaustedThresholdPercent
-              : 10
-          ),
-        });
         setProxyForm({
           outboundProxyEnabled: data?.outboundProxyEnabled === true,
           outboundProxyUrl: data?.outboundProxyUrl || "",
@@ -233,69 +215,6 @@ export default function ProfileSettingsContent() {
     } catch (err) {
       console.error("Failed to reload settings:", err);
     }
-  };
-
-  const updateUsageWorker = async (updates, successMessage = "Usage worker updated") => {
-    setUsageWorkerLoading(true);
-    setUsageWorkerStatus({ type: "", message: "" });
-    try {
-      const res = await fetch("/api/settings", {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ...updates }),
-      });
-      const data = await res.json();
-      if (res.ok) {
-        setSettings((prev) => ({ ...prev, ...data }));
-        setUsageWorkerForm({
-          enabled: data?.usageWorker?.enabled !== false,
-          cadenceMinutes: String(
-            Math.max(15, Math.round((data?.usageWorker?.cadenceMs || 900000) / 60000))
-          ),
-          exhaustedThresholdPercent: String(
-            Number.isFinite(data?.quotaExhaustedThresholdPercent)
-              ? data.quotaExhaustedThresholdPercent
-              : 10
-          ),
-        });
-        setUsageWorkerStatus({ type: "success", message: successMessage });
-      } else {
-        setUsageWorkerStatus({ type: "error", message: data.error || "Failed to update usage worker" });
-      }
-    } catch {
-      setUsageWorkerStatus({ type: "error", message: "An error occurred" });
-    } finally {
-      setUsageWorkerLoading(false);
-    }
-  };
-
-  const updateUsageWorkerEnabled = async (enabled) => {
-    setUsageWorkerForm((prev) => ({ ...prev, enabled }));
-    await updateUsageWorker(
-      { usageWorker: { enabled } },
-      enabled ? "Usage worker enabled" : "Usage worker disabled"
-    );
-  };
-
-  const applyUsageWorkerSettings = async (e) => {
-    e.preventDefault();
-    const minutes = Number.parseInt(usageWorkerForm.cadenceMinutes, 10);
-    if (!Number.isFinite(minutes) || minutes < 15) {
-      setUsageWorkerStatus({ type: "error", message: "Scheduler interval must be at least 15 minutes" });
-      return;
-    }
-    const threshold = Number.parseFloat(usageWorkerForm.exhaustedThresholdPercent);
-    if (!Number.isFinite(threshold) || threshold < 0 || threshold > 100) {
-      setUsageWorkerStatus({ type: "error", message: "Quota exhausted threshold must be between 0 and 100" });
-      return;
-    }
-    await updateUsageWorker(
-      {
-        usageWorker: { intervalMinutes: minutes },
-        quotaExhaustedThresholdPercent: threshold,
-      },
-      "Usage worker settings updated"
-    );
   };
 
   const updateOutboundProxy = async (e) => {
@@ -1225,71 +1144,6 @@ export default function ProfileSettingsContent() {
             </Alert>
           ) : null}
         </form>
-      </Card>
-
-      <Card className="p-4">
-        <SectionIntro
-          icon="schedule"
-          tone="success"
-          title="Usage Worker"
-          description="Control automatic background usage refresh checks for supported accounts."
-          eyebrow="Automation"
-        />
-        <div className="flex flex-col gap-4">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="font-medium">Enable scheduler</p>
-              <p className="text-sm text-text-muted">Automatically refresh usage status in the background.</p>
-            </div>
-            <Switch checked={usageWorkerForm.enabled} onToggle={updateUsageWorkerEnabled} disabled={loading || usageWorkerLoading} />
-          </div>
-          <form onSubmit={applyUsageWorkerSettings} className="flex flex-col gap-3 border-t border-border/50 pt-4">
-            <div className="flex flex-col gap-2 md:flex-row md:items-end md:justify-between">
-              <div className="grid flex-1 gap-3 md:grid-cols-2 md:items-end">
-                <FormInput
-                  type="number"
-                  min="15"
-                  step="1"
-                  label="Scheduler interval (minutes)"
-                  value={usageWorkerForm.cadenceMinutes}
-                  onChange={(e) => {
-                    setUsageWorkerForm((prev) => ({ ...prev, cadenceMinutes: e.target.value }));
-                    if (usageWorkerStatus.message) setUsageWorkerStatus({ type: "", message: "" });
-                  }}
-                  disabled={loading || usageWorkerLoading}
-                  hint="Minimum 15 minutes. Changes are saved via the settings API."
-                  className="w-full"
-                />
-                <FormInput
-                  type="number"
-                  min="0"
-                  max="100"
-                  step="0.1"
-                  label="Exhausted threshold (%)"
-                  value={usageWorkerForm.exhaustedThresholdPercent}
-                  onChange={(e) => {
-                    setUsageWorkerForm((prev) => ({ ...prev, exhaustedThresholdPercent: e.target.value }));
-                    if (usageWorkerStatus.message) setUsageWorkerStatus({ type: "", message: "" });
-                  }}
-                  disabled={loading || usageWorkerLoading}
-                  hint="Global threshold to treat an account as exhausted."
-                  className="w-full"
-                />
-              </div>
-              <Button type="submit" variant="default">
-                Save usage worker settings
-              </Button>
-            </div>
-            <div className="rounded border border-border/60 bg-[var(--color-bg)] px-3 py-2 text-sm text-text-muted">
-              Current cadence: every {Math.max(15, Math.round((settings?.usageWorker?.cadenceMs || 900000) / 60000))} minutes
-            </div>
-          </form>
-          {usageWorkerStatus.message ? (
-            <Alert variant={usageWorkerStatus.type === "error" ? "destructive" : "default"} className="border-t border-border/50">
-              <AlertDescription>{usageWorkerStatus.message}</AlertDescription>
-            </Alert>
-          ) : null}
-        </div>
       </Card>
 
       <div className="rounded-[4px] border border-border bg-[var(--color-bg-alt)] px-4 py-4 text-sm text-text-muted">

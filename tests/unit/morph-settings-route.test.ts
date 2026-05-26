@@ -2,11 +2,8 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const getSettings = vi.fn();
 const updateSettings = vi.fn();
-const getUsageWorkerStatus = vi.fn();
 const readRuntimeConfig = vi.fn();
 const applyOutboundProxyEnv = vi.fn();
-const isCloudEnabled = vi.fn();
-const syncToCloud = vi.fn();
 
 vi.mock("next/server", () => ({
   NextResponse: {
@@ -24,7 +21,6 @@ vi.mock("@/lib/localDb", async (importOriginal) => {
     ...actual,
     getSettings,
     updateSettings,
-    isCloudEnabled,
   };
 });
 
@@ -32,18 +28,8 @@ vi.mock("@/lib/network/outboundProxy", () => ({
   applyOutboundProxyEnv,
 }));
 
-vi.mock("@/lib/usageWorker/client", () => ({
-  getUsageWorkerClient: () => ({
-    getStatus: getUsageWorkerStatus,
-  }),
-}));
-
 vi.mock("@/lib/runtimeConfig", () => ({
   readRuntimeConfig,
-}));
-
-vi.mock("@/lib/cloudSync", () => ({
-  syncToCloud,
 }));
 
 vi.mock("../../src/lib/api/requireManagementAuth.ts", () => ({
@@ -56,8 +42,6 @@ describe("/api/settings morph settings", () => {
     vi.clearAllMocks();
     vi.stubGlobal("fetch", vi.fn());
     readRuntimeConfig.mockResolvedValue({ version: 1 });
-    isCloudEnabled.mockResolvedValue(false);
-    syncToCloud.mockResolvedValue(undefined);
   });
 
   it("GET returns morph defaults when not yet configured", async () => {

@@ -57,17 +57,3 @@ function materializeStandaloneExternalAliases() {
 }
 
 materializeStandaloneExternalAliases();
-
-const usageWorkerSourceDir = path.join(process.cwd(), "src", "lib", "usageWorker");
-const usageWorkerStandaloneDir = path.join(standaloneDir, "src", "lib", "usageWorker");
-if (fs.existsSync(usageWorkerSourceDir)) {
-  fs.mkdirSync(usageWorkerStandaloneDir, { recursive: true });
-  for (const entry of fs.readdirSync(usageWorkerSourceDir, { withFileTypes: true })) {
-    if (!entry.isFile()) continue;
-    fs.copyFileSync(
-      path.join(usageWorkerSourceDir, entry.name),
-      path.join(usageWorkerStandaloneDir, entry.name),
-    );
-  }
-  console.log("[Build] Synced usage worker standalone files");
-}

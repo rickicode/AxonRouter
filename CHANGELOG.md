@@ -1,3 +1,26 @@
+# v0.6.0 (2025-05-26)
+
+## Removed
+- **Cloud Worker System**: Removed entire cloud worker infrastructure including CloudSync, CloudWorkerClient, CloudRequestAuth, CloudUrlResolver, CloudUsageSync, CloudSyncScheduler, CloudUsagePoller, and all cloud API routes (`/api/cloud/`, `/api/cloud-urls/`). The `cloud/` directory (D1 worker service) and `WorkerProxy/` directory (Cloudflare relay proxy) have been fully deleted.
+- **R2 Backup/Restore System**: Removed all R2 backup infrastructure including R2BackupClient, R2BackupScheduler, R2ObjectClient, R2RuntimeArtifacts, R2RuntimePublisher, R2SqliteFingerprint, and R2 API routes (`/api/r2/`). R2 settings UI removed from dashboard.
+- **Usage Worker Process**: Removed the isolated background usage worker process (`src/lib/usageWorker/`). Usage scheduling for provider quota checks now runs in-process via the existing `usageRefreshQueue` system, which is more efficient for binary/production deployments.
+- **node-machine-id dependency**: Removed external `node-machine-id` package that used `require()` incompatible with ESM.
+- **CloudTab UI**: Removed cloud endpoint management tab from dashboard.
+- Removed `cloudEnabled`, `cloudUrls`, `cloudSharedSecret`, `r2Config`, and related settings from the default settings schema.
+
+## Fixed
+- **machineId ESM compatibility**: Replaced broken `require()`-based machineId implementation with pure ESM module using `node:crypto` and `node:os`. No external dependencies needed.
+
+## Changed
+- Usage refresh scheduling runs in-process via `usageRefreshQueue` instead of spawning a separate worker child process - simpler and more efficient for production binary deployments.
+- Settings API no longer triggers cloud sync or usage worker notifications on save.
+- CLI tools pages no longer display cloud-related configuration options.
+
+## Notes
+- **WorkerRelay** can be used as a relay proxy alternative for remote access scenarios that previously relied on CloudWorker/WorkerProxy.
+- The cloudflared tunnel system is preserved and remains the primary remote access method.
+- The `usageRefreshQueue` (in-process provider usage checking) and `connectionUsageRefresh` systems are preserved - these handle provider quota snapshot checking efficiently without a separate process.
+
 # v0.5.4 (2026-05-10)
 
 ## Added

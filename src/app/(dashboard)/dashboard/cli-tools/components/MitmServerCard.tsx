@@ -18,7 +18,7 @@ const DEFAULT_MITM_ROUTER_BASE = DEFAULT_AXONROUTER_BASE_URL;
  * Shared MITM infrastructure card — manages SSL cert + server start/stop.
  * DNS per-tool is handled separately in MitmToolCard.
  */
-export default function MitmServerCard({ apiKeys, cloudEnabled, onStatusChange }) {
+export default function MitmServerCard({ apiKeys, onStatusChange }) {
   const inv = useInvalidate();
   const [status, setStatus] = useState(null);
   const [showPasswordModal, setShowPasswordModal] = useState(false);
@@ -101,7 +101,7 @@ export default function MitmServerCard({ apiKeys, cloudEnabled, onStatusChange }
         });
       } else if (action === "start") {
         const keyToUse = effectiveSelectedApiKey?.trim()
-          || (!cloudEnabled ? "sk_axonrouter" : null);
+          || "sk_axonrouter";
         res = await fetch("/api/cli-tools/antigravity-mitm", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -226,7 +226,7 @@ export default function MitmServerCard({ apiKeys, cloudEnabled, onStatusChange }
                   </select>
                 ) : (
                   <span className="flex-1 px-2 py-1.5 text-xs text-text-muted">
-                    {cloudEnabled ? "No API keys — create one in Keys page" : "sk_axonrouter (default)"}
+                    {"sk_axonrouter (default)"}
                   </span>
                 )}
               </div>

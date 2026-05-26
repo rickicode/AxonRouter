@@ -46,7 +46,7 @@ function insertUsageEvent(db, event) {
     event.ttftMs,
     event.source,
     event.category,
-    event.cloudWorkerId,
+    null,
     event.errorCode,
     event.createdAt
   );

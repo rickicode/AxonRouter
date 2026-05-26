@@ -85,7 +85,6 @@ export function normalizeUsageEvent(entry: any = {}, options: any = {}) {
     ttftMs: toInteger(entry.timeToFirstTokenMs ?? entry.ttftMs),
     source: toSafeString(options.source || entry.source, "general"),
     category: toSafeString(entry.category),
-    cloudWorkerId: toSafeString(entry.cloudWorkerId),
     errorCode: toSafeString(entry.errorCode || entry.error),
     createdAt: new Date().toISOString(),
   };

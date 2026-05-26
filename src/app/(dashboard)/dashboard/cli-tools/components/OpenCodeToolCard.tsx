@@ -12,7 +12,7 @@ import ProviderIcon from "@/shared/components/ProviderIcon";
 import EndpointPresetControl from "./EndpointPresetControl";
 import { useInvalidate } from "@/shared/query";
 
-export default function OpenCodeToolCard({ tool, isExpanded, onToggle, baseUrl, apiKeys, activeProviders, cloudEnabled, initialStatus }) {
+export default function OpenCodeToolCard({ tool, isExpanded, onToggle, baseUrl, apiKeys, activeProviders, initialStatus }) {
   const inv = useInvalidate();
   const [status, setStatus] = useState(initialStatus || null);
   const [checking, setChecking] = useState(false);
@@ -128,7 +128,7 @@ export default function OpenCodeToolCard({ tool, isExpanded, onToggle, baseUrl, 
     mutationFn: async () => {
       const keyToUse = effectiveSelectedApiKey?.trim()
         ? effectiveSelectedApiKey
-        : (!cloudEnabled ? "sk_axonrouter" : effectiveSelectedApiKey);
+        : "sk_axonrouter";
 
       const res = await fetch("/api/cli-tools/opencode-settings", {
         method: "POST",
@@ -223,7 +223,7 @@ export default function OpenCodeToolCard({ tool, isExpanded, onToggle, baseUrl, 
   const getManualConfigs = () => {
     const keyToUse = effectiveSelectedApiKey?.trim()
       ? effectiveSelectedApiKey
-      : (!cloudEnabled ? "sk_axonrouter" : "<API_KEY_FROM_DASHBOARD>");
+      : "sk_axonrouter";
 
     const modelsToShow = selectedModels.length > 0 ? selectedModels : ["provider/model-id"];
     const activeModelToShow = activeModel || selectedModels[0] || modelsToShow[0];
@@ -371,7 +371,7 @@ export default function OpenCodeToolCard({ tool, isExpanded, onToggle, baseUrl, 
                     </select>
                   ) : (
                     <span className="flex-1 text-xs text-text-muted px-2 py-1.5">
-                      {cloudEnabled ? "No API keys - Create one in Keys page" : "sk_axonrouter (default)"}
+                      {"sk_axonrouter (default)"}
                     </span>
                   )}
                 </div>

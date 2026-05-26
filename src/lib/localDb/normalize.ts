@@ -1,4 +1,3 @@
-import { normalizeUsageWorkerSettings } from "../usageWorker/config";
 import { DEFAULT_MODEL_SYNC_SETTINGS, normalizeModelSyncSettings } from "../providerModels/syncSettings";
 import { normalizeCodexProviderSpecificData } from "../oauth/codexAccount";
 import { normalizeRoutingStrategy as normalizeComboStrategyValue } from "../../shared/constants/routingStrategies";
@@ -92,19 +91,6 @@ function normalizeMorphApiKeys(apiKeys = []) {
   return Array.from(byEmail.values());
 }
 
-const DEFAULT_R2_CONFIG = {
-  accountId: "",
-  accessKeyId: "",
-  secretAccessKey: "",
-  bucket: "",
-  endpoint: "",
-  region: "",
-  publicUrl: "",
-  connected: false,
-  lastCheckedAt: null,
-  lastError: "",
-};
-
 const LEGACY_MIRROR_STATUS_FIELDS = new Set([
   "testStatus",
   "lastError",
@@ -146,10 +132,6 @@ export function normalizeStoredProviderSpecificData(provider, providerSpecificDa
 export const isCloud = typeof caches !== 'undefined' && typeof caches === 'object';
 
 const DEFAULT_SETTINGS = {
-  cloudEnabled: false,
-  cloudUrls: [],
-  cloudSharedSecret: null,
-  cloudUsagePollingEnabled: false,
   tunnelEnabled: false,
   tunnelUrl: "",
   tunnelProvider: "cloudflare",
@@ -183,11 +165,6 @@ const DEFAULT_SETTINGS = {
   outboundProxyUrl: "",
   outboundNoProxy: "",
   mitmRouterBaseUrl: DEFAULT_AXONROUTER_BASE_URL,
-  usageWorker: {
-    enabled: true,
-    intervalMinutes: 60,
-    cadenceMs: 3600000,
-  },
   modelSync: DEFAULT_MODEL_SYNC_SETTINGS,
   quotaExhaustedThresholdPercent: 10,
   governance: {
@@ -211,22 +188,6 @@ const DEFAULT_SETTINGS = {
   auditLogMaxSize: 10485760,
   enableObservability: true,
   enableRequestLogs: false,
-  r2BackupEnabled: false,
-  r2SqliteBackupSchedule: "daily",
-  r2AutoPublishEnabled: false,
-  r2RuntimePublicBaseUrl: "",
-  r2RuntimeCacheTtlSeconds: 15,
-  r2LastRuntimePublishAt: null,
-  r2LastRuntimeArtifactHash: null,
-  r2LastBackupAt: null,
-  r2LastRestoreAt: null,
-  r2LastSqliteBackupFingerprint: null,
-  r2BackupEncryptionKey: null,
-  r2Config: DEFAULT_R2_CONFIG,
-  cloudUsageSync: {
-    cursorsByWorkerId: {},
-    seenEventIds: {},
-  },
   morph: DEFAULT_MORPH_SETTINGS,
   morphInstructions: DEFAULT_MORPH_INSTRUCTIONS_SETTINGS,
   caveman: DEFAULT_CAVEMAN_SETTINGS,
@@ -282,12 +243,6 @@ export function shouldSeedEligibility(connection: any = {}) {
 function normalizeQuotaExhaustedThresholdPercent(value) {
   if (!Number.isFinite(value)) return DEFAULT_SETTINGS.quotaExhaustedThresholdPercent;
   return Math.min(100, Math.max(0, value));
-}
-
-function normalizeRuntimeCacheTtlSeconds(value) {
-  return Number.isInteger(value) && value >= 1 && value <= 300
-    ? value
-    : DEFAULT_SETTINGS.r2RuntimeCacheTtlSeconds;
 }
 
 function normalizePositiveInteger(value, fallback) {
@@ -571,24 +526,12 @@ export function mergeSettingsWithDefaults(settings: any = {}) {
     sourceSettings?.quotaExhaustedThresholdPercent
   );
 
-  merged.usageWorker = normalizeUsageWorkerSettings(
-    sourceSettings?.usageWorker && typeof sourceSettings.usageWorker === "object" && !Array.isArray(sourceSettings.usageWorker)
-      ? sourceSettings.usageWorker
-      : {}
-  );
   merged.modelSync = normalizeModelSyncSettings(
     sourceSettings?.modelSync && typeof sourceSettings.modelSync === "object" && !Array.isArray(sourceSettings.modelSync)
       ? sourceSettings.modelSync
       : {}
   );
 
-  merged.r2Config = {
-    ...DEFAULT_R2_CONFIG,
-    ...(sourceSettings?.r2Config && typeof sourceSettings.r2Config === "object" && !Array.isArray(sourceSettings.r2Config)
-      ? sourceSettings.r2Config
-      : {}),
-  };
-  merged.cloudUsagePollingEnabled = sourceSettings?.cloudUsagePollingEnabled === true;
   merged.morph = normalizeMorphSettings(sourceSettings?.morph);
   merged.morphInstructions = {
     ...DEFAULT_MORPH_INSTRUCTIONS_SETTINGS,
@@ -618,39 +561,6 @@ export function mergeSettingsWithDefaults(settings: any = {}) {
           : "",
     },
   };
-
-  merged.r2AutoPublishEnabled = sourceSettings?.r2AutoPublishEnabled === true;
-  merged.r2RuntimePublicBaseUrl =
-    typeof sourceSettings?.r2RuntimePublicBaseUrl === "string"
-      ? sourceSettings.r2RuntimePublicBaseUrl
-      : DEFAULT_SETTINGS.r2RuntimePublicBaseUrl;
-  merged.r2RuntimeCacheTtlSeconds = normalizeRuntimeCacheTtlSeconds(
-    sourceSettings?.r2RuntimeCacheTtlSeconds
-  );
-  merged.r2LastRuntimePublishAt =
-    typeof sourceSettings?.r2LastRuntimePublishAt === "string"
-      ? sourceSettings.r2LastRuntimePublishAt
-      : null;
-  merged.r2LastRuntimeArtifactHash =
-    typeof sourceSettings?.r2LastRuntimeArtifactHash === "string"
-      ? sourceSettings.r2LastRuntimeArtifactHash
-      : null;
-  merged.r2LastBackupAt =
-    typeof sourceSettings?.r2LastBackupAt === "string"
-      ? sourceSettings.r2LastBackupAt
-      : null;
-  merged.r2LastRestoreAt =
-    typeof sourceSettings?.r2LastRestoreAt === "string"
-      ? sourceSettings.r2LastRestoreAt
-      : null;
-  merged.r2LastSqliteBackupFingerprint =
-    typeof sourceSettings?.r2LastSqliteBackupFingerprint === "string"
-      ? sourceSettings.r2LastSqliteBackupFingerprint
-      : null;
-  merged.r2BackupEncryptionKey =
-    typeof sourceSettings?.r2BackupEncryptionKey === "string"
-      ? sourceSettings.r2BackupEncryptionKey
-      : null;
 
   return merged;
 }

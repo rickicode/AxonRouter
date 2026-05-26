@@ -11,9 +11,6 @@ import { MITM_TOOLS } from "@/shared/constants/cliTools";
 import { fetchJson, queryKeys } from "@/shared/query";
 import { DEFAULT_AXONROUTER_BASE_URL } from "@/shared/constants/runtimeDefaults";
 
-// Cloud URL is now sourced from settings.cloudUrls (configured via the
-// dashboard) rather than from build-time NEXT_PUBLIC_CLOUD_URL.
-
 
 const STATUS_ENDPOINTS = {
   claude: "/api/cli-tools/claude-settings",
@@ -31,8 +28,6 @@ export default function CLIToolsPageClient({ machineId }) {
   const [loading, setLoading] = useState(true);
   const [expandedTool, setExpandedTool] = useState(null);
   const [modelMappings, setModelMappings] = useState({});
-  const [cloudEnabled, setCloudEnabled] = useState(false);
-  const [cloudUrl, setCloudUrl] = useState("");
   const [tunnelEnabled, setTunnelEnabled] = useState(false);
   const [tunnelPublicUrl, setTunnelPublicUrl] = useState("");
   const [apiKeys, setApiKeys] = useState([]);
@@ -73,11 +68,6 @@ export default function CLIToolsPageClient({ machineId }) {
     queueMicrotask(() => {
       const { providersData, settingsData, tunnelData, keysData, providerModelsData, statusEntries } = cliBootstrapQuery.data;
       setConnections((providersData as { connections?: any[] }).connections || []);
-      setCloudEnabled(settingsData.cloudEnabled || false);
-      const firstCloud = Array.isArray(settingsData.cloudUrls)
-        ? settingsData.cloudUrls.find((c) => c?.url)
-        : null;
-      setCloudUrl(firstCloud?.url || "");
       setTunnelEnabled(tunnelData.enabled || false);
       setTunnelPublicUrl(tunnelData.publicUrl || "");
       setApiKeys((keysData as { keys?: any[] }).keys || []);
@@ -118,7 +108,6 @@ export default function CLIToolsPageClient({ machineId }) {
 
   const getBaseUrl = () => {
     if (tunnelEnabled && tunnelPublicUrl) return tunnelPublicUrl;
-    if (cloudEnabled && cloudUrl) return cloudUrl;
     if (typeof window !== "undefined") return window.location.origin;
     return DEFAULT_AXONROUTER_BASE_URL;
   };
@@ -132,7 +121,6 @@ export default function CLIToolsPageClient({ machineId }) {
       isExpanded: expandedTool === toolId,
       onToggle: () => setExpandedTool(expandedTool === toolId ? null : toolId),
       baseUrl: getBaseUrl(),
-      cloudUrl,
       apiKeys,
     };
 
@@ -146,26 +134,25 @@ export default function CLIToolsPageClient({ machineId }) {
             modelMappings={modelMappings[toolId] || {}}
             onModelMappingChange={(alias, target) => handleModelMappingChange(toolId, alias, target)}
             hasActiveProviders={hasActiveProviders}
-            cloudEnabled={cloudEnabled}
             initialStatus={toolStatuses.claude}
           />
         );
       case "codex":
-        return <CodexToolCard key={toolId} {...commonProps} activeProviders={getActiveProviders()} cloudEnabled={cloudEnabled} initialStatus={toolStatuses.codex} />;
+        return <CodexToolCard key={toolId} {...commonProps} activeProviders={getActiveProviders()} initialStatus={toolStatuses.codex} />;
       case "opencode":
-        return <OpenCodeToolCard key={toolId} {...commonProps} activeProviders={getActiveProviders()} cloudEnabled={cloudEnabled} initialStatus={toolStatuses.opencode} />;
+        return <OpenCodeToolCard key={toolId} {...commonProps} activeProviders={getActiveProviders()} initialStatus={toolStatuses.opencode} />;
       case "pi":
-        return <PiToolCard key={toolId} {...commonProps} activeProviders={getActiveProviders()} cloudEnabled={cloudEnabled} initialStatus={toolStatuses.pi} />;
+        return <PiToolCard key={toolId} {...commonProps} activeProviders={getActiveProviders()} initialStatus={toolStatuses.pi} />;
       case "droid":
-        return <DroidToolCard key={toolId} {...commonProps} activeProviders={getActiveProviders()} hasActiveProviders={hasActiveProviders} cloudEnabled={cloudEnabled} initialStatus={toolStatuses.droid} />;
+        return <DroidToolCard key={toolId} {...commonProps} activeProviders={getActiveProviders()} hasActiveProviders={hasActiveProviders} initialStatus={toolStatuses.droid} />;
       case "openclaw":
-        return <OpenClawToolCard key={toolId} {...commonProps} activeProviders={getActiveProviders()} hasActiveProviders={hasActiveProviders} cloudEnabled={cloudEnabled} initialStatus={toolStatuses.openclaw} />;
+        return <OpenClawToolCard key={toolId} {...commonProps} activeProviders={getActiveProviders()} hasActiveProviders={hasActiveProviders} initialStatus={toolStatuses.openclaw} />;
       case "hermes":
-        return <HermesToolCard key={toolId} {...commonProps} activeProviders={getActiveProviders()} hasActiveProviders={hasActiveProviders} cloudEnabled={cloudEnabled} initialStatus={toolStatuses.hermes} />;
+        return <HermesToolCard key={toolId} {...commonProps} activeProviders={getActiveProviders()} hasActiveProviders={hasActiveProviders} initialStatus={toolStatuses.hermes} />;
       case "cowork":
-        return <CoworkToolCard key={toolId} {...commonProps} activeProviders={getActiveProviders()} hasActiveProviders={hasActiveProviders} cloudEnabled={cloudEnabled} cloudUrl={cloudUrl} tunnelEnabled={tunnelEnabled} tunnelPublicUrl={tunnelPublicUrl} initialStatus={toolStatuses.cowork} />;
+        return <CoworkToolCard key={toolId} {...commonProps} activeProviders={getActiveProviders()} hasActiveProviders={hasActiveProviders} tunnelEnabled={tunnelEnabled} tunnelPublicUrl={tunnelPublicUrl} initialStatus={toolStatuses.cowork} />;
       default:
-        return <DefaultToolCard key={toolId} toolId={toolId} {...commonProps} activeProviders={getActiveProviders()} cloudEnabled={cloudEnabled} tunnelEnabled={tunnelEnabled} />;
+        return <DefaultToolCard key={toolId} toolId={toolId} {...commonProps} activeProviders={getActiveProviders()} tunnelEnabled={tunnelEnabled} />;
     }
   };
 
