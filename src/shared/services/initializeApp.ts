@@ -33,11 +33,11 @@ type CloudflaredApi = typeof import("@/lib/tunnel/cloudflared");
 type TunnelManagerApi = typeof import("@/lib/tunnel/tunnelManager");
 
 async function cloudflaredApi(): Promise<CloudflaredApi> {
-  return import("@/lib/tunnel/cloudflared");
+  return import(/*turbopackIgnore: true*/ "@/lib/tunnel/cloudflared");
 }
 
 async function tunnelManagerApi(): Promise<TunnelManagerApi> {
-  return import("@/lib/tunnel/tunnelManager");
+  return import(/*turbopackIgnore: true*/ "@/lib/tunnel/tunnelManager");
 }
 
 async function cleanupAppResources() {
@@ -108,8 +108,10 @@ export async function initializeApp() {
       g.signalHandlersRegistered = true;
     }
 
-    // Pre-download cloudflared binary in background.
-    cloudflaredApi().then(({ ensureCloudflared }) => ensureCloudflared()).catch(() => {});
+    // Pre-download cloudflared binary in background (skip during static page generation).
+    if (process.env.NEXT_PHASE !== "phase-production-build") {
+      cloudflaredApi().then(({ ensureCloudflared }) => ensureCloudflared()).catch(() => {});
+    }
 
     // Watchdog: recover tunnel after process crash
     startWatchdog();
