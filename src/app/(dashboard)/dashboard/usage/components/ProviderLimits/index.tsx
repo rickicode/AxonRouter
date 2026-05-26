@@ -30,16 +30,6 @@ import { cn } from "@/lib/utils";
 import { getQuotaPresentation } from "./utils";
 
 const DEFAULT_PAGE_SIZE = 24;
-const STATUS_POLL_INTERVAL_MS = 15000;
-const ACTIVE_STATUS_POLL_INTERVAL_MS = 2500;
-
-function isSchedulerActivelyChanging(status) {
-  return Boolean(
-    status?.status === "running"
-    || status?.status === "cancelling"
-    || status?.restartRequested
-  );
-}
 
 function getSupportedOAuthConnections(connections = []) {
   return connections.filter(
@@ -148,154 +138,6 @@ function getCanonicalStatusCounts(connections = []) {
   });
 }
 
-function getRelativeTime(dateString) {
-  if (!dateString) return "Never";
-
-  const timestamp = new Date(dateString).getTime();
-  if (!Number.isFinite(timestamp)) return "Unknown";
-
-  const diffMs = Date.now() - timestamp;
-  const diffMinutes = Math.floor(diffMs / (1000 * 60));
-  const diffHours = Math.floor(diffMinutes / 60);
-  const diffDays = Math.floor(diffHours / 24);
-
-  if (diffDays > 0) return `${diffDays}d ago`;
-  if (diffHours > 0) return `${diffHours}h ago`;
-  if (diffMinutes > 0) return `${diffMinutes}m ago`;
-  return "Just now";
-}
-
-function getTimeUntil(dateString) {
-  if (!dateString) return null;
-
-  const timestamp = new Date(dateString).getTime();
-  if (!Number.isFinite(timestamp)) return null;
-
-  const diffMs = timestamp - Date.now();
-  if (diffMs <= 0) return "now";
-
-  const totalMinutes = Math.ceil(diffMs / (1000 * 60));
-  const hours = Math.floor(totalMinutes / 60);
-  const minutes = totalMinutes % 60;
-
-  if (hours <= 0) return `${totalMinutes} ${totalMinutes === 1 ? "minute" : "minutes"}`;
-  if (minutes === 0) return `${hours} ${hours === 1 ? "hour" : "hours"}`;
-  return `${hours} ${hours === 1 ? "hour" : "hours"} ${minutes} ${minutes === 1 ? "minute" : "minutes"}`;
-}
-
-function formatAbsoluteDateTime(dateString) {
-  if (!dateString) return null;
-
-  const date = new Date(dateString);
-  if (!Number.isFinite(date.getTime())) return null;
-
-  return date.toLocaleString("en-US", {
-    hour12: false,
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit",
-    second: "2-digit",
-  });
-}
-
-function getSchedulerTone(status, enabled) {
-  if (enabled === undefined || enabled === null) {
-    return {
-      icon: "schedule",
-      label: "Starting usage worker",
-      tone: "text-[var(--color-primary)]",
-      surface: "!bg-[var(--color-primary)]/15",
-    };
-  }
-
-  if (!enabled) {
-    return {
-      icon: "pause_circle",
-      label: "Scheduler paused",
-      tone: "text-[var(--color-warning)]",
-      surface: "!bg-[var(--color-warning)]/15",
-    };
-  }
-
-  switch (status) {
-    case "running":
-      return {
-        icon: "progress_activity",
-        label: "Sweep running",
-        tone: "text-[var(--color-primary)]",
-        surface: "!bg-[var(--color-primary)]/15",
-      };
-    case "cancelling":
-      return {
-        icon: "sync",
-        label: "Restarting sweep",
-        tone: "text-[var(--color-warning)]",
-        surface: "!bg-[var(--color-warning)]/15",
-      };
-    case "error":
-      return {
-        icon: "error",
-        label: "Scheduler error",
-        tone: "text-[var(--color-danger)]",
-        surface: "!bg-[var(--color-danger)]/15",
-      };
-    default:
-      return {
-        icon: "schedule",
-        label: "Auto-checking usage",
-        tone: "text-[var(--color-success)]",
-        surface: "!bg-[var(--color-success)]/15",
-      };
-  }
-}
-
-function getSchedulerProgress(status: any = {}) {
-  return status?.currentRun?.progress || status?.progress || null;
-}
-
-function getSchedulerMessage(status: any = {}) {
-  if (!status) return "Usage data is loaded from the latest background check.";
-
-  if (status.enabled === undefined || status.enabled === null) {
-    return "Usage Worker is starting. Status will update shortly.";
-  }
-
-  if (!status.enabled) {
-    return "Automatic usage checks are disabled. Existing quota data will stay visible until checks are enabled again.";
-  }
-
-  if (status.status === "running") {
-    const progress = getSchedulerProgress(status);
-    const completedCount = Number(progress?.completedCount ?? 0);
-    const totalCount = Number(progress?.totalCount ?? 0);
-    const successCount = Number(progress?.successCount ?? 0);
-    const errorCount = Number(progress?.errorCount ?? 0);
-    const skippedCount = Number(progress?.skippedCount ?? 0);
-
-    if (Number.isFinite(totalCount) && totalCount > 0) {
-      return `Checking ${completedCount}/${totalCount} accounts · ${successCount} updated · ${errorCount} failed · ${skippedCount} skipped.`;
-    }
-
-    return "Usage Worker is preparing the account list. Quota cards will update shortly.";
-  }
-
-  if (status.status === "cancelling" || status.restartRequested) {
-    return "A new refresh was requested. Usage Worker is restarting the background check.";
-  }
-
-  if (status.status === "error") {
-    return status.error?.message || "The last background usage check failed. Existing quota data is still shown while the worker recovers.";
-  }
-
-  if (status.lastRun?.finishedAt) {
-    return `Last background usage check completed ${getRelativeTime(status.lastRun.finishedAt)}.`;
-  }
-
-  return "Quota data is updated automatically in the background.";
-}
-
 export default function ProviderLimits() {
   const router = useRouter();
   const inv = useInvalidate();
@@ -317,11 +159,7 @@ export default function ProviderLimits() {
   });
   const [connections, setConnections] = useState([]);
   const [connectionsLoading, setConnectionsLoading] = useState(true);
-  const [schedulerStatus, setSchedulerStatus] = useState(null);
-  const [schedulerStatusLoading, setSchedulerStatusLoading] = useState(true);
-  const [schedulerStatusError, setSchedulerStatusError] = useState("");
   const [refreshActionError, setRefreshActionError] = useState("");
-  const [refreshActionNotice, setRefreshActionNotice] = useState("");
   const [refreshingAll, setRefreshingAll] = useState(false);
   const [refreshingConnectionIds, setRefreshingConnectionIds] = useState({});
   const [connectionRefreshErrors, setConnectionRefreshErrors] = useState({});
@@ -346,32 +184,14 @@ export default function ProviderLimits() {
     return connectionList;
   }, []);
 
-  const fetchSchedulerStatus = useCallback(async ({ silent = false } = {}) => {
-    if (!silent) {
-      setSchedulerStatusLoading(true);
-    }
-
+  const refreshSharedState = useCallback(async () => {
     try {
-      const response = await fetch("/api/usage-worker/status", { cache: "no-store" });
-      if (!response.ok) {
-        const data = await response.json().catch(() => ({}));
-        throw new Error(data.error || "Failed to load scheduler status");
-      }
-
-      const data = await response.json();
-      setSchedulerStatus(data);
-      setSchedulerStatusError("");
-      return data;
+      await fetchConnections();
     } catch (error) {
-      console.error("Error fetching scheduler status:", error);
-      setSchedulerStatusError(error.message || "Failed to load scheduler status");
-      return null;
-    } finally {
-      if (!silent) {
-        setSchedulerStatusLoading(false);
-      }
+      console.error("Error fetching connections:", error);
+      setConnections([]);
     }
-  }, []);
+  }, [fetchConnections]);
 
   const fetchLiveTestResults = useCallback(async () => {
     try {
@@ -397,52 +217,16 @@ export default function ProviderLimits() {
     }
   }, []);
 
-  const refreshSharedState = useCallback(async ({ silentStatus = false } = {}) => {
-    try {
-      await fetchConnections();
-    } catch (error) {
-      console.error("Error fetching connections:", error);
-      setConnections([]);
-    }
-
-    await fetchSchedulerStatus({ silent: silentStatus });
-  }, [fetchConnections, fetchSchedulerStatus]);
-
   useEffect(() => {
     const initializeData = async () => {
       setConnectionsLoading(true);
       await refreshSharedState();
       await fetchLiveTestResults();
-      await refreshSharedState({ silentStatus: true });
       setConnectionsLoading(false);
     };
 
     initializeData();
   }, [fetchLiveTestResults, refreshSharedState]);
-
-  useEffect(() => {
-    const intervalMs = isSchedulerActivelyChanging(schedulerStatus)
-      ? ACTIVE_STATUS_POLL_INTERVAL_MS
-      : STATUS_POLL_INTERVAL_MS;
-
-    const intervalId = setInterval(() => {
-      if (document.hidden) return;
-      refreshSharedState({ silentStatus: true }).catch(() => {});
-    }, intervalMs);
-
-    return () => clearInterval(intervalId);
-  }, [refreshSharedState, schedulerStatus]);
-
-  useEffect(() => {
-    if (!refreshActionNotice) return undefined;
-    if (isSchedulerActivelyChanging(schedulerStatus)) return undefined;
-
-    const timeoutId = setTimeout(() => {
-      setRefreshActionNotice("");
-    }, 5000);
-
-    return () => clearTimeout(timeoutId);
-  }, [refreshActionNotice, schedulerStatus]);
 
   useEffect(() => {
     let cancelled = false;
@@ -529,48 +313,6 @@ export default function ProviderLimits() {
     [selectedConnection, updateConnectionMutation],
   );
 
-  const refreshAll = useCallback(async () => {
-    setRefreshingAll(true);
-    setRefreshActionError("");
-    setRefreshActionNotice("");
-
-    try {
-      const response = await fetch("/api/usage-worker/run", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ reason: "dashboard_manual_refresh", mode: "all" }),
-      });
-
-      const data = await response.json().catch(() => ({}));
-
-      if (!response.ok) {
-        throw new Error(data.error || data.reason || "Failed to request backend refresh");
-      }
-
-      if (data?.snapshot) {
-        setSchedulerStatus(data.snapshot);
-        setSchedulerStatusError("");
-      }
-
-      if (data?.reason === "override_requested") {
-        setRefreshActionNotice("Usage Worker is restarting the current background check with a fresh run.");
-      } else if (data?.reason === "queued_full_refresh") {
-        setRefreshActionNotice("Full usage refresh queued. It will check every account after the current run finishes.");
-      } else if (data?.reason === "run_triggered_status_pending") {
-        setRefreshActionNotice("Full usage refresh request was sent. The worker is busy, so status will update as progress events arrive.");
-      } else if (data?.reason === "run_triggered") {
-        setRefreshActionNotice("Full usage refresh started in the background. Every account will be checked automatically.");
-      }
-
-      await refreshSharedState({ silentStatus: true });
-    } catch (error) {
-      console.error("Error requesting backend refresh:", error);
-      setRefreshActionError(error.message || "Failed to request backend refresh");
-    } finally {
-      setRefreshingAll(false);
-    }
-  }, [refreshSharedState]);
-
   const refreshConnectionUsage = useCallback(async (connectionId) => {
     if (!connectionId) return;
 
@@ -650,7 +392,7 @@ export default function ProviderLimits() {
         },
       }));
 
-      await refreshSharedState({ silentStatus: true });
+      await refreshSharedState();
     } catch (error) {
       console.error(`Error refreshing usage for connection ${connectionId}:`, error);
       setConnectionRefreshErrors((prev) => ({
@@ -665,6 +407,27 @@ export default function ProviderLimits() {
       });
     }
   }, [refreshSharedState]);
+
+  const refreshAll = useCallback(async () => {
+    setRefreshingAll(true);
+    setRefreshActionError("");
+
+    try {
+      const eligible = getSupportedOAuthConnections(connections);
+      if (eligible.length === 0) return;
+
+      await Promise.allSettled(
+        eligible.map((conn) => refreshConnectionUsage(conn.id)),
+      );
+
+      await refreshSharedState();
+    } catch (error) {
+      console.error("Error refreshing all connections:", error);
+      setRefreshActionError(error.message || "Failed to refresh all connections");
+    } finally {
+      setRefreshingAll(false);
+    }
+  }, [connections, refreshConnectionUsage, refreshSharedState]);
 
   const supportedConnections = useMemo(
     () => getSupportedOAuthConnections(connections),
@@ -735,30 +498,7 @@ export default function ProviderLimits() {
     [supportedConnections],
   );
 
-  const schedulerTone = getSchedulerTone(schedulerStatus?.status, schedulerStatus?.enabled);
-  const schedulerMessage = getSchedulerMessage(schedulerStatus);
-  const schedulerLastUpdated = schedulerStatus?.lastRun?.finishedAt
-    || schedulerStatus?.currentRun?.startedAt
-    || schedulerStatus?.nextRunAt
-    || null;
-  const workerStartedRelative = schedulerStatus?.startedAt
-    ? getRelativeTime(schedulerStatus.startedAt)
-    : null;
-  const workerStartedAbsolute = schedulerStatus?.startedAt
-    ? formatAbsoluteDateTime(schedulerStatus.startedAt)
-    : null;
-  const schedulerProgress = getSchedulerProgress(schedulerStatus);
-  const nextRunRelative = schedulerStatus?.nextRunAt
-    ? getTimeUntil(schedulerStatus.nextRunAt)
-    : null;
-  const nextRunAbsolute = schedulerStatus?.nextRunAt
-    ? formatAbsoluteDateTime(schedulerStatus.nextRunAt)
-    : null;
-  const refreshButtonLabel = schedulerStatus?.status === "running"
-    ? "Restart Sweep"
-    : schedulerStatus?.restartRequested
-      ? "Restart Requested"
-      : "Refresh All";
+  const refreshButtonLabel = "Refresh All";
 
   if (!connectionsLoading && supportedConnections.length === 0) {
     return (
@@ -812,54 +552,6 @@ export default function ProviderLimits() {
         </CardHeader>
 
         <CardContent className="space-y-4">
-          <Alert className={`border-0 ${schedulerTone.surface}`}>
-            <AlertDescription className="space-y-0.5">
-              <div className="flex items-center gap-1.5">
-                <Spinner
-                  className={cn(
-                    "size-4",
-                    schedulerStatus?.status === "running" || schedulerStatus?.status === "cancelling" || schedulerStatus?.restartRequested
-                      ? schedulerTone.tone
-                      : "hidden",
-                  )}
-                />
-                {schedulerStatus?.status !== "running" && schedulerStatus?.status !== "cancelling" && !schedulerStatus?.restartRequested && (
-                  <AppIcon
-                    name={schedulerTone.icon}
-                    size={16}
-                    className={schedulerTone.tone}
-                  />
-                )}
-                <span className={`text-sm font-medium ${schedulerTone.tone}`}>
-                  {schedulerTone.label}
-                </span>
-              </div>
-              <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
-                {schedulerStatus?.status === "running" && schedulerProgress?.totalCount > 0 && (
-                  <span className="font-medium text-foreground">
-                    {schedulerProgress.completedCount || 0}/{schedulerProgress.totalCount} checked
-                  </span>
-                )}
-                {schedulerStatus?.status === "running" && schedulerProgress?.totalCount > 0 && (
-                  <span>
-                    {schedulerProgress.successCount || 0} updated · {schedulerProgress.errorCount || 0} failed · {schedulerProgress.skippedCount || 0} skipped
-                  </span>
-                )}
-                {schedulerStatus?.startedAt && (
-                  <span title={workerStartedAbsolute || schedulerStatus.startedAt}>
-                    Started {workerStartedRelative || "unknown"}
-                    {workerStartedAbsolute ? ` (${workerStartedAbsolute})` : ""}
-                  </span>
-                )}
-                {schedulerStatus?.nextRunAt && schedulerStatus?.status !== "running" && (
-                  <span title={nextRunAbsolute || schedulerStatus.nextRunAt}>
-                    Next check in {nextRunRelative || "unknown"}
-                  </span>
-                )}
-              </div>
-            </AlertDescription>
-          </Alert>
-
           <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_180px_180px_auto] lg:items-end">
             <div className="grid min-w-0 gap-2">
               <Label htmlFor="quota-search">Search accounts</Label>
@@ -932,29 +624,16 @@ export default function ProviderLimits() {
               onClick={refreshAll}
               disabled={refreshingAll}
               className="w-full lg:w-auto"
-              title="Request backend usage worker refresh"
+              title="Refresh usage for all connections"
             >
-              <AppIcon name={schedulerStatus?.status === "running" ? "sync" : "refresh"} data-icon="inline-start" className={refreshingAll ? "animate-spin" : undefined} />
+              <AppIcon name="refresh" data-icon="inline-start" className={refreshingAll ? "animate-spin" : undefined} />
               {refreshButtonLabel}
             </ShadcnButton>
           </div>
 
-          {(schedulerStatusError || refreshActionError) && (
+          {refreshActionError && (
             <Alert variant="destructive" className="flex items-center gap-2">
-              <AlertDescription>{refreshActionError || schedulerStatusError}</AlertDescription>
-            </Alert>
-          )}
-
-          {refreshActionNotice && !refreshActionError && !schedulerStatusError && (
-            <Alert className="flex items-center gap-2">
-              <AlertDescription>{refreshActionNotice}</AlertDescription>
-            </Alert>
-          )}
-
-          {schedulerStatusLoading && !schedulerStatus && (
-            <Alert className="flex items-center justify-center gap-2">
-              <AppIcon name="sync" className="animate-spin size-4 shrink-0" />
-              <AlertDescription>Loading scheduler status...</AlertDescription>
+              <AlertDescription>{refreshActionError}</AlertDescription>
             </Alert>
           )}
         </CardContent>
@@ -1102,7 +781,7 @@ export default function ProviderLimits() {
                 ) : (
                   <Alert className={cn("text-xs", quotaToneClass)}>
                     <AlertDescription>
-                      Usage worker has not returned quota details for this account yet.
+                      No quota details available for this account yet.
                     </AlertDescription>
                   </Alert>
                 )}
