@@ -420,8 +420,16 @@ export function getUsageStatusUpdates(connection: any, usage: any, options: any 
     : null;
 
   if (codexUsageApiUnavailableMatch) {
+    const isConnEligible = !connection?.routingStatus || connection.routingStatus === "eligible";
+    if (isConnEligible) {
+      return {
+        ...base,
+        usageSnapshot: JSON.stringify(usage || {}),
+        lastCheckedAt: nowIso,
+      };
+    }
+    // Non-eligible: preserve existing state, just update snapshot + timestamp
     return {
-      ...base,
       usageSnapshot: JSON.stringify(usage || {}),
       lastCheckedAt: nowIso,
     };

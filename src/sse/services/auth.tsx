@@ -848,9 +848,9 @@ export async function markAccountUnavailable(
 	if (!canonicalBlockedPatch && !kiroRetestValid) {
 		const isTransientFallbackStatus = Number(status) === 502 || Number(status) === 504;
 		if (isProviderTransientProcessingError || isTransientFallbackStatus) {
-			// Transient case: keep eligible + clean. The model lock already provides cooldown.
+			// Transient case: model lock provides cooldown. Only clean eligible if already eligible.
 			Object.assign(connectionPatch, {
-				routingStatus: "eligible",
+				routingStatus: isCurrentlyEligible ? "eligible" : (conn?.routingStatus || "eligible"),
 				lastCheckedAt,
 			});
 		} else {
