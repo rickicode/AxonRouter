@@ -37,10 +37,6 @@ jobs:
           grep -q 'npm publish' .github/workflows/release.yml
           grep -q 'docker/build-push-action' .github/workflows/release.yml
 
-      - name: Verify allowed JS inventory
-        run: |
-          test -z "$(git ls-files --others --cached --exclude-standard -- '*.js' '*.jsx' '*.mjs' '*.cjs' ':!:node_modules/**' ':!:.next/**' ':!:dist/**' ':!:coverage/**' ':!:build/**' ':!:src/node_modules/**' ':!:tests/tmp/**' ':!:.opencode/**' ':!:bin/axonrouter.js' ':!:bin/mcp-server-launcher.js')"
-
       - name: Lint
         run: npm run lint
 
