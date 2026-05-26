@@ -22,5 +22,5 @@
     "bun run typecheck"
   ],
   "blocked_reason": null,
-  "findings": "All 5 tests pass. The key insight is that connections need authType:'oauth' to bypass the early skip in loadUsageConnection. The test exercises the full refreshConnectionUsage flow by mocking getUsageForProvider to throw errors with specific .status codes, verifying the patch passed to syncUsageStatus matches expectations."
+  "findings": "All 6 tests pass after review fixes. Added 429-non-eligible test. Converted from per-test dynamic imports to single top-level await import after vi.mock() calls - cleaner and avoids misleading isolation appearance. The key insight is that connections need authType:'oauth' to bypass the early skip in loadUsageConnection."
 }

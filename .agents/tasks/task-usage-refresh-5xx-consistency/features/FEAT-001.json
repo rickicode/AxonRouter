@@ -24,5 +24,5 @@
     "bun vitest run --reporter=verbose --root tests tests/unit/status-handling-transient-auth.test.ts tests/unit/connection-status.test.ts tests/unit/connection-effective-status.test.ts tests/unit/codex-preemptive-cooldown.test.ts tests/unit/codex-provider-limits-utils.test.ts"
   ],
   "blocked_reason": null,
-  "findings": "Removed unused isConfirmedAuthBlockedError import since it was only used in the dead fallback code. All 68 tests pass cleanly. The refactored code uses if/else-if/else structure instead of the nested ternary, making it easier to maintain."
+  "findings": "Removed unused isConfirmedAuthBlockedError import since it was only used in the dead fallback code. All 68 tests pass cleanly. The refactored code uses if/else-if/else structure instead of the nested ternary, making it easier to maintain. Post-review: added degraded metadata (healthStatus, reasonCode, reasonDetail) to 429 non-eligible branch for observability parity with 5xx, added nextRetryAt: null to blocked branch to clear stale values."
 }
