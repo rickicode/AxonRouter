@@ -83,7 +83,7 @@ export async function startStdioServer({ origin = process.env.AXONROUTER_MCP_BAS
       if (method === "initialize") {
         ok(id, {
           protocolVersion: "2024-11-05",
-          serverInfo: { name: "axonrouter-mcp", version: "0.5.4" },
+          serverInfo: { name: "axonrouter", version: "0.5.4" },
           capabilities: { tools: { listChanged: false } },
         });
         return;

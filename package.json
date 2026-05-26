@@ -6,8 +6,6 @@
   "type": "module",
   "files": [
     "bin/axonrouter.js",
-    "bin/mcp-server-launcher.js",
-    "bin/mcp-server.ts",
     ".next/standalone/",
     ".next/static/",
     "public/",
@@ -16,19 +14,19 @@
     "!src/node_modules/",
     "!src/package.json",
     "!src/package-lock.json",
-    "scripts/start.ts",
-    "scripts/mcp-alias-loader.ts",
+    "scripts/start.js",
+    "scripts/ensure-middleware-manifest.js",
+    "scripts/mcp-stdio.js",
     "README.md",
     "LICENSE"
   ],
   "bin": {
-    "axonrouter": "bin/axonrouter.js",
-    "axonrouter-mcp": "bin/mcp-server-launcher.js"
+    "axonrouter": "bin/axonrouter.js"
   },
   "scripts": {
     "dev": "next dev --hostname 127.0.0.1 --turbopack --port 12712",
-    "build": "NODE_ENV=production next build --turbopack && tsx ./scripts/ensure-middleware-manifest.ts",
-    "start": "NODE_ENV=production tsx ./scripts/start.ts",
+    "build": "NODE_ENV=production next build --turbopack && node ./scripts/ensure-middleware-manifest.js",
+    "start": "NODE_ENV=production node ./scripts/start.js",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
     "test": "vitest run --reporter=verbose --root tests",

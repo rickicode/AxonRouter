@@ -9,7 +9,7 @@ import {
   isStandaloneBuildStale,
   parseArgs,
   resolveNextCliPath,
-} from "../../scripts/start.ts";
+} from "../../scripts/start.js";
 
 function setInputTimes(projectRoot, atTime) {
   const inputPaths = [

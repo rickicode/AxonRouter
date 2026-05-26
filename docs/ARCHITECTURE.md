@@ -25,7 +25,7 @@ Core capabilities:
 - Custom skills CRUD and import/export
 - Usage worker system with prioritized batch scheduling
 - Proxy pools for provider connection outbound routing
-- npm distribution with standalone Next.js output, `axonrouter` CLI, and `axonrouter-mcp` MCP helper
+- npm distribution with standalone Next.js output and a single `axonrouter` CLI; local MCP stdio runs through `axonrouter mcp`
 
 Primary runtime model:
 
@@ -1116,7 +1116,7 @@ Transparent HTTPS interception proxy for provider credential capture:
 
 1. Runtime defaults are centralized in `src/shared/constants/runtimeDefaults.json`; avoid new hardcoded default ports/base URLs in runtime code.
 2. npm packaging materializes Turbopack external aliases under `.next/standalone/.next/node_modules` so native externals such as `better-sqlite3-<hash>` survive `npm pack`.
-3. The package exposes `axonrouter` and `axonrouter-mcp`; avoid generic `mcp-server` binaries.
+3. The package exposes a single `axonrouter` binary; local MCP stdio uses `axonrouter mcp` instead of a separate helper binary.
 4. Primary state is now SQLite-backed (`db.sqlite`); JSON `db.json` path exists only for migration.
 5. `usageDb` now follows `~/.axonrouter` with SQLite-first storage in `~/.axonrouter/usage.sqlite`, while legacy `usage.json` reads remain fallback-only for older data.
 6. `/api/v1/route.ts` returns a static model list and is not the main models source used by `/v1/models`.
@@ -1137,7 +1137,7 @@ Transparent HTTPS interception proxy for provider credential capture:
 
 - Install package: `npm install -g axonrouter`
 - Start package CLI: `axonrouter` or `npx axonrouter` (default port `12711`)
-- MCP helper binary: `axonrouter-mcp`
+- MCP stdio subcommand: `axonrouter mcp`
 - Build from source: `cd /root/dev/axonrouter && npm install && npm run build`
 - Build Docker image: `cd /root/dev/axonrouter && docker build -t axonrouter .`
 - Start service and verify:

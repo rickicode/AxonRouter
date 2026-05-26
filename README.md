@@ -52,6 +52,15 @@ npm install -g axonrouter
 axonrouter
 ```
 
+MCP stdio mode uses same binary:
+
+```bash
+axonrouter mcp
+```
+
+`axonrouter` starts core app and includes HTTP MCP endpoints such as `/api/mcp/stream`.
+`axonrouter mcp` is stdio adapter for MCP clients and expects core app to already be running.
+
 Run without global install:
 
 ```bash

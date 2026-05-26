@@ -24,6 +24,11 @@ export function parseArgs(args) {
       continue;
     }
 
+    if (value === "mcp") {
+      forwardArgs.push(value);
+      continue;
+    }
+
     if (value.startsWith("--port=")) {
       port = value.slice("--port=".length);
       continue;
@@ -87,11 +92,37 @@ function printMissingRuntimeHelp(projectRoot, standaloneServerPath) {
   console.error("");
 }
 
+async function startMcpServer(projectRoot) {
+  const bridgePath = path.join(projectRoot, "scripts", "mcp-stdio.js");
+  const child = spawn(process.execPath, [bridgePath], {
+    stdio: "inherit",
+    env: process.env,
+    shell: false,
+  });
+
+  await new Promise((resolve, reject) => {
+    child.on("error", reject);
+    child.on("exit", (code, signal) => {
+      if (signal) {
+        reject(new Error(`MCP bridge exited with signal ${signal}`));
+        return;
+      }
+      resolve(code ?? 0);
+    });
+  });
+}
+
 export async function main() {
   const args = parseArgs(process.argv.slice(2));
   const packageRoot = path.join(import.meta.dirname, "..");
   const launchCwd = process.cwd();
   const projectRoot = packageRoot;
+
+  if (args.forwardArgs[0] === "mcp") {
+    await startMcpServer(projectRoot);
+    return;
+  }
+
   const standaloneServerPath = resolveStandaloneServerPath(projectRoot);
   const requestedPort = args.port || process.env.PORT || DEFAULT_AXONROUTER_PORT;
   const port = normalizePort(requestedPort);
@@ -271,7 +302,7 @@ export function getBuildInputPaths(projectRoot) {
 }
 
 function hasSourceCheckout(projectRoot) {
-  const hasSourceMarkers = ["src", "app", "pages", "next.config.ts", "scripts/ensure-middleware-manifest.ts"].some(
+  const hasSourceMarkers = ["src", "app", "pages", "next.config.ts", "scripts/ensure-middleware-manifest.js"].some(
     (relativePath) => fs.existsSync(path.join(projectRoot, relativePath))
   );
   return hasSourceMarkers && fs.existsSync(path.join(projectRoot, "package-lock.json"));
@@ -304,11 +335,11 @@ export function isStandaloneBuildStale(projectRoot, standaloneServerPath) {
 }
 
 export function rebuildStandaloneBundle(projectRoot) {
-  return new Promise<void>((resolve, reject) => {
+  return new Promise((resolve, reject) => {
     const nextCliPath = resolveNextCliPath();
     const buildEnv = {
       ...process.env,
-      NODE_ENV: "production" as const,
+      NODE_ENV: "production",
     };
 
     const buildChild = spawn(process.execPath, [nextCliPath, "build", "--turbopack"], {
@@ -330,7 +361,7 @@ export function rebuildStandaloneBundle(projectRoot) {
       }
 
       try {
-        await import(pathToFileURL(path.join(projectRoot, "scripts", "ensure-middleware-manifest.ts")).href);
+        await import(pathToFileURL(path.join(projectRoot, "scripts", "ensure-middleware-manifest.js")).href);
         resolve();
       } catch (error) {
         reject(error);

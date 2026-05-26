@@ -10,7 +10,7 @@ Detailed setup notes for AxonRouter. For the shortest path, use the README first
 | API endpoint | `http://localhost:12711/v1` |
 | Local storage | `~/.axonrouter` on macOS/Linux |
 | Windows storage | `%APPDATA%\axonrouter` |
-| Package binaries | `axonrouter`, `axonrouter-mcp` |
+| Package binary | `axonrouter` |
 
 ## Provider Setup
 
@@ -65,6 +65,8 @@ codex "write a small test"
 ### Claude Code
 
 Use **Dashboard -> CLI Tools -> Claude Code** to apply the current AxonRouter settings.
+
+For local MCP stdio, use `axonrouter mcp` instead of a separate helper binary. The main `axonrouter` process already serves HTTP MCP endpoints such as `/api/mcp/stream` and `/api/mcp/sse`.
 
 ### Cursor, Cline, Continue, RooCode
 

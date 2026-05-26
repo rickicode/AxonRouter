@@ -5,7 +5,7 @@ const standaloneDir = path.join(process.cwd(), ".next", "standalone");
 const serverDir = path.join(process.cwd(), ".next", "server");
 const standaloneServerDir = path.join(standaloneDir, ".next", "server");
 
-function copyIfExists(source: string, destination: string) {
+function copyIfExists(source, destination) {
   if (!fs.existsSync(source)) return false;
   fs.mkdirSync(path.dirname(destination), { recursive: true });
   fs.copyFileSync(source, destination);
@@ -34,7 +34,7 @@ copyIfExists(
 
 console.log("[Build] Created .next/standalone/.next/server/proxy.js.nft.json");
 
-function copyDirectoryDereferenced(source: string, destination: string) {
+function copyDirectoryDereferenced(source, destination) {
   if (!fs.existsSync(source)) return false;
   const stat = fs.statSync(source);
   if (!stat.isDirectory()) return false;

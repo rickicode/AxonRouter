@@ -35,7 +35,9 @@ const jsFiles = () =>
 
 const allowedRuntimeJsFiles = new Set([
   "bin/axonrouter.js",
-  "bin/mcp-server-launcher.js",
+  "scripts/start.js",
+  "scripts/ensure-middleware-manifest.js",
+  "scripts/mcp-stdio.js",
 ]);
 
 const legacyDefaultFiles = () => {

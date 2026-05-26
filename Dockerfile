@@ -18,8 +18,7 @@ RUN NODE_ENV=production npm run build
 FROM node:22-alpine AS runner
 WORKDIR /app
 
-RUN apk add --no-cache su-exec ca-certificates && \
-  npm install -g tsx
+RUN apk add --no-cache su-exec ca-certificates
 
 LABEL org.opencontainers.image.title="axonrouter"
 
@@ -45,4 +44,4 @@ RUN mkdir -p /home/node/.axonrouter && \
 EXPOSE 12711
 
 ENTRYPOINT ["/entrypoint.sh"]
-CMD ["tsx", "./scripts/start.ts"]
+CMD ["node", "./scripts/start.js"]

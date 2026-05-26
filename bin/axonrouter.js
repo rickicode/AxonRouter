@@ -5,12 +5,11 @@ import { fileURLToPath } from "node:url";
 import { dirname, resolve } from "node:path";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
-const startScript = resolve(__dirname, "..", "scripts", "start.ts");
+const startScript = resolve(__dirname, "..", "scripts", "start.js");
 
-// Use tsx to run the TypeScript start script
 const child = spawn(
   process.execPath,
-  ["--import", "tsx", startScript, ...process.argv.slice(2)],
+  [startScript, ...process.argv.slice(2)],
   { stdio: "inherit", env: { ...process.env, NODE_ENV: process.env.NODE_ENV || "production" } }
 );
 

@@ -36,12 +36,12 @@ function getStdioConfigs() {
       id: "claude",
       label: "Claude Code",
       file: "~/.claude/config.json",
-      hint: "Or run: claude mcp add axonrouter npx axonrouter-mcp",
+      hint: "Or run: claude mcp add axonrouter npx axonrouter mcp",
       config: `{
   "mcpServers": {
     "axonrouter": {
       "command": "npx",
-      "args": ["axonrouter-mcp"]
+      "args": ["axonrouter", "mcp"]
     }
   }
 }`,
@@ -55,7 +55,7 @@ function getStdioConfigs() {
   "mcpServers": {
     "axonrouter": {
       "command": "npx",
-      "args": ["axonrouter-mcp"]
+      "args": ["axonrouter", "mcp"]
     }
   }
 }`,
@@ -64,10 +64,10 @@ function getStdioConfigs() {
       id: "codex",
       label: "Codex",
       file: "~/.codex/config.toml",
-      hint: "Or run: codex mcp add axonrouter npx \"axonrouter-mcp\"",
+      hint: "Or run: codex mcp add axonrouter npx \"axonrouter\" mcp",
       config: `[mcp_servers.axonrouter]
 command = "npx"
-args = ["axonrouter-mcp"]`,
+args = ["axonrouter", "mcp"]`,
     },
     {
       id: "pi",
@@ -79,7 +79,7 @@ args = ["axonrouter-mcp"]`,
     "axonrouter": {
       "type": "stdio",
       "command": "npx",
-      "args": ["axonrouter-mcp"],
+      "args": ["axonrouter", "mcp"],
       "disabled": false,
       "directTools": true
     }
@@ -95,7 +95,7 @@ args = ["axonrouter-mcp"]`,
   "mcpServers": {
     "axonrouter": {
       "command": "npx",
-      "args": ["axonrouter-mcp"]
+      "args": ["axonrouter", "mcp"]
     }
   }
 }`,
@@ -192,6 +192,9 @@ export default function McpPage() {
         <h1 className="text-2xl font-semibold tracking-tight text-[var(--color-text-main)]">MCP Server</h1>
         <p className="text-sm text-[var(--color-text-muted)]">
           Let your coding agent control AxonRouter — check quota, switch combos, and manage routing directly from your editor.
+        </p>
+        <p className="text-xs text-[var(--color-text-muted)]">
+          `axonrouter` serves HTTP MCP endpoints. Use `axonrouter mcp` only for stdio clients that need a local MCP adapter.
         </p>
       </div>
 

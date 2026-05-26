@@ -94,7 +94,7 @@ export async function POST(request: Request): Promise<Response> {
   if (method === "initialize") {
     return NextResponse.json(JSON.parse(jsonRpcOk(id, {
       protocolVersion: "2024-11-05",
-      serverInfo: { name: "axonrouter-mcp", version: "0.5.4" },
+      serverInfo: { name: "axonrouter", version: "0.5.4" },
       capabilities: { tools: { listChanged: false } },
     })));
   }
