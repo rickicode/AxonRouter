@@ -1,0 +1,26 @@
+{
+  "id": "FEAT-002",
+  "type": "feat",
+  "description": "Add a unit test that specifically validates 500 errors in the usage refresh path keep eligible connections clean (same as the request path), to prevent regression.",
+  "status": "completed",
+  "steps": [
+    "Create a new test file tests/unit/usage-refresh-5xx-transient.test.ts that tests the usage refresh fallback handling for 5xx errors.",
+    "The test should mock the same modules as tests/unit/status-handling-transient-auth.test.ts (use it as a pattern reference) but focus on the connectionUsageRefresh error handling path.",
+    "Test cases to include:\n  1. Status 500 from usage API keeps eligible connection clean (routingStatus stays 'eligible', no healthStatus:'degraded', no reasonCode, no nextRetryAt)\n  2. Status 503 from usage API keeps eligible connection clean\n  3. Status 429 from usage API keeps eligible connection clean (no nextRetryAt)\n  4. Status 500 from usage API on a non-eligible (e.g. already blocked) connection writes degraded with transient_upstream_error\n  5. Non-5xx non-auth error (e.g. status 400 that is not auth-related) correctly blocks the connection\n  6. Verify isConfirmedAuthBlockedError is NOT called in the fallback path (dead code removed)",
+    "Run the new test to verify it passes: bun vitest run --reporter=verbose --root tests tests/unit/usage-refresh-5xx-transient.test.ts"
+  ],
+  "acceptance_criteria": [
+    "New test file tests/unit/usage-refresh-5xx-transient.test.ts exists and passes",
+    "Tests cover all 5xx codes (500, 503) keeping eligible connections clean",
+    "Tests cover 429 keeping eligible connections clean without nextRetryAt",
+    "Tests cover non-eligible connections getting degraded status for 5xx",
+    "Tests cover genuinely unknown errors (non-5xx, non-auth) producing blocked",
+    "bun run typecheck still passes"
+  ],
+  "verification": [
+    "bun vitest run --reporter=verbose --root tests tests/unit/usage-refresh-5xx-transient.test.ts",
+    "bun run typecheck"
+  ],
+  "blocked_reason": null,
+  "findings": "All 6 tests pass after review fixes. Added 429-non-eligible test. Converted from per-test dynamic imports to single top-level await import after vi.mock() calls - cleaner and avoids misleading isolation appearance. The key insight is that connections need authType:'oauth' to bypass the early skip in loadUsageConnection."
+}

@@ -82,18 +82,13 @@ export function getConnectionAuthBlockedPatch(
   }
 
   const reasonDetail = message || "Provider error";
-  const normalizedReason = reasonDetail.toLowerCase();
-  const requiresReauthorization = normalizedReason.includes("re-authorize")
-    || normalizedReason.includes("reauthorize")
-    || normalizedReason.includes("invalid grant")
-    || normalizedReason.includes("revoked");
 
   return {
-    routingStatus: requiresReauthorization ? "disabled" : "blocked",
+    routingStatus: "disabled",
     healthStatus: "healthy",
     quotaState: "ok",
     authState: "invalid",
-    reasonCode: requiresReauthorization ? "reauthorization_required" : "auth_invalid",
+    reasonCode: "auth_invalid",
     reasonDetail,
     nextRetryAt: null,
     resetAt: null,

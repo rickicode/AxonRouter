@@ -533,7 +533,7 @@ export async function handleForcedSSEToJson({
 			const jsonResponse = isCodexResponsesBridge
 				? await readCodexResponseAsResponsesJson(providerResponse)
 				: await convertResponsesStreamToJson(providerResponse.body);
-			if (onRequestSuccess) await onRequestSuccess();
+			if (onRequestSuccess) await onRequestSuccess(providerResponse?.headers);
 
 			const usage = jsonResponse.usage || {};
 			appendLog({ tokens: usage, status: "200 OK" });
@@ -707,7 +707,7 @@ export async function handleForcedSSEToJson({
 				null,
 			);
 
-		if (onRequestSuccess) await onRequestSuccess();
+		if (onRequestSuccess) await onRequestSuccess(providerResponse?.headers);
 
 		const usage = parsed.usage || {};
 		appendLog({ tokens: usage, status: "200 OK" });

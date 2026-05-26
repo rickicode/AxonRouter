@@ -18,7 +18,6 @@ import {
 	getCodexLiveQuotaSignal,
 	getConnectionAuthBlockedPatch,
 	getLiveRequestRecoveryPatch,
-	isConfirmedAuthBlockedError,
 	isAuthExpiredMessage,
 	isTransientUpstreamTimeoutError,
 	syncUsageStatus,
@@ -26,6 +25,12 @@ import {
 import { mergeCodexUsageProviderSpecificData } from "./oauth/codexAccount";
 
 import { getProviderStrategy } from "./usageRefresh/providerStrategy";
+import {
+	getCodexDualWindowCooldownMs,
+	type CodexQuotaSnapshot,
+} from "../../open-sse/executors/codex";
+import { buildModelLockUpdate } from "../../open-sse/services/accountFallback";
+import { MAX_RATE_LIMIT_COOLDOWN_MS } from "../../open-sse/config/errorConfig";
 
 const TRANSIENT_USAGE_RETRY_DELAY_MS = 750;
 const TRANSIENT_USAGE_MAX_ATTEMPTS = 3;
@@ -461,6 +466,40 @@ async function fetchUsageWithTransientRetry(connection: any) {
 	throw lastError || new Error("Usage fetch failed");
 }
 
+async function applyPreemptiveCodexCooldown(connection: any, usage: any) {
+	if (connection?.provider !== "codex") return;
+	if (!usage?.quotas) return;
+
+	const session = usage.quotas.session;
+	const weekly = usage.quotas.weekly;
+
+	const quota: CodexQuotaSnapshot = {
+		usage5h: session?.usedPercent ?? 0,
+		limit5h: 100,
+		resetAt5h: session?.resetAt ?? null,
+		usage7d: weekly?.usedPercent ?? 0,
+		limit7d: 100,
+		resetAt7d: weekly?.resetAt ?? null,
+	};
+
+	const { cooldownMs, window } = getCodexDualWindowCooldownMs(quota);
+	if (cooldownMs <= 0) return;
+
+	const cappedCooldown = Math.min(cooldownMs, MAX_RATE_LIMIT_COOLDOWN_MS);
+
+	const codexScopeKey = `__scope_codex`;
+	const codexLock = buildModelLockUpdate(codexScopeKey, cappedCooldown);
+	await updateCurrentProviderConnection(connection.id, codexLock);
+
+	const sparkScopeKey = `__scope_spark`;
+	const sparkLock = buildModelLockUpdate(sparkScopeKey, cappedCooldown);
+	await updateCurrentProviderConnection(connection.id, sparkLock);
+
+	console.log(
+		`[UsageRefresh] Codex preemptive ${window} cooldown applied for ${connection.id?.slice(0, 8)} (${Math.round(cappedCooldown / 1000)}s)`,
+	);
+}
+
 export async function refreshConnectionUsage(
 	connectionId: any,
 	options: any = {},
@@ -707,6 +746,8 @@ export async function refreshConnectionUsage(
 						: {}),
 				});
 
+				await applyPreemptiveCodexCooldown(connection, usage);
+
 				return { connection, usage, testResult, skipped: false };
 			} catch (error: any) {
 				const status = Number.isInteger(error?.status) ? error.status : 500;
@@ -725,20 +766,33 @@ export async function refreshConnectionUsage(
 					// Persist minimal snapshot so UI knows the worker tried
 					if (connection?.id && !connection?.usageSnapshot) {
 						const checkedAt = new Date().toISOString();
-						await syncUsageStatus(connection, {
-							routingStatus: connection?.routingStatus || "eligible",
-							healthStatus: "degraded",
-							quotaState: connection?.quotaState || "ok",
-							authState: connection?.authState || "ok",
-							reasonCode: "transient_connectivity_error",
-							reasonDetail: "Usage check temporarily unavailable",
-							lastCheckedAt: checkedAt,
-							usageSnapshot: JSON.stringify({
-								provider: connection?.provider || null,
-								checkedAt,
-								quotas: {},
-							}),
-						});
+						const preservedStatus = connection?.routingStatus || "eligible";
+						if (preservedStatus === "eligible") {
+							await syncUsageStatus(connection, {
+								routingStatus: "eligible",
+								lastCheckedAt: checkedAt,
+								usageSnapshot: JSON.stringify({
+									provider: connection?.provider || null,
+									checkedAt,
+									quotas: {},
+								}),
+							});
+						} else {
+							await syncUsageStatus(connection, {
+								routingStatus: preservedStatus,
+								healthStatus: "degraded",
+								quotaState: connection?.quotaState || "ok",
+								authState: connection?.authState || "ok",
+								reasonCode: "transient_connectivity_error",
+								reasonDetail: "Usage check temporarily unavailable",
+								lastCheckedAt: checkedAt,
+								usageSnapshot: JSON.stringify({
+									provider: connection?.provider || null,
+									checkedAt,
+									quotas: {},
+								}),
+							});
+						}
 					}
 					return {
 						connection,
@@ -759,21 +813,35 @@ export async function refreshConnectionUsage(
 						// Persist minimal snapshot so UI knows the worker tried
 						if (!connection?.usageSnapshot) {
 							const checkedAt = new Date().toISOString();
-							await syncUsageStatus(connection, {
-								routingStatus: connection?.routingStatus || "eligible",
-								healthStatus: "degraded",
-								quotaState: connection?.quotaState || "ok",
-								authState: connection?.authState || "ok",
-								reasonCode: "usage_quota_unavailable",
-								reasonDetail: "Quota details unavailable",
-								lastCheckedAt: checkedAt,
-								usageSnapshot: JSON.stringify({
-									provider: connection?.provider || null,
-									checkedAt,
-									quotas: {},
-									usageUnavailable: true,
-								}),
-							});
+							const preservedStatus = connection?.routingStatus || "eligible";
+							if (preservedStatus === "eligible") {
+								await syncUsageStatus(connection, {
+									routingStatus: "eligible",
+									lastCheckedAt: checkedAt,
+									usageSnapshot: JSON.stringify({
+										provider: connection?.provider || null,
+										checkedAt,
+										quotas: {},
+										usageUnavailable: true,
+									}),
+								});
+							} else {
+								await syncUsageStatus(connection, {
+									routingStatus: preservedStatus,
+									healthStatus: "degraded",
+									quotaState: connection?.quotaState || "ok",
+									authState: connection?.authState || "ok",
+									reasonCode: "usage_quota_unavailable",
+									reasonDetail: "Quota details unavailable",
+									lastCheckedAt: checkedAt,
+									usageSnapshot: JSON.stringify({
+										provider: connection?.provider || null,
+										checkedAt,
+										quotas: {},
+										usageUnavailable: true,
+									}),
+								});
+							}
 						}
 						return {
 							connection,
@@ -784,28 +852,45 @@ export async function refreshConnectionUsage(
 						};
 					}
 
-					await syncUsageStatus(connection, {
-						routingStatus:
-							connection?.routingStatus &&
+					await syncUsageStatus(connection, (() => {
+						const preservedStatus = connection?.routingStatus &&
 							connection.routingStatus !== "unknown"
 								? connection.routingStatus
-								: "eligible",
-						healthStatus: "degraded",
-						quotaState: connection?.quotaState || "ok",
-						authState: connection?.authState || "ok",
-						reasonCode: "usage_quota_unavailable",
-						reasonDetail: "Quota details unavailable",
-						lastCheckedAt,
-						usageSnapshot: JSON.stringify(
-							error.usage || {
-								provider: connection?.provider || null,
-								checkedAt: lastCheckedAt,
-								quotas: {},
-								usageUnavailable: true,
-								reasonCode: "usage_quota_unavailable",
-							},
-						),
-					});
+								: "eligible";
+						if (preservedStatus === "eligible") {
+							return {
+								routingStatus: "eligible",
+								lastCheckedAt,
+								usageSnapshot: JSON.stringify(
+									error.usage || {
+										provider: connection?.provider || null,
+										checkedAt: lastCheckedAt,
+										quotas: {},
+										usageUnavailable: true,
+										reasonCode: "usage_quota_unavailable",
+									},
+								),
+							};
+						}
+						return {
+							routingStatus: preservedStatus,
+							healthStatus: "degraded",
+							quotaState: connection?.quotaState || "ok",
+							authState: connection?.authState || "ok",
+							reasonCode: "usage_quota_unavailable",
+							reasonDetail: "Quota details unavailable",
+							lastCheckedAt,
+							usageSnapshot: JSON.stringify(
+								error.usage || {
+									provider: connection?.provider || null,
+									checkedAt: lastCheckedAt,
+									quotas: {},
+									usageUnavailable: true,
+									reasonCode: "usage_quota_unavailable",
+								},
+							),
+						};
+					})());
 					error.statusSynced = true;
 					throw error;
 				}
@@ -818,21 +903,34 @@ export async function refreshConnectionUsage(
 				) {
 					const hasKnownRoutingStatus =
 						connection?.routingStatus && connection.routingStatus !== "unknown";
-					await syncUsageStatus(connection, {
-						routingStatus: hasKnownRoutingStatus
-							? connection.routingStatus
-							: "eligible",
-						healthStatus: "degraded",
-						quotaState: connection?.quotaState || "ok",
-						authState: connection?.authState || "ok",
-						reasonCode: connection?.reasonCode ?? null,
-						lastCheckedAt,
-						usageSnapshot: JSON.stringify({
-							provider: connection?.provider || null,
-							checkedAt: lastCheckedAt,
-							quotas: {},
-						}),
-					});
+					const preservedStatus = hasKnownRoutingStatus
+						? connection.routingStatus
+						: "eligible";
+					if (preservedStatus === "eligible") {
+						await syncUsageStatus(connection, {
+							routingStatus: "eligible",
+							lastCheckedAt,
+							usageSnapshot: JSON.stringify({
+								provider: connection?.provider || null,
+								checkedAt: lastCheckedAt,
+								quotas: {},
+							}),
+						});
+					} else {
+						await syncUsageStatus(connection, {
+							routingStatus: preservedStatus,
+							healthStatus: "degraded",
+							quotaState: connection?.quotaState || "ok",
+							authState: connection?.authState || "ok",
+							reasonCode: connection?.reasonCode ?? null,
+							lastCheckedAt,
+							usageSnapshot: JSON.stringify({
+								provider: connection?.provider || null,
+								checkedAt: lastCheckedAt,
+								quotas: {},
+							}),
+						});
+					}
 					throw error;
 				}
 
@@ -857,36 +955,66 @@ export async function refreshConnectionUsage(
 						}),
 					});
 
-					await syncUsageStatus(
-						connection,
-						authBlockedPatch || {
-							...(status === 429
-								? {
-										nextRetryAt: new Date(Date.now() + 10_000).toISOString(),
-										resetAt: connection?.resetAt ?? null,
-										lastCheckedAt,
-									}
-								: {
-										routingStatus: "blocked",
-										healthStatus: "degraded",
-										quotaState: "ok",
-										authState: "ok",
-										reasonCode: isConfirmedAuthBlockedError(error, {
-											statusCode: status,
-										})
-											? "auth_invalid"
-											: "usage_request_failed",
-										reasonDetail: "Usage check failed",
-										lastCheckedAt,
-										nextRetryAt: connection?.nextRetryAt ?? null,
-										...getOperationalUsageSnapshot(
-											connection,
-											"Usage check failed.",
-											{ checkedAt: lastCheckedAt },
-										),
-									}),
-						},
-					);
+					const preservedStatus = connection?.routingStatus && connection.routingStatus !== "unknown"
+						? connection.routingStatus
+						: "eligible";
+					const numericStatus = Number(status);
+
+					let fallbackPatch: Record<string, any>;
+
+					if (numericStatus === 429) {
+						// Usage API rate-limited - keep eligible clean, scheduler handles retry
+						fallbackPatch = preservedStatus === "eligible"
+							? {
+									routingStatus: "eligible",
+									lastCheckedAt,
+									...getOperationalUsageSnapshot(connection, "Usage API rate limited", { checkedAt: lastCheckedAt }),
+								}
+							: {
+									routingStatus: preservedStatus,
+									healthStatus: "degraded",
+									quotaState: connection?.quotaState || "ok",
+									authState: connection?.authState || "ok",
+									reasonCode: "transient_upstream_error",
+									reasonDetail: "Usage API rate limited",
+									lastCheckedAt,
+									...getOperationalUsageSnapshot(connection, "Usage API rate limited", { checkedAt: lastCheckedAt }),
+								};
+					} else if (numericStatus >= 500 && numericStatus <= 599) {
+						// ALL 5xx are transient - consistent with request path (markAccountUnavailable)
+						fallbackPatch = preservedStatus === "eligible"
+							? {
+									routingStatus: "eligible",
+									lastCheckedAt,
+									...getOperationalUsageSnapshot(connection, "Usage check temporarily unavailable", { checkedAt: lastCheckedAt }),
+								}
+							: {
+									routingStatus: preservedStatus,
+									healthStatus: "degraded",
+									quotaState: connection?.quotaState || "ok",
+									authState: connection?.authState || "ok",
+									reasonCode: "transient_upstream_error",
+									reasonDetail: "Usage check temporarily unavailable",
+									lastCheckedAt,
+									nextRetryAt: new Date(Date.now() + 10_000).toISOString(),
+									...getOperationalUsageSnapshot(connection, "Usage check temporarily unavailable", { checkedAt: lastCheckedAt }),
+								};
+					} else {
+						// Genuinely unknown error (non-5xx, non-auth, non-429) - blocked
+						fallbackPatch = {
+							routingStatus: "blocked",
+							healthStatus: "degraded",
+							quotaState: "ok",
+							authState: "ok",
+							reasonCode: "usage_request_failed",
+							reasonDetail: "Usage check failed",
+							lastCheckedAt,
+							nextRetryAt: null,
+							...getOperationalUsageSnapshot(connection, "Usage check failed.", { checkedAt: lastCheckedAt }),
+						};
+					}
+
+					await syncUsageStatus(connection, authBlockedPatch || fallbackPatch);
 				}
 
 				throw error;

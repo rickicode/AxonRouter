@@ -70,9 +70,10 @@ function getCentralizedStatus(connection: ConnectionLike = {}) {
   const hasUsageEvidence = hasUsageSnapshot(connection);
 
   switch (connection?.authState) {
-    case "expired":
     case "invalid":
     case "revoked":
+      return { status: "disabled", source: "authState" };
+    case "expired":
       return { status: "blocked", source: "authState" };
     default:
       break;

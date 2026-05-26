@@ -1,0 +1,7 @@
+{
+  "task_id": "task-codex-proactive-cooldown",
+  "task_description": "Implement Codex rate limit proactive cooldown system. Wire response headers through onRequestSuccess to activate the existing but disconnected proactive cooldown code in clearAccountError. Additionally add preemptive cooldown in the usage scheduler path so background refresh also applies cooldown locks when accounts approach rate limits.",
+  "status": "in_progress",
+  "feature_order": ["FEAT-001", "FEAT-002"],
+  "blocked_reason": null
+}

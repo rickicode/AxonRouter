@@ -1,0 +1,35 @@
+{
+  "id": "FEAT-001",
+  "type": "fix",
+  "description": "Ensure eligible status is always clean (no dirty metadata) and fix authState invalid/revoked -> disabled in centralized resolver",
+  "status": "completed",
+  "steps": [
+    "Step 1: Fix src/sse/services/auth.tsx - In the transient fallback path (line ~862), when isProviderTransientProcessingError || isTransientFallbackStatus is true, the Object.assign MUST NOT set healthStatus:'degraded', reasonCode, or reasonDetail. For the transient case: only keep the model lock (already applied via lockUpdate). Do NOT assign healthStatus, reasonCode, or reasonDetail into connectionPatch for transient cases. The non-transient (blocked) case can keep its dirty fields since blocked is allowed to have them. Specifically, change the Object.assign block so that when the connection is staying eligible due to being transient, it ONLY sets routingStatus:'eligible' and lastCheckedAt - nothing else dirty. The model lock already provides the cooldown mechanism.",
+
+    "Step 2: Fix src/lib/usageStatus.ts - Remove the codexUsageApiUnavailableMatch special case (the `if (codexUsageApiUnavailableMatch)` block around line 423). When the Codex Usage API is temporarily unavailable, the connection can still route requests fine. Instead of returning a polluted eligible state with degraded+reasonCode, just let it fall through to the normal healthy path (which returns `base` - the clean getHealthyUsageStatusUpdates). The usageSnapshot will contain the message for informational purposes. Replace the entire `if (codexUsageApiUnavailableMatch) { return {...} }` block with a simpler version that returns the clean base with just the usageSnapshot and lastCheckedAt set.",
+
+    "Step 3: Fix src/lib/connectionUsageRefresh.ts - Three places set eligible with dirty fields: (A) The skipTransientConnectivityErrors block (~line 769): when connection.routingStatus is 'eligible', the sync must NOT write healthStatus:'degraded' or reasonCode. If the connection has no usageSnapshot yet, just write the minimal: routingStatus (preserved), lastCheckedAt, and usageSnapshot. Don't set healthStatus, quotaState, authState, reasonCode, reasonDetail if the effective status remains eligible. (B) The USAGE_QUOTA_UNAVAILABLE skipOnQuotaUnavailable block (~line 803): same pattern - when preserving eligible status, don't pollute with degraded/reasonCode. (C) The 502/504 branch in the final catch-all (~line 915): this currently sets eligible + degraded + reasonCode. Change it to: preserve routingStatus, set only lastCheckedAt and nextRetryAt for retry scheduling, don't set healthStatus:'degraded' or reasonCode when the effective status remains eligible. The key principle: if the connection's routingStatus resolves to 'eligible', the ONLY fields that should be written are lastCheckedAt, usageSnapshot (if needed), and nextRetryAt (for retry scheduling). No degraded, no reasonCode, no reasonDetail.",
+
+    "Step 4: Fix src/lib/connectionStatus.ts - In getCentralizedStatus(), the authState switch currently maps 'expired', 'invalid', and 'revoked' ALL to blocked. Change it so: authState 'invalid' and 'revoked' return { status: 'disabled', source: 'authState' } (these are permanent - require manual re-auth). authState 'expired' stays as { status: 'blocked', source: 'authState' } (token refresh might recover it). Also: the existing check for reasonCode === 'reauthorization_required' at the top of getCentralizedStatus already returns disabled - this can stay for backward compatibility.",
+
+    "Step 5: Update tests/unit/connection-effective-status.test.ts - Change the test expectation on line that asserts `getConnectionCentralizedStatus({ authState: 'invalid' })` from 'blocked' to 'disabled'. Also add a test case for authState:'revoked' expecting 'disabled'. Update the test 'maps auth and health blockers to canonical blocked status' - authState:'expired' should still be 'blocked', but authState:'invalid' should be 'disabled'. Add explicit assertions: getConnectionCentralizedStatus({ authState: 'revoked' }) === 'disabled', getConnectionCentralizedStatus({ authState: 'expired' }) === 'blocked'.",
+
+    "Step 6: Add test coverage in tests/unit/status-handling-transient-auth.test.ts - Add a test that verifies when markAccountUnavailable is called with status 429/502/504, the resulting patch does NOT contain healthStatus:'degraded', reasonCode, or reasonDetail (only routingStatus:'eligible' and lastCheckedAt). This enforces the 'clean eligible' invariant."
+  ],
+  "acceptance_criteria": [
+    "npx tsc --noEmit passes with zero errors",
+    "npm test passes all tests (1090+ tests)",
+    "When routingStatus is 'eligible' in any code path: healthStatus is either not set or 'healthy', reasonCode is either not set or null, reasonDetail is either not set or null",
+    "authState 'invalid' resolves to 'disabled' (not 'blocked') in getCentralizedStatus",
+    "authState 'revoked' resolves to 'disabled' (not 'blocked') in getCentralizedStatus",
+    "authState 'expired' still resolves to 'blocked' in getCentralizedStatus",
+    "Transient errors (429/502/504) in markAccountUnavailable do NOT pollute the connection with dirty fields when keeping it eligible"
+  ],
+  "verification": [
+    "npx tsc --noEmit",
+    "npm test",
+    "npm run lint"
+  ],
+  "blocked_reason": null,
+  "findings": "All 6 steps implemented successfully. authState invalid/revoked now maps to disabled. The 429 path in markAccountUnavailable goes through the transientRateLimit path (canonicalBlockedPatch is set) so it never reaches the fallback block - routingStatus is not explicitly set but no dirty fields are written either. Two additional test files (localdb-status-write, provider-limits-counts) needed expectation updates because authState:invalid now resolves to disabled instead of blocked."
+}

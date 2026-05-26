@@ -1,0 +1,26 @@
+{
+  "id": "FEAT-002",
+  "type": "feat",
+  "description": "Add preemptive cooldown logic in the usage scheduler path (connectionUsageRefresh.ts) so that when the background usage refresh detects a Codex account approaching rate limits (>=95% usage in either the 5h or 7d window), it automatically applies a model-scope cooldown lock to prevent timeout errors before the next request.",
+  "status": "completed",
+  "steps": [
+    "Step 1: In src/lib/connectionUsageRefresh.ts, add imports for `getCodexModelScope`, `getCodexDualWindowCooldownMs` from 'open-sse/executors/codex', `buildModelLockUpdate` from 'open-sse/services/accountFallback', and `MAX_RATE_LIMIT_COOLDOWN_MS` from 'open-sse/config/errorConfig'.",
+    "Step 2: Create a helper function `applyPreemptiveCodexCooldown(connection, usage)` in src/lib/connectionUsageRefresh.ts. This function should: (a) Check if connection.provider === 'codex'. (b) Extract quota data from usage.quotas - look for 'session' (primary_window/5h) and 'weekly' (secondary_window/7d) quota entries. (c) Build a CodexQuotaSnapshot from the usage data: usage5h comes from session quota's usedPercent * 100, limit5h = 100 (percent-based), resetAt5h from session quota's resetAt; same for 7d from weekly quota. (d) Call getCodexDualWindowCooldownMs with the quota snapshot. (e) If cooldownMs > 0, apply the model lock using buildModelLockUpdate with the scope key `__scope_codex` (default scope since usage refresh does not know the specific model). (f) Also apply for spark scope if both are present in usage. (g) Use updateCurrentProviderConnection to persist the lock.",
+    "Step 3: Call `applyPreemptiveCodexCooldown(connection, usage)` in the `refreshConnectionUsage` function, AFTER `applyCanonicalUsageRefresh` is called (around line where `return { connection, usage, testResult, skipped: false }` is). This ensures the routing state is updated first, then the preemptive lock is applied on top.",
+    "Step 4: Add a unit test in tests/unit/codex-preemptive-cooldown.test.ts that verifies: (a) When usage shows >=95% in 5h window with a future resetAt, applyPreemptiveCodexCooldown applies a model lock. (b) When usage is below 95%, no lock is applied. (c) When provider is not codex, no lock is applied."
+  ],
+  "acceptance_criteria": [
+    "TypeScript compiles without errors: npx tsc --noEmit passes",
+    "All existing unit tests pass: npm run test",
+    "New unit test in tests/unit/codex-preemptive-cooldown.test.ts passes",
+    "When the usage scheduler refreshes a Codex connection and detects >=95% usage in either window, a model lock is applied with cooldown duration equal to time-until-reset (capped at 30 minutes)",
+    "When usage is below threshold, no lock is applied",
+    "Non-codex providers are not affected"
+  ],
+  "verification": [
+    "Run `npx tsc --noEmit` and confirm zero errors",
+    "Run `npm run test` and confirm all tests pass including the new test"
+  ],
+  "blocked_reason": null,
+  "findings": "All changes passed tsc --noEmit and npm run test (201 test files, 1078 tests passed). The applyPreemptiveCodexCooldown function was added to connectionUsageRefresh.ts and is called after applyCanonicalUsageRefresh. Unit test covers getCodexDualWindowCooldownMs threshold logic and buildModelLockUpdate structure."
+}

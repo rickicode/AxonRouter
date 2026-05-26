@@ -451,8 +451,8 @@ async function handleSingleModelChat(body, modelStr, clientRawRequest = null, re
             providerSpecificData: newCreds.providerSpecificData,
           });
         },
-        onRequestSuccess: async () => {
-          await clearAccountError(credentials.connectionId, credentials, model);
+        onRequestSuccess: async (responseHeaders?: any) => {
+          await clearAccountError(credentials.connectionId, credentials, model, responseHeaders);
         },
         onDisconnect: null,
       });

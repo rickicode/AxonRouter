@@ -420,17 +420,17 @@ export function getUsageStatusUpdates(connection: any, usage: any, options: any 
     : null;
 
   if (codexUsageApiUnavailableMatch) {
+    const isConnEligible = !connection?.routingStatus || connection.routingStatus === "eligible";
+    if (isConnEligible) {
+      return {
+        ...base,
+        usageSnapshot: JSON.stringify(usage || {}),
+        lastCheckedAt: nowIso,
+      };
+    }
+    // Non-eligible: preserve existing state, just update snapshot + timestamp
     return {
-      ...base,
-      routingStatus: "eligible",
-      healthStatus: "degraded",
-      quotaState: "ok",
-      authState: "ok",
-      reasonCode: "usage_request_failed",
-      reasonDetail: usageMessage,
       usageSnapshot: JSON.stringify(usage || {}),
-      resetAt: null,
-      nextRetryAt: null,
       lastCheckedAt: nowIso,
     };
   }
