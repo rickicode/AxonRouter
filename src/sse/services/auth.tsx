@@ -581,9 +581,9 @@ export async function getProviderCredentials(
 			refreshToken: connection.refreshToken,
 			projectId: connection.projectId,
 			connectionName:
+				connection.email ||
 				connection.displayName ||
 				connection.name ||
-				connection.email ||
 				connection.id,
 			copilotToken: connection.providerSpecificData?.copilotToken,
 			providerSpecificData: {
@@ -708,7 +708,7 @@ export async function markAccountUnavailable(
 		await updateCurrentProviderConnection(connectionId, connectionPatch);
 
 		const connName =
-			conn?.displayName || conn?.name || conn?.email || connectionId.slice(0, 8);
+			conn?.email || conn?.displayName || conn?.name || connectionId.slice(0, 8);
 		const lockKey = Object.keys(lockUpdate)[0];
 		log.warn(
 			"AUTH",
@@ -879,7 +879,7 @@ export async function markAccountUnavailable(
 
 	const lockKey = Object.keys(lockUpdate)[0];
 	const connName =
-		conn?.displayName || conn?.name || conn?.email || connectionId.slice(0, 8);
+		conn?.email || conn?.displayName || conn?.name || connectionId.slice(0, 8);
 	log.warn(
 		"AUTH",
 		`${connName} locked ${lockKey} for ${Math.round(cooldownMs / 1000)}s [${status}]`,

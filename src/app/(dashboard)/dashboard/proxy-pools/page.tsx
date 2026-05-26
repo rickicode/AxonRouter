@@ -43,7 +43,7 @@ type ProxyPoolRecord = {
 };
 
 function getConnectionLabel(connection: ProviderConnection) {
-  return connection.displayName || connection.name || connection.email || connection.id;
+  return connection.email || connection.displayName || connection.name || connection.id;
 }
 
 function getProviderLabel(providerId?: string) {
