@@ -6,7 +6,7 @@ on:
       - "v*"
 
 permissions:
-  contents: read
+  contents: write
   packages: write
   id-token: write
 
@@ -20,15 +20,31 @@ jobs:
 
     steps:
       - uses: actions/checkout@v6
+        with:
+          ref: main
+          token: ${{ secrets.GITHUB_TOKEN }}
 
       - uses: actions/setup-node@v6
         with:
           node-version: "22"
           registry-url: "https://registry.npmjs.org"
 
-      - name: Check tag matches package version
+      - name: Extract version from tag
+        id: version
+        run: echo "value=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
+
+      - name: Bump version in package.json
         run: |
-          node -e "const pkg=require('./package.json'); const tag=process.env.GITHUB_REF_NAME.replace(/^v/,''); if (pkg.version !== tag) { throw new Error(`Tag ${process.env.GITHUB_REF_NAME} does not match package version ${pkg.version}`); }"
+          npm version ${{ steps.version.outputs.value }} --no-git-tag-version
+          npm install --package-lock-only
+
+      - name: Commit and push version bump
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add package.json package-lock.json
+          git commit -m "chore: bump version to ${{ steps.version.outputs.value }}"
+          git push origin main
 
       - name: Install dependencies
         run: npm ci
@@ -61,6 +77,8 @@ jobs:
 
     steps:
       - uses: actions/checkout@v6
+        with:
+          ref: main
 
       - name: Prepare image name
         id: image
