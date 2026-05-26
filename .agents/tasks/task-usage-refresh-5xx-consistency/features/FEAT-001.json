@@ -2,7 +2,7 @@
   "id": "FEAT-001",
   "type": "fix",
   "description": "Fix the usage refresh error handling fallback in connectionUsageRefresh.ts to treat ALL 5xx errors (500-599) as transient (same as 502/504), remove dead code isConfirmedAuthBlockedError check in the fallback, and fix 429 handling to keep eligible connections clean.",
-  "status": "in_progress",
+  "status": "completed",
   "steps": [
     "Read the full error handling section in src/lib/connectionUsageRefresh.ts lines 940-1030 to understand the current fallback logic after authBlockedPatch and quotaSignal checks.",
     "In the final else branch of the `authBlockedPatch || { ... }` ternary (the fallback at ~line 960-1018), replace the three-way ternary (429 / 502|504 / other) with the following logic:\n\n1. For status 429: If connection was eligible (routingStatus is 'eligible' or absent/unknown), write ONLY { routingStatus: 'eligible', lastCheckedAt, ...getOperationalUsageSnapshot(...) }. If NOT eligible, write { routingStatus: preservedStatus, lastCheckedAt, ...getOperationalUsageSnapshot(...) } (no nextRetryAt, no resetAt - the usage scheduler handles its own retry timing).\n\n2. For ALL status 500-599 (not just 502/504): Use the same preserve-eligible pattern that currently exists for 502/504. If eligible, write clean { routingStatus: 'eligible', lastCheckedAt, ...getOperationalUsageSnapshot(...) }. If not eligible, write degraded with transient_upstream_error reason.\n\n3. For other errors (non-5xx, non-429, non-auth): Keep the blocked fallback but REMOVE the dead isConfirmedAuthBlockedError check (it's unreachable because getConnectionAuthBlockedPatch already handled auth errors above). Use reasonCode: 'usage_request_failed' directly.",
@@ -24,5 +24,5 @@
     "bun vitest run --reporter=verbose --root tests tests/unit/status-handling-transient-auth.test.ts tests/unit/connection-status.test.ts tests/unit/connection-effective-status.test.ts tests/unit/codex-preemptive-cooldown.test.ts tests/unit/codex-provider-limits-utils.test.ts"
   ],
   "blocked_reason": null,
-  "findings": ""
+  "findings": "Removed unused isConfirmedAuthBlockedError import since it was only used in the dead fallback code. All 68 tests pass cleanly. The refactored code uses if/else-if/else structure instead of the nested ternary, making it easier to maintain."
 }
