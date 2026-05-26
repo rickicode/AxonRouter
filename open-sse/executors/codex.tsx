@@ -5,7 +5,7 @@ import { CODEX_DEFAULT_INSTRUCTIONS } from "../config/codexInstructions";
 import { resolveCodexInstructionsForRequest } from "../config/codexInstructionsResolver";
 import { normalizeResponsesInput } from "../translator/helpers/responsesApiHelper";
 import { fetchImageAsBase64 } from "../translator/helpers/imageHelper";
-import { getConsistentMachineId } from "../../src/shared/utils/machineId";
+import { getConsistentMachineId } from "../../src/shared/utils/machine";
 import { getChatRuntimeSettings } from "../utils/abort";
 import { MAX_RATE_LIMIT_COOLDOWN_MS } from "../config/errorConfig";
 

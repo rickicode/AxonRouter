@@ -1,5 +1,6 @@
 import { DEFAULT_AXONROUTER_PORT } from "@/shared/constants/runtimeDefaults";
 import crypto from "crypto";
+import os from "os";
 import { loadTunnelStateSnapshot, resolveTunnelShortId, saveTunnelConnectionState } from "./tunnelStateAccess";
 import { getCurrentSettings, updateCurrentSettings } from "@/lib/settingsAccess";
 import * as cloudflared from "./cloudflared";
@@ -29,8 +30,7 @@ export function isTunnelReconnecting() {
 
 function getMachineId() {
   try {
-    const { machineIdSync } = require("node-machine-id");
-    const raw = machineIdSync();
+    const raw = `${os.hostname()}:${os.userInfo().username}:${os.platform()}`;
     return crypto.createHash("sha256").update(raw + MACHINE_ID_SALT).digest("hex").substring(0, 16);
   } catch {
     return crypto.randomUUID().replace(/-/g, "").substring(0, 16);

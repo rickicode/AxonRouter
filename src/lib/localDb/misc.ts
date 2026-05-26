@@ -624,10 +624,6 @@ export async function updateSettings(updates) {
     db.data.settings = mergeSettingsWithDefaults({
       ...db.data.settings,
       ...nextUpdates,
-      usageWorker: {
-        ...(db.data.settings?.usageWorker || {}),
-        ...(nextUpdates?.usageWorker || {}),
-      },
 
     });
     await persistDbWrite(db);
@@ -715,22 +711,6 @@ export async function importDb(payload) {
   }
 
   return resultData;
-}
-
-export async function isCloudEnabled() {
-  const settings = await getSettings();
-  return settings.cloudEnabled === true;
-}
-
-export async function getCloudUrl() {
-  const settings = await getSettings();
-  if (typeof settings.cloudUrl === "string" && settings.cloudUrl) {
-    return settings.cloudUrl;
-  }
-  const first = Array.isArray(settings.cloudUrls)
-    ? settings.cloudUrls.find((entry) => typeof entry?.url === "string" && entry.url)
-    : null;
-  return first?.url ? first.url.replace(/\/$/, "") : "";
 }
 
 // --- Pricing ---

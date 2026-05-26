@@ -504,10 +504,7 @@ export async function proxyRotate(proxyPoolId) {
 }
 
 export async function usageWorkerStatus(origin) {
-	const res = await fetch(`${origin}/api/usage-worker/status`, {
-		cache: "no-store",
-	});
-	return res.json();
+	return { status: "removed", message: "Usage worker has been removed." };
 }
 
 export async function sessionSnapshot(id) {

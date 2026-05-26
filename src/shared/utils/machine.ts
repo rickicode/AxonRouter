@@ -1,18 +1,28 @@
-import { getConsistentMachineId } from './machineId';
+import crypto from "node:crypto";
+import os from "node:os";
 
-// Get machine ID using node-machine-id with salt
-export async function getMachineId() {
-  return await getConsistentMachineId();
+const MACHINE_SALT = "axonrouter-machine-id-salt";
+
+let cachedId: string | null = null;
+
+function computeRawMachineId(): string {
+  try {
+    const raw = `${os.hostname()}:${os.userInfo().username}:${os.platform()}`;
+    return crypto.createHash("sha256").update(raw).digest("hex");
+  } catch {
+    return crypto.randomUUID().replace(/-/g, "");
+  }
 }
 
-// Keep sync functions for backward compatibility but make them no-ops
-// (Frontend sync is disabled - use backend sync instead)
-export async function syncProviderDataToCloud(cloudUrl) {
-  console.log("Frontend sync is disabled. Use backend sync instead.");
-  return Promise.resolve(true);
+export function getMachineId(): string {
+  if (!cachedId) {
+    cachedId = computeRawMachineId();
+  }
+  return cachedId;
 }
 
-export async function getProvidersNeedingRefresh() {
-  console.log("Frontend sync is disabled. Use backend sync instead.");
-  return Promise.resolve([]);
+export async function getConsistentMachineId(salt: string | null = null): Promise<string> {
+  const saltValue = salt || MACHINE_SALT;
+  const raw = getMachineId();
+  return crypto.createHash("sha256").update(raw + saltValue).digest("hex");
 }

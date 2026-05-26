@@ -1,10 +1,8 @@
-import { cleanupProviderConnections, getSettings, updateSettings, getApiKeys, isCloudEnabled } from "@/lib/localDb";
-import { getUsageWorkerClient } from "@/lib/usageWorker/client";
+import { cleanupProviderConnections, getSettings, updateSettings, getApiKeys } from "@/lib/localDb";
 import { closeSqliteDb } from "@/lib/sqliteHelpers";
 import { bootstrapUsageDb } from "@/lib/usageDb/bootstrap";
 import { closeUsageDb } from "@/lib/usageDb/core";
 import { drainUsageQueue } from "@/lib/usageDb/backgroundQueue";
-import { getCloudUsagePoller } from "@/shared/services/cloudUsagePoller";
 import { autoStartMitmIfEnabled, bootstrapMitmRuntimeFromInitializeApp } from "@/lib/mitm/initializeMitmAccess";
 
 import os from "os";
@@ -46,10 +44,6 @@ async function cleanupAppResources() {
   try {
     const { killCloudflared } = await cloudflaredApi();
     killCloudflared();
-  } catch {}
-
-  try {
-    await getUsageWorkerClient().stop();
   } catch {}
 
   try {
@@ -122,33 +116,6 @@ export async function initializeApp() {
 
     // Network monitor: detect sleep/wake + network changes → restart tunnel
     startNetworkMonitor();
-
-    // Start usage worker in a standalone process so background usage checks do not contend with request handling.
-    getUsageWorkerClient().start().catch((error) => {
-      console.warn("[InitApp] Usage worker unavailable:", error?.message || error);
-    });
-
-    // Start cloud usage poller if enabled
-    if (await isCloudEnabled()) {
-      const settings = await getSettings();
-      if (settings.cloudUsagePollingEnabled === true) {
-        const usagePoller = await getCloudUsagePoller();
-        await usagePoller.start();
-        console.log('[INIT] Cloud usage poller started');
-      }
-    }
-
-    // Start cloud sync scheduler if enabled
-    if (await isCloudEnabled()) {
-      try {
-        const { getCloudSyncScheduler } = await import("@/shared/services/cloudSyncScheduler");
-        const syncScheduler = await getCloudSyncScheduler();
-        await syncScheduler.start();
-        console.log('[INIT] Cloud sync scheduler started (15 min interval)');
-      } catch (error) {
-        console.error('[INIT] Failed to start cloud sync scheduler:', error);
-      }
-    }
 
     // Start R2 backup scheduler only when scheduled backups are enabled.
     if (settings.r2BackupEnabled) {

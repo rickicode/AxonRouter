@@ -36,8 +36,6 @@ const PROTECTED_API_PATHS = [
 	"/api/opencode",
 	"/api/tunnel",
 	"/api/usage",
-	"/api/usage-worker",
-	"/api/cloud-urls",
 	"/api/cli-tools",
 	"/api/skills",
 	"/api/translator",

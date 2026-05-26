@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { requireManagementAuth } from "@/lib/api/requireManagementAuth";
 import { createCurrentApiKey, getCurrentApiKeys } from "@/lib/apiKeyAccess";
-import { getConsistentMachineId } from "@/shared/utils/machineId";
+import { getConsistentMachineId } from "@/shared/utils/machine";
 
 export const dynamic = "force-dynamic";
 

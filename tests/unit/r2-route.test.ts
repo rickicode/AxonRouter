@@ -125,14 +125,8 @@ describe("localDb R2 settings", () => {
     });
 
     expect(response.status).toBe(200);
-    expect(cloudWorkerClientMocks.registerWithWorker).toHaveBeenCalledWith(
-      "https://worker.example.com",
-      "worker-secret-123456",
-      expect.objectContaining({
-        runtimeUrl: "https://new-runtime.example.com/base",
-        cacheTtlSeconds: 45,
-      })
-    );
+    // Cloud worker registration has been removed
+    expect(cloudWorkerClientMocks.registerWithWorker).not.toHaveBeenCalled();
   });
 
   it("PATCH rejects clearing runtime URL while workers are registered", async () => {
@@ -160,7 +154,8 @@ describe("localDb R2 settings", () => {
     expect(response.status).toBe(200);
     expect(payload.success).toBe(true);
     expect(payload.r2RuntimePublicBaseUrl).toBe("");
-    expect(cloudWorkerClientMocks.registerWithWorker).toHaveBeenCalledTimes(1);
+    // Cloud worker registration has been removed
+    expect(cloudWorkerClientMocks.registerWithWorker).not.toHaveBeenCalled();
   });
 
   it("PATCH reports worker registration failures without failing the settings save", async () => {
@@ -187,12 +182,8 @@ describe("localDb R2 settings", () => {
     const payload = await response.json();
 
     expect(response.status).toBe(200);
-    expect(payload.workerRegistrationFailures).toEqual([
-      {
-        url: "https://worker.example.com",
-        error: "worker offline",
-      },
-    ]);
+    // Cloud worker registration has been removed - no failures
+    expect(payload.workerRegistrationFailures).toBeUndefined();
     await expect(localDb.getSettings()).resolves.toMatchObject({
       r2RuntimePublicBaseUrl: "https://new-runtime.example.com/base",
     });

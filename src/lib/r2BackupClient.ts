@@ -1,5 +1,5 @@
 import crypto from "node:crypto";
-import { getConsistentMachineId } from "@/shared/utils/machineId";
+import { getConsistentMachineId } from "@/shared/utils/machine";
 import {
   exportCurrentDb,
   getCurrentLocalSettings,

@@ -1,4 +1,3 @@
-import { normalizeUsageWorkerSettings } from "../usageWorker/config";
 import { DEFAULT_MODEL_SYNC_SETTINGS, normalizeModelSyncSettings } from "../providerModels/syncSettings";
 import { normalizeCodexProviderSpecificData } from "../oauth/codexAccount";
 import { normalizeRoutingStrategy as normalizeComboStrategyValue } from "../../shared/constants/routingStrategies";
@@ -146,10 +145,6 @@ export function normalizeStoredProviderSpecificData(provider, providerSpecificDa
 export const isCloud = typeof caches !== 'undefined' && typeof caches === 'object';
 
 const DEFAULT_SETTINGS = {
-  cloudEnabled: false,
-  cloudUrls: [],
-  cloudSharedSecret: null,
-  cloudUsagePollingEnabled: false,
   tunnelEnabled: false,
   tunnelUrl: "",
   tunnelProvider: "cloudflare",
@@ -183,11 +178,6 @@ const DEFAULT_SETTINGS = {
   outboundProxyUrl: "",
   outboundNoProxy: "",
   mitmRouterBaseUrl: DEFAULT_AXONROUTER_BASE_URL,
-  usageWorker: {
-    enabled: true,
-    intervalMinutes: 60,
-    cadenceMs: 3600000,
-  },
   modelSync: DEFAULT_MODEL_SYNC_SETTINGS,
   quotaExhaustedThresholdPercent: 10,
   governance: {
@@ -223,10 +213,6 @@ const DEFAULT_SETTINGS = {
   r2LastSqliteBackupFingerprint: null,
   r2BackupEncryptionKey: null,
   r2Config: DEFAULT_R2_CONFIG,
-  cloudUsageSync: {
-    cursorsByWorkerId: {},
-    seenEventIds: {},
-  },
   morph: DEFAULT_MORPH_SETTINGS,
   morphInstructions: DEFAULT_MORPH_INSTRUCTIONS_SETTINGS,
   caveman: DEFAULT_CAVEMAN_SETTINGS,
@@ -571,11 +557,6 @@ export function mergeSettingsWithDefaults(settings: any = {}) {
     sourceSettings?.quotaExhaustedThresholdPercent
   );
 
-  merged.usageWorker = normalizeUsageWorkerSettings(
-    sourceSettings?.usageWorker && typeof sourceSettings.usageWorker === "object" && !Array.isArray(sourceSettings.usageWorker)
-      ? sourceSettings.usageWorker
-      : {}
-  );
   merged.modelSync = normalizeModelSyncSettings(
     sourceSettings?.modelSync && typeof sourceSettings.modelSync === "object" && !Array.isArray(sourceSettings.modelSync)
       ? sourceSettings.modelSync
@@ -588,7 +569,6 @@ export function mergeSettingsWithDefaults(settings: any = {}) {
       ? sourceSettings.r2Config
       : {}),
   };
-  merged.cloudUsagePollingEnabled = sourceSettings?.cloudUsagePollingEnabled === true;
   merged.morph = normalizeMorphSettings(sourceSettings?.morph);
   merged.morphInstructions = {
     ...DEFAULT_MORPH_INSTRUCTIONS_SETTINGS,

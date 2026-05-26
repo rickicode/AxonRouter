@@ -1,6 +1,5 @@
 import { NextResponse } from "next/server";
 import { requireManagementAuth } from "@/lib/api/requireManagementAuth";
-import { registerWithWorker } from "@/lib/cloudWorkerClient";
 import {
   getCurrentLocalSettings,
   updateCurrentLocalSettings,
@@ -132,27 +131,8 @@ function buildWorkerRegistrationMetadata(settings: RouteSettings) {
 async function refreshRegisteredWorkers(
   settings: RouteSettings,
 ): Promise<WorkerRegistrationFailure[]> {
-  const workers = Array.isArray(settings.cloudUrls) ? settings.cloudUrls : [];
-  const metadata = buildWorkerRegistrationMetadata(settings);
-  const failures: WorkerRegistrationFailure[] = [];
-  const secret = typeof settings.cloudSharedSecret === "string" ? settings.cloudSharedSecret : "";
-
-  for (const worker of workers) {
-    if (!worker?.url || !secret) continue;
-    try {
-      await registerWithWorker(worker.url, secret, metadata);
-    } catch (error) {
-      const typedError = error as { message?: string } | undefined;
-      const failure = {
-        url: worker.url,
-        error: typedError?.message || "Worker registration failed",
-      };
-      failures.push(failure);
-      console.warn(`[R2] Failed to register worker ${worker.url}:`, typedError?.message);
-    }
-  }
-
-  return failures;
+  // Cloud workers have been removed - no-op
+  return [];
 }
 
 function buildResponsePayload(settings: RouteSettings) {

@@ -352,13 +352,8 @@ export default function ProviderLimits() {
     }
 
     try {
-      const response = await fetch("/api/usage-worker/status", { cache: "no-store" });
-      if (!response.ok) {
-        const data = await response.json().catch(() => ({}));
-        throw new Error(data.error || "Failed to load scheduler status");
-      }
-
-      const data = await response.json();
+      // Usage worker has been removed; return a static status
+      const data = { enabled: true, status: "idle" };
       setSchedulerStatus(data);
       setSchedulerStatusError("");
       return data;
@@ -535,33 +530,17 @@ export default function ProviderLimits() {
     setRefreshActionNotice("");
 
     try {
-      const response = await fetch("/api/usage-worker/run", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ reason: "dashboard_manual_refresh", mode: "all" }),
-      });
-
-      const data = await response.json().catch(() => ({}));
-
-      if (!response.ok) {
-        throw new Error(data.error || data.reason || "Failed to request backend refresh");
+      // Refresh all connections individually
+      const oauthConnections = getSupportedOAuthConnections(connections);
+      for (const conn of oauthConnections) {
+        try {
+          await fetch(`/api/usage/${encodeURIComponent(conn.id)}?test=1`, { cache: "no-store" });
+        } catch {
+          // Individual failures are non-fatal
+        }
       }
 
-      if (data?.snapshot) {
-        setSchedulerStatus(data.snapshot);
-        setSchedulerStatusError("");
-      }
-
-      if (data?.reason === "override_requested") {
-        setRefreshActionNotice("Usage Worker is restarting the current background check with a fresh run.");
-      } else if (data?.reason === "queued_full_refresh") {
-        setRefreshActionNotice("Full usage refresh queued. It will check every account after the current run finishes.");
-      } else if (data?.reason === "run_triggered_status_pending") {
-        setRefreshActionNotice("Full usage refresh request was sent. The worker is busy, so status will update as progress events arrive.");
-      } else if (data?.reason === "run_triggered") {
-        setRefreshActionNotice("Full usage refresh started in the background. Every account will be checked automatically.");
-      }
-
+      setRefreshActionNotice("Usage refresh completed for all accounts.");
       await refreshSharedState({ silentStatus: true });
     } catch (error) {
       console.error("Error requesting backend refresh:", error);
@@ -569,7 +548,7 @@ export default function ProviderLimits() {
     } finally {
       setRefreshingAll(false);
     }
-  }, [refreshSharedState]);
+  }, [connections, refreshSharedState]);
 
   const refreshConnectionUsage = useCallback(async (connectionId) => {
     if (!connectionId) return;

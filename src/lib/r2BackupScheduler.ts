@@ -1,5 +1,4 @@
 import { publishRuntimeArtifactsFromSettings } from "./r2BackupClient";
-import { syncCloudUsageEvents } from "./cloudUsageSync";
 import { getCurrentR2SchedulerSettings } from "./r2BackupSchedulerRuntime";
 
 const SCHEDULE_INTERVALS_MS = {
@@ -7,10 +6,8 @@ const SCHEDULE_INTERVALS_MS = {
   weekly: 7 * 24 * 60 * 60 * 1000,
   monthly: 30 * 24 * 60 * 60 * 1000,
 };
-const USAGE_SYNC_INTERVAL_MS = 30 * 1000;
 
 let sqliteBackupTimer = null;
-let usageBackupTimer = null;
 let currentSchedule = null;
 let initialized = false;
 
@@ -49,19 +46,6 @@ async function runSqliteBackup() {
   }
 }
 
-async function runUsageBackup() {
-  try {
-    const result = await syncCloudUsageEvents();
-    if (result.skipped) return;
-    console.log(`[CloudUsage] Pulled ${result.events} events from ${result.successes}/${result.total} workers`);
-    if (result.failures?.length) {
-      console.warn(`[CloudUsage] Pull failures:`, result.failures);
-    }
-  } catch (error) {
-    console.error(`[CloudUsage] Pull failed:`, error.message);
-  }
-}
-
 function clearSqliteTimer() {
   if (sqliteBackupTimer) {
     clearInterval(sqliteBackupTimer);
@@ -90,22 +74,14 @@ export async function startR2BackupScheduler() {
     }
   }, 2 * 60 * 1000);
 
-  // Start usage sync immediately to avoid losing worker buffer events.
-  void runUsageBackup();
-
   // Schedule periodic backups
   await scheduleSqliteBackup();
-  usageBackupTimer = setInterval(runUsageBackup, USAGE_SYNC_INTERVAL_MS);
 
   console.log("[R2Backup] Scheduler started");
 }
 
 export function stopR2BackupScheduler() {
   clearSqliteTimer();
-  if (usageBackupTimer) {
-    clearInterval(usageBackupTimer);
-    usageBackupTimer = null;
-  }
   initialized = false;
   currentSchedule = null;
   console.log("[R2Backup] Scheduler stopped");
@@ -121,8 +97,4 @@ export async function updateSqliteBackupSchedule() {
 
 export async function triggerSqliteBackupNow() {
   return runSqliteBackup();
-}
-
-export async function triggerUsageBackupNow() {
-  return runUsageBackup();
 }
