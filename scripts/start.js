@@ -11,9 +11,19 @@ import { createRequire } from "node:module";
 const require = createRequire(import.meta.url);
 const { defaultPort: DEFAULT_AXONROUTER_PORT } = require("../src/shared/constants/runtimeDefaults.json");
 
+const SERVICE_COMMAND_NAMES = new Set([
+  "install-service",
+  "uninstall-service",
+  "check-service",
+  "start",
+  "stop",
+  "restart",
+]);
+
 export function parseArgs(args) {
   const forwardArgs = [];
   let port = null;
+  let serviceCommand = null;
 
   for (let index = 0; index < args.length; index += 1) {
     const value = args[index];
@@ -34,12 +44,28 @@ export function parseArgs(args) {
       continue;
     }
 
+    // Detect service commands (positional form)
+    if (!serviceCommand && SERVICE_COMMAND_NAMES.has(value)) {
+      serviceCommand = value;
+      continue;
+    }
+
+    // Detect service commands (flag form: --install-service, --stop, etc.)
+    if (!serviceCommand && value.startsWith("--")) {
+      const flagName = value.slice(2);
+      if (SERVICE_COMMAND_NAMES.has(flagName)) {
+        serviceCommand = flagName;
+        continue;
+      }
+    }
+
     forwardArgs.push(value);
   }
 
   return {
     forwardArgs,
     port,
+    serviceCommand,
   };
 }
 
@@ -120,6 +146,13 @@ export async function main() {
 
   if (args.forwardArgs[0] === "mcp") {
     await startMcpServer(projectRoot);
+    return;
+  }
+
+  // Handle service management commands before any server startup logic
+  if (args.serviceCommand) {
+    const { handleServiceCommand } = await import("./service.js");
+    handleServiceCommand(args.serviceCommand);
     return;
   }
 

@@ -39,7 +39,7 @@ function setOutputTimes(projectRoot, atTime) {
 describe("start script helpers", () => {
   it("preserves forwarded CLI args for the server process", () => {
     expect(parseArgs(["--hostname", "0.0.0.0", "--keepAliveTimeout", "60000"]))
-      .toEqual({ forwardArgs: ["--hostname", "0.0.0.0", "--keepAliveTimeout", "60000"], port: null });
+      .toEqual({ forwardArgs: ["--hostname", "0.0.0.0", "--keepAliveTimeout", "60000"], port: null, serviceCommand: null });
   });
 
   it("resolves the local Next CLI for direct node start execution", () => {

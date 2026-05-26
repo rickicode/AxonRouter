@@ -15,6 +15,7 @@
     "!src/package.json",
     "!src/package-lock.json",
     "scripts/start.js",
+    "scripts/service.js",
     "scripts/ensure-middleware-manifest.js",
     "scripts/mcp-stdio.js",
     "README.md",
