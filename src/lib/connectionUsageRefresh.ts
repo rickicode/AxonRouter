@@ -974,7 +974,6 @@ export async function refreshConnectionUsage(
 												return {
 													routingStatus: "eligible",
 													lastCheckedAt,
-													nextRetryAt: new Date(Date.now() + 10_000).toISOString(),
 													...getOperationalUsageSnapshot(
 														connection,
 														"Usage check temporarily unavailable",

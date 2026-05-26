@@ -728,24 +728,27 @@ export async function markAccountUnavailable(
 			normalizedReason.includes("etimedout") ||
 			normalizedReason.includes("econnreset") ||
 			normalizedReason.includes("socket hang up"));
+	const isCurrentlyEligible = !conn?.routingStatus || conn.routingStatus === "eligible";
 	const transientUpstreamPatch =
 		!authBlockedPatch &&
 		!isRuntimeQuotaOrRateLimited &&
 		(isTransientTimeout || isNetworkTransient502)
-			? {
-					healthStatus: "degraded",
-					quotaState: "ok",
-					authState: "ok",
-					reasonCode: isTransientTimeout
-						? "upstream_timeout"
-						: "transient_upstream_error",
-					reasonDetail: isTransientTimeout
-						? "Provider temporarily timed out"
-						: "Provider temporarily unavailable",
-					nextRetryAt: transientRetryAt,
-					resetAt: null,
-					lastCheckedAt,
-				}
+			? (isCurrentlyEligible
+				? { lastCheckedAt }
+				: {
+						healthStatus: "degraded",
+						quotaState: "ok",
+						authState: "ok",
+						reasonCode: isTransientTimeout
+							? "upstream_timeout"
+							: "transient_upstream_error",
+						reasonDetail: isTransientTimeout
+							? "Provider temporarily timed out"
+							: "Provider temporarily unavailable",
+						nextRetryAt: transientRetryAt,
+						resetAt: null,
+						lastCheckedAt,
+					})
 			: null;
 
 	const exhaustedRetryAt = liveQuotaSignal?.resetAt || null;
@@ -760,11 +763,13 @@ export async function markAccountUnavailable(
 		!normalizedReason.includes("quota") &&
 		(!liveQuotaSignal || !exhaustedRetryAt);
 	const transientRateLimitPatch = isTransientRateLimit
-		? {
-				nextRetryAt: transientRetryAt,
-				resetAt: null,
-				lastCheckedAt,
-			}
+		? (isCurrentlyEligible
+			? { lastCheckedAt }
+			: {
+					nextRetryAt: transientRetryAt,
+					resetAt: null,
+					lastCheckedAt,
+				})
 		: null;
 
 	const exhaustedPatch =
@@ -784,35 +789,15 @@ export async function markAccountUnavailable(
 					}
 			: null;
 
-	// Kiro/Amazon Q/Codex generic 5xx processing errors are often transient upstream
-	// incidents. Keep the account eligible and rely on the short model lock so a
-	// manual connection test is not required to recover the account.
+	// ALL 5xx processing errors from any provider are treated as transient.
+	// The model lock provides short-term cooldown; manual connection test can verify health.
 	const isKiroProvider = providerId === "kiro" || providerId === "amazon-q";
-	const isCodexProvider = providerId === "codex";
-	const isTransientProcessingProvider = isKiroProvider || isCodexProvider;
 	const isProviderTransientProcessingError =
-		isTransientProcessingProvider &&
-		(isUpstreamProcessingError(status, rawError || reason) ||
-			(Number(status) >= 500 && Number(status) <= 599));
+		isUpstreamProcessingError(status, rawError || reason) ||
+		(Number(status) >= 500 && Number(status) <= 599);
 
-	// Generic 5xx processing errors from other providers (not Kiro/Codex) often
-	// indicate persistent upstream issues. Block routing until recovery.
-	const healthBlockedPatch =
-		!authBlockedPatch &&
-		!transientUpstreamPatch &&
-		!exhaustedPatch &&
-		!isProviderTransientProcessingError &&
-		isUpstreamProcessingError(status, rawError || reason)
-			? {
-					routingStatus: "blocked",
-					healthStatus: "unhealthy",
-					quotaState: "ok",
-					authState: "ok",
-					reasonCode: "upstream_unhealthy",
-					reasonDetail: reason,
-					lastCheckedAt,
-				}
-			: null;
+	// healthBlockedPatch removed: all 5xx are now transient for all providers.
+	// The model lock provides cooldown; connection test handles manual recovery.
 
 	if (liveQuotaSignal) {
 		await applyLiveQuotaUpdate(conn, liveQuotaSignal);
@@ -821,8 +806,7 @@ export async function markAccountUnavailable(
 	let canonicalBlockedPatch =
 		authBlockedPatch ||
 		transientUpstreamPatch ||
-		exhaustedPatch ||
-		healthBlockedPatch;
+		exhaustedPatch;
 	const kiroRetestResult =
 		isKiroProvider && isProviderTransientProcessingError
 			? await runConnectionTestIfAvailable(connectionId)
@@ -833,7 +817,8 @@ export async function markAccountUnavailable(
 		canonicalBlockedPatch = null;
 	}
 
-	if (canonicalBlockedPatch && !liveQuotaSignal) {
+	const skipTransientSync = canonicalBlockedPatch === transientUpstreamPatch && isCurrentlyEligible;
+	if (canonicalBlockedPatch && !liveQuotaSignal && !skipTransientSync) {
 		await syncUsageStatus(
 			{
 				id: connectionId,

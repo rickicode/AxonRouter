@@ -228,7 +228,7 @@ describe("Amazon Q integration follow-ups", () => {
 					provider: "openai",
 				}),
 				expect.objectContaining({
-					nextRetryAt: expect.any(String),
+					lastCheckedAt: expect.any(String),
 				}),
 			);
 	});

@@ -1,0 +1,32 @@
+{
+  "id": "FEAT-001",
+  "type": "fix",
+  "description": "Enforce clean eligible invariant for ALL providers: transientUpstreamPatch, transientRateLimitPatch, syncUsageStatus skip, expand isProviderTransientProcessingError to all providers, and remove nextRetryAt from connectionUsageRefresh eligible path",
+  "status": "in_progress",
+  "steps": [
+    "Step 1 - transientUpstreamPatch in src/sse/services/auth.tsx (around line 731): When the transientUpstreamPatch is being built AND conn?.routingStatus === 'eligible' (or null/undefined which defaults to eligible), replace the dirty fields with ONLY { lastCheckedAt }. The model lock (lockUpdate) already provides cooldown. If the connection is NOT currently eligible, keep the existing patch as-is. Change the ternary to check conn?.routingStatus: if eligible, produce { lastCheckedAt } only; otherwise keep the full degraded patch.",
+    "Step 2 - transientRateLimitPatch in src/sse/services/auth.tsx (around line 761): Same pattern. When conn?.routingStatus === 'eligible' (or null/undefined), the transientRateLimitPatch should be { lastCheckedAt } only (no nextRetryAt). The model lock handles cooldown. If not eligible, keep { nextRetryAt: transientRetryAt, resetAt: null, lastCheckedAt }.",
+    "Step 3 - Expand isProviderTransientProcessingError to ALL providers in src/sse/services/auth.tsx (around line 790): Remove the Kiro/Codex-only restriction. Change: remove the `isTransientProcessingProvider` guard so that ALL providers with 5xx status (500-599) or isUpstreamProcessingError are treated as transient. This means: `const isProviderTransientProcessingError = isUpstreamProcessingError(status, rawError || reason) || (Number(status) >= 500 && Number(status) <= 599);` Remove the isKiroProvider, isCodexProvider, isTransientProcessingProvider variables since they're no longer needed for this check. KEEP isKiroProvider for the kiroRetestResult logic (line ~827).",
+    "Step 4 - healthBlockedPatch removal in src/sse/services/auth.tsx: Since ALL providers now get isProviderTransientProcessingError=true for 5xx, the healthBlockedPatch will NEVER fire (its condition requires !isProviderTransientProcessingError). Remove the healthBlockedPatch variable entirely and replace references to it with null. In the canonicalBlockedPatch assignment, remove healthBlockedPatch from the chain.",
+    "Step 5 - Skip syncUsageStatus when canonical patch is transientUpstreamPatch AND conn is eligible in src/sse/services/auth.tsx (around line 835): Add a condition: if canonicalBlockedPatch === transientUpstreamPatch (they share the same reference) AND conn?.routingStatus === 'eligible', skip the syncUsageStatus call. The resulting condition should be: `if (canonicalBlockedPatch && !liveQuotaSignal && !(canonicalBlockedPatch === transientUpstreamPatch && isCurrentlyEligible))`. Define isCurrentlyEligible early: `const isCurrentlyEligible = !conn?.routingStatus || conn.routingStatus === 'eligible';`",
+    "Step 6 - connectionUsageRefresh.ts eligible path (around line 973): Remove nextRetryAt from the eligible 502/504 branch. Change from `{ routingStatus: 'eligible', lastCheckedAt, nextRetryAt: new Date(Date.now() + 10_000).toISOString(), ...getOperationalUsageSnapshot(...) }` to `{ routingStatus: 'eligible', lastCheckedAt, ...getOperationalUsageSnapshot(...) }`. The usage scheduler has its own retry timing.",
+    "Step 7 - Update tests in tests/unit/status-handling-transient-auth.test.ts: Update the test 'non-transient status (e.g. 500 from non-kiro/codex provider) still produces blocked' - this test should now expect eligible (or at minimum NOT blocked) because all 5xx are now transient. Add a new test case for openrouter/antigravity/gemini-cli providers hitting 500 and confirm they get eligible (not blocked). Add a test confirming transientUpstreamPatch does NOT write dirty fields when conn is eligible.",
+    "Step 8 - Run typecheck: export PATH=/root/.local/share/mise/installs/bun/1.2.14/bin:$PATH && bun x tsc --noEmit",
+    "Step 9 - Run tests: export PATH=/root/.local/share/mise/installs/bun/1.2.14/bin:$PATH && bun x vitest run --reporter=verbose --root tests -- tests/unit/status-handling-transient-auth.test.ts"
+  ],
+  "acceptance_criteria": [
+    "tsc --noEmit passes with zero errors",
+    "All tests in status-handling-transient-auth.test.ts pass",
+    "When conn.routingStatus is 'eligible' and a transient timeout/502 occurs, the patch written to the connection does NOT contain healthStatus:'degraded', reasonCode, reasonDetail, or nextRetryAt (only lastCheckedAt + model lock fields)",
+    "When conn.routingStatus is 'eligible' and a transient rate limit (429) occurs, the patch does NOT contain nextRetryAt (only lastCheckedAt + model lock)",
+    "For ALL providers (openrouter, antigravity, gemini-cli, github, openai, etc.), a 5xx error results in the connection staying 'eligible' with model lock cooldown - NOT 'blocked'",
+    "The connectionUsageRefresh.ts eligible 502/504 path does NOT set nextRetryAt",
+    "syncUsageStatus is NOT called when the canonical patch is transientUpstreamPatch and connection is currently eligible"
+  ],
+  "verification": [
+    "export PATH=/root/.local/share/mise/installs/bun/1.2.14/bin:$PATH && bun x tsc --noEmit",
+    "export PATH=/root/.local/share/mise/installs/bun/1.2.14/bin:$PATH && bun x vitest run --reporter=verbose --root tests -- tests/unit/status-handling-transient-auth.test.ts"
+  ],
+  "blocked_reason": null,
+  "findings": ""
+}

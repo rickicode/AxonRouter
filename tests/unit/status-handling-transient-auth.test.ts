@@ -288,7 +288,7 @@ describe("markAccountUnavailable does not produce 'blocked' for transient status
 		expect(patchArg.routingStatus).toBe("eligible");
 	});
 
-	it("non-transient status (e.g. 500 from non-kiro/codex provider) still produces 'blocked'", async () => {
+	it("status 500 from any provider (e.g. openai) now stays eligible because all 5xx are transient", async () => {
 		mockConnections.push({
 			id: "conn-500-test",
 			provider: "openai",
@@ -301,7 +301,7 @@ describe("markAccountUnavailable does not produce 'blocked' for transient status
 			backoffLevel: 0,
 		});
 
-		isUpstreamProcessingError.mockReturnValue(false);
+		isUpstreamProcessingError.mockReturnValue(true);
 
 		const { markAccountUnavailable } = await import(
 			"../../src/sse/services/auth.tsx"
@@ -317,8 +317,103 @@ describe("markAccountUnavailable does not produce 'blocked' for transient status
 
 		expect(updateCurrentProviderConnection).toHaveBeenCalledTimes(1);
 		const patchArg = updateCurrentProviderConnection.mock.calls[0][1];
-		expect(patchArg.routingStatus).toBe("blocked");
-		expect(patchArg.reasonCode).toBe("usage_request_failed");
+		expect(patchArg.routingStatus).toBe("eligible");
+	});
+
+	it("openrouter provider with 500 stays eligible", async () => {
+		mockConnections.push({
+			id: "conn-500-openrouter",
+			provider: "openrouter",
+			isActive: true,
+			priority: 1,
+			displayName: "Test OpenRouter 500",
+			accessToken: "token",
+			routingStatus: "eligible",
+			authState: "ok",
+			backoffLevel: 0,
+		});
+
+		isUpstreamProcessingError.mockReturnValue(true);
+
+		const { markAccountUnavailable } = await import(
+			"../../src/sse/services/auth.tsx"
+		);
+
+		await markAccountUnavailable(
+			"conn-500-openrouter",
+			500,
+			"Internal server error",
+			"openrouter",
+			"gpt-4",
+		);
+
+		expect(updateCurrentProviderConnection).toHaveBeenCalledTimes(1);
+		const patchArg = updateCurrentProviderConnection.mock.calls[0][1];
+		expect(patchArg.routingStatus).toBe("eligible");
+	});
+
+	it("antigravity provider with 500 stays eligible", async () => {
+		mockConnections.push({
+			id: "conn-500-antigravity",
+			provider: "antigravity",
+			isActive: true,
+			priority: 1,
+			displayName: "Test Antigravity 500",
+			accessToken: "token",
+			routingStatus: "eligible",
+			authState: "ok",
+			backoffLevel: 0,
+		});
+
+		isUpstreamProcessingError.mockReturnValue(true);
+
+		const { markAccountUnavailable } = await import(
+			"../../src/sse/services/auth.tsx"
+		);
+
+		await markAccountUnavailable(
+			"conn-500-antigravity",
+			500,
+			"Internal server error",
+			"antigravity",
+			"gpt-4",
+		);
+
+		expect(updateCurrentProviderConnection).toHaveBeenCalledTimes(1);
+		const patchArg = updateCurrentProviderConnection.mock.calls[0][1];
+		expect(patchArg.routingStatus).toBe("eligible");
+	});
+
+	it("gemini-cli provider with 500 stays eligible", async () => {
+		mockConnections.push({
+			id: "conn-500-gemini",
+			provider: "gemini-cli",
+			isActive: true,
+			priority: 1,
+			displayName: "Test Gemini CLI 500",
+			accessToken: "token",
+			routingStatus: "eligible",
+			authState: "ok",
+			backoffLevel: 0,
+		});
+
+		isUpstreamProcessingError.mockReturnValue(true);
+
+		const { markAccountUnavailable } = await import(
+			"../../src/sse/services/auth.tsx"
+		);
+
+		await markAccountUnavailable(
+			"conn-500-gemini",
+			500,
+			"Internal server error",
+			"gemini-cli",
+			"gpt-4",
+		);
+
+		expect(updateCurrentProviderConnection).toHaveBeenCalledTimes(1);
+		const patchArg = updateCurrentProviderConnection.mock.calls[0][1];
+		expect(patchArg.routingStatus).toBe("eligible");
 	});
 });
 
@@ -364,5 +459,70 @@ describe("markAccountUnavailable enforces clean eligible invariant for transient
 		if (patchArg.routingStatus !== undefined) {
 			expect(patchArg.routingStatus).toBe("eligible");
 		}
+	});
+
+	it("transientUpstreamPatch does NOT write dirty fields when conn is eligible", async () => {
+		mockConnections.push({
+			id: "conn-502-dirty-check",
+			provider: "openai",
+			isActive: true,
+			priority: 1,
+			displayName: "Test Dirty Fields Check",
+			accessToken: "token",
+			routingStatus: "eligible",
+			authState: "ok",
+			backoffLevel: 0,
+		});
+
+		isTransientUpstreamTimeoutError.mockReturnValue(true);
+
+		const { markAccountUnavailable } = await import(
+			"../../src/sse/services/auth.tsx"
+		);
+
+		await markAccountUnavailable(
+			"conn-502-dirty-check",
+			502,
+			"phase=direct etimedout",
+			"openai",
+			"gpt-4",
+		);
+
+		expect(updateCurrentProviderConnection).toHaveBeenCalledTimes(1);
+		const patchArg = updateCurrentProviderConnection.mock.calls[0][1];
+
+		// Dirty fields must NOT be present
+		expect(patchArg.healthStatus).toBeUndefined();
+		expect(patchArg.reasonCode).toBeUndefined();
+		expect(patchArg.reasonDetail).toBeUndefined();
+		expect(patchArg.nextRetryAt).toBeUndefined();
+	});
+
+	it("syncUsageStatus is NOT called when transient upstream + conn is eligible", async () => {
+		mockConnections.push({
+			id: "conn-502-sync-skip",
+			provider: "openai",
+			isActive: true,
+			priority: 1,
+			displayName: "Test Sync Skip",
+			accessToken: "token",
+			routingStatus: "eligible",
+			authState: "ok",
+			backoffLevel: 0,
+		});
+
+		const { markAccountUnavailable } = await import(
+			"../../src/sse/services/auth.tsx"
+		);
+
+		await markAccountUnavailable(
+			"conn-502-sync-skip",
+			502,
+			"phase=direct etimedout",
+			"openai",
+			"gpt-4",
+		);
+
+		expect(syncUsageStatus).not.toHaveBeenCalled();
 	});
 });
