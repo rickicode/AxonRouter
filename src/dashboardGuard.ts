@@ -27,7 +27,6 @@ const PROTECTED_API_PATHS = [
 	"/api/provider-nodes",
 	"/api/proxy-pools",
 	"/api/credentials",
-	"/api/r2",
 	"/api/combos",
 	"/api/model-combo-mappings",
 	"/api/models",

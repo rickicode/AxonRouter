@@ -413,7 +413,6 @@ export async function dbHealthCheck(autoRepair = false) {
 		requestDetails: buildSqliteFileStatus(requestDetailsDbFile),
 		settingsDb: {
 			status: "ok",
-			cloudEnabled: settings?.cloudEnabled === true,
 		},
 		mcpHeartbeat: {
 			status: heartbeat

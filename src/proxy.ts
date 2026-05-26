@@ -13,7 +13,6 @@ export const config = {
     "/api/provider-nodes/:path*",
     "/api/proxy-pools/:path*",
     "/api/credentials/:path*",
-    "/api/r2/:path*",
     "/api/combos/:path*",
     "/api/model-combo-mappings/:path*",
     "/api/models/:path*",

@@ -145,16 +145,16 @@ export async function runUsageRefreshJob(
 	return instrumentUsageRefresh(
 		"queue.enqueue",
 		{
-			"usage_worker.connection_id": connectionId,
-			"usage_worker.queue_depth": MEMORY_STATE.queue.length,
-			"usage_worker.active_count": MEMORY_STATE.activeCount,
+			"usage_refresh.connection_id": connectionId,
+			"usage_refresh.queue_depth": MEMORY_STATE.queue.length,
+			"usage_refresh.active_count": MEMORY_STATE.activeCount,
 		},
 		() =>
 			withMemoryQueue(connectionId, () =>
 				instrumentUsageRefresh(
 					"queue.execute",
 					{
-						"usage_worker.connection_id": connectionId,
+						"usage_refresh.connection_id": connectionId,
 					},
 					handler,
 				),
@@ -177,7 +177,7 @@ export async function runDedupedUsageRefreshJob(
 		return instrumentUsageRefresh(
 			"queue.dedupe_hit",
 			{
-				"usage_worker.connection_id": connectionId,
+				"usage_refresh.connection_id": connectionId,
 			},
 			() => cached,
 		);

@@ -507,9 +507,9 @@ export async function refreshConnectionUsage(
 	return instrumentUsageRefresh(
 		"connection_usage_refresh",
 		{
-			"usage_worker.connection_id": String(connectionId || ""),
-			"usage_worker.run_connection_test": options?.runConnectionTest === true,
-			"usage_worker.skip_transient_connectivity_errors":
+			"usage_refresh.connection_id": String(connectionId || ""),
+			"usage_refresh.run_connection_test": options?.runConnectionTest === true,
+			"usage_refresh.skip_transient_connectivity_errors":
 				options?.skipTransientConnectivityErrors === true,
 		},
 		async () => {

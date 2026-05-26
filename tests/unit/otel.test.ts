@@ -118,10 +118,10 @@ describe("OpenTelemetry instrumentation", () => {
     const { instrumentRequest } = await import("../../src/lib/observability/otel.ts");
 
     const response = await instrumentRequest(
-      new Request("http://localhost/api/usage-worker/status", { method: "GET" }),
+      new Request("http://localhost/api/usage/refresh-status", { method: "GET" }),
       "status",
       async () => new Response(null, { status: 204 }),
-      { routePrefix: "/api/usage-worker" },
+      { routePrefix: "/api/usage" },
     );
 
     expect(response.status).toBe(204);

@@ -869,49 +869,6 @@ flowchart LR
 - Uses `x-relay-target` + `x-relay-path` headers, restricts forwarding to `https://` targets, and supports optional host allowlists
 - Intended for Proxy Pools relay deployments rather than as the primary app runtime
 
-### Cloud Worker Infrastructure
-
-Cloudflare Worker deployment (`cloud/` directory) with edge routing and Morph bridge:
-
-- `cloud/src/index.js`: main worker entry point with route dispatch
-- `cloud/src/morphBridge.js`: Morph capability bridge (apply/warpgrep/compact/embeddings/rerank)
-
-Worker handlers:
-- `admin.js`: admin operations (register/unregister/sync/status/reload)
-- `cache.js`: cache management
-- `chat.ts`: chat completions handler
-- `cleanup.js`: cleanup and resource management
-- `countTokens.js`: token counting
-- `embeddings.ts`: embeddings handler
-- `forward.js` + `forwardRaw.js`: request forwarding
-- `health.js`: health checks
-- `sync.js`: sync from main instance
-- `testClaude.js`: Claude test endpoint
-- `usage.ts`: usage reporting
-- `verify.js`: worker verification
-
-Worker services:
-- `adminLogs.js`: admin log management
-- `landingPage.js`: landing page for unregistered workers
-- `routing.js`: request routing logic
-- `runtimeConfig.ts`: runtime configuration
-- `state.ts`: worker state management
-- `storage.js`: Durable Objects storage
-- `tokenRefresh.ts`: token refresh
-- `usage.ts`: usage aggregation
-
-Worker utilities:
-- `apiKey.ts`: API key validation
-- `logger.js`: worker logging
-- `secret.js`: secret management
-
-Worker stubs (replacements for local-only modules):
-- `codexInstructionsResolver.ts`: Codex instructions stub
-- `undici.js`: HTTP client stub
-- `usageDb.js`: worker-side usage DB stub
-
-Deployed as remote nodes managed by `cloud-urls` API. Wrangler configuration in `wrangler.toml`.
-
 ### MITM Proxy System (`src/mitm/`)
 
 Transparent HTTPS interception proxy for provider credential capture:

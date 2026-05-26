@@ -13,8 +13,6 @@ import ProviderIcon from "@/shared/components/ProviderIcon";
 import EndpointPresetControl from "./EndpointPresetControl";
 import { useInvalidate } from "@/shared/query";
 
-// `cloudUrl` is now removed - cloud worker system has been removed.
-
 export default function ClaudeToolCard({
   tool,
   isExpanded,
