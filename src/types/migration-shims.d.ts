@@ -22,8 +22,3 @@ declare module "node-forge" {
   const forge: any;
   export default forge;
 }
-
-declare module "node-machine-id" {
-  export const machineIdSync: any;
-  export const machineId: any;
-}

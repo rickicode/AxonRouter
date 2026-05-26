@@ -1,7 +1,7 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   output: "standalone",
-  serverExternalPackages: ["better-sqlite3", "node-machine-id"],
+  serverExternalPackages: ["better-sqlite3"],
   // Allow HMR/dev assets when the app is opened via localhost or 127.0.0.1 on alternate local ports.
   allowedDevOrigins: ["127.0.0.1", "localhost"],
   images: {

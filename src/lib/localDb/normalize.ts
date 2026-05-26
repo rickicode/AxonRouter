@@ -1,4 +1,3 @@
-import { normalizeUsageWorkerSettings } from "../usageWorker/config";
 import { DEFAULT_MODEL_SYNC_SETTINGS, normalizeModelSyncSettings } from "../providerModels/syncSettings";
 import { normalizeCodexProviderSpecificData } from "../oauth/codexAccount";
 import { normalizeRoutingStrategy as normalizeComboStrategyValue } from "../../shared/constants/routingStrategies";
@@ -571,11 +570,14 @@ export function mergeSettingsWithDefaults(settings: any = {}) {
     sourceSettings?.quotaExhaustedThresholdPercent
   );
 
-  merged.usageWorker = normalizeUsageWorkerSettings(
-    sourceSettings?.usageWorker && typeof sourceSettings.usageWorker === "object" && !Array.isArray(sourceSettings.usageWorker)
+  merged.usageWorker = {
+    enabled: true,
+    intervalMinutes: 60,
+    cadenceMs: 3600000,
+    ...(sourceSettings?.usageWorker && typeof sourceSettings.usageWorker === "object" && !Array.isArray(sourceSettings.usageWorker)
       ? sourceSettings.usageWorker
-      : {}
-  );
+      : {}),
+  };
   merged.modelSync = normalizeModelSyncSettings(
     sourceSettings?.modelSync && typeof sourceSettings.modelSync === "object" && !Array.isArray(sourceSettings.modelSync)
       ? sourceSettings.modelSync

@@ -4,7 +4,6 @@ import PropTypes from "prop-types";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { useUrlQueryControls } from "@/shared/hooks";
 import MainTab from "./components/MainTab";
-import CloudTab from "./components/CloudTab";
 import ProtocolsTab from "./components/ProtocolsTab";
 
 export default function EndpointPageClient({ machineId }) {
@@ -13,7 +12,7 @@ export default function EndpointPageClient({ machineId }) {
   });
 
   const tabFromUrl = getQueryValue("tab", "");
-  const activeTab = ["cloud", "protocols"].includes(tabFromUrl) ? tabFromUrl : "main";
+  const activeTab = ["protocols"].includes(tabFromUrl) ? tabFromUrl : "main";
 
   const handleTabChange = (value) => {
     if (value === activeTab) return;
@@ -27,13 +26,12 @@ export default function EndpointPageClient({ machineId }) {
           <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-[var(--color-text-subtle)]">Endpoint control</p>
           <h2 className="mt-1 text-2xl font-extrabold tracking-[-0.03em] text-[var(--color-text-main)]">Gateway access and protocol surfaces</h2>
           <p className="mt-2 max-w-3xl text-sm leading-6 text-[var(--color-text-muted)]">
-            Manage local API keys, remote access, cloud routing, and protocol interoperability without leaving the AxonRouter dashboard shell.
+            Manage local API keys, remote access, and protocol interoperability without leaving the AxonRouter dashboard shell.
           </p>
         </div>
         <ToggleGroup type="single" value={activeTab} onValueChange={(next) => next && handleTabChange(next)} aria-label="Endpoint sections">
           {[
             { value: "main", label: "Main" },
-            { value: "cloud", label: "Cloud" },
             { value: "protocols", label: "Protocols" },
           ].map((item) => (
             <ToggleGroupItem key={item.value} value={item.value} className="min-w-20">
@@ -44,7 +42,6 @@ export default function EndpointPageClient({ machineId }) {
       </div>
 
       {activeTab === "main" && <MainTab machineId={machineId} />}
-      {activeTab === "cloud" && <CloudTab />}
       {activeTab === "protocols" && <ProtocolsTab />}
     </div>
   );

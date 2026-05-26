@@ -29,8 +29,7 @@ export function isTunnelReconnecting() {
 
 function getMachineId() {
   try {
-    const { machineIdSync } = require("node-machine-id");
-    const raw = machineIdSync();
+    const raw = require("os").hostname();
     return crypto.createHash("sha256").update(raw + MACHINE_ID_SALT).digest("hex").substring(0, 16);
   } catch {
     return crypto.randomUUID().replace(/-/g, "").substring(0, 16);

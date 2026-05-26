@@ -26,11 +26,6 @@ export async function getCurrentProviderConnections(filters?: Record<string, unk
   return getProviderConnections(filters);
 }
 
-export async function isCurrentCloudEnabled() {
-  const { isCloudEnabled } = await loadLocalDb();
-  return isCloudEnabled();
-}
-
 export async function getDefaultCurrentChatRuntimeSettings() {
   const { getDefaultChatRuntimeSettings } = await loadLocalDb();
   return getDefaultChatRuntimeSettings();

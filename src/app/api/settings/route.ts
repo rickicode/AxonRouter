@@ -6,12 +6,10 @@ import { applyOutboundProxyEnv } from "@/lib/network/outboundProxy";
 import {
   getCurrentSettings,
   getDefaultCurrentChatRuntimeSettings,
-  isCurrentCloudEnabled,
   normalizeCurrentChatRuntimeSettings,
   normalizeCurrentMorphSettings,
   updateCurrentSettings,
 } from "@/lib/settingsAccess";
-import { getUsageWorkerClient } from "@/lib/usageWorker/client";
 import { buildMorphKeyStatusPatch } from "@/app/api/morph/test-key/shared";
 import { MORPH_CORE_INTERNAL_MODELS } from "@/shared/constants/models";
 import bcrypt from "bcryptjs";
@@ -335,32 +333,13 @@ export async function PATCH(request: Request) {
 
     const settings = await updateCurrentSettings(updates);
 
-    // Trigger immediate cloud sync if cloud is enabled
-    const { syncToCloud } = await import("@/lib/cloudSync");
-
-    if (await isCurrentCloudEnabled()) {
-      try {
-        await syncToCloud();
-        console.error("[API] Settings synced to cloud worker");
-      } catch (error) {
-        const syncError: any = error;
-        console.error("[API] Failed to sync settings to cloud:", syncError?.message);
-        // Don't fail the request, sync will retry on schedule
-      }
-    }
-
     const shouldRefreshUsageWorker = (
       Object.prototype.hasOwnProperty.call(body, "usageWorker")
       || Object.prototype.hasOwnProperty.call(body, "quotaExhaustedThresholdPercent")
     );
 
     if (shouldRefreshUsageWorker) {
-      try {
-        await getUsageWorkerClient().getStatus();
-      } catch (error) {
-        const workerError: any = error;
-        console.warn("[Settings] Failed to notify usage worker:", workerError?.message);
-      }
+      // Usage worker process removed - settings are applied on next refresh cycle
     }
 
     // Apply outbound proxy settings immediately (no restart required)
