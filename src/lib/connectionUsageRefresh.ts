@@ -972,6 +972,11 @@ export async function refreshConnectionUsage(
 								}
 							: {
 									routingStatus: preservedStatus,
+									healthStatus: "degraded",
+									quotaState: connection?.quotaState || "ok",
+									authState: connection?.authState || "ok",
+									reasonCode: "transient_upstream_error",
+									reasonDetail: "Usage API rate limited",
 									lastCheckedAt,
 									...getOperationalUsageSnapshot(connection, "Usage API rate limited", { checkedAt: lastCheckedAt }),
 								};
@@ -1004,6 +1009,7 @@ export async function refreshConnectionUsage(
 							reasonCode: "usage_request_failed",
 							reasonDetail: "Usage check failed",
 							lastCheckedAt,
+							nextRetryAt: null,
 							...getOperationalUsageSnapshot(connection, "Usage check failed.", { checkedAt: lastCheckedAt }),
 						};
 					}
