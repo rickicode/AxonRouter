@@ -12,7 +12,7 @@ import EndpointPresetControl from "./EndpointPresetControl";
 import { useInvalidate } from "@/shared/query";
 import { useMutation } from "@tanstack/react-query";
 
-export default function CodexToolCard({ tool, isExpanded, onToggle, baseUrl, apiKeys, activeProviders, cloudEnabled, initialStatus }) {
+export default function CodexToolCard({ tool, isExpanded, onToggle, baseUrl, apiKeys, activeProviders, initialStatus }) {
   const inv = useInvalidate();
   const [codexStatus, setCodexStatus] = useState(initialStatus || null);
   const [checkingCodex, setCheckingCodex] = useState(false);
@@ -120,7 +120,7 @@ export default function CodexToolCard({ tool, isExpanded, onToggle, baseUrl, api
     mutationFn: async () => {
       const keyToUse = effectiveSelectedApiKey?.trim()
         ? effectiveSelectedApiKey
-        : (!cloudEnabled ? "sk_axonrouter" : effectiveSelectedApiKey);
+        : "sk_axonrouter";
       const res = await fetch("/api/cli-tools/codex-settings", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -187,7 +187,7 @@ export default function CodexToolCard({ tool, isExpanded, onToggle, baseUrl, api
   const getManualConfigs = () => {
     const keyToUse = effectiveSelectedApiKey?.trim()
       ? effectiveSelectedApiKey
-      : (!cloudEnabled ? "sk_axonrouter" : "<API_KEY_FROM_DASHBOARD>");
+      : "sk_axonrouter";
     
     const effectiveSubagentModel = subagentModel || selectedModel;
     
@@ -345,7 +345,7 @@ model = "${effectiveSubagentModel}"
                     </select>
                   ) : (
                     <span className="flex-1 text-xs text-text-muted px-2 py-1.5">
-                      {cloudEnabled ? "No API keys - Create one in Keys page" : "sk_axonrouter (default)"}
+                      {"sk_axonrouter (default)"}
                     </span>
                   )}
                 </div>
@@ -397,7 +397,7 @@ model = "${effectiveSubagentModel}"
               )}
 
               <div className="flex items-center gap-2">
-                <Button variant="default" size="sm" onClick={handleApplySettings} disabled={(!selectedApiKey && (cloudEnabled && apiKeys.length > 0)) || !selectedModel || applyMutation.isPending}>
+                <Button variant="default" size="sm" onClick={handleApplySettings} disabled={!selectedModel || applyMutation.isPending}>
                   {applyMutation.isPending ? <Spinner data-icon="inline-start" /> : <AppIcon name="save" data-icon="inline-start" />}
                   Apply
                 </Button>

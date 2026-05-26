@@ -413,7 +413,6 @@ export async function dbHealthCheck(autoRepair = false) {
 		requestDetails: buildSqliteFileStatus(requestDetailsDbFile),
 		settingsDb: {
 			status: "ok",
-			cloudEnabled: settings?.cloudEnabled === true,
 		},
 		mcpHeartbeat: {
 			status: heartbeat
@@ -501,13 +500,6 @@ export async function proxyRotate(proxyPoolId) {
 		rotatedTo: pool.id,
 		note: "Rotation currently resolves the selected pool deterministically. Stateful pool cycling can be added later.",
 	};
-}
-
-export async function usageWorkerStatus(origin) {
-	const res = await fetch(`${origin}/api/usage-worker/status`, {
-		cache: "no-store",
-	});
-	return res.json();
 }
 
 export async function sessionSnapshot(id) {

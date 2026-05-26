@@ -11,7 +11,7 @@ import ProviderIcon from "@/shared/components/ProviderIcon";
 import { useMutation } from "@tanstack/react-query";
 import { useInvalidate } from "@/shared/query";
 
-export default function PiToolCard({ tool, isExpanded, onToggle, baseUrl, apiKeys, activeProviders, cloudEnabled, initialStatus }) {
+export default function PiToolCard({ tool, isExpanded, onToggle, baseUrl, apiKeys, activeProviders, initialStatus }) {
   const inv = useInvalidate();
   const [status, setStatus] = useState(initialStatus || null);
   const [checking, setChecking] = useState(false);
@@ -116,7 +116,7 @@ export default function PiToolCard({ tool, isExpanded, onToggle, baseUrl, apiKey
     mutationFn: async () => {
       const keyToUse = effectiveSelectedApiKey?.trim()
         ? effectiveSelectedApiKey
-        : (!cloudEnabled ? "sk_axonrouter" : effectiveSelectedApiKey);
+        : "sk_axonrouter";
 
       const res = await fetch("/api/cli-tools/pi-settings", {
         method: "POST",
@@ -187,7 +187,7 @@ export default function PiToolCard({ tool, isExpanded, onToggle, baseUrl, apiKey
   const getManualConfigs = () => {
     const keyToUse = effectiveSelectedApiKey?.trim()
       ? effectiveSelectedApiKey
-      : (!cloudEnabled ? "sk_axonrouter" : "<API_KEY_FROM_DASHBOARD>");
+      : "sk_axonrouter";
 
     const modelsToShow = selectedModels.length > 0 ? selectedModels : ["provider/model-id"];
     const modelsArray = modelsToShow.map(m => ({ id: m }));
@@ -312,7 +312,7 @@ export default function PiToolCard({ tool, isExpanded, onToggle, baseUrl, apiKey
                     </select>
                   ) : (
                     <span className="flex-1 text-xs text-text-muted px-2 py-1.5">
-                      {cloudEnabled ? "No API keys - Create one in Keys page" : "sk_axonrouter (default)"}
+                      {"sk_axonrouter (default)"}
                     </span>
                   )}
                 </div>

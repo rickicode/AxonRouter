@@ -19,7 +19,6 @@ export default function OpenClawToolCard({
   hasActiveProviders,
   apiKeys,
   activeProviders,
-  cloudEnabled,
   initialStatus,
 }) {
   const inv = useInvalidate();
@@ -147,7 +146,7 @@ export default function OpenClawToolCard({
     retry: false,
     mutationFn: async () => {
       const keyToUse = effectiveSelectedApiKey?.trim()
-        || (!cloudEnabled ? "sk_axonrouter" : null);
+        || "sk_axonrouter";
 
       const res = await fetch("/api/cli-tools/openclaw-settings", {
         method: "POST",
@@ -217,7 +216,7 @@ export default function OpenClawToolCard({
   const getManualConfigs = () => {
     const keyToUse = effectiveSelectedApiKey?.trim()
       ? effectiveSelectedApiKey
-      : (!cloudEnabled ? "sk_axonrouter" : "<API_KEY_FROM_DASHBOARD>");
+      : "sk_axonrouter";
 
     const settingsContent = {
       agents: {
@@ -344,7 +343,7 @@ export default function OpenClawToolCard({
                     </select>
                   ) : (
                     <span className="flex-1 text-xs text-text-muted px-2 py-1.5">
-                      {cloudEnabled ? "No API keys - Create one in Keys page" : "sk_axonrouter (default)"}
+                      {"sk_axonrouter (default)"}
                     </span>
                   )}
                 </div>

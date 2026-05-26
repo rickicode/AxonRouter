@@ -11,7 +11,7 @@ import ProviderIcon from "@/shared/components/ProviderIcon";
 import { useInvalidate } from "@/shared/query";
 import { useMutation } from "@tanstack/react-query";
 
-export default function CopilotToolCard({ tool, isExpanded, onToggle, baseUrl, apiKeys, activeProviders, cloudEnabled, initialStatus }) {
+export default function CopilotToolCard({ tool, isExpanded, onToggle, baseUrl, apiKeys, activeProviders, initialStatus }) {
   const inv = useInvalidate();
   const [status, setStatus] = useState(initialStatus || null);
   const [checking, setChecking] = useState(false);
@@ -117,7 +117,7 @@ export default function CopilotToolCard({ tool, isExpanded, onToggle, baseUrl, a
     mutationFn: async () => {
       const keyToUse = effectiveSelectedApiKey?.trim()
         ? effectiveSelectedApiKey
-        : (!cloudEnabled ? "sk_axonrouter" : effectiveSelectedApiKey);
+        : "sk_axonrouter";
       const res = await fetch("/api/cli-tools/copilot-settings", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -169,7 +169,7 @@ export default function CopilotToolCard({ tool, isExpanded, onToggle, baseUrl, a
   const getManualConfigs = () => {
     const keyToUse = effectiveSelectedApiKey?.trim()
       ? effectiveSelectedApiKey
-      : (!cloudEnabled ? "sk_axonrouter" : "<API_KEY_FROM_DASHBOARD>");
+      : "sk_axonrouter";
     const effectiveBaseUrl = getEffectiveBaseUrl();
 
     return [{
@@ -239,7 +239,7 @@ export default function CopilotToolCard({ tool, isExpanded, onToggle, baseUrl, a
                     </select>
                   ) : (
                     <span className="text-sm text-text-muted">
-                      {cloudEnabled ? "No API keys - Create one in Keys page" : "sk_axonrouter (default)"}
+                      {"sk_axonrouter (default)"}
                     </span>
                   )}
                 </div>

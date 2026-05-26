@@ -11,7 +11,6 @@ export default function MitmPageClient() {
   const [apiKeys, setApiKeys] = useState([]);
   const [modelAliases, setModelAliases] = useState({});
   const [providerModelsByProvider, setProviderModelsByProvider] = useState({});
-  const [cloudEnabled, setCloudEnabled] = useState(false);
   const [expandedTool, setExpandedTool] = useState(null);
   const [mitmStatus, setMitmStatus] = useState({ running: false, certExists: false, dnsStatus: {}, hasCachedPassword: false });
 
@@ -20,12 +19,11 @@ export default function MitmPageClient() {
 
     const loadInitialData = async () => {
       try {
-        const [providersRes, keysRes, aliasesRes, providerModelsRes, settingsRes] = await Promise.all([
+        const [providersRes, keysRes, aliasesRes, providerModelsRes] = await Promise.all([
           fetch("/api/providers"),
           fetch("/api/keys"),
           fetch("/api/models/alias"),
           fetch("/api/provider-models"),
-          fetch("/api/settings"),
         ]);
 
         if (!cancelled && providersRes.ok) {
@@ -43,10 +41,6 @@ export default function MitmPageClient() {
         if (!cancelled && providerModelsRes.ok) {
           const data = await providerModelsRes.json();
           setProviderModelsByProvider(data.models || {});
-        }
-        if (!cancelled && settingsRes.ok) {
-          const data = await settingsRes.json();
-          setCloudEnabled(data.cloudEnabled || false);
         }
       } catch {
         // ignore initial load failures
@@ -78,7 +72,6 @@ export default function MitmPageClient() {
       {/* MITM Server Card */}
       <MitmServerCard
         apiKeys={apiKeys}
-        cloudEnabled={cloudEnabled}
         onStatusChange={setMitmStatus}
       />
 
@@ -97,7 +90,6 @@ export default function MitmPageClient() {
             activeProviders={getActiveProviders()}
             hasActiveProviders={hasActiveProviders()}
             modelAliases={modelAliases}
-            cloudEnabled={cloudEnabled}
             onDnsChange={(data) => setMitmStatus(prev => ({ ...prev, dnsStatus: data.dnsStatus ?? prev.dnsStatus }))}
           />
         ))}

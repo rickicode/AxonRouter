@@ -2,7 +2,7 @@
   "id": "FEAT-002",
   "type": "refactor",
   "description": "Clean up all remaining imports and references to deleted cloud/R2/usageWorker modules across the codebase. Update all affected files to remove dead references.",
-  "status": "pending",
+  "status": "in_progress",
   "steps": [
     "Update src/shared/services/initializeApp.ts: Remove imports of getUsageWorkerClient, getCloudUsagePoller, isCloudEnabled. Remove the usage worker start block, cloud usage poller start block, cloud sync scheduler start block, and R2 backup scheduler start block. Keep tunnel, MITM, watchdog, and network monitor intact. In cleanupAppResources, remove the getUsageWorkerClient().stop() call.",
     "Update src/lib/localDb/normalize.ts: Remove the import of normalizeUsageWorkerSettings from usageWorker/config. Remove all r2* and cloud* keys from DEFAULT_SETTINGS (r2BackupEnabled, r2SqliteBackupSchedule, r2AutoPublishEnabled, r2RuntimePublicBaseUrl, r2RuntimeCacheTtlSeconds, r2LastRuntimePublishAt, r2LastRuntimeArtifactHash, r2LastBackupAt, r2LastRestoreAt, r2LastSqliteBackupFingerprint, r2BackupEncryptionKey, r2Config, cloudUsageSync, cloudEnabled, cloudUrls, cloudSharedSecret, cloudUsagePollingEnabled). Remove the DEFAULT_R2_CONFIG constant. Remove the usageWorker settings block from DEFAULT_SETTINGS and the merged.usageWorker normalization in mergeSettingsWithDefaults. Remove normalizeRuntimeCacheTtlSeconds function. Remove merged.r2Config normalization block and merged.cloudUsagePollingEnabled line from mergeSettingsWithDefaults.",

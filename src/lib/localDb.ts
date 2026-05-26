@@ -90,8 +90,6 @@ export {
   updateSettings,
   exportDb,
   importDb,
-  isCloudEnabled,
-  getCloudUrl,
   getPricing,
   getPricingForModel,
   updatePricing,

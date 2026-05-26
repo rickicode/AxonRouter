@@ -333,15 +333,6 @@ export async function PATCH(request: Request) {
 
     const settings = await updateCurrentSettings(updates);
 
-    const shouldRefreshUsageWorker = (
-      Object.prototype.hasOwnProperty.call(body, "usageWorker")
-      || Object.prototype.hasOwnProperty.call(body, "quotaExhaustedThresholdPercent")
-    );
-
-    if (shouldRefreshUsageWorker) {
-      // Usage worker process removed - settings are applied on next refresh cycle
-    }
-
     // Apply outbound proxy settings immediately (no restart required)
     if (
       Object.prototype.hasOwnProperty.call(body, "outboundProxyEnabled") ||
