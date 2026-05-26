@@ -18,7 +18,6 @@ import {
 	getCodexLiveQuotaSignal,
 	getConnectionAuthBlockedPatch,
 	getLiveRequestRecoveryPatch,
-	isConfirmedAuthBlockedError,
 	isAuthExpiredMessage,
 	isTransientUpstreamTimeoutError,
 	syncUsageStatus,
@@ -956,68 +955,60 @@ export async function refreshConnectionUsage(
 						}),
 					});
 
-					await syncUsageStatus(
-						connection,
-						authBlockedPatch || {
-							...(status === 429
-								? {
-										nextRetryAt: new Date(Date.now() + 10_000).toISOString(),
-										resetAt: connection?.resetAt ?? null,
-										lastCheckedAt,
-									}
-								: (status === 502 || status === 504)
-									? (() => {
-											const preservedStatus = connection?.routingStatus && connection.routingStatus !== "unknown"
-												? connection.routingStatus
-												: "eligible";
-											if (preservedStatus === "eligible") {
-												return {
-													routingStatus: "eligible",
-													lastCheckedAt,
-													...getOperationalUsageSnapshot(
-														connection,
-														"Usage check temporarily unavailable",
-														{ checkedAt: lastCheckedAt },
-													),
-												};
-											}
-											return {
-												routingStatus: preservedStatus,
-												healthStatus: "degraded",
-												quotaState: connection?.quotaState || "ok",
-												authState: connection?.authState || "ok",
-												reasonCode: "transient_upstream_error",
-												reasonDetail: "Usage check temporarily unavailable",
-												lastCheckedAt,
-												nextRetryAt: new Date(Date.now() + 10_000).toISOString(),
-												...getOperationalUsageSnapshot(
-													connection,
-													"Usage check temporarily unavailable",
-													{ checkedAt: lastCheckedAt },
-												),
-											};
-										})()
-									: {
-											routingStatus: "blocked",
-											healthStatus: "degraded",
-											quotaState: "ok",
-											authState: "ok",
-											reasonCode: isConfirmedAuthBlockedError(error, {
-												statusCode: status,
-											})
-												? "auth_invalid"
-												: "usage_request_failed",
-											reasonDetail: "Usage check failed",
-											lastCheckedAt,
-											nextRetryAt: connection?.nextRetryAt ?? null,
-											...getOperationalUsageSnapshot(
-												connection,
-												"Usage check failed.",
-												{ checkedAt: lastCheckedAt },
-											),
-										}),
-						},
-					);
+					const preservedStatus = connection?.routingStatus && connection.routingStatus !== "unknown"
+						? connection.routingStatus
+						: "eligible";
+					const numericStatus = Number(status);
+
+					let fallbackPatch: Record<string, any>;
+
+					if (numericStatus === 429) {
+						// Usage API rate-limited - keep eligible clean, scheduler handles retry
+						fallbackPatch = preservedStatus === "eligible"
+							? {
+									routingStatus: "eligible",
+									lastCheckedAt,
+									...getOperationalUsageSnapshot(connection, "Usage API rate limited", { checkedAt: lastCheckedAt }),
+								}
+							: {
+									routingStatus: preservedStatus,
+									lastCheckedAt,
+									...getOperationalUsageSnapshot(connection, "Usage API rate limited", { checkedAt: lastCheckedAt }),
+								};
+					} else if (numericStatus >= 500 && numericStatus <= 599) {
+						// ALL 5xx are transient - consistent with request path (markAccountUnavailable)
+						fallbackPatch = preservedStatus === "eligible"
+							? {
+									routingStatus: "eligible",
+									lastCheckedAt,
+									...getOperationalUsageSnapshot(connection, "Usage check temporarily unavailable", { checkedAt: lastCheckedAt }),
+								}
+							: {
+									routingStatus: preservedStatus,
+									healthStatus: "degraded",
+									quotaState: connection?.quotaState || "ok",
+									authState: connection?.authState || "ok",
+									reasonCode: "transient_upstream_error",
+									reasonDetail: "Usage check temporarily unavailable",
+									lastCheckedAt,
+									nextRetryAt: new Date(Date.now() + 10_000).toISOString(),
+									...getOperationalUsageSnapshot(connection, "Usage check temporarily unavailable", { checkedAt: lastCheckedAt }),
+								};
+					} else {
+						// Genuinely unknown error (non-5xx, non-auth, non-429) - blocked
+						fallbackPatch = {
+							routingStatus: "blocked",
+							healthStatus: "degraded",
+							quotaState: "ok",
+							authState: "ok",
+							reasonCode: "usage_request_failed",
+							reasonDetail: "Usage check failed",
+							lastCheckedAt,
+							...getOperationalUsageSnapshot(connection, "Usage check failed.", { checkedAt: lastCheckedAt }),
+						};
+					}
+
+					await syncUsageStatus(connection, authBlockedPatch || fallbackPatch);
 				}
 
 				throw error;
