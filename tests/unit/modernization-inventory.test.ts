@@ -39,6 +39,7 @@ const allowedRuntimeJsFiles = new Set([
   "scripts/ensure-middleware-manifest.js",
   "scripts/mcp-stdio.js",
   "scripts/service.js",
+  "scripts/postinstall.js",
   "packages/data-dir/src/index.js",
 ]);
 
