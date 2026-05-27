@@ -13,6 +13,8 @@ import {
   showHelp,
   runWithSudo,
   runWithSudoSilent,
+  isUserSessionAvailable,
+  getUserUnitPath,
 } from "../../scripts/service.js";
 
 describe("service management - root detection", () => {

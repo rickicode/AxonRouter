@@ -22,7 +22,8 @@
     "scripts/ensure-middleware-manifest.js",
     "scripts/mcp-stdio.js",
     "README.md",
-    "LICENSE"
+    "LICENSE",
+    "installer.sh"
   ],
   "bin": {
     "axonrouter": "bin/axonrouter.js"

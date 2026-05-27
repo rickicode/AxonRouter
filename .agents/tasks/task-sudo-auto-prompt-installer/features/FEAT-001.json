@@ -1,0 +1,33 @@
+{
+  "id": "FEAT-001",
+  "type": "fix",
+  "description": "Redesign service installation to support both system-level (root) and user-level (non-root) systemd services. When running as non-root, install a systemd user service at ~/.config/systemd/user/axonrouter.service using 'systemctl --user'. When running as root, install to /etc/systemd/system/ as before. Remove requireRoot() entirely. Fix getExecPath() to resolve from import.meta.url. Never chown the axonrouter directory to root.",
+  "status": "completed",
+  "steps": [
+    "In scripts/service.js, remove the requireRoot() function entirely.",
+    "Add a comment at the top of service.js: '// IMPORTANT: Never chown the axonrouter package directory to root. This breaks native modules like better-sqlite3.'",
+    "Fix getExecPath(): instead of relying on 'which axonrouter' (which may fail under sudo or in environments where nvm PATH is not available), resolve the binary path from the current script's location using import.meta.url. The exec path should be: path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', 'bin', 'axonrouter.js'). Add import { fileURLToPath } from 'node:url' at the top if not already present.",
+    "Modify installService() to detect root vs non-root: if isRoot() is true, install system-level service at /etc/systemd/system/axonrouter.service (existing behavior with sudo). If non-root, install a user-level service at ~/.config/systemd/user/axonrouter.service using 'systemctl --user enable' and 'systemctl --user start'. For user-level: (a) create the directory ~/.config/systemd/user/ if it doesn't exist, (b) write the unit file directly (no sudo needed), (c) the unit file for user-level should NOT have User=/Group= directives (systemd user services always run as the owning user), (d) run 'systemctl --user daemon-reload', 'systemctl --user enable axonrouter', 'systemctl --user start axonrouter'. (e) Recommend enabling lingering so the service starts at boot even without login: print a message suggesting 'sudo loginctl enable-linger <username>' and ask if the user wants to run it now (if yes, exec with sudo).",
+    "Modify generateSystemdUnit() to accept a 'userMode' boolean parameter. When userMode is true: omit User=, Group=, and WantedBy=multi-user.target; use WantedBy=default.target instead. Keep WorkingDirectory, ExecStart (using absolute node and script paths), Environment directives.",
+    "Update uninstallService() similarly: if the user-level service file exists at ~/.config/systemd/user/axonrouter.service, use 'systemctl --user stop/disable' and remove it. If running as root or if /etc/systemd/system/axonrouter.service exists, use sudo-based system removal.",
+    "Update startService(), stopService(), restartService(), checkService(): detect which mode by checking if ~/.config/systemd/user/axonrouter.service exists (user mode) vs /etc/systemd/system/axonrouter.service (system mode). Use 'systemctl --user' for user mode, 'sudo systemctl' for system mode.",
+    "For init.d fallback (non-systemd systems): keep the existing sudo-based approach since init.d does not have user-level support. Print a message that init.d requires root and use runWithSudo() as before.",
+    "Update the showHelp() function output to mention that service installs as user-level service when not root, and as system service when root."
+  ],
+  "acceptance_criteria": [
+    "requireRoot() is removed from scripts/service.js",
+    "getExecPath() resolves the binary path from import.meta.url rather than 'which axonrouter'",
+    "When running as non-root, installService() creates ~/.config/systemd/user/axonrouter.service and uses systemctl --user",
+    "When running as root, installService() writes to /etc/systemd/system/ using sudo (existing behavior)",
+    "User-level unit file does not contain User=/Group= directives and uses WantedBy=default.target",
+    "uninstallService/start/stop/restart/checkService detect and handle both user-level and system-level services",
+    "No chown to root exists anywhere in the codebase",
+    "A message about loginctl enable-linger is printed for user-level installs"
+  ],
+  "verification": [
+    "Run npm run lint to check for syntax/style issues",
+    "Run npm run test to run existing tests"
+  ],
+  "blocked_reason": null,
+  "findings": "All 1043 tests pass. Lint passes. The generateSystemdUnit() signature changed from (execPath, userInfo) to (execPath, userInfo, options) but existing tests call with (execPath) or (execPath, userInfo) which both work fine due to the default options={}. No chown to root anywhere in the codebase. The requireRoot() function was removed without any import breakage since it was never imported externally."
+}
