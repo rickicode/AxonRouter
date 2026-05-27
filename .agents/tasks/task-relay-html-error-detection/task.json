@@ -1,7 +1,7 @@
 {
   "task_id": "task-relay-html-error-detection",
   "task_description": "Fix relay proxy HTML error detection: detect when relay returns HTML error pages (rate limits, Cloudflare blocks, nginx errors) and treat them as relay failures instead of provider errors. Apply strictProxy fallback logic. Also fix account overrides display in Bindings tab to only show overridden accounts by default.",
-  "status": "in_progress",
+  "status": "completed",
   "feature_order": ["FEAT-001"],
   "blocked_reason": null
 }

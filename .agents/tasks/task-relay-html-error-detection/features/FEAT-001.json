@@ -2,7 +2,7 @@
   "id": "FEAT-001",
   "type": "fix",
   "description": "Detect HTML error responses from relay proxies in proxyAwareFetch and treat them as relay failures rather than provider errors. Also fix the account overrides display in the Proxy Pools Bindings tab to only show accounts that have an explicit proxy override (not all accounts).",
-  "status": "in_progress",
+  "status": "completed",
   "steps": [
     "In open-sse/utils/proxyFetch.ts, after the successful `originalFetch(relayUrl, ...)` call at line 338, add response validation before returning. Check: (1) if response status is an error status (403, 429, 502, 503, 504, or any 5xx), AND (2) if the response content-type header contains 'text/html' or the response body starts with HTML patterns (<!DOCTYPE, <html, etc.). If both conditions are met, this is a relay error, not a provider error.",
     "When an HTML error response is detected from the relay: log a clear warning like `[ProxyFetch] Relay returned HTML error (likely rate limit/block), status=<status>`. Then apply the same strictProxy logic as network failures: if strictProxy is true, throw a formatted diagnostic error with phase='relay-html-error'; if strictProxy is false, fall back to direct fetch (same as existing catch block behavior).",
@@ -27,5 +27,5 @@
     "npm run build"
   ],
   "blocked_reason": null,
-  "findings": ""
+  "findings": "Switch component uses onToggle prop (not onCheckedChange). All verification passed: lint 0 errors, typecheck 0 errors, 191 test files / 1094 tests pass, build succeeds."
 }
