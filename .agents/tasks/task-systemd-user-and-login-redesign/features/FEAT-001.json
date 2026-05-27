@@ -2,7 +2,7 @@
   "id": "FEAT-001",
   "type": "fix",
   "description": "Fix systemd/init.d service to run as the installing user instead of root. When installed via nvm as a regular user (e.g. 'ricki'), the native module (better-sqlite3) is compiled for that user's node path. Running as root causes module self-register failures.",
-  "status": "in_progress",
+  "status": "completed",
   "steps": [
     "In scripts/service.js, add a new function getInstallingUser() that detects the real (non-root) user who ran the install command. When run via sudo, use process.env.SUDO_USER to get the original user. If SUDO_USER is not set (running directly as root or as the user), use os.userInfo().username. Also detect the user's group via os.userInfo().gid or process.env.SUDO_GID.",
     "In scripts/service.js, add a function getInstallingUserHome() that resolves the home directory of the installing user. When SUDO_USER is set, look up the home directory from /etc/passwd or use process.env.SUDO_USER with path.join('/home', user). For the root user, fall back to /root.",
@@ -24,5 +24,5 @@
     "npm run lint"
   ],
   "blocked_reason": null,
-  "findings": ""
+  "findings": "Updated existing test in service-management.test.ts that expected raw \"$NODE\" \"$DAEMON\" invocation; now tests for su-based privilege dropping with $NODE $DAEMON. All 45 tests pass across both service test files. npm install was needed to get vitest available."
 }
