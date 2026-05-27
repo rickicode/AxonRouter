@@ -18,6 +18,7 @@ const SERVICE_COMMAND_NAMES = new Set([
   "start",
   "stop",
   "restart",
+  "help",
 ]);
 
 export function parseArgs(args) {

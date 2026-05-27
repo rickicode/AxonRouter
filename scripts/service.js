@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 
-import { execSync } from "node:child_process";
+import { execSync, spawnSync } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
 
@@ -29,6 +29,27 @@ export function requireRoot() {
 }
 
 /**
+ * Run a command with sudo if not already root.
+ * Prompts for password interactively when needed.
+ */
+export function runWithSudo(command, options = {}) {
+  if (isRoot()) {
+    return execSync(command, { stdio: "inherit", ...options });
+  }
+  return execSync(`sudo ${command}`, { stdio: "inherit", ...options });
+}
+
+/**
+ * Run a command with sudo silently (capture output instead of inheriting stdio).
+ */
+export function runWithSudoSilent(command, options = {}) {
+  if (isRoot()) {
+    return execSync(command, { stdio: "pipe", ...options });
+  }
+  return execSync(`sudo ${command}`, { stdio: "pipe", ...options });
+}
+
+/**
  * Detect the init system available on this machine.
  * Returns "systemd" if systemctl exists, otherwise "initd".
  */
@@ -54,9 +75,20 @@ export function getExecPath() {
 }
 
 /**
+ * Get the full node binary path for use in service files.
+ * systemd does not use the shell to resolve shebangs via env/nvm,
+ * so we need the absolute path to node.
+ */
+export function getNodePath() {
+  return process.execPath;
+}
+
+/**
  * Generate systemd unit file content.
+ * Uses absolute node path + script path to avoid shebang/PATH issues under systemd.
  */
 export function generateSystemdUnit(execPath) {
+  const nodePath = getNodePath();
   return `[Unit]
 Description=AxonRouter AI Router
 After=network.target
@@ -65,7 +97,7 @@ StartLimitBurst=5
 
 [Service]
 Type=simple
-ExecStart=${execPath}
+ExecStart=${nodePath} ${execPath}
 Restart=always
 RestartSec=5
 Environment=NODE_ENV=production
@@ -82,8 +114,10 @@ WantedBy=multi-user.target
 
 /**
  * Generate init.d script content (LSB format).
+ * Uses absolute node path to avoid PATH issues in init environment.
  */
 export function generateInitdScript(execPath) {
+  const nodePath = getNodePath();
   return `#!/bin/sh
 ### BEGIN INIT INFO
 # Provides:          ${SERVICE_NAME}
@@ -95,6 +129,7 @@ export function generateInitdScript(execPath) {
 # Description:       AxonRouter AI Router service
 ### END INIT INFO
 
+NODE="${nodePath}"
 DAEMON="${execPath}"
 PIDFILE="${PID_FILE}"
 NAME="${SERVICE_NAME}"
@@ -113,7 +148,7 @@ start() {
     RESTART_COUNT=0
     MAX_RESTARTS=10
     while [ $RESTART_COUNT -lt $MAX_RESTARTS ]; do
-      "$DAEMON" >> "$LOG_FILE" 2>&1
+      "$NODE" "$DAEMON" >> "$LOG_FILE" 2>&1
       EXIT_CODE=$?
       if [ $EXIT_CODE -eq 0 ]; then
         break
@@ -174,8 +209,6 @@ exit 0
  * Writes the service file, enables, and starts the service.
  */
 export function installService() {
-  requireRoot();
-
   const initSystem = detectInitSystem();
   const execPath = getExecPath();
 
@@ -184,30 +217,45 @@ export function installService() {
 
   if (initSystem === "systemd") {
     const unitContent = generateSystemdUnit(execPath);
-    fs.writeFileSync(SYSTEMD_UNIT_PATH, unitContent, { mode: 0o644 });
+    // Write unit file via sudo tee (since we may not be root)
+    const child = spawnSync("sudo", ["tee", SYSTEMD_UNIT_PATH], {
+      input: unitContent,
+      stdio: ["pipe", "pipe", "inherit"],
+    });
+    if (child.status !== 0) {
+      console.error("[AxonRouter] Failed to write service file. Sudo access required.");
+      process.exit(1);
+    }
     console.log(`[AxonRouter] Service file written to ${SYSTEMD_UNIT_PATH}`);
 
-    execSync("systemctl daemon-reload", { stdio: "inherit" });
-    execSync(`systemctl enable ${SERVICE_NAME}`, { stdio: "inherit" });
-    execSync(`systemctl start ${SERVICE_NAME}`, { stdio: "inherit" });
+    runWithSudo("systemctl daemon-reload");
+    runWithSudo(`systemctl enable ${SERVICE_NAME}`);
+    runWithSudo(`systemctl start ${SERVICE_NAME}`);
     console.log(`[AxonRouter] Service installed, enabled, and started.`);
   } else {
     const scriptContent = generateInitdScript(execPath);
-    fs.writeFileSync(INITD_SCRIPT_PATH, scriptContent, { mode: 0o755 });
+    const child = spawnSync("sudo", ["tee", INITD_SCRIPT_PATH], {
+      input: scriptContent,
+      stdio: ["pipe", "pipe", "inherit"],
+    });
+    if (child.status !== 0) {
+      console.error("[AxonRouter] Failed to write init script. Sudo access required.");
+      process.exit(1);
+    }
+    runWithSudo(`chmod 755 ${INITD_SCRIPT_PATH}`);
     console.log(`[AxonRouter] Init script written to ${INITD_SCRIPT_PATH}`);
 
     try {
-      execSync(`update-rc.d ${SERVICE_NAME} defaults`, { stdio: "inherit" });
+      runWithSudo(`update-rc.d ${SERVICE_NAME} defaults`);
     } catch {
-      // Some systems use chkconfig instead
       try {
-        execSync(`chkconfig --add ${SERVICE_NAME}`, { stdio: "inherit" });
+        runWithSudo(`chkconfig --add ${SERVICE_NAME}`);
       } catch {
-        console.warn("[AxonRouter] Warning: Could not enable service at boot. Please enable it manually.");
+        console.warn("[AxonRouter] Warning: Could not enable service at boot.");
       }
     }
 
-    execSync(`${INITD_SCRIPT_PATH} start`, { stdio: "inherit" });
+    runWithSudo(`${INITD_SCRIPT_PATH} start`);
     console.log(`[AxonRouter] Service installed, enabled, and started.`);
   }
 }
@@ -216,50 +264,54 @@ export function installService() {
  * Uninstall the service (stop, disable, remove).
  */
 export function uninstallService() {
-  requireRoot();
-
   const initSystem = detectInitSystem();
 
   console.log(`[AxonRouter] Detected init system: ${initSystem}`);
 
   if (initSystem === "systemd") {
     try {
-      execSync(`systemctl stop ${SERVICE_NAME}`, { stdio: "inherit" });
+      runWithSudo(`systemctl stop ${SERVICE_NAME}`);
     } catch {
       // Service might not be running
     }
     try {
-      execSync(`systemctl disable ${SERVICE_NAME}`, { stdio: "inherit" });
+      runWithSudo(`systemctl disable ${SERVICE_NAME}`);
     } catch {
       // Service might not be enabled
     }
-    if (fs.existsSync(SYSTEMD_UNIT_PATH)) {
-      fs.unlinkSync(SYSTEMD_UNIT_PATH);
+    try {
+      runWithSudo(`rm -f ${SYSTEMD_UNIT_PATH}`);
       console.log(`[AxonRouter] Removed ${SYSTEMD_UNIT_PATH}`);
+    } catch {
+      // File might not exist
     }
-    execSync("systemctl daemon-reload", { stdio: "inherit" });
+    runWithSudo("systemctl daemon-reload");
     console.log(`[AxonRouter] Service uninstalled.`);
   } else {
     try {
-      execSync(`${INITD_SCRIPT_PATH} stop`, { stdio: "inherit" });
+      runWithSudo(`${INITD_SCRIPT_PATH} stop`);
     } catch {
       // Service might not be running
     }
     try {
-      execSync(`update-rc.d -f ${SERVICE_NAME} remove`, { stdio: "inherit" });
+      runWithSudo(`update-rc.d -f ${SERVICE_NAME} remove`);
     } catch {
       try {
-        execSync(`chkconfig --del ${SERVICE_NAME}`, { stdio: "inherit" });
+        runWithSudo(`chkconfig --del ${SERVICE_NAME}`);
       } catch {
         // Ignore
       }
     }
-    if (fs.existsSync(INITD_SCRIPT_PATH)) {
-      fs.unlinkSync(INITD_SCRIPT_PATH);
+    try {
+      runWithSudo(`rm -f ${INITD_SCRIPT_PATH}`);
       console.log(`[AxonRouter] Removed ${INITD_SCRIPT_PATH}`);
+    } catch {
+      // File might not exist
     }
-    if (fs.existsSync(PID_FILE)) {
-      fs.unlinkSync(PID_FILE);
+    try {
+      runWithSudo(`rm -f ${PID_FILE}`);
+    } catch {
+      // Ignore
     }
     console.log(`[AxonRouter] Service uninstalled.`);
   }
@@ -310,14 +362,12 @@ export function checkService() {
  * Start the service.
  */
 export function startService() {
-  requireRoot();
-
   const initSystem = detectInitSystem();
 
   if (initSystem === "systemd") {
-    execSync(`systemctl start ${SERVICE_NAME}`, { stdio: "inherit" });
+    runWithSudo(`systemctl start ${SERVICE_NAME}`);
   } else {
-    execSync(`${INITD_SCRIPT_PATH} start`, { stdio: "inherit" });
+    runWithSudo(`${INITD_SCRIPT_PATH} start`);
   }
 
   console.log(`[AxonRouter] Service started.`);
@@ -327,14 +377,12 @@ export function startService() {
  * Stop the service.
  */
 export function stopService() {
-  requireRoot();
-
   const initSystem = detectInitSystem();
 
   if (initSystem === "systemd") {
-    execSync(`systemctl stop ${SERVICE_NAME}`, { stdio: "inherit" });
+    runWithSudo(`systemctl stop ${SERVICE_NAME}`);
   } else {
-    execSync(`${INITD_SCRIPT_PATH} stop`, { stdio: "inherit" });
+    runWithSudo(`${INITD_SCRIPT_PATH} stop`);
   }
 
   console.log(`[AxonRouter] Service stopped.`);
@@ -344,17 +392,53 @@ export function stopService() {
  * Restart the service.
  */
 export function restartService() {
-  requireRoot();
-
   const initSystem = detectInitSystem();
 
   if (initSystem === "systemd") {
-    execSync(`systemctl restart ${SERVICE_NAME}`, { stdio: "inherit" });
+    runWithSudo(`systemctl restart ${SERVICE_NAME}`);
   } else {
-    execSync(`${INITD_SCRIPT_PATH} restart`, { stdio: "inherit" });
+    runWithSudo(`${INITD_SCRIPT_PATH} restart`);
   }
 
   console.log(`[AxonRouter] Service restarted.`);
+}
+
+/**
+ * Show help message with available commands.
+ */
+export function showHelp() {
+  console.log(`
+\x1b[1mAxonRouter - AI Router Service Management\x1b[0m
+
+\x1b[33mUsage:\x1b[0m
+  axonrouter <command> [options]
+
+\x1b[33mService Commands:\x1b[0m
+  install-service    Install and start AxonRouter as a system service
+  uninstall-service  Stop and remove the system service
+  check-service      Check current service status
+  start              Start the service
+  stop               Stop the service
+  restart            Restart the service
+
+\x1b[33mOther Commands:\x1b[0m
+  mcp                Start MCP stdio server
+  help, --help       Show this help message
+
+\x1b[33mOptions:\x1b[0m
+  --port <port>      Set the listening port (default: 12711)
+  --hostname <host>  Set the hostname to bind to
+
+\x1b[33mExamples:\x1b[0m
+  axonrouter                     Start in foreground
+  axonrouter install-service     Install as system service (prompts for sudo)
+  axonrouter check-service       Check if service is running
+  axonrouter --port 3000         Start on custom port
+
+\x1b[33mNotes:\x1b[0m
+  Service commands will prompt for sudo password if not running as root.
+  The service auto-restarts on crash (systemd: always, init.d: up to 10 times).
+`);
 }
 
 /**
@@ -367,6 +451,8 @@ export const SERVICE_COMMANDS = {
   "start": startService,
   "stop": stopService,
   "restart": restartService,
+  "help": showHelp,
+  "--help": showHelp,
 };
 
 /**
