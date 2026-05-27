@@ -648,6 +648,7 @@ const OAUTH_ALIASES = {
   kilocode: "kc",
   cline: "cl",
   opencode: "oc",
+  "opencode-go": "opencode-go",
   "opencode-zen": "opencode-zen",
   vertex: "vertex",
   "vertex-partner": "vertex-partner",
