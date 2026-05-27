@@ -1,9 +1,10 @@
 import { NextResponse } from "next/server";
-import { startTailscaleLoginFlow } from "@/lib/tunnel/tailscaleLoginAccess";
+import { loadPersistedShortId, generateShortId, startTailscaleLogin } from "@axonrouter/tunnel";
 
 export async function POST() {
   try {
-    const result = await startTailscaleLoginFlow();
+    const shortId = loadPersistedShortId() || generateShortId();
+    const result = await startTailscaleLogin(shortId);
     return NextResponse.json(result);
   } catch (error) {
     console.error("Tailscale login error:", error);

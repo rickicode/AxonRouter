@@ -64,10 +64,10 @@ export declare function mkdirSync(p: string, opts?: { recursive?: boolean }): st
 export declare function writeFileSync(p: string, data: string | Buffer, enc?: BufferEncoding): void;
 
 /** Executes a command synchronously. */
-export declare function execSyncCmd(cmd: string, opts?: { encoding?: BufferEncoding; cwd?: string; env?: NodeJS.ProcessEnv; timeout?: number; stdio?: any }): string | Buffer;
+export declare function execSyncCmd(cmd: string, opts?: { encoding?: BufferEncoding; cwd?: string; env?: NodeJS.ProcessEnv; timeout?: number; stdio?: any; windowsHide?: boolean; [key: string]: any }): string | Buffer;
 
 /** Spawns a child process. */
-export declare function spawnCmd(cmd: string, args?: string[], opts?: SpawnOptionsWithoutStdio): ChildProcess;
+export declare function spawnCmd(cmd: string, args?: string[], opts?: SpawnOptionsWithoutStdio & { [key: string]: any }): ChildProcess;
 
 /** Makes an HTTPS GET request. */
 export declare function httpsGet(url: string | URL, cb?: (res: IncomingMessage) => void): ClientRequest;

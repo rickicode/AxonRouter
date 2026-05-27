@@ -1,22 +1,17 @@
-import fs from "fs";
-import os from "os";
-import path from "path";
-import { execSync } from "child_process";
-import * as dnsConfig from "@/mitm/dns/dnsConfig";
-import { getDataDir } from "@/lib/dataDir";
+import { existsSync, mkdirSync, execSyncCmd, osPlatform, resolveDataPath, pathJoin } from "@axonrouter/data-dir";
+import { getDeps } from "./deps";
 
-const { execWithPassword } = dnsConfig as any;
-const IS_MAC = os.platform() === "darwin";
-const IS_WINDOWS = os.platform() === "win32";
+const IS_MAC = osPlatform() === "darwin";
+const IS_WINDOWS = osPlatform() === "win32";
 
 function getTailscaleBinPath() {
-  return path.join(/*turbopackIgnore: true*/ getDataDir(), "bin", IS_WINDOWS ? "tailscale.exe" : "tailscale");
+  return resolveDataPath("bin", IS_WINDOWS ? "tailscale.exe" : "tailscale");
 }
 function getTailscaleDir() {
-  return path.join(/*turbopackIgnore: true*/ getDataDir(), "tailscale");
+  return resolveDataPath("tailscale");
 }
 function getTailscaleSocket() {
-  return path.join(/*turbopackIgnore: true*/ getTailscaleDir(), "tailscaled.sock");
+  return pathJoin(getTailscaleDir(), "tailscaled.sock");
 }
 
 function getSocketFlag() {
@@ -31,17 +26,17 @@ export function getTailscaleSocketArgs(): string[] {
 
 export function getTailscaleBin() {
   try {
-    const systemPath = execSync("which tailscale 2>/dev/null || where tailscale 2>nul", {
+    const systemPath = (execSyncCmd("which tailscale 2>/dev/null || where tailscale 2>nul", {
       encoding: "utf8",
       windowsHide: true,
-    }).trim();
+    }) as string).trim();
     if (systemPath) return systemPath;
   } catch {
     // not in PATH
   }
   const binPath = getTailscaleBinPath();
-  if (fs.existsSync(/*turbopackIgnore: true*/ binPath)) return binPath;
-  if (IS_WINDOWS && fs.existsSync(/*turbopackIgnore: true*/ WINDOWS_TAILSCALE_BIN)) return WINDOWS_TAILSCALE_BIN;
+  if (existsSync(binPath)) return binPath;
+  if (IS_WINDOWS && existsSync(WINDOWS_TAILSCALE_BIN)) return WINDOWS_TAILSCALE_BIN;
   return null;
 }
 
@@ -50,14 +45,14 @@ export async function startDaemonWithPassword(sudoPassword: string) {
     try {
       const bin = getTailscaleBin();
       if (bin) {
-        execSync(`"${bin}" status --json`, { stdio: "ignore", windowsHide: true, timeout: 3000 });
+        execSyncCmd(`"${bin}" status --json`, { stdio: "ignore", windowsHide: true, timeout: 3000 } as any);
         return;
       }
     } catch {
       // not running
     }
     try {
-      execSync("net start Tailscale", { stdio: "ignore", windowsHide: true, timeout: 10000 });
+      execSyncCmd("net start Tailscale", { stdio: "ignore", windowsHide: true, timeout: 10000 } as any);
       await new Promise<void>((r) => setTimeout(r, 3000));
     } catch {
       // may need admin or already running
@@ -67,23 +62,24 @@ export async function startDaemonWithPassword(sudoPassword: string) {
 
   try {
     const bin = getTailscaleBin() || "tailscale";
-    execSync(`"${bin}" ${getSocketFlag().join(" ")} status --json`, {
+    execSyncCmd(`"${bin}" ${getSocketFlag().join(" ")} status --json`, {
       stdio: "ignore",
       windowsHide: true,
       env: { ...process.env, PATH: EXTENDED_PATH },
       timeout: 3000,
-    });
+    } as any);
     return;
   } catch {
     // not running, start it
   }
 
   const tailscaleDir = getTailscaleDir();
-  if (!fs.existsSync(/*turbopackIgnore: true*/ tailscaleDir)) fs.mkdirSync(/*turbopackIgnore: true*/ tailscaleDir, { recursive: true });
+  if (!existsSync(tailscaleDir)) mkdirSync(tailscaleDir, { recursive: true });
 
+  const { execWithPasswordFromDns } = getDeps();
   const tailscaledBin = IS_MAC ? "/usr/local/bin/tailscaled" : "tailscaled";
   const socket = getTailscaleSocket();
   const daemonCmd = `${tailscaledBin} --socket=${socket} --statedir=${tailscaleDir}`;
-  await execWithPassword(`nohup ${daemonCmd} > /dev/null 2>&1 &`, sudoPassword || "");
+  await execWithPasswordFromDns(`nohup ${daemonCmd} > /dev/null 2>&1 &`, sudoPassword || "");
   await new Promise<void>((r) => setTimeout(r, 3000));
 }

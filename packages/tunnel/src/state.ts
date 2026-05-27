@@ -1,12 +1,13 @@
-import { loadSingletonFromSqlite, upsertSingleton } from "../sqliteHelpers";
-import { sqliteWriteGate } from "../sqliteWriteGate";
+import { getDeps } from "./deps";
 import { generateShortId } from "./shortId";
 
 function loadTunnelState() {
+  const { loadSingletonFromSqlite } = getDeps();
   return loadSingletonFromSqlite("tunnelState") || {};
 }
 
 function saveTunnelState(next) {
+  const { sqliteWriteGate, upsertSingleton } = getDeps();
   sqliteWriteGate(() => upsertSingleton("tunnelState", next));
 }
 

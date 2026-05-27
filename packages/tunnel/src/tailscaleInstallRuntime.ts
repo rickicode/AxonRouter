@@ -1,18 +1,15 @@
-import fs from "fs";
-import path from "path";
-import os from "os";
-import { execSync, spawn } from "child_process";
+import { existsSync, execSyncCmd, spawnCmd, osPlatform, osTmpdir, pathJoin } from "@axonrouter/data-dir";
 import { startLogin } from "./tailscaleLogin";
 import { startDaemonWithPassword } from "./tailscaleDaemonRuntime";
 
-const IS_MAC = os.platform() === "darwin";
-const IS_WINDOWS = os.platform() === "win32";
+const IS_MAC = osPlatform() === "darwin";
+const IS_WINDOWS = osPlatform() === "win32";
 const WINDOWS_TAILSCALE_BIN = "C:\\Program Files\\Tailscale\\tailscale.exe";
 const EXTENDED_PATH = `/usr/local/bin:/opt/homebrew/bin:/usr/bin:/bin:${process.env.PATH || ""}`;
 
 function hasBrew() {
   try {
-    execSync("which brew", { stdio: "ignore", windowsHide: true, env: { ...process.env, PATH: EXTENDED_PATH } });
+    execSyncCmd("which brew", { stdio: "ignore", windowsHide: true, env: { ...process.env, PATH: EXTENDED_PATH } } as any);
     return true;
   } catch {
     return false;
@@ -23,11 +20,11 @@ async function installTailscaleMac(sudoPassword: string, log: (message: string) 
   if (hasBrew()) {
     log("Installing via Homebrew...");
     await new Promise<void>((resolve, reject) => {
-      const child = spawn("brew", ["install", "tailscale"], {
+      const child = spawnCmd("brew", ["install", "tailscale"], {
         stdio: ["ignore", "pipe", "pipe"],
         windowsHide: true,
         env: { ...process.env, PATH: EXTENDED_PATH },
-      });
+      } as any);
       child.stdout.on("data", (d) => {
         const line = d.toString().trim();
         if (line) log(line);
@@ -46,14 +43,14 @@ async function installTailscaleMac(sudoPassword: string, log: (message: string) 
   }
 
   const pkgUrl = "https://pkgs.tailscale.com/stable/tailscale-latest.pkg";
-  const pkgPath = path.join(/*turbopackIgnore: true*/ os.tmpdir(), "tailscale.pkg");
+  const pkgPath = pathJoin(osTmpdir(), "tailscale.pkg");
 
   log("Downloading Tailscale package...");
   await new Promise<void>((resolve, reject) => {
-    const child = spawn("curl", ["-fL", "--progress-bar", pkgUrl, "-o", pkgPath], {
+    const child = spawnCmd("curl", ["-fL", "--progress-bar", pkgUrl, "-o", pkgPath], {
       stdio: ["ignore", "pipe", "pipe"],
       windowsHide: true,
-    });
+    } as any);
     child.stderr.on("data", (d) => {
       const line = d.toString().trim();
       if (line) log(line);
@@ -67,10 +64,10 @@ async function installTailscaleMac(sudoPassword: string, log: (message: string) 
 
   log("Installing package...");
   await new Promise<void>((resolve, reject) => {
-    const child = spawn("sudo", ["-S", "installer", "-pkg", pkgPath, "-target", "/"], {
+    const child = spawnCmd("sudo", ["-S", "installer", "-pkg", pkgPath, "-target", "/"], {
       stdio: ["pipe", "pipe", "pipe"],
       windowsHide: true,
-    });
+    } as any);
     let stderr = "";
     child.stderr.on("data", (d) => {
       stderr += d.toString();
@@ -81,7 +78,7 @@ async function installTailscaleMac(sudoPassword: string, log: (message: string) 
     });
     child.on("close", (c) => {
       try {
-        execSync(`rm -f ${pkgPath}`, { stdio: "ignore", windowsHide: true });
+        execSyncCmd(`rm -f ${pkgPath}`, { stdio: "ignore", windowsHide: true } as any);
       } catch {
         // ignore
       }
@@ -102,10 +99,10 @@ async function installTailscaleMac(sudoPassword: string, log: (message: string) 
 async function installTailscaleLinux(sudoPassword: string, log: (message: string) => void) {
   log("Downloading install script...");
   return new Promise<void>((resolve, reject) => {
-    const curlChild = spawn("curl", ["-fsSL", "https://tailscale.com/install.sh"], {
+    const curlChild = spawnCmd("curl", ["-fsSL", "https://tailscale.com/install.sh"], {
       stdio: ["ignore", "pipe", "pipe"],
       windowsHide: true,
-    });
+    } as any);
     let scriptContent = "";
     let curlErr = "";
     curlChild.stdout.on("data", (d) => {
@@ -117,7 +114,7 @@ async function installTailscaleLinux(sudoPassword: string, log: (message: string
     curlChild.on("exit", (code) => {
       if (code !== 0) return reject(new Error(`Failed to download install script: ${curlErr}`));
       log("Running install script...");
-      const child = spawn("sudo", ["-S", "sh"], { stdio: ["pipe", "pipe", "pipe"], windowsHide: true });
+      const child = spawnCmd("sudo", ["-S", "sh"], { stdio: ["pipe", "pipe", "pipe"], windowsHide: true } as any);
       let stderr = "";
       child.stdout.on("data", (d) => {
         const line = d.toString().trim();
@@ -146,14 +143,14 @@ async function installTailscaleLinux(sudoPassword: string, log: (message: string
 
 async function installTailscaleWindows(log: (message: string) => void) {
   const msiUrl = "https://pkgs.tailscale.com/stable/tailscale-setup-latest-amd64.msi";
-  const msiPath = path.join(/*turbopackIgnore: true*/ os.tmpdir(), "tailscale-setup.msi");
+  const msiPath = pathJoin(osTmpdir(), "tailscale-setup.msi");
 
   log("Downloading Tailscale installer...");
   await new Promise<void>((resolve, reject) => {
-    const child = spawn("curl.exe", ["-L", "-#", "-o", msiPath, msiUrl], {
+    const child = spawnCmd("curl.exe", ["-L", "-#", "-o", msiPath, msiUrl], {
       stdio: ["ignore", "pipe", "pipe"],
       windowsHide: true,
-    });
+    } as any);
     let lastPct = "";
     child.stderr.on("data", (d) => {
       const text = d.toString();
@@ -170,18 +167,19 @@ async function installTailscaleWindows(log: (message: string) => void) {
   log("Installing Tailscale (UAC prompt may appear)...");
   await new Promise<void>((resolve, reject) => {
     const args = `'/i','${msiPath}','TS_NOLAUNCH=true','/quiet','/norestart'`;
-    const child = spawn("powershell", [
+    const child = spawnCmd("powershell", [
       "-NoProfile",
       "-NonInteractive",
       "-Command",
       `Start-Process msiexec -ArgumentList ${args} -Verb RunAs -Wait`,
-    ], { stdio: ["ignore", "pipe", "pipe"], windowsHide: true });
+    ], { stdio: ["ignore", "pipe", "pipe"], windowsHide: true } as any);
     child.stderr.on("data", (d) => {
       const l = d.toString().trim();
       if (l) log(l);
     });
     child.on("close", (c) => {
       try {
+        const fs = require("fs") as typeof import("fs");
         fs.unlinkSync(msiPath);
       } catch {
         // ignore
@@ -195,7 +193,7 @@ async function installTailscaleWindows(log: (message: string) => void) {
   const maxWait = 10000;
   const start = Date.now();
   while (Date.now() - start < maxWait) {
-    if (fs.existsSync(/*turbopackIgnore: true*/ WINDOWS_TAILSCALE_BIN)) {
+    if (existsSync(WINDOWS_TAILSCALE_BIN)) {
       log("Installation complete.");
       return;
     }

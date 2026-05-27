@@ -1,8 +1,7 @@
-import { DEFAULT_AXONROUTER_PORT } from "@/shared/constants/runtimeDefaults";
-import crypto from "crypto";
+import { getDeps } from "./deps";
+import crypto from "node:crypto";
 import { hostname } from "node:os";
 import { loadTunnelStateSnapshot, resolveTunnelShortId, saveTunnelConnectionState } from "./tunnelStateAccess";
-import { getCurrentSettings, updateCurrentSettings } from "@/lib/settingsAccess";
 import * as cloudflared from "./cloudflared";
 
 const WORKER_URL = process.env.TUNNEL_WORKER_URL || "https://axonrouter.com";
@@ -17,8 +16,6 @@ let exitHandlerRegistered = false;
 let reconnectTimeoutId: ReturnType<typeof setTimeout> | null = null;
 let manualDisabled = false;
 let reconnectTimestamps: number[] = [];
-
-
 
 export function isTunnelManuallyDisabled() {
   return manualDisabled;
@@ -45,7 +42,9 @@ async function registerTunnelUrl(shortId: string, tunnelUrl: string) {
   });
 }
 
-export async function enableTunnelRuntime(localPort = Number(DEFAULT_AXONROUTER_PORT)) {
+export async function enableTunnelRuntime(localPort?: number) {
+  const { DEFAULT_AXONROUTER_PORT, updateCurrentSettings } = getDeps();
+  const port = localPort ?? DEFAULT_AXONROUTER_PORT;
   manualDisabled = false;
 
   const cloudflaredModule = cloudflared;
@@ -71,7 +70,7 @@ export async function enableTunnelRuntime(localPort = Number(DEFAULT_AXONROUTER_
     await updateCurrentSettings({ tunnelEnabled: true, tunnelUrl: url });
   };
 
-  const quickTunnelResult: any = await cloudflaredModule.spawnQuickTunnel(localPort, onUrlUpdate);
+  const quickTunnelResult: any = await cloudflaredModule.spawnQuickTunnel(port, onUrlUpdate);
   const tunnelUrl = quickTunnelResult?.tunnelUrl || "";
 
   await registerTunnelUrl(shortId, tunnelUrl);
@@ -82,7 +81,6 @@ export async function enableTunnelRuntime(localPort = Number(DEFAULT_AXONROUTER_
     cloudflaredModule.setUnexpectedExitHandler(() => {
       if (!isReconnecting) scheduleReconnect(0);
     });
-    // Kill cloudflared when parent process exits
     process.once("exit", () => { try { cloudflaredModule.killCloudflared(); } catch { /* ignore */ } });
     exitHandlerRegistered = true;
   }
@@ -94,7 +92,8 @@ export async function enableTunnelRuntime(localPort = Number(DEFAULT_AXONROUTER_
 async function scheduleReconnect(attempt: number) {
   if (isReconnecting || manualDisabled) return;
 
-  // Sliding window: stop if too many reconnects in a short period
+  const { getCurrentSettings, updateCurrentSettings } = getDeps();
+
   const now = Date.now();
   reconnectTimestamps = reconnectTimestamps.filter(t => now - t < RECONNECT_WINDOW_MS);
   if (reconnectTimestamps.length >= MAX_RECONNECTS_IN_WINDOW) {
@@ -139,6 +138,7 @@ async function scheduleReconnect(attempt: number) {
 }
 
 export async function disableTunnelRuntime() {
+  const { updateCurrentSettings } = getDeps();
   manualDisabled = true;
   isReconnecting = true;
   if (reconnectTimeoutId) {
@@ -162,6 +162,7 @@ export async function disableTunnelRuntime() {
 }
 
 export async function getTunnelStatusRuntime() {
+  const { getCurrentSettings } = getDeps();
   const state = loadTunnelStateSnapshot();
   const cloudflaredModule = cloudflared;
   const running = cloudflaredModule.isCloudflaredRunning();

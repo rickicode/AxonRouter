@@ -1,7 +1,5 @@
-import { DEFAULT_AXONROUTER_PORT } from "@/shared/constants/runtimeDefaults";
+import { getDeps } from "./deps";
 import { loadTunnelStateSnapshot, resolveTunnelShortId } from "./tunnelStateAccess";
-import { updateCurrentSettings } from "@/lib/settingsAccess";
-import { getTailscaleMitmHooks } from "./tailscaleMitmHooksRuntime";
 
 type TailscaleLoginResult = {
   authUrl?: string;
@@ -20,11 +18,14 @@ function resolveTailscaleHostname() {
 }
 
 async function loadTailscaleSudoPassword() {
-  const { getCachedPassword, loadEncryptedPassword } = await getTailscaleMitmHooks();
-  return getCachedPassword() || (await loadEncryptedPassword()) || "";
+  const { getMitmCachedPassword, loadMitmEncryptedPassword } = getDeps();
+  return getMitmCachedPassword() || (await loadMitmEncryptedPassword()) || "";
 }
 
-export async function enableTailscaleRuntime(localPort = Number(DEFAULT_AXONROUTER_PORT)) {
+export async function enableTailscaleRuntime(localPort?: number) {
+  const { DEFAULT_AXONROUTER_PORT, updateCurrentSettings } = getDeps();
+  const port = localPort ?? DEFAULT_AXONROUTER_PORT;
+
   const [funnelRuntime, tailscaleStatus, tailscaleDaemon, tailscaleLogin] = await Promise.all([
     import("./tailscaleFunnelRuntime"),
     import("./tailscaleStatus"),
@@ -52,7 +53,7 @@ export async function enableTailscaleRuntime(localPort = Number(DEFAULT_AXONROUT
   }
 
   stopFunnelRuntime();
-  const result = (await startFunnelRuntime(localPort)) as TailscaleFunnelResult;
+  const result = (await startFunnelRuntime(port)) as TailscaleFunnelResult;
 
   if (result.funnelNotEnabled) {
     return { success: false, funnelNotEnabled: true, enableUrl: result.enableUrl };
@@ -69,6 +70,7 @@ export async function enableTailscaleRuntime(localPort = Number(DEFAULT_AXONROUT
 }
 
 export async function disableTailscaleRuntime() {
+  const { updateCurrentSettings } = getDeps();
   const { stopFunnelRuntime, stopDaemonRuntime } = await import("./tailscaleFunnelRuntime");
   stopFunnelRuntime();
   const sudoPass = await loadTailscaleSudoPassword();
@@ -76,4 +78,3 @@ export async function disableTailscaleRuntime() {
   await updateCurrentSettings({ tailscaleEnabled: false, tailscaleUrl: "" });
   return { success: true };
 }
-

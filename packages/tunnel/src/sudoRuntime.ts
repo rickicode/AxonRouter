@@ -1,12 +1,11 @@
-import { execSync, spawn } from "child_process";
-import os from "os";
+import { execSyncCmd, spawnCmd, osPlatform } from "@axonrouter/data-dir";
 
-const IS_WINDOWS = os.platform() === "win32";
+const IS_WINDOWS = osPlatform() === "win32";
 
 function isSudoAvailable() {
   if (IS_WINDOWS) return false;
   try {
-    execSync("command -v sudo", { stdio: "ignore", windowsHide: true });
+    execSyncCmd("command -v sudo", { stdio: "ignore" } as any);
     return true;
   } catch {
     return false;
@@ -17,8 +16,8 @@ export function execWithPassword(command: string, password: string) {
   return new Promise<string>((resolve, reject) => {
     const useSudo = isSudoAvailable();
     const child = useSudo
-      ? spawn("sudo", ["-S", "sh", "-c", command], { stdio: ["pipe", "pipe", "pipe"], windowsHide: true })
-      : spawn("sh", ["-c", command], { stdio: ["ignore", "pipe", "pipe"], windowsHide: true });
+      ? spawnCmd("sudo", ["-S", "sh", "-c", command], { stdio: ["pipe", "pipe", "pipe"], windowsHide: true } as any)
+      : spawnCmd("sh", ["-c", command], { stdio: ["ignore", "pipe", "pipe"], windowsHide: true } as any);
 
     let stdout = "";
     let stderr = "";

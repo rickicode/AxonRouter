@@ -1,7 +1,7 @@
 "use server";
 
 import { NextResponse } from "next/server";
-import { startTailscaleDaemonFromStoredPassword } from "@/lib/tunnel/tailscaleDaemonStart";
+import { startTailscaleDaemonFromStoredPassword } from "@axonrouter/tunnel";
 
 export async function POST(request: Request) {
   try {

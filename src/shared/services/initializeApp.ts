@@ -5,8 +5,43 @@ import { closeUsageDb } from "@/lib/usageDb/core";
 import { drainUsageQueue } from "@/lib/usageDb/backgroundQueue";
 import { autoStartMitmIfEnabled, bootstrapMitmRuntimeFromInitializeApp } from "@/lib/mitm/initializeMitmAccess";
 import { ensureUsageCheckSchedulerStarted } from "@/lib/usageCheckScheduler/bootstrap";
+import { getCurrentSettings, updateCurrentSettings } from "@/lib/settingsAccess";
+import { loadSingletonFromSqlite, upsertSingleton } from "@/lib/sqliteHelpers";
+import { sqliteWriteGate } from "@/lib/sqliteWriteGate";
+import { DEFAULT_AXONROUTER_PORT } from "@/shared/constants/runtimeDefaults";
+import {
+  configureTunnelDeps,
+  killCloudflared,
+  isCloudflaredRunning,
+  ensureCloudflared,
+  enableTunnel,
+  isTunnelManuallyDisabled,
+  isTunnelReconnecting,
+} from "@axonrouter/tunnel";
 
 import os from "os";
+
+// Configure tunnel dependencies before any tunnel operations
+configureTunnelDeps({
+  getCurrentSettings,
+  updateCurrentSettings,
+  loadSingletonFromSqlite,
+  upsertSingleton,
+  sqliteWriteGate,
+  getMitmCachedPassword: () => (globalThis as any).__mitmSudoPassword || null,
+  loadMitmEncryptedPassword: async () => {
+    const mod = await import("@/mitm/statusFacade");
+    return (mod as any).loadEncryptedPassword?.() ?? null;
+  },
+  mitmInitDbHooks: (getSettings, updateSettings) => {
+    import("@/mitm/statusFacade").then((mod: any) => mod.initDbHooks(getSettings, updateSettings));
+  },
+  execWithPasswordFromDns: async (cmd, password) => {
+    const mod = await import("@/mitm/dns/dnsConfig");
+    return (mod as any).execWithPassword(cmd, password);
+  },
+  DEFAULT_AXONROUTER_PORT: Number(DEFAULT_AXONROUTER_PORT),
+});
 
 // Inject correct paths and DB hooks into the MITM runtime once from the initializer context.
 void bootstrapMitmRuntimeFromInitializeApp();
@@ -30,20 +65,8 @@ const WATCHDOG_INTERVAL_MS = 60000;
 const NETWORK_CHECK_INTERVAL_MS = 5000;
 const NETWORK_RESTART_COOLDOWN_MS = 30000;
 
-type CloudflaredApi = typeof import("@/lib/tunnel/cloudflared");
-type TunnelManagerApi = typeof import("@/lib/tunnel/tunnelManager");
-
-async function cloudflaredApi(): Promise<CloudflaredApi> {
-  return import(/*turbopackIgnore: true*/ "@/lib/tunnel/cloudflared");
-}
-
-async function tunnelManagerApi(): Promise<TunnelManagerApi> {
-  return import(/*turbopackIgnore: true*/ "@/lib/tunnel/tunnelManager");
-}
-
 async function cleanupAppResources() {
   try {
-    const { killCloudflared } = await cloudflaredApi();
     killCloudflared();
   } catch {}
 
@@ -78,11 +101,9 @@ export async function initializeApp() {
 
     // Auto-reconnect tunnel if it was enabled before restart
     if (settings.tunnelEnabled) {
-      const { isCloudflaredRunning } = await cloudflaredApi();
       if (!isCloudflaredRunning()) {
         console.log("[InitApp] Tunnel was enabled, auto-reconnecting...");
         try {
-          const { enableTunnel } = await tunnelManagerApi();
           await enableTunnel();
           console.log("[InitApp] Tunnel reconnected");
         } catch (error) {
@@ -92,8 +113,6 @@ export async function initializeApp() {
     }
 
     // Kill cloudflared and close SQLite (checkpoint WAL) on process exit
-    // (register once only). Closing SQLite cleanly is what prevents the WAL
-    // file from growing unbounded across restarts (M2).
     if (!g.signalHandlersRegistered) {
       const cleanup = () => {
         void cleanupAppResources();
@@ -111,7 +130,7 @@ export async function initializeApp() {
 
     // Pre-download cloudflared binary in background (skip during static page generation).
     if (process.env.NEXT_PHASE !== "phase-production-build") {
-      cloudflaredApi().then(({ ensureCloudflared }) => ensureCloudflared()).catch(() => {});
+      ensureCloudflared().catch(() => {});
     }
 
     // Watchdog: recover tunnel after process crash
@@ -148,13 +167,11 @@ function startWatchdog() {
   if (g.watchdogInterval) return;
   g.watchdogInterval = setInterval(async () => {
     try {
-      const { enableTunnel, isTunnelManuallyDisabled, isTunnelReconnecting } = await tunnelManagerApi();
       if (isTunnelManuallyDisabled()) return;
       if (isTunnelReconnecting()) return;
       if (g.tunnelRestartInProgress) return;
       const settings = await getSettings();
       if (!settings.tunnelEnabled) return;
-      const { isCloudflaredRunning } = await cloudflaredApi();
       if (isCloudflaredRunning()) return;
       console.log("[Watchdog] Tunnel process is down, attempting recovery...");
       g.tunnelRestartInProgress = true;
@@ -196,7 +213,6 @@ function startNetworkMonitor() {
 
   g.networkMonitorInterval = setInterval(async () => {
     try {
-      const { enableTunnel, isTunnelManuallyDisabled, isTunnelReconnecting } = await tunnelManagerApi();
       if (isTunnelManuallyDisabled()) return;
       const settings = await getSettings();
       if (!settings.tunnelEnabled) return;
@@ -225,7 +241,6 @@ function startNetworkMonitor() {
       g.tunnelRestartInProgress = true;
       g.lastTunnelRestartAt = now;
       try {
-        const { killCloudflared } = await cloudflaredApi();
         killCloudflared();
         await new Promise(r => setTimeout(r, 2000));
         await enableTunnel();

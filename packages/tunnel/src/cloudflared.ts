@@ -1,21 +1,40 @@
-import fs from "fs";
-import path from "path";
-import https from "https";
-import os from "os";
-import { execSync, spawn } from "child_process";
+import {
+  existsSync,
+  mkdirSync,
+  writeFileSync,
+  execSyncCmd,
+  spawnCmd,
+  httpsGet,
+  pathJoin,
+  pathDirname,
+  osPlatform,
+  osArch,
+  osTmpdir,
+  resolveDataPath,
+  dataFileExists,
+  mkdirForData,
+  createWriteStreamForData,
+  statDataFile,
+  openDataFile,
+  readDataFd,
+  closeDataFd,
+  chmodDataFile,
+  unlinkDataFile,
+  renameDataFile,
+  rmDataPath,
+} from "@axonrouter/data-dir";
 import { savePid, loadPid, clearPid } from "./state";
 import {
   getCloudflaredDownloadStatus,
   setCloudflaredDownloadStatus,
 } from "./cloudflaredDownloadState";
-import { getDataDir } from "@/lib/dataDir";
 
 const BINARY_NAME = "cloudflared";
-const IS_WINDOWS = os.platform() === "win32";
+const IS_WINDOWS = osPlatform() === "win32";
 const BIN_NAME = IS_WINDOWS ? `${BINARY_NAME}.exe` : BINARY_NAME;
 
-function getBinDir() { return path.join(/*turbopackIgnore: true*/ getDataDir(), "bin"); }
-function getBinPath() { return path.join(/*turbopackIgnore: true*/ getBinDir(), BIN_NAME); }
+function getBinDir() { return resolveDataPath("bin"); }
+function getBinPath() { return pathJoin(getBinDir(), BIN_NAME); }
 
 const GITHUB_BASE_URL = "https://github.com/cloudflare/cloudflared/releases/latest/download";
 
@@ -35,7 +54,6 @@ const PLATFORM_MAPPINGS = {
   }
 };
 
-// Fallback order: prefer smallest/most-compatible binary per platform
 const PLATFORM_FALLBACK = {
   darwin: "cloudflared-darwin-amd64.tgz",
   win32: "cloudflared-windows-386.exe",
@@ -43,8 +61,8 @@ const PLATFORM_FALLBACK = {
 };
 
 function getDownloadUrl() {
-  const platform = os.platform();
-  const arch = os.arch();
+  const platform = osPlatform();
+  const arch = osArch();
 
   const platformMapping = PLATFORM_MAPPINGS[platform];
   if (!platformMapping) {
@@ -61,25 +79,37 @@ export function getDownloadStatus() {
 
 function downloadFile(url, dest) {
   return new Promise((resolve, reject) => {
-    // Ensure parent directory exists before creating write stream
-    const destDir = path.dirname(/*turbopackIgnore: true*/ dest);
-    if (!fs.existsSync(destDir)) {
-      fs.mkdirSync(destDir, { recursive: true });
+    const destDir = pathDirname(dest);
+    if (!existsSync(destDir)) {
+      mkdirSync(destDir, { recursive: true });
     }
 
-    const file = fs.createWriteStream(dest);
+    // dest is always inside data dir, use createWriteStreamForData with relative path
+    // But since dest is an absolute path, we need to compute relative path from data dir
+    const dataDir = resolveDataPath("");
+    const isInDataDir = dest.startsWith(dataDir);
 
-    https.get(url, (response) => {
+    let file;
+    if (isInDataDir) {
+      const relPath = dest.slice(dataDir.length).replace(/^\//, "");
+      file = createWriteStreamForData(relPath);
+    } else {
+      // For absolute paths outside data dir (shouldn't happen for cloudflared but be safe)
+      const fs = require("fs") as typeof import("fs");
+      file = fs.createWriteStream(dest);
+    }
+
+    httpsGet(url, (response) => {
       if ([301, 302, 303, 307, 308].includes(response.statusCode)) {
         file.close();
-        try { if (fs.existsSync(dest)) fs.unlinkSync(dest); } catch { /* ignore */ }
+        try { if (existsSync(dest)) unlinkAbsolute(dest); } catch { /* ignore */ }
         downloadFile(response.headers.location, dest).then(resolve).catch(reject);
         return;
       }
 
       if (response.statusCode !== 200) {
         file.close();
-        try { if (fs.existsSync(dest)) fs.unlinkSync(dest); } catch { /* ignore */ }
+        try { if (existsSync(dest)) unlinkAbsolute(dest); } catch { /* ignore */ }
         reject(new Error(`Download failed with status ${response.statusCode}`));
         return;
       }
@@ -105,32 +135,52 @@ function downloadFile(url, dest) {
       file.on("error", (err) => {
         setCloudflaredDownloadStatus({ downloading: false, progress: 0 });
         file.close();
-        try { if (fs.existsSync(dest)) fs.unlinkSync(dest); } catch { /* ignore */ }
+        try { if (existsSync(dest)) unlinkAbsolute(dest); } catch { /* ignore */ }
         reject(err);
       });
     }).on("error", (err) => {
       setCloudflaredDownloadStatus({ downloading: false, progress: 0 });
       file.close();
-      try { if (fs.existsSync(dest)) fs.unlinkSync(dest); } catch { /* ignore */ }
+      try { if (existsSync(dest)) unlinkAbsolute(dest); } catch { /* ignore */ }
       reject(err);
     });
   });
 }
 
+/** Helper to unlink an absolute path that lives in dataDir using the relative unlinkDataFile */
+function unlinkAbsolute(abspath: string) {
+  const dataDir = resolveDataPath("");
+  if (abspath.startsWith(dataDir)) {
+    unlinkDataFile(abspath.slice(dataDir.length).replace(/^\//, ""));
+  }
+}
+
+/** Helper to rename absolute paths that live in dataDir */
+function renameAbsolute(src: string, dst: string) {
+  const dataDir = resolveDataPath("");
+  if (src.startsWith(dataDir) && dst.startsWith(dataDir)) {
+    renameDataFile(
+      src.slice(dataDir.length).replace(/^\//, ""),
+      dst.slice(dataDir.length).replace(/^\//, "")
+    );
+  }
+}
+
 const MIN_BINARY_SIZE = 1024 * 1024; // 1MB - cloudflared is ~30MB+
 
-// Validate binary is executable on current platform and not truncated
 function isValidBinary(filePath) {
   try {
-    const stat = fs.statSync(filePath);
+    const dataDir = resolveDataPath("");
+    const relPath = filePath.slice(dataDir.length).replace(/^\//, "");
+    const stat = statDataFile(relPath);
     if (stat.size < MIN_BINARY_SIZE) return false;
-    const fd = fs.openSync(filePath, "r");
+    const fd = openDataFile(relPath, "r");
     const buf = Buffer.alloc(4);
-    fs.readSync(fd, buf, 0, 4, 0);
-    fs.closeSync(fd);
+    readDataFd(fd, buf, 0, 4, 0);
+    closeDataFd(fd);
     const magic = buf.toString("hex");
     if (IS_WINDOWS) return magic.startsWith("4d5a"); // PE (MZ)
-    if (os.platform() === "darwin") return magic.startsWith("cffaedfe") || magic.startsWith("cefaedfe");
+    if (osPlatform() === "darwin") return magic.startsWith("cffaedfe") || magic.startsWith("cefaedfe");
     return magic.startsWith("7f454c46"); // ELF (Linux)
   } catch {
     return false;
@@ -146,41 +196,42 @@ export async function ensureCloudflared() {
 }
 
 async function _ensureCloudflared() {
-  if (!fs.existsSync(getBinDir())) {
-    fs.mkdirSync(getBinDir(), { recursive: true });
+  if (!dataFileExists("bin")) {
+    mkdirForData("bin", { recursive: true });
   }
 
   // Clean up incomplete downloads from previous runs
-  const tmpPath = `${getBinPath()}.tmp`;
-  if (fs.existsSync(tmpPath)) {
-    try { fs.unlinkSync(tmpPath); } catch { /* ignore */ }
+  const binRelPath = `bin/${BIN_NAME}`;
+  const tmpRelPath = `${binRelPath}.tmp`;
+  if (dataFileExists(tmpRelPath)) {
+    try { unlinkDataFile(tmpRelPath); } catch { /* ignore */ }
   }
 
-  if (fs.existsSync(getBinPath())) {
+  if (dataFileExists(binRelPath)) {
     if (!isValidBinary(getBinPath())) {
       console.log("[cloudflared] Invalid binary detected, re-downloading...");
-      fs.unlinkSync(getBinPath());
+      unlinkDataFile(binRelPath);
     } else {
-      if (!IS_WINDOWS) fs.chmodSync(getBinPath(), "755");
+      if (!IS_WINDOWS) chmodDataFile(binRelPath, "755");
       return getBinPath();
     }
   }
 
   const url = getDownloadUrl();
   const isArchive = url.endsWith(".tgz");
-  const downloadDest = isArchive ? path.join(/*turbopackIgnore: true*/ getBinDir(), "cloudflared.tgz.tmp") : tmpPath;
+  const downloadDest = isArchive ? pathJoin(getBinDir(), "cloudflared.tgz.tmp") : getBinPath() + ".tmp";
 
   await downloadFile(url, downloadDest);
 
   if (isArchive) {
-    execSync(`tar -xzf "${downloadDest}" -C "${getBinDir()}"`, { stdio: "pipe", windowsHide: true });
-    fs.unlinkSync(downloadDest);
+    execSyncCmd(`tar -xzf "${downloadDest}" -C "${getBinDir()}"`, { stdio: "pipe" } as any);
+    unlinkAbsolute(downloadDest);
   } else {
-    fs.renameSync(downloadDest, getBinPath());
+    renameAbsolute(downloadDest, getBinPath());
   }
 
   if (!IS_WINDOWS) {
-    fs.chmodSync(getBinPath(), "755");
+    chmodDataFile(binRelPath, "755");
   }
 
   return getBinPath();
@@ -213,11 +264,11 @@ export function setUnexpectedExitHandler(handler) {
 export async function spawnCloudflared(tunnelToken) {
   const binaryPath = await ensureCloudflared();
 
-  const child = spawn(binaryPath, ["tunnel", "run", "--dns-resolver-addrs", "1.1.1.1:53", "--token", tunnelToken], {
+  const child = spawnCmd(binaryPath, ["tunnel", "run", "--dns-resolver-addrs", "1.1.1.1:53", "--token", tunnelToken], {
     detached: false,
     windowsHide: true,
     stdio: ["ignore", "pipe", "pipe"]
-  });
+  } as any);
 
   cloudflaredProcess = child;
   savePid(child.pid);
@@ -233,7 +284,6 @@ export async function spawnCloudflared(tunnelToken) {
 
     const handleLog = (data) => {
       const msg = data.toString();
-      // Count exact occurrences in this chunk (each chunk may contain multiple lines)
       const matches = msg.match(/Registered tunnel connection/g);
       if (matches) {
         connectionCount += matches.length;
@@ -262,7 +312,7 @@ export async function spawnCloudflared(tunnelToken) {
     child.on("exit", (code) => {
       cloudflaredProcess = null;
       clearPid();
-      const wasConnected = resolved; // true = already connected successfully
+      const wasConnected = resolved;
       if (!resolved) {
         resolved = true;
         clearTimeout(timeout);
@@ -271,7 +321,6 @@ export async function spawnCloudflared(tunnelToken) {
           return;
         }
       }
-      // Only notify on unexpected exit AFTER successful connection
       if (wasConnected && unexpectedExitHandler) {
         unexpectedExitHandler();
       }
@@ -286,25 +335,26 @@ export async function spawnCloudflared(tunnelToken) {
 export async function spawnQuickTunnel(localPort, onUrlUpdate) {
   const binaryPath = await ensureCloudflared();
 
-  const configDir = fs.mkdtempSync(path.join(/*turbopackIgnore: true*/ os.tmpdir(), "cloudflared-quick-"));
-  const configPath = path.join(/*turbopackIgnore: true*/ configDir, "config.yml");
-  // Avoid using default ~/.cloudflared/config.yml, which can conflict with quick tunnel behavior.
-  fs.writeFileSync(configPath, "# quick-tunnel config placeholder\n", "utf8");
+  const configDir = pathJoin(osTmpdir(), `cloudflared-quick-${Date.now()}`);
+  mkdirSync(configDir, { recursive: true });
+  const configPath = pathJoin(configDir, "config.yml");
+  writeFileSync(configPath, "# quick-tunnel config placeholder\n", "utf8");
 
   let isCleaned = false;
   const cleanup = () => {
     if (isCleaned) return;
     isCleaned = true;
     try {
+      const fs = require("fs") as typeof import("fs");
       fs.rmSync(configDir, { recursive: true, force: true });
     } catch (e) { /* ignore */ }
   };
 
-  const child = spawn(binaryPath, ["tunnel", "--url", `http://localhost:${localPort}`, "--config", configPath, "--no-autoupdate"], {
+  const child = spawnCmd(binaryPath, ["tunnel", "--url", `http://localhost:${localPort}`, "--config", configPath, "--no-autoupdate"], {
     detached: false,
     windowsHide: true,
     stdio: ["ignore", "pipe", "pipe"]
-  });
+  } as any);
 
   cloudflaredProcess = child;
   savePid(child.pid);
@@ -314,8 +364,6 @@ export async function spawnQuickTunnel(localPort, onUrlUpdate) {
     let stderrText = "";
 
     function getQuickTunnelUrlFromLog(message) {
-      // cloudflared logs may contain "api.trycloudflare.com" as well,
-      // but that is NOT the quick-tunnel endpoint we need.
       const regex = /https:\/\/([a-z0-9-]+)\.trycloudflare\.com/gi;
       const candidates = [];
 
@@ -344,7 +392,6 @@ export async function spawnQuickTunnel(localPort, onUrlUpdate) {
       if (!tunnelUrl) return;
 
       if (!resolved) {
-        // First URL — resolve the promise, do NOT call onUrlUpdate (caller handles initial register)
         resolved = true;
         lastUrl = tunnelUrl;
         clearTimeout(timeout);
@@ -353,7 +400,6 @@ export async function spawnQuickTunnel(localPort, onUrlUpdate) {
         return;
       }
 
-      // URL changed after initial connect — notify caller to re-register
       if (tunnelUrl !== lastUrl) {
         lastUrl = tunnelUrl;
         if (onUrlUpdate) onUrlUpdate(tunnelUrl);
@@ -408,7 +454,7 @@ export function killCloudflared() {
 
   // Kill any remaining cloudflared processes
   try {
-    execSync("pkill -f cloudflared 2>/dev/null || true", { stdio: "ignore", windowsHide: true });
+    execSyncCmd("pkill -f cloudflared 2>/dev/null || true", { stdio: "ignore" } as any);
   } catch (e) { /* ignore */ }
 }
 

@@ -1,6 +1,7 @@
-import { getCurrentSettings } from "@/lib/settingsAccess";
+import { getDeps } from "./deps";
 
 export async function getTailscaleStatusRuntime() {
+  const { getCurrentSettings } = getDeps();
   const [{ isTailscaleRunning }, settings] = await Promise.all([
     import("./tailscaleStatus"),
     getCurrentSettings(),

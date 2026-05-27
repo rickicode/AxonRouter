@@ -1,61 +1,46 @@
-import fs from "fs";
-import os from "os";
-import path from "path";
-import { execSync, spawn } from "child_process";
+import { existsSync, execSyncCmd, spawnCmd, osPlatform, osHomedir, resolveDataPath, pathJoin } from "@axonrouter/data-dir";
 import { execWithPassword } from "./sudoRuntime";
 
-const IS_WINDOWS = os.platform() === "win32";
+const IS_WINDOWS = osPlatform() === "win32";
 
-let _tunnelDataDir: string | null = null;
 function getTunnelDataDir() {
-  if (_tunnelDataDir) return _tunnelDataDir;
   if (IS_WINDOWS) {
-    _tunnelDataDir = path.join(/*turbopackIgnore: true*/ process.env.APPDATA || path.join(/*turbopackIgnore: true*/ os.homedir(), "AppData", "Roaming"), "axonrouter");
-  } else {
-    _tunnelDataDir = path.join(/*turbopackIgnore: true*/ os.homedir(), ".axonrouter");
+    return pathJoin(process.env.APPDATA || pathJoin(osHomedir(), "AppData", "Roaming"), "axonrouter");
   }
-  return _tunnelDataDir;
+  return pathJoin(osHomedir(), ".axonrouter");
 }
 
-let _binDir: string | null = null;
 function getBinDir() {
-  if (!_binDir) _binDir = path.join(/*turbopackIgnore: true*/ getTunnelDataDir(), "bin");
-  return _binDir;
+  return pathJoin(getTunnelDataDir(), "bin");
 }
 
-let _tailscaleBin: string | null = null;
 function getTailscaleBinPath() {
-  if (!_tailscaleBin) _tailscaleBin = path.join(/*turbopackIgnore: true*/ getBinDir(), IS_WINDOWS ? "tailscale.exe" : "tailscale");
-  return _tailscaleBin;
+  return pathJoin(getBinDir(), IS_WINDOWS ? "tailscale.exe" : "tailscale");
 }
 const WINDOWS_TAILSCALE_BIN = "C:\\Program Files\\Tailscale\\tailscale.exe";
 
-let cachedTailscaleSocketPath: string | null = null;
-
 function getTailscaleSocketPath() {
-  if (cachedTailscaleSocketPath) return cachedTailscaleSocketPath;
-  cachedTailscaleSocketPath = path.join(/*turbopackIgnore: true*/ getTunnelDataDir(), "tailscale", "tailscaled.sock");
-  return cachedTailscaleSocketPath;
+  return pathJoin(getTunnelDataDir(), "tailscale", "tailscaled.sock");
 }
 
 function getTailscaleSocketArgs() {
   return IS_WINDOWS ? [] : ["--socket", getTailscaleSocketPath()];
 }
 
-let cachedTailscaleBin: string | null | undefined;
-
 function resolveTailscaleBin() {
   try {
-    const systemPath = execSync("which tailscale 2>/dev/null || where tailscale 2>nul", { encoding: "utf8", windowsHide: true }).trim();
+    const systemPath = (execSyncCmd("which tailscale 2>/dev/null || where tailscale 2>nul", { encoding: "utf8", windowsHide: true }) as string).trim();
     if (systemPath) return systemPath;
   } catch {
     // not in PATH
   }
   const binPath = getTailscaleBinPath();
-  if (fs.existsSync(/*turbopackIgnore: true*/ binPath)) return binPath;
-  if (IS_WINDOWS && fs.existsSync(/*turbopackIgnore: true*/ WINDOWS_TAILSCALE_BIN)) return WINDOWS_TAILSCALE_BIN;
+  if (existsSync(binPath)) return binPath;
+  if (IS_WINDOWS && existsSync(WINDOWS_TAILSCALE_BIN)) return WINDOWS_TAILSCALE_BIN;
   return null;
 }
+
+let cachedTailscaleBin: string | null | undefined;
 
 function getTailscaleBin() {
   if (cachedTailscaleBin !== undefined) return cachedTailscaleBin;
@@ -76,16 +61,16 @@ export async function startFunnelRuntime(port: number) {
 
   const socketArgs = getTailscaleSocketArgs();
   try {
-    execSync(`"${bin}" ${socketArgs.join(" ")} funnel --bg reset`, { stdio: "ignore", windowsHide: true });
+    execSyncCmd(`"${bin}" ${socketArgs.join(" ")} funnel --bg reset`, { stdio: "ignore", windowsHide: true } as any);
   } catch {
     // ignore
   }
 
   return new Promise((resolve, reject) => {
-    const child = spawn(bin, [...socketArgs, "funnel", "--bg", `${port}`], {
+    const child = spawnCmd(bin, [...socketArgs, "funnel", "--bg", `${port}`], {
       stdio: ["ignore", "pipe", "pipe"],
       windowsHide: true,
-    });
+    } as any);
 
     let resolved = false;
     let output = "";
@@ -151,7 +136,7 @@ export function stopFunnelRuntime() {
   if (!bin) return;
   const socketArgs = getTailscaleSocketArgs();
   try {
-    execSync(`"${bin}" ${socketArgs.join(" ")} funnel --bg reset`, { stdio: "ignore", windowsHide: true });
+    execSyncCmd(`"${bin}" ${socketArgs.join(" ")} funnel --bg reset`, { stdio: "ignore", windowsHide: true } as any);
   } catch {
     // ignore
   }
@@ -159,13 +144,13 @@ export function stopFunnelRuntime() {
 
 export async function stopDaemonRuntime(sudoPassword: string) {
   try {
-    execSync("pkill -x tailscaled", { stdio: "ignore", windowsHide: true, timeout: 3000 });
+    execSyncCmd("pkill -x tailscaled", { stdio: "ignore", windowsHide: true, timeout: 3000 } as any);
   } catch {
     // ignore
   }
 
   try {
-    execSync("pgrep -x tailscaled", { stdio: "ignore", windowsHide: true, timeout: 2000 });
+    execSyncCmd("pgrep -x tailscaled", { stdio: "ignore", windowsHide: true, timeout: 2000 } as any);
   } catch {
     return;
   }
@@ -179,7 +164,10 @@ export async function stopDaemonRuntime(sudoPassword: string) {
 
     const socketPath = getTailscaleSocketPath();
     try {
-      if (fs.existsSync(/*turbopackIgnore: true*/ socketPath)) fs.unlinkSync(/*turbopackIgnore: true*/ socketPath);
+      if (existsSync(socketPath)) {
+        const fs = require("fs") as typeof import("fs");
+        fs.unlinkSync(socketPath);
+      }
     } catch {
       // ignore
     }

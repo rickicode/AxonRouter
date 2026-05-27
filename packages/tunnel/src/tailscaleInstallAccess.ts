@@ -1,12 +1,11 @@
-import os from "os";
-import { execSync } from "child_process";
+import { osPlatform, execSyncCmd } from "@axonrouter/data-dir";
 import { installTailscaleWithRuntime, resolveTailscaleInstallPassword } from "./tailscaleInstall";
 
 const EXTENDED_PATH = `/usr/local/bin:/opt/homebrew/bin:/usr/bin:/bin:${process.env.PATH || ""}`;
 
 function hasBrew() {
   try {
-    execSync("which brew", { stdio: "ignore", windowsHide: true, env: { ...process.env, PATH: EXTENDED_PATH } });
+    execSyncCmd("which brew", { stdio: "ignore", windowsHide: true, env: { ...process.env, PATH: EXTENDED_PATH } } as any);
     return true;
   } catch {
     return false;
@@ -14,7 +13,7 @@ function hasBrew() {
 }
 
 export async function createTailscaleInstallStream(body: { sudoPassword?: string }) {
-  const platform = os.platform();
+  const platform = osPlatform();
   const isWindows = platform === "win32";
   const isBrew = platform === "darwin" && hasBrew();
   const needsPassword = !isWindows && !isBrew;

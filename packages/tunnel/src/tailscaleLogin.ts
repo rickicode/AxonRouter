@@ -1,4 +1,4 @@
-import { spawn } from "child_process";
+import { spawnCmd } from "@axonrouter/data-dir";
 import { isTailscaleLoggedIn } from "./tailscaleStatus";
 import { getTailscaleBin, getTailscaleSocketArgs, startDaemonWithPassword } from "./tailscaleDaemonRuntime";
 
@@ -24,11 +24,11 @@ export function startLogin(hostname?: string) {
 
     const args = tsArgs("up", "--accept-routes");
     if (hostname) args.push(`--hostname=${hostname}`);
-    const child = spawn(bin, args, {
+    const child = spawnCmd(bin, args, {
       stdio: ["ignore", "pipe", "pipe"],
       detached: true,
       windowsHide: true,
-    });
+    } as any);
 
     let resolved = false;
     let output = "";
