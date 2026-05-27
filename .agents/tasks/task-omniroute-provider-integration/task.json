@@ -1,0 +1,7 @@
+{
+  "task_id": "task-omniroute-provider-integration",
+  "task_description": "Add all providers from OmniRoute to AxonRouter without removing existing ones, reorganize into efficient categories (LOCAL_PROVIDERS, SEARCH_PROVIDERS, AUDIO_ONLY_PROVIDERS, etc), add proper TypeScript types and helper functions, and update the dashboard UX to display providers in clean categorized sections like OmniRoute's /provider page.",
+  "status": "in_progress",
+  "feature_order": ["FEAT-001", "FEAT-002", "FEAT-003"],
+  "blocked_reason": null
+}
