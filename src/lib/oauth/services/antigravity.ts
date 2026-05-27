@@ -120,7 +120,7 @@ export class AntigravityService {
 
   /**
    * Get metadata object for loadCodeAssist / onboardUser API calls.
-   * Uses numeric enum values matching the working 9router implementation.
+   * Uses numeric enum values matching the working reference implementation.
    */
   getMetadata() {
     return getOAuthClientMetadata();

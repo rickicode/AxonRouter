@@ -38,6 +38,7 @@ const allowedRuntimeJsFiles = new Set([
   "scripts/start.js",
   "scripts/ensure-middleware-manifest.js",
   "scripts/mcp-stdio.js",
+  "scripts/service.js",
 ]);
 
 const legacyDefaultFiles = () => {
