@@ -244,7 +244,10 @@ export const APIKEY_PROVIDERS = {
   sambanova: { id: "sambanova", alias: "samba", name: "SambaNova", icon: "memory", color: "#DC2626", textIcon: "SN", website: "https://sambanova.ai", hasFree: true, freeNote: "$5 free credits on signup" },
   nscale: { id: "nscale", alias: "nscale", name: "nScale", icon: "token", color: "#0891B2", textIcon: "NS", website: "https://nscale.com", hasFree: true, freeNote: "$5 free credits on signup" },
   ovhcloud: { id: "ovhcloud", alias: "ovh", name: "OVHcloud AI", icon: "cloud", color: "#2563EB", textIcon: "OVH", website: "https://www.ovhcloud.com" },
+  // Note: Auto-cooldown on rate limit (HTTP 429) is handled automatically by the routing engine
+  // for all APIKEY_PROVIDERS via markAccountUnavailable + checkFallbackError with exponential backoff.
   baseten: { id: "baseten", alias: "baseten", name: "Baseten", icon: "deployed_code", color: "#111827", textIcon: "BT", website: "https://baseten.co", hasFree: true, freeNote: "$30 free trial credits for GPU inference" },
+  pioneer: { id: "pioneer", alias: "pioneer", name: "Pioneer AI", icon: "auto_fix_high", color: "#9A3412", textIcon: "PN", website: "https://docs.pioneer.ai", hasFree: true, freeNote: "Model fine-tuning + inference platform with free trial credits", passthroughModels: true, authHint: "Use your Pioneer AI API key. OpenAI-compatible endpoint at https://api.pioneer.ai/v1" },
   publicai: { id: "publicai", alias: "publicai", name: "PublicAI", icon: "public", color: "#059669", textIcon: "PA", website: "https://publicai.co", hasFree: true },
   moonshot: { id: "moonshot", alias: "moonshot", name: "Moonshot AI", icon: "rocket_launch", color: "#1E40AF", textIcon: "MS", website: "https://platform.moonshot.ai" },
   "meta-llama": { id: "meta-llama", alias: "meta", name: "Meta Llama API", icon: "smart_toy", color: "#0F766E", textIcon: "ML", website: "https://llama.developer.meta.com" },
