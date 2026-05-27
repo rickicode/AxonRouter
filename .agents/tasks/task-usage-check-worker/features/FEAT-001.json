@@ -2,7 +2,7 @@
   "id": "FEAT-001",
   "type": "feat",
   "description": "Create UsageCheckScheduler class, bootstrap module, API status endpoint, and update the Quota page UI to display worker status (next run, running state, last run info)",
-  "status": "in_progress",
+  "status": "completed",
   "steps": [
     "Step 1: Create src/lib/usageCheckScheduler.ts - Implement UsageCheckScheduler class following the exact pattern from src/lib/providerModels/scheduler.ts. Key behaviors: (a) Use global.__appSingleton.usageCheckScheduler for singleton persistence across hot reload. (b) Fields: timerId, running, startedAt, nextRunAt, lastRun (with startedAt, status, message, refreshedCount, errorCount, totalConnections), settings (enabled, intervalMinutes - default 5 minutes). (c) loadSettings() reads from DB settings (key: usageCheckWorker). (d) start() method loads settings, schedules first run. (e) scheduleNext() uses setTimeout with .unref(), sets nextRunAt. (f) runScheduled() fetches all active OAuth connections from USAGE_SUPPORTED_PROVIDERS (use getCurrentProviderConnections from src/lib/connectionAccess.ts filtered by authType:'oauth' and isActive:true, then filter by USAGE_SUPPORTED_PROVIDERS), iterates over them calling runDedupedUsageRefreshJob with refreshUsageWithTransientSkip for each connection, tracks success/error counts. (g) stop() clears timer. (h) getStatus() returns { enabled, intervalMinutes, startedAt, nextRunAt, running, lastRun }. (i) Export getUsageCheckScheduler() singleton getter.",
     "Step 2: Create src/lib/usageCheckScheduler/bootstrap.ts - Follow the pattern from src/lib/providerModels/bootstrap.ts. Export ensureUsageCheckSchedulerStarted() with a bootstrapped flag that calls getUsageCheckScheduler().start() once.",
@@ -24,5 +24,5 @@
     "Run npm run build to confirm the build succeeds with the new files"
   ],
   "blocked_reason": null,
-  "findings": ""
+  "findings": "TypeScript check passes clean. Build has a pre-existing failure on /dashboard/cli-tools page (TypeError: z?.toLowerCase is not a function in cliTools_ts) unrelated to our changes - verified by stashing changes and confirming same error on base. Tests: 1 pre-existing failure in status-handling-transient-auth.test.ts (syntax error in require call with TypeScript) unrelated to our changes. All 186 other test files pass."
 }
