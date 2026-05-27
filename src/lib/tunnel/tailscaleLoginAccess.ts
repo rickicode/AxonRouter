@@ -1,5 +1,5 @@
 import { generateShortId } from "./shortId";
-import { loadPersistedShortId } from "./shortIdState";
+import { loadPersistedShortId } from "./state";
 import { startLogin } from "./tailscaleLogin";
 
 export async function startTailscaleLoginFlow() {

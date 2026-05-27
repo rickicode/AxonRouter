@@ -1,5 +1,5 @@
 import { DEFAULT_AXONROUTER_PORT } from "@/shared/constants/runtimeDefaults";
-import { loadTunnelStateSnapshot, resolveTunnelShortId } from "./tunnelStateAccess";
+import { loadTunnelStateSnapshot, resolveTunnelShortId } from "./state";
 import { updateCurrentSettings } from "@/lib/settingsAccess";
 import { getTailscaleMitmHooks } from "./tailscaleMitmHooksRuntime";
 

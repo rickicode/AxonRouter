@@ -1,0 +1,7 @@
+{
+  "task_id": "task-tunnel-system-refactor",
+  "task_description": "Refactor the tunnel system in src/lib/tunnel/ to remove excessive indirection layers, dead wrapper files, and the new Function hack. Flatten from 6 layers to 2-3 layers. turbopackIgnore comments are acceptable and should remain.",
+  "status": "in_progress",
+  "feature_order": ["FEAT-001"],
+  "blocked_reason": null
+}

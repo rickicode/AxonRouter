@@ -1,7 +1,7 @@
 import { DEFAULT_AXONROUTER_PORT } from "@/shared/constants/runtimeDefaults";
 import crypto from "crypto";
 import { hostname } from "node:os";
-import { loadTunnelStateSnapshot, resolveTunnelShortId, saveTunnelConnectionState } from "./tunnelStateAccess";
+import { loadTunnelStateSnapshot, resolveTunnelShortId, saveTunnelConnectionState } from "./state";
 import { getCurrentSettings, updateCurrentSettings } from "@/lib/settingsAccess";
 import * as cloudflared from "./cloudflared";
 

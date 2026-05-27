@@ -1,0 +1,30 @@
+{
+  "id": "FEAT-001",
+  "type": "refactor",
+  "description": "Remove dead/unused wrapper files and consolidate the Cloudflare tunnel indirection layers from 6 layers down to 2-3 layers. The turbopackIgnore comments are acceptable and should remain. The goal is purely architectural cleanup.",
+  "status": "in_progress",
+  "steps": [
+    "Step 1 - Delete dead files that have ZERO external consumers (confirmed via grep): (a) src/lib/tunnel/enableAccess.ts - enableTunnelWithDnsWarmup is never imported outside itself. (b) src/lib/tunnel/disableAccess.ts - disableTunnelAccess is never imported outside itself. (c) src/lib/tunnel/statusAccess.ts - getTunnelStatusPayload is never imported outside itself. (d) src/lib/tunnel/tailscaleAccess.ts - enableTailscaleAccess/disableTailscaleAccess never imported outside itself. (e) src/lib/tunnel/shortIdState.ts - only re-exports loadPersistedShortId from state.ts; single consumer (tailscaleLoginAccess.ts) should import directly from state.ts. (f) src/lib/tunnel/tailscale.ts - barrel re-export file, never imported. (g) src/lib/tunnel/tailscaleRuntimeFacade.ts - only imported by tailscale.ts which is dead.",
+    "Step 2 - Consolidate tunnelStateFacade.ts into tunnelManager.ts: tunnelStateFacade just lazy-loads tunnelManager via tunnelStateManagerRuntime. Since tunnelManager already does lazy-loading of tunnelConnectionRuntime, merge the 'AndPersist' naming into tunnelManager directly. Then delete tunnelStateFacade.ts and tunnelStateManagerRuntime.ts. No external consumers exist for these files outside the tunnel directory (the API routes use direct runtime imports).",
+    "Step 3 - Consolidate tunnelConnectionStatusRuntime.ts into tunnelConnectionRuntime.ts: tunnelConnectionRuntime.ts already has a getTunnelStatusRuntime() function. tunnelConnectionStatusRuntime.ts has a duplicate with the same name doing the same thing (but using a new Function hack to load cloudflared). Since tunnelConnectionRuntime.ts already directly imports cloudflared, merge the status function there and delete tunnelConnectionStatusRuntime.ts. Also remove the new Function('m', 'return import(m)') hack.",
+    "Step 4 - Consolidate tunnelStatusManager.ts and tunnelStateStatusRuntime.ts: tunnelStatusManager.ts just re-exports from tunnelConnectionStatusRuntime and tailscaleStatusRuntime. tunnelStateStatusRuntime just lazy-loads tunnelStatusManager. Collapse these into a single module. The API route src/app/api/tunnel/status/route.ts imports tunnelStateStatusRuntime - update it to use a simpler path. Create a single tunnelStatus.ts that exports getTunnelStatusPayload() combining tunnel + tailscale status.",
+    "Step 5 - Consolidate tunnelStateAccess.ts into state.ts: tunnelStateAccess.ts has 3 thin wrappers (loadTunnelStateSnapshot, resolveTunnelShortId, saveTunnelConnectionState) over state.ts functions. Move these into state.ts and update the 2 consumers (tunnelConnectionRuntime.ts and tailscaleTunnelRuntime.ts) to import from state.ts directly. Delete tunnelStateAccess.ts.",
+    "Step 6 - Update tailscaleLoginAccess.ts to import loadPersistedShortId directly from state.ts instead of the deleted shortIdState.ts.",
+    "Step 7 - Update the API route files that use new Function hack (src/app/api/tunnel/enable/route.ts, src/app/api/tunnel/disable/route.ts, src/app/api/tunnel/tailscale-enable/route.ts, src/app/api/tunnel/tailscale-disable/route.ts) to use standard dynamic import() with turbopackIgnore comments instead of the new Function hack.",
+    "Step 8 - Verify: run 'source /root/.nvm/nvm.sh && npx tsc --noEmit' passes. Then run 'source /root/.nvm/nvm.sh && npm run build' passes."
+  ],
+  "acceptance_criteria": [
+    "npx tsc --noEmit passes with 0 errors",
+    "npm run build succeeds",
+    "The following files are deleted: enableAccess.ts, disableAccess.ts, statusAccess.ts, tailscaleAccess.ts, shortIdState.ts, tailscale.ts, tailscaleRuntimeFacade.ts, tunnelStateFacade.ts, tunnelStateManagerRuntime.ts, tunnelConnectionStatusRuntime.ts, tunnelStatusManager.ts, tunnelStateStatusRuntime.ts, tunnelStateAccess.ts",
+    "No new Function('m', 'return import(m)') hack exists anywhere in the codebase",
+    "The tunnel system has at most 3 layers: API routes -> Manager (tunnelManager.ts) -> Runtime (tunnelConnectionRuntime.ts, cloudflared.ts)",
+    "All existing API route handlers still work (same exported function signatures)"
+  ],
+  "verification": [
+    "source /root/.nvm/nvm.sh && npx tsc --noEmit",
+    "source /root/.nvm/nvm.sh && npm run build"
+  ],
+  "blocked_reason": null,
+  "findings": ""
+}
