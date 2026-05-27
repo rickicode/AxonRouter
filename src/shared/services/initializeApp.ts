@@ -4,6 +4,7 @@ import { bootstrapUsageDb } from "@/lib/usageDb/bootstrap";
 import { closeUsageDb } from "@/lib/usageDb/core";
 import { drainUsageQueue } from "@/lib/usageDb/backgroundQueue";
 import { autoStartMitmIfEnabled, bootstrapMitmRuntimeFromInitializeApp } from "@/lib/mitm/initializeMitmAccess";
+import { ensureUsageCheckSchedulerStarted } from "@/lib/usageCheckScheduler/bootstrap";
 
 import os from "os";
 
@@ -33,11 +34,11 @@ type CloudflaredApi = typeof import("@/lib/tunnel/cloudflared");
 type TunnelManagerApi = typeof import("@/lib/tunnel/tunnelManager");
 
 async function cloudflaredApi(): Promise<CloudflaredApi> {
-  return import("@/lib/tunnel/cloudflared");
+  return import(/*turbopackIgnore: true*/ "@/lib/tunnel/cloudflared");
 }
 
 async function tunnelManagerApi(): Promise<TunnelManagerApi> {
-  return import("@/lib/tunnel/tunnelManager");
+  return import(/*turbopackIgnore: true*/ "@/lib/tunnel/tunnelManager");
 }
 
 async function cleanupAppResources() {
@@ -121,6 +122,9 @@ export async function initializeApp() {
 
     // Auto-start MITM if it was enabled before restart
     autoStartMitm();
+
+    // Start usage check scheduler (background, non-blocking)
+    ensureUsageCheckSchedulerStarted().catch(() => {});
   } catch (error) {
     console.error("[InitApp] Error:", error);
   }
