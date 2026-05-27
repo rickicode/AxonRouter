@@ -1,6 +1,14 @@
 {
   "task_id": "task-native-turbopack-compat",
-  "task_description": "Make all modules natively Turbopack-compatible by eliminating turbopack ignoreIssue config and turbopackIgnore comments. The fix externalizes the getDataDir() module (root cause of NFT warnings) into a workspace package added to serverExternalPackages.",
+  "task_description": "Make all modules natively Turbopack-compatible by eliminating turbopack ignoreIssue config and turbopackIgnore comments. The fix externalizes the getDataDir() module and tunnel system into workspace packages added to serverExternalPackages.",
   "status": "completed",
-  "feature_order": ["FEAT-001", "FEAT-002"]
+  "feature_order": ["FEAT-001", "FEAT-002"],
+  "blocked_reason": null,
+  "verification": {
+    "build": "pass",
+    "tests": "pass",
+    "test_quality": "pass",
+    "docker_build": "skipped",
+    "summary": "Build produces 0 NFT warnings (previously 81). Typecheck passes. Zero turbopackIgnore or ignoreIssue anywhere in the project."
+  }
 }
