@@ -1,0 +1,31 @@
+{
+  "id": "FEAT-001",
+  "type": "fix",
+  "description": "Detect HTML error responses from relay proxies in proxyAwareFetch and treat them as relay failures rather than provider errors. Also fix the account overrides display in the Proxy Pools Bindings tab to only show accounts that have an explicit proxy override (not all accounts).",
+  "status": "in_progress",
+  "steps": [
+    "In open-sse/utils/proxyFetch.ts, after the successful `originalFetch(relayUrl, ...)` call at line 338, add response validation before returning. Check: (1) if response status is an error status (403, 429, 502, 503, 504, or any 5xx), AND (2) if the response content-type header contains 'text/html' or the response body starts with HTML patterns (<!DOCTYPE, <html, etc.). If both conditions are met, this is a relay error, not a provider error.",
+    "When an HTML error response is detected from the relay: log a clear warning like `[ProxyFetch] Relay returned HTML error (likely rate limit/block), status=<status>`. Then apply the same strictProxy logic as network failures: if strictProxy is true, throw a formatted diagnostic error with phase='relay-html-error'; if strictProxy is false, fall back to direct fetch (same as existing catch block behavior).",
+    "Important: Only treat the response as a relay error if content-type is text/html AND the status is an error code. If the provider itself returns HTML (unlikely for AI APIs but possible), the status code distinguishes: relay errors typically produce 403/429/502/503. Provider errors would be 4xx/5xx with JSON content-type. A 200 response with HTML should NOT be treated as relay error.",
+    "For the HTTP proxy path (undici dispatcher), add similar detection after the `originalFetch(url, { ...options, dispatcher })` call. Check if the response has HTML content-type with error status codes (403, 407, 429, 502, 503, 504) - these indicate the proxy itself returned an error page.",
+    "In src/app/(dashboard)/dashboard/proxy-pools/page.tsx, fix the Bindings tab to show only connections that have a proxy override by default. Change `providerConnectionsForBinding` (line ~922-924) to filter only connections that have a non-null/non-empty proxyPoolId OR proxyGroupId in their providerSpecificData. Add a toggle/checkbox to show all connections when the user wants to assign new overrides. Label it clearly like 'Show all accounts' toggle.",
+    "Add unit test in tests/unit/proxy-relay-html-detection.test.ts that: (1) mocks originalFetch to return a Response with status 429 and content-type text/html, body containing '<html>Rate Limited</html>', (2) verifies that with strictProxy=true it throws a diagnostic error with phase relay-html-error, (3) verifies that with strictProxy=false it falls back to direct fetch, (4) verifies that a 200 response with JSON content-type is returned as-is (not treated as relay error), (5) verifies that a 429 with application/json content-type is returned as-is (could be a real provider rate limit error)."
+  ],
+  "acceptance_criteria": [
+    "When relay returns HTML content with error status (403/429/502/503/504), proxyAwareFetch logs a relay-specific warning and applies strictProxy fallback logic",
+    "When relay returns a normal JSON response (even with 4xx/5xx status), it is passed through as-is (treated as provider response)",
+    "When HTTP proxy returns HTML error page (407/502/503), it is treated as proxy error with same fallback logic",
+    "The Bindings tab in proxy pools page shows only accounts with explicit proxy overrides by default, with a toggle to show all accounts",
+    "Unit tests pass covering relay HTML error detection logic",
+    "npm run typecheck passes with zero errors",
+    "npm run test passes",
+    "npm run build passes"
+  ],
+  "verification": [
+    "npm run typecheck",
+    "npm run test",
+    "npm run build"
+  ],
+  "blocked_reason": null,
+  "findings": ""
+}

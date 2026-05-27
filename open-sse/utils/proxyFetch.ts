@@ -297,6 +297,31 @@ async function createGotScrapingResponse(targetUrl, options) {
   };
 }
 
+const RELAY_ERROR_STATUSES = new Set([403, 429, 502, 503, 504]);
+const PROXY_ERROR_STATUSES = new Set([403, 407, 429, 502, 503, 504]);
+
+function isRelayHtmlError(response: Response): boolean {
+  const status = response.status;
+  if (status >= 200 && status < 300) return false;
+  if (!RELAY_ERROR_STATUSES.has(status) && status < 500) return false;
+  const contentType = response.headers.get("content-type") || "";
+  if (contentType.includes("application/json")) return false;
+  if (contentType.includes("text/event-stream")) return false;
+  if (contentType.includes("text/html")) return true;
+  return false;
+}
+
+function isProxyHtmlError(response: Response): boolean {
+  const status = response.status;
+  if (status >= 200 && status < 300) return false;
+  if (!PROXY_ERROR_STATUSES.has(status) && status < 500) return false;
+  const contentType = response.headers.get("content-type") || "";
+  if (contentType.includes("application/json")) return false;
+  if (contentType.includes("text/event-stream")) return false;
+  if (contentType.includes("text/html")) return true;
+  return false;
+}
+
 export async function proxyAwareFetch(url, options: any = {}, proxyOptions: any = null) {
   const targetUrl = typeof url === "string" ? url : url.toString();
   const parsedTarget = new URL(targetUrl);
@@ -335,8 +360,37 @@ export async function proxyAwareFetch(url, options: any = {}, proxyOptions: any 
       "x-relay-path": `${parsed.pathname}${parsed.search}`,
     };
     try {
-      return await originalFetch(relayUrl, { ...options, headers: relayHeaders });
+      const relayResponse = await originalFetch(relayUrl, { ...options, headers: relayHeaders });
+
+      // Detect HTML error pages from relay (rate limits, Cloudflare blocks, nginx errors)
+      if (isRelayHtmlError(relayResponse)) {
+        console.warn(`[ProxyFetch] Relay returned HTML error (likely rate limit/block), status=${relayResponse.status}`);
+        if (proxyOptions?.strictProxy === true) {
+          throw formatDiagnosticError("Relay returned HTML error page", new Error(`HTTP ${relayResponse.status} with text/html`), {
+            phase: "relay-html-error",
+            targetUrl,
+            proxyUrl: relayUrl,
+          });
+        }
+        // Fall back to direct fetch
+        try {
+          return await originalFetch(url, options);
+        } catch (directError) {
+          throw formatDiagnosticError("Relay HTML error and direct fallback also failed", directError, {
+            phase: "relay-html-fallback-direct",
+            targetUrl,
+            proxyUrl: relayUrl,
+          });
+        }
+      }
+
+      return relayResponse;
     } catch (relayError) {
+      // Re-throw diagnostic errors from HTML detection above
+      if (relayError instanceof Error && (relayError as any).phase) {
+        throw relayError;
+      }
+
       // If strictProxy is enabled, fail hard instead of falling back to direct.
       if (proxyOptions?.strictProxy === true) {
         throw formatDiagnosticError("Relay required but failed (strictProxy)", relayError, {
@@ -394,8 +448,37 @@ export async function proxyAwareFetch(url, options: any = {}, proxyOptions: any 
   if (proxyUrl) {
     try {
       const dispatcher = await getDispatcher(proxyUrl);
-      return await (originalFetch as any)(url, { ...options, dispatcher });
+      const proxyResponse = await (originalFetch as any)(url, { ...options, dispatcher });
+
+      // Detect HTML error pages from HTTP proxy
+      if (isProxyHtmlError(proxyResponse)) {
+        console.warn(`[ProxyFetch] HTTP proxy returned HTML error (likely rate limit/block), status=${proxyResponse.status}`);
+        if (proxyOptions?.strictProxy === true) {
+          throw formatDiagnosticError("HTTP proxy returned HTML error page", new Error(`HTTP ${proxyResponse.status} with text/html`), {
+            phase: "proxy-html-error",
+            targetUrl,
+            proxyUrl,
+          });
+        }
+        // Fall back to direct fetch
+        try {
+          return await originalFetch(url, options);
+        } catch (directError) {
+          throw formatDiagnosticError("Proxy HTML error and direct fallback also failed", directError, {
+            phase: "proxy-html-fallback-direct",
+            targetUrl,
+            proxyUrl,
+          });
+        }
+      }
+
+      return proxyResponse;
     } catch (proxyError) {
+      // Re-throw diagnostic errors from HTML detection above
+      if (proxyError instanceof Error && (proxyError as any).phase) {
+        throw proxyError;
+      }
+
       // If strictProxy is enabled, fail hard instead of falling back to direct
       if (proxyOptions?.strictProxy === true) {
         throw formatDiagnosticError("Proxy required but failed", proxyError, {

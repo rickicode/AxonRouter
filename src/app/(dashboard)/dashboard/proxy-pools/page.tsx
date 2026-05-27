@@ -246,6 +246,7 @@ export default function ProxyPoolsPage() {
   const [poolsStatusFilter, setPoolsStatusFilter] = useState("all");
   const [bindingsPage, setBindingsPage] = useState(1);
   const [bindingsSearch, setBindingsSearch] = useState("");
+  const [showAllBindings, setShowAllBindings] = useState(false);
 
   const handlePoolsSearchChange = (value: string) => { setPoolsSearch(value); setPoolsPage(1); };
   const handlePoolsStatusFilterChange = (value: string) => { setPoolsStatusFilter(value); setPoolsPage(1); };
@@ -924,6 +925,19 @@ export default function ProxyPoolsPage() {
     [providerConnections]
   );
 
+  const connectionsWithOverrides = useMemo(
+    () => providerConnectionsForBinding.filter((connection) => {
+      const psd = connection.providerSpecificData;
+      return psd?.proxyPoolId || psd?.proxyGroupId;
+    }),
+    [providerConnectionsForBinding]
+  );
+
+  const bindingsBaseList = useMemo(
+    () => showAllBindings ? providerConnectionsForBinding : connectionsWithOverrides,
+    [showAllBindings, providerConnectionsForBinding, connectionsWithOverrides]
+  );
+
   const activeCount = useMemo(() => proxyPools.filter((pool) => pool.isActive).length, [proxyPools]);
 
   // Filtered & paginated proxy pools
@@ -953,14 +967,14 @@ export default function ProxyPoolsPage() {
 
   // Filtered & paginated bindings
   const filteredBindings = useMemo(() => {
-    if (!bindingsSearch.trim()) return providerConnectionsForBinding;
+    if (!bindingsSearch.trim()) return bindingsBaseList;
     const q = bindingsSearch.toLowerCase();
-    return providerConnectionsForBinding.filter((connection) =>
+    return bindingsBaseList.filter((connection) =>
       getConnectionLabel(connection).toLowerCase().includes(q) ||
       getProviderLabel(connection.provider).toLowerCase().includes(q) ||
       (connection.id || "").toLowerCase().includes(q)
     );
-  }, [providerConnectionsForBinding, bindingsSearch]);
+  }, [bindingsBaseList, bindingsSearch]);
 
   const paginatedBindings = useMemo(() => {
     const start = (bindingsPage - 1) * BINDINGS_PAGE_SIZE;
@@ -1304,7 +1318,21 @@ export default function ProxyPoolsPage() {
               </p>
             </div>
             <div className="flex flex-wrap items-center gap-2">
-              <Badge variant="secondary">{filteredBindings.length} {translate("connections")}</Badge>
+              <Badge variant="secondary">
+                {showAllBindings
+                  ? `${filteredBindings.length} ${translate("connections")}`
+                  : `${connectionsWithOverrides.length} ${translate("overrides")}`}
+              </Badge>
+              <div className="flex items-center gap-1.5">
+                <Switch
+                  id="show-all-bindings"
+                  checked={showAllBindings}
+                  onToggle={(checked) => { setShowAllBindings(checked); setBindingsPage(1); }}
+                />
+                <label htmlFor="show-all-bindings" className="text-xs text-muted-foreground cursor-pointer whitespace-nowrap">
+                  {translate("Show all accounts")}
+                </label>
+              </div>
               <Input
                 value={bindingsSearch}
                 onChange={(e) => handleBindingsSearchChange(e.target.value)}
@@ -1326,8 +1354,8 @@ export default function ProxyPoolsPage() {
             <Empty className="py-6">
               <EmptyHeader>
                 <EmptyMedia variant="icon"><AppIcon name="search" /></EmptyMedia>
-                <EmptyTitle>{translate("No matching connections")}</EmptyTitle>
-                <EmptyDescription>{translate("Try adjusting your search.")}</EmptyDescription>
+                <EmptyTitle>{!showAllBindings && !bindingsSearch.trim() ? translate("No accounts with proxy overrides") : translate("No matching connections")}</EmptyTitle>
+                <EmptyDescription>{!showAllBindings && !bindingsSearch.trim() ? translate("Enable 'Show all accounts' to assign proxy overrides.") : translate("Try adjusting your search.")}</EmptyDescription>
               </EmptyHeader>
             </Empty>
           ) : (
