@@ -1,0 +1,7 @@
+{
+  "task_id": "task-usage-check-worker",
+  "task_description": "Implement a periodic background UsageCheckScheduler that automatically refreshes usage/quota for all active OAuth provider connections, expose its status via API, and display worker status (next run, running state, last run) on the Quota dashboard page",
+  "status": "in_progress",
+  "feature_order": ["FEAT-001"],
+  "blocked_reason": null
+}

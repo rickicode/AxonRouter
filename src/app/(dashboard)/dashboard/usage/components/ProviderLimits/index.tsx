@@ -1,7 +1,7 @@
 "use client";
 
 import AppIcon from "@/shared/components/AppIcon";
-import { useState, useEffect, useCallback, useMemo } from "react";
+import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { useRouter } from "next/navigation";
 import ProviderIcon from "@/shared/components/ProviderIcon";
 import QuotaTable from "./QuotaTable";
@@ -30,6 +30,117 @@ import { cn } from "@/lib/utils";
 import { getQuotaPresentation } from "./utils";
 
 const DEFAULT_PAGE_SIZE = 24;
+
+function formatRelativeTime(isoString: string | null) {
+  if (!isoString) return null;
+  const diff = new Date(isoString).getTime() - Date.now();
+  const absDiff = Math.abs(diff);
+  const minutes = Math.floor(absDiff / 60000);
+  const seconds = Math.floor((absDiff % 60000) / 1000);
+  if (minutes === 0) {
+    const label = `${seconds}s`;
+    return diff > 0 ? `in ${label}` : `${label} ago`;
+  }
+  const label = seconds > 0 ? `${minutes}m ${seconds}s` : `${minutes}m`;
+  return diff > 0 ? `in ${label}` : `${label} ago`;
+}
+
+type WorkerStatus = {
+  enabled: boolean;
+  intervalMinutes: number;
+  startedAt: string | null;
+  nextRunAt: string | null;
+  running: boolean;
+  lastRun: {
+    startedAt: string;
+    completedAt: string;
+    status: string;
+    message: string;
+    refreshedCount: number;
+    errorCount: number;
+    totalConnections: number;
+  } | null;
+};
+
+function UsageWorkerStatusBar() {
+  const [status, setStatus] = useState<WorkerStatus | null>(null);
+  const [triggering, setTriggering] = useState(false);
+  const [, setTick] = useState(0);
+  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const tickRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  const fetchStatus = useCallback(async () => {
+    try {
+      const res = await fetch("/api/usage-worker/status", { cache: "no-store" });
+      if (!res.ok) return;
+      const data = await res.json();
+      setStatus(data);
+    } catch {
+      // Silently ignore errors
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchStatus();
+    intervalRef.current = setInterval(fetchStatus, 30000);
+    tickRef.current = setInterval(() => setTick((t) => t + 1), 5000);
+    return () => {
+      if (intervalRef.current) clearInterval(intervalRef.current);
+      if (tickRef.current) clearInterval(tickRef.current);
+    };
+  }, [fetchStatus]);
+
+  const handleRunNow = useCallback(async () => {
+    setTriggering(true);
+    try {
+      const res = await fetch("/api/usage-worker/status", {
+        method: "POST",
+        cache: "no-store",
+      });
+      if (res.ok) {
+        await fetchStatus();
+      }
+    } catch {
+      // Silently ignore errors
+    } finally {
+      setTriggering(false);
+    }
+  }, [fetchStatus]);
+
+  if (!status) return null;
+
+  const runningLabel = status.running ? "running..." : "idle";
+  const nextRunLabel = status.nextRunAt ? formatRelativeTime(status.nextRunAt) : null;
+  const lastRunLabel = status.lastRun?.completedAt ? formatRelativeTime(status.lastRun.completedAt) : null;
+
+  return (
+    <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
+      <span className="inline-flex items-center gap-1">
+        <span className="font-medium">Worker:</span>
+        {status.running && <Spinner className="size-3" />}
+        <span>{runningLabel}</span>
+      </span>
+      {nextRunLabel && !status.running && (
+        <span>Next run {nextRunLabel}</span>
+      )}
+      {lastRunLabel && status.lastRun && (
+        <span>
+          Last: {lastRunLabel} ({status.lastRun.refreshedCount} refreshed, {status.lastRun.errorCount} errors)
+        </span>
+      )}
+      <ShadcnButton
+        type="button"
+        variant="ghost"
+        size="sm"
+        onClick={handleRunNow}
+        disabled={triggering || status.running}
+        className="h-5 px-1.5 text-xs"
+      >
+        Run Now
+      </ShadcnButton>
+    </div>
+  );
+}
 
 function getSupportedOAuthConnections(connections = []) {
   return connections.filter(
@@ -547,6 +658,8 @@ export default function ProviderLimits() {
                 <ShadcnBadge variant="secondary">{canonicalStatusCounts.disabled} disabled</ShadcnBadge>
                 <ShadcnBadge variant="secondary">{canonicalStatusCounts.unknown} unknown</ShadcnBadge>
               </div>
+
+              <UsageWorkerStatusBar />
             </div>
           </div>
         </CardHeader>
