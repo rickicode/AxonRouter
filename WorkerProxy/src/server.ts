@@ -15,7 +15,7 @@
  */
 
 import { createServer } from "http";
-import { handleRequest } from "./index";
+import { handleRequest } from "./index.js";
 
 const PORT = parseInt(process.env.PORT || "8787", 10);
 const HOST = process.env.HOST || "0.0.0.0";
