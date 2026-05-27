@@ -10,6 +10,7 @@ import { createRequire } from "node:module";
 
 const require = createRequire(import.meta.url);
 const { defaultPort: DEFAULT_AXONROUTER_PORT } = require("../src/shared/constants/runtimeDefaults.json");
+const { version: APP_VERSION } = require("../package.json");
 
 const SERVICE_COMMAND_NAMES = new Set([
   "install-service",
@@ -95,7 +96,7 @@ function getBaseUrl(port) {
 
 function printStartupSummary({ port, hasStandaloneServer, standaloneServerPath }) {
   const baseUrl = getBaseUrl(port);
-  console.log(`[Start] AxonRouter starting on port ${port}`);
+  console.log(`[Start] AxonRouter v${APP_VERSION} starting on port ${port}`);
   console.log(`[Start] Dashboard: ${baseUrl}/dashboard`);
   console.log(`[Start] API: ${baseUrl}/v1`);
   console.log(
@@ -155,6 +156,18 @@ export async function main() {
     const { handleServiceCommand } = await import("./service.js");
     handleServiceCommand(args.serviceCommand);
     return;
+  }
+
+  // Check for unrecognized commands
+  if (args.forwardArgs.length > 0 && args.forwardArgs[0] !== "mcp") {
+    const unknownCmd = args.forwardArgs[0];
+    if (!unknownCmd.startsWith("-") && isNaN(Number(unknownCmd))) {
+      console.error(`\x1b[31m[AxonRouter] Unknown command: ${unknownCmd}\x1b[0m`);
+      console.error("");
+      const { showHelp } = await import("./service.js");
+      showHelp();
+      exit(1);
+    }
   }
 
   const standaloneServerPath = resolveStandaloneServerPath(projectRoot);
@@ -434,6 +447,15 @@ export function syncStandaloneAssets(projectRoot, standaloneServerPath) {
   const standaloneStaticDir = path.join(standaloneRoot, ".next", "static");
   const standalonePublicDir = path.join(standaloneRoot, "public");
   const standaloneMitmDir = path.join(standaloneRoot, "src", "mitm");
+
+  // Skip sync if we don't have write permission to the standalone directory
+  // (e.g. global npm install owned by root, running as non-root user)
+  try {
+    fs.accessSync(standaloneRoot, fs.constants.W_OK);
+  } catch {
+    // No write access - assets are already in place from npm publish/install
+    return;
+  }
 
   if (fs.existsSync(sourceStaticDir)) {
     fs.mkdirSync(path.dirname(standaloneStaticDir), { recursive: true });
