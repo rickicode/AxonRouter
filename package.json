@@ -30,7 +30,7 @@
     "axonrouter": "bin/axonrouter.js"
   },
   "scripts": {
-    "postinstall": "node scripts/postinstall.js",
+    "postinstall": "test -f scripts/postinstall.js && node scripts/postinstall.js || true",
     "dev": "next dev --hostname 127.0.0.1 --turbopack --port 12712",
     "build": "NODE_ENV=production next build --turbopack && node ./scripts/ensure-middleware-manifest.js",
     "start": "NODE_ENV=production node ./scripts/start.js",

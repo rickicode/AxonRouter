@@ -16,6 +16,7 @@ const SERVICE_COMMAND_NAMES = new Set([
   "install-service",
   "uninstall-service",
   "check-service",
+  "status",
   "start",
   "stop",
   "restart",

@@ -727,7 +727,7 @@ export function showHelp() {
 \x1b[33mService Commands:\x1b[0m
   install-service    Install and start AxonRouter as a system service
   uninstall-service  Stop and remove the system service
-  check-service      Check current service status
+  status             Check current service status
   start              Start the service
   stop               Stop the service
   restart            Restart the service
@@ -743,7 +743,7 @@ export function showHelp() {
 \x1b[33mExamples:\x1b[0m
   axonrouter                     Start in foreground
   axonrouter install-service     Install as system service (prompts for sudo)
-  axonrouter check-service       Check if service is running
+  axonrouter status              Check if service is running
   axonrouter --port 3000         Start on custom port
 
 \x1b[33mNotes:\x1b[0m
@@ -760,6 +760,7 @@ export const SERVICE_COMMANDS = {
   "install-service": installService,
   "uninstall-service": uninstallService,
   "check-service": checkService,
+  "status": checkService,
   "start": startService,
   "stop": stopService,
   "restart": restartService,
