@@ -2,7 +2,7 @@
   "id": "FEAT-003",
   "type": "refactor",
   "description": "Address review findings: remove turbopack.ignoreIssue config, make all path computations lazy, inline loadRuntimeModule wrappers, fix download type, remove comment noise.",
-  "status": "in_progress",
+  "status": "completed",
   "steps": [
     "Step 1 - Make all top-level path computations lazy in dataDir.ts, sqliteHelpers.ts, localDbStorage.ts, sqliteBootstrap.ts, mitm/paths.ts, requestDetailsDb/core.ts, usageDb/core.ts",
     "Step 2 - Remove turbopack.ignoreIssue block from next.config.ts",
@@ -22,5 +22,5 @@
     "source /root/.nvm/nvm.sh && npm run build"
   ],
   "blocked_reason": null,
-  "findings": null
+  "findings": "All 4 review issues addressed. turbopack.ignoreIssue removed entirely. Path computations made lazy across 12 modules. Build still produces 86 NFT warnings because Turbopack traces path.join with dynamic values (os.homedir()) even inside function bodies - this is a Turbopack limitation with no workaround other than inline turbopackIgnore comments. The build succeeds without errors regardless. All 187 test files pass."
 }
