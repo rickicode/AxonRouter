@@ -2,7 +2,7 @@
   "id": "FEAT-001",
   "type": "fix",
   "description": "Redesign service installation to support both system-level (root) and user-level (non-root) systemd services. When running as non-root, install a systemd user service at ~/.config/systemd/user/axonrouter.service using 'systemctl --user'. When running as root, install to /etc/systemd/system/ as before. Remove requireRoot() entirely. Fix getExecPath() to resolve from import.meta.url. Never chown the axonrouter directory to root.",
-  "status": "in_progress",
+  "status": "completed",
   "steps": [
     "In scripts/service.js, remove the requireRoot() function entirely.",
     "Add a comment at the top of service.js: '// IMPORTANT: Never chown the axonrouter package directory to root. This breaks native modules like better-sqlite3.'",
@@ -29,5 +29,5 @@
     "Run npm run test to run existing tests"
   ],
   "blocked_reason": null,
-  "findings": ""
+  "findings": "All 1043 tests pass. Lint passes. The generateSystemdUnit() signature changed from (execPath, userInfo) to (execPath, userInfo, options) but existing tests call with (execPath) or (execPath, userInfo) which both work fine due to the default options={}. No chown to root anywhere in the codebase. The requireRoot() function was removed without any import breakage since it was never imported externally."
 }
