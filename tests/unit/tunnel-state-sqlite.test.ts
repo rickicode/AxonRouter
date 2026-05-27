@@ -6,10 +6,27 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const tempDirs = [];
 
-vi.mock("@/lib/dataDir", () => ({
-  getDataDir: () => process.env.DATA_DIR,
-  get DATA_DIR() { return process.env.DATA_DIR; },
-}));
+vi.mock("@/lib/dataDir", () => {
+  const fs = require("fs");
+  const SEP = process.platform === "win32" ? "\\" : "/";
+  return {
+    getDataDir: () => process.env.DATA_DIR,
+    get DATA_DIR() { return process.env.DATA_DIR; },
+    resolveDataPath: (...segments: string[]) => process.env.DATA_DIR + SEP + segments.join(SEP),
+    getDbSqliteFile: () => process.env.DATA_DIR + SEP + "db.sqlite",
+    getDbJsonFile: () => process.env.DATA_DIR + SEP + "db.json",
+    ensureDataDir: () => {
+      const dir = process.env.DATA_DIR;
+      if (dir && !fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+    },
+    dataDirExists: () => fs.existsSync(process.env.DATA_DIR),
+    dataFileExists: (p: string) => fs.existsSync(p),
+    readDataFile: (p: string, enc: string) => fs.readFileSync(p, enc),
+    renameDataFile: (o: string, n: string) => fs.renameSync(o, n),
+    unlinkDataFile: (p: string) => fs.unlinkSync(p),
+    mkdirForData: (p: string, opts?: any) => fs.mkdirSync(p, opts),
+  };
+});
 
 async function createTempDataDir() {
   const dir = await fs.mkdtemp(path.join(os.tmpdir(), "axonrouter-tunnel-state-"));
@@ -23,8 +40,19 @@ async function pathExists(targetPath) {
 
 async function loadModules() {
   vi.resetModules();
-  const tunnelState = await import("@/lib/tunnel/state");
   const sqliteHelpers = await import("@/lib/sqliteHelpers");
+  // Configure tunnel deps before importing state
+  const { configureTunnelDeps } = await import("@/lib/tunnel/deps");
+  configureTunnelDeps({
+    getCurrentSettings: async () => ({}),
+    updateCurrentSettings: async () => ({}),
+    loadSingletonFromSqlite: sqliteHelpers.loadSingletonFromSqlite,
+    upsertSingleton: sqliteHelpers.upsertSingleton,
+    sqliteWriteGate: (fn) => fn(),
+    execWithPassword: async () => "",
+    getMitmStatusFacade: async () => ({}),
+  });
+  const tunnelState = await import("@/lib/tunnel/state");
   return { tunnelState, sqliteHelpers };
 }
 
@@ -68,6 +96,17 @@ describe("tunnel state SQLite storage", () => {
 
     sqliteHelpers.closeSqliteDb();
     vi.resetModules();
+    const sqliteHelpers2 = await import("@/lib/sqliteHelpers");
+    const { configureTunnelDeps: configureTunnelDeps2 } = await import("@/lib/tunnel/deps");
+    configureTunnelDeps2({
+      getCurrentSettings: async () => ({}),
+      updateCurrentSettings: async () => ({}),
+      loadSingletonFromSqlite: sqliteHelpers2.loadSingletonFromSqlite,
+      upsertSingleton: sqliteHelpers2.upsertSingleton,
+      sqliteWriteGate: (fn) => fn(),
+      execWithPassword: async () => "",
+      getMitmStatusFacade: async () => ({}),
+    });
     const reloaded = await import("@/lib/tunnel/state");
 
     expect(reloaded.loadState()).toEqual({ provider: "cloudflare", url: "https://example.trycloudflare.com" });

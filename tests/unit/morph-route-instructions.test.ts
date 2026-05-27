@@ -18,6 +18,10 @@ vi.mock("node:fs", () => ({
   existsSync,
 }));
 
+vi.mock("@/lib/dataDir", () => ({
+  dataFileExists: (...args: any[]) => existsSync(...args),
+}));
+
 describe("Morph instruction injection helpers", () => {
   beforeEach(() => {
     vi.resetModules();

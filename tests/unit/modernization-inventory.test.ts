@@ -31,6 +31,8 @@ const jsFiles = () =>
     ":!:dist/**",
     ":!:coverage/**",
     ":!:build/**",
+    ":!:packages/**/dist/**",
+    ":!:packages/**/src/**",
   ]);
 
 const allowedRuntimeJsFiles = new Set([

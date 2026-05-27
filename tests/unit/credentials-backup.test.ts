@@ -27,10 +27,26 @@ async function loadRealLocalDbWithTempDataDir() {
   delete process.env.REDIS_HOST;
   vi.resetModules();
   vi.doUnmock("@/lib/localDb");
-  vi.doMock("../../src/lib/dataDir.ts", () => ({
-    getDataDir: () => dataDir,
-    DATA_DIR: dataDir,
-  }));
+  vi.doMock("../../src/lib/dataDir.ts", () => {
+    const fs = require("fs");
+    const SEP = process.platform === "win32" ? "\\" : "/";
+    return {
+      getDataDir: () => dataDir,
+      DATA_DIR: dataDir,
+      resolveDataPath: (...segments: string[]) => dataDir + SEP + segments.join(SEP),
+      getDbSqliteFile: () => dataDir + SEP + "db.sqlite",
+      getDbJsonFile: () => dataDir + SEP + "db.json",
+      ensureDataDir: () => {
+        if (!fs.existsSync(dataDir)) fs.mkdirSync(dataDir, { recursive: true });
+      },
+      dataDirExists: () => fs.existsSync(dataDir),
+      dataFileExists: (p: string) => fs.existsSync(p),
+      readDataFile: (p: string, enc: string) => fs.readFileSync(p, enc),
+      renameDataFile: (o: string, n: string) => fs.renameSync(o, n),
+      unlinkDataFile: (p: string) => fs.unlinkSync(p),
+      mkdirForData: (p: string, opts?: any) => fs.mkdirSync(p, opts),
+    };
+  });
 
   const localDb = await import("../../src/lib/localDb.ts");
   return { dataDir, localDb };

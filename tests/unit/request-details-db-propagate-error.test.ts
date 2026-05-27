@@ -12,9 +12,19 @@ vi.mock("@/lib/localDb", () => ({
   getSettings,
 }));
 
-vi.mock("@/lib/dataDir", () => ({
-  getDataDir: () => "/tmp/axonrouter-tests",
-}));
+vi.mock("@/lib/dataDir", () => {
+  const fs = require("fs");
+  return {
+    getDataDir: () => "/tmp/axonrouter-tests",
+    ensureDataDir: () => {
+      if (!fs.existsSync("/tmp/axonrouter-tests")) fs.mkdirSync("/tmp/axonrouter-tests", { recursive: true });
+    },
+    dataFileExists: (p: string) => fs.existsSync(p),
+    getDbJsonFile: () => "/tmp/axonrouter-tests/db.json",
+    getDbSqliteFile: () => "/tmp/axonrouter-tests/db.sqlite",
+    resolveDataPath: (...segments: string[]) => "/tmp/axonrouter-tests/" + segments.join("/"),
+  };
+});
 
 const state = {
   records: [],

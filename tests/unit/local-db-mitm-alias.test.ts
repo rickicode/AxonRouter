@@ -6,12 +6,27 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 const tempDirs = [];
 
-vi.mock("@/lib/dataDir", () => ({
-  getDataDir: () => process.env.DATA_DIR,
-  get DATA_DIR() {
-    return process.env.DATA_DIR;
-  },
-}));
+vi.mock("@/lib/dataDir", () => {
+  const fs = require("fs");
+  const SEP = process.platform === "win32" ? "\\" : "/";
+  return {
+    getDataDir: () => process.env.DATA_DIR,
+    get DATA_DIR() { return process.env.DATA_DIR; },
+    resolveDataPath: (...segments: string[]) => process.env.DATA_DIR + SEP + segments.join(SEP),
+    getDbSqliteFile: () => process.env.DATA_DIR + SEP + "db.sqlite",
+    getDbJsonFile: () => process.env.DATA_DIR + SEP + "db.json",
+    ensureDataDir: () => {
+      const dir = process.env.DATA_DIR;
+      if (dir && !fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+    },
+    dataDirExists: () => fs.existsSync(process.env.DATA_DIR),
+    dataFileExists: (p: string) => fs.existsSync(p),
+    readDataFile: (p: string, enc: string) => fs.readFileSync(p, enc),
+    renameDataFile: (o: string, n: string) => fs.renameSync(o, n),
+    unlinkDataFile: (p: string) => fs.unlinkSync(p),
+    mkdirForData: (p: string, opts?: any) => fs.mkdirSync(p, opts),
+  };
+});
 
 vi.mock("@/lib/connectionStatus", () => ({
   getConnectionEffectiveStatus: vi.fn((connection) => connection?.__status || "unknown"),

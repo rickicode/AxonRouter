@@ -42,7 +42,7 @@ export default defineConfig({
   test: {
     environment: "node",
     globals: true,
-    setupFiles: ["./setup.ts"],
+    setupFiles: [resolve(__dirname, "setup.ts")],
     include: ["**/*.test.ts", "**/*.test.tsx"],
     exclude: [
       "**/node_modules/**",
@@ -56,9 +56,13 @@ export default defineConfig({
     silent: false,
   },
   resolve: {
-    alias: {
-      "@": resolve(__dirname, "../src"),
-      "open-sse": resolve(__dirname, "../open-sse"),
-    },
+    alias: [
+      { find: "@/lib/tunnel/state", replacement: resolve(__dirname, "../packages/tunnel/src/state.ts") },
+      { find: "@/lib/tunnel/cloudflared", replacement: resolve(__dirname, "../packages/tunnel/src/cloudflared.ts") },
+      { find: "@/lib/tunnel/deps", replacement: resolve(__dirname, "../packages/tunnel/src/deps.ts") },
+      { find: "@axonrouter/data-dir", replacement: resolve(__dirname, "../packages/data-dir/src/index.js") },
+      { find: "@", replacement: resolve(__dirname, "../src") },
+      { find: "open-sse", replacement: resolve(__dirname, "../open-sse") },
+    ],
   },
 });
