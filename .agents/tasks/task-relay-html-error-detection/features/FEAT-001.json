@@ -27,5 +27,5 @@
     "npm run build"
   ],
   "blocked_reason": null,
-  "findings": "Switch component uses onToggle prop (not onCheckedChange). All verification passed: lint 0 errors, typecheck 0 errors, 191 test files / 1094 tests pass, build succeeds."
+  "findings": "Switch component uses onToggle prop (not onCheckedChange). All verification passed: lint 0 errors, typecheck 0 errors, 191 test files / 1094 tests pass, build succeeds. Review fix applied: narrowed re-throw guard to HTML_DETECTION_PHASES set, consolidated duplicate functions into isHtmlErrorResponse, added discardResponseBody before fallback, extended detection to text/plain content-type on error statuses."
 }
