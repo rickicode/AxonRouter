@@ -15,7 +15,7 @@ describe("broader header search parity", () => {
     );
 
     expect(providersSource).toContain("useHeaderSearchStore");
-    expect(providersSource).toContain("filteredOauthProviders");
+    expect(providersSource).toContain("filteredNonIdeOauthProviders");
     expect(providersSource).toContain("filteredApiKeyProviders");
     expect(cliToolsSource).toContain("useHeaderSearchStore");
     expect(cliToolsSource).toContain("No CLI tools match current search.");
