@@ -2,7 +2,7 @@
   "id": "FEAT-003",
   "type": "refactor",
   "description": "Address review findings: refactor tailscaleFunnelRuntime.ts to use @axonrouter/data-dir abstraction, add build script for tunnel package, rebuild dist/, and add port constant comments.",
-  "status": "in_progress",
+  "status": "completed",
   "steps": [
     "Refactor tailscaleFunnelRuntime.ts to remove os/path imports and use resolveDataPath from @axonrouter/data-dir",
     "Add build script and tsconfig.build.json to packages/tunnel",
