@@ -759,7 +759,6 @@ export function showHelp() {
 export const SERVICE_COMMANDS = {
   "install-service": installService,
   "uninstall-service": uninstallService,
-  "check-service": checkService,
   "status": checkService,
   "start": startService,
   "stop": stopService,

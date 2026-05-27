@@ -150,7 +150,7 @@ AxonRouter can be installed as a system service for automatic startup:
 sudo axonrouter install-service
 
 # Check service status
-axonrouter check-service
+axonrouter status
 
 # Service control
 sudo axonrouter start
@@ -161,7 +161,7 @@ sudo axonrouter restart
 sudo axonrouter uninstall-service
 ```
 
-Commands also work with `--` flags: `--install-service`, `--check-service`, `--start`, `--stop`, `--restart`, `--uninstall-service`.
+Commands also work with `--` flags: `--install-service`, `--status`, `--start`, `--stop`, `--restart`, `--uninstall-service`.
 
 Features:
 - Auto-detects systemd or init.d

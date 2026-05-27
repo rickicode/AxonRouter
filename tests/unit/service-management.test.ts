@@ -122,7 +122,7 @@ describe("service management - SERVICE_COMMANDS export", () => {
   it("exports all expected service command handlers", () => {
     expect(SERVICE_COMMANDS).toHaveProperty("install-service");
     expect(SERVICE_COMMANDS).toHaveProperty("uninstall-service");
-    expect(SERVICE_COMMANDS).toHaveProperty("check-service");
+    expect(SERVICE_COMMANDS).toHaveProperty("status");
     expect(SERVICE_COMMANDS).toHaveProperty("start");
     expect(SERVICE_COMMANDS).toHaveProperty("stop");
     expect(SERVICE_COMMANDS).toHaveProperty("restart");
@@ -150,7 +150,7 @@ describe("service management - showHelp", () => {
     expect(output).toContain("AxonRouter");
     expect(output).toContain("install-service");
     expect(output).toContain("uninstall-service");
-    expect(output).toContain("check-service");
+    expect(output).toContain("status");
     expect(output).toContain("start");
     expect(output).toContain("stop");
     expect(output).toContain("restart");
@@ -191,14 +191,14 @@ describe("service management - CLI arg parsing integration", () => {
     expect(result.serviceCommand).toBe("uninstall-service");
   });
 
-  it("detects check-service as positional command", () => {
-    const result = parseArgs(["check-service"]);
-    expect(result.serviceCommand).toBe("check-service");
+  it("detects status as positional command", () => {
+    const result = parseArgs(["status"]);
+    expect(result.serviceCommand).toBe("status");
   });
 
-  it("detects --check-service as flag command", () => {
-    const result = parseArgs(["--check-service"]);
-    expect(result.serviceCommand).toBe("check-service");
+  it("detects --status as flag command", () => {
+    const result = parseArgs(["--status"]);
+    expect(result.serviceCommand).toBe("status");
   });
 
   it("detects start as positional command", () => {
