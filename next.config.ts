@@ -4,6 +4,14 @@ const nextConfig = {
   serverExternalPackages: ["better-sqlite3"],
   // Allow HMR/dev assets when the app is opened via localhost or 127.0.0.1 on alternate local ports.
   allowedDevOrigins: ["127.0.0.1", "localhost"],
+  // Suppress NFT tracing warnings for server modules that intentionally use
+  // dynamic paths (os.homedir()/.axonrouter). These are runtime-only I/O
+  // operations that Turbopack cannot statically scope.
+  turbopack: {
+    ignoreIssue: [
+      { path: '**/next.config*', title: /unexpected file in NFT/ },
+    ],
+  },
   images: {
     unoptimized: true
   },
