@@ -46,7 +46,7 @@ async function installTailscaleMac(sudoPassword: string, log: (message: string) 
   }
 
   const pkgUrl = "https://pkgs.tailscale.com/stable/tailscale-latest.pkg";
-  const pkgPath = path.join(/*turbopackIgnore: true*/ os.tmpdir(), "tailscale.pkg");
+  const pkgPath = path.join(os.tmpdir(), "tailscale.pkg");
 
   log("Downloading Tailscale package...");
   await new Promise<void>((resolve, reject) => {
@@ -146,7 +146,7 @@ async function installTailscaleLinux(sudoPassword: string, log: (message: string
 
 async function installTailscaleWindows(log: (message: string) => void) {
   const msiUrl = "https://pkgs.tailscale.com/stable/tailscale-setup-latest-amd64.msi";
-  const msiPath = path.join(/*turbopackIgnore: true*/ os.tmpdir(), "tailscale-setup.msi");
+  const msiPath = path.join(os.tmpdir(), "tailscale-setup.msi");
 
   log("Downloading Tailscale installer...");
   await new Promise<void>((resolve, reject) => {
@@ -195,7 +195,7 @@ async function installTailscaleWindows(log: (message: string) => void) {
   const maxWait = 10000;
   const start = Date.now();
   while (Date.now() - start < maxWait) {
-    if (fs.existsSync(/*turbopackIgnore: true*/ WINDOWS_TAILSCALE_BIN)) {
+    if (fs.existsSync(WINDOWS_TAILSCALE_BIN)) {
       log("Installation complete.");
       return;
     }

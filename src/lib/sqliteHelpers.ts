@@ -42,7 +42,7 @@ function NodeSQLiteDatabase(filePath: string): SQLiteDatabaseLike {
   return new (BetterSqliteDatabase as unknown as new (filePath: string) => SQLiteDatabaseLike)(filePath);
 }
 
-const DB_SQLITE_FILE = path.join(/*turbopackIgnore: true*/ getDataDir(), 'db.sqlite');
+const DB_SQLITE_FILE = path.join(getDataDir(), 'db.sqlite');
 
 let sqliteDb: SQLiteDatabaseLike | null = null;
 let _closed = false;
@@ -213,15 +213,15 @@ export function getSqliteDb() {
   if (sqliteDb) return sqliteDb;
 
   // Ensure data directory exists before opening DB
-  const dbDir = path.dirname(/*turbopackIgnore: true*/ DB_SQLITE_FILE);
-  if (!fs.existsSync(/*turbopackIgnore: true*/ dbDir)) {
-    fs.mkdirSync(/*turbopackIgnore: true*/ dbDir, { recursive: true });
+  const dbDir = path.dirname(DB_SQLITE_FILE);
+  if (!fs.existsSync(dbDir)) {
+    fs.mkdirSync(dbDir, { recursive: true });
   }
 
   const Driver = loadDatabaseDriver();
   const db = typeof Driver === 'function' && 'prototype' in Driver && Driver.prototype
-    ? new (Driver as new (filePath: string) => SQLiteDatabaseLike)(/*turbopackIgnore: true*/ DB_SQLITE_FILE)
-    : (Driver as (filePath: string) => SQLiteDatabaseLike)(/*turbopackIgnore: true*/ DB_SQLITE_FILE);
+    ? new (Driver as new (filePath: string) => SQLiteDatabaseLike)(DB_SQLITE_FILE)
+    : (Driver as (filePath: string) => SQLiteDatabaseLike)(DB_SQLITE_FILE);
 
   configureSqlitePragmas(db);
 

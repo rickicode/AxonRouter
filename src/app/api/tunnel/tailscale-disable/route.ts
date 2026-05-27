@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 
 function loadRuntimeModule() {
-  return import(/*turbopackIgnore: true*/ "@/lib/tunnel/tailscaleTunnelRuntime");
+  return import("@/lib/tunnel/tailscaleTunnelRuntime");
 }
 
 export async function POST() {

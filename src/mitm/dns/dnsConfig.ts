@@ -16,7 +16,7 @@ const TOOL_HOSTS = {
 const IS_WIN = process.platform === "win32";
 const IS_MAC = process.platform === "darwin";
 const HOSTS_FILE = IS_WIN
-  ? path.join(/*turbopackIgnore: true*/ process.env.SystemRoot || "C:\\Windows", "System32", "drivers", "etc", "hosts")
+  ? path.join(process.env.SystemRoot || "C:\\Windows", "System32", "drivers", "etc", "hosts")
   : "/etc/hosts";
 
 /**
@@ -24,7 +24,7 @@ const HOSTS_FILE = IS_WIN
  * Only UAC consent dialog appears, no CMD/PS window popup.
  */
 function executeElevatedPowerShell(psScriptPath, timeoutMs = 30000) {
-  const flagFile = path.join(/*turbopackIgnore: true*/ os.tmpdir(), `ps_done_${Date.now()}.flag`);
+  const flagFile = path.join(os.tmpdir(), `ps_done_${Date.now()}.flag`);
   const psSQ = (s) => s.replace(/'/g, "''");
   
   let psContent = fs.readFileSync(psScriptPath, "utf8");

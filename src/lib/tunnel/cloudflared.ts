@@ -14,8 +14,8 @@ const BINARY_NAME = "cloudflared";
 const IS_WINDOWS = os.platform() === "win32";
 const BIN_NAME = IS_WINDOWS ? `${BINARY_NAME}.exe` : BINARY_NAME;
 
-function getBinDir() { return path.join(/*turbopackIgnore: true*/ getDataDir(), "bin"); }
-function getBinPath() { return path.join(/*turbopackIgnore: true*/ getBinDir(), BIN_NAME); }
+function getBinDir() { return path.join(getDataDir(), "bin"); }
+function getBinPath() { return path.join(getBinDir(), BIN_NAME); }
 
 const GITHUB_BASE_URL = "https://github.com/cloudflare/cloudflared/releases/latest/download";
 
@@ -62,7 +62,7 @@ export function getDownloadStatus() {
 function downloadFile(url, dest) {
   return new Promise((resolve, reject) => {
     // Ensure parent directory exists before creating write stream
-    const destDir = path.dirname(/*turbopackIgnore: true*/ dest);
+    const destDir = path.dirname(dest);
     if (!fs.existsSync(destDir)) {
       fs.mkdirSync(destDir, { recursive: true });
     }
@@ -168,7 +168,7 @@ async function _ensureCloudflared() {
 
   const url = getDownloadUrl();
   const isArchive = url.endsWith(".tgz");
-  const downloadDest = isArchive ? path.join(/*turbopackIgnore: true*/ getBinDir(), "cloudflared.tgz.tmp") : tmpPath;
+  const downloadDest = isArchive ? path.join(getBinDir(), "cloudflared.tgz.tmp") : tmpPath;
 
   await downloadFile(url, downloadDest);
 
@@ -286,8 +286,8 @@ export async function spawnCloudflared(tunnelToken) {
 export async function spawnQuickTunnel(localPort, onUrlUpdate) {
   const binaryPath = await ensureCloudflared();
 
-  const configDir = fs.mkdtempSync(path.join(/*turbopackIgnore: true*/ os.tmpdir(), "cloudflared-quick-"));
-  const configPath = path.join(/*turbopackIgnore: true*/ configDir, "config.yml");
+  const configDir = fs.mkdtempSync(path.join(os.tmpdir(), "cloudflared-quick-"));
+  const configPath = path.join(configDir, "config.yml");
   // Avoid using default ~/.cloudflared/config.yml, which can conflict with quick tunnel behavior.
   fs.writeFileSync(configPath, "# quick-tunnel config placeholder\n", "utf8");
 

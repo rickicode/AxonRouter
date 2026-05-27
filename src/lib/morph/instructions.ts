@@ -166,14 +166,14 @@ function resolveToolCallTargetPath(toolCall) {
 function resolveWorkspaceFilePath(targetPath) {
   if (typeof targetPath !== "string" || !targetPath.trim()) return null;
   const normalized = targetPath.trim();
-  return path.isAbsolute(normalized) ? normalized : path.join(/*turbopackIgnore: true*/ process.cwd(), normalized);
+  return path.isAbsolute(normalized) ? normalized : path.join(process.cwd(), normalized);
 }
 
 function isExistingFilePath(targetPath) {
   const absolutePath = resolveWorkspaceFilePath(targetPath);
   if (!absolutePath) return false;
   try {
-    return existsSync(/*turbopackIgnore: true*/ absolutePath);
+    return existsSync(absolutePath);
   } catch {
     return false;
   }

@@ -21,7 +21,7 @@ async function getDefaultLogFile() {
   const dataDir = process.platform === "win32"
     ? path.join(process.env.APPDATA || path.join(os.homedir(), "AppData", "Roaming"), "axonrouter")
     : path.join(os.homedir(), ".axonrouter");
-  return path.join(/*turbopackIgnore: true*/ dataDir, "audit.log");
+  return path.join(dataDir, "audit.log");
 }
 
 class AuditLogger {
@@ -76,9 +76,9 @@ class AuditLogger {
       const line = JSON.stringify(entry) + "\n";
       const dir = path.dirname(resolvedLogFile);
 
-      await fs.mkdir(/*turbopackIgnore: true*/ dir, { recursive: true });
+      await fs.mkdir(dir, { recursive: true });
 
-      const stats = await fs.stat(/*turbopackIgnore: true*/ resolvedLogFile).catch(() => null);
+      const stats = await fs.stat(resolvedLogFile).catch(() => null);
       if (stats && stats.size >= this.maxSize) {
         await this.rotate(resolvedLogFile);
       }

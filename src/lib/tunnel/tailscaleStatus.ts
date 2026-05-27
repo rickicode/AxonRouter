@@ -7,13 +7,13 @@ import { getDataDir } from "@/lib/dataDir";
 const IS_WINDOWS = os.platform() === "win32";
 
 function getTailscaleBinPath() {
-  return path.join(/*turbopackIgnore: true*/ getDataDir(), "bin", IS_WINDOWS ? "tailscale.exe" : "tailscale");
+  return path.join(getDataDir(), "bin", IS_WINDOWS ? "tailscale.exe" : "tailscale");
 }
 function getTailscaleDir() {
-  return path.join(/*turbopackIgnore: true*/ getDataDir(), "tailscale");
+  return path.join(getDataDir(), "tailscale");
 }
 function getTailscaleSocket() {
-  return path.join(/*turbopackIgnore: true*/ getTailscaleDir(), "tailscaled.sock");
+  return path.join(getTailscaleDir(), "tailscaled.sock");
 }
 
 function getSocketFlag() {
@@ -33,8 +33,8 @@ function getTailscaleBin() {
     // not in PATH
   }
   const binPath = getTailscaleBinPath();
-  if (fs.existsSync(/*turbopackIgnore: true*/ binPath)) return binPath;
-  if (IS_WINDOWS && fs.existsSync(/*turbopackIgnore: true*/ WINDOWS_TAILSCALE_BIN)) return WINDOWS_TAILSCALE_BIN;
+  if (fs.existsSync(binPath)) return binPath;
+  if (IS_WINDOWS && fs.existsSync(WINDOWS_TAILSCALE_BIN)) return WINDOWS_TAILSCALE_BIN;
   return null;
 }
 

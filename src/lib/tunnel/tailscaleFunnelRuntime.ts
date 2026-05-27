@@ -10,22 +10,22 @@ let _tunnelDataDir: string | null = null;
 function getTunnelDataDir() {
   if (_tunnelDataDir) return _tunnelDataDir;
   if (IS_WINDOWS) {
-    _tunnelDataDir = path.join(/*turbopackIgnore: true*/ process.env.APPDATA || path.join(/*turbopackIgnore: true*/ os.homedir(), "AppData", "Roaming"), "axonrouter");
+    _tunnelDataDir = path.join(process.env.APPDATA || path.join(os.homedir(), "AppData", "Roaming"), "axonrouter");
   } else {
-    _tunnelDataDir = path.join(/*turbopackIgnore: true*/ os.homedir(), ".axonrouter");
+    _tunnelDataDir = path.join(os.homedir(), ".axonrouter");
   }
   return _tunnelDataDir;
 }
 
 let _binDir: string | null = null;
 function getBinDir() {
-  if (!_binDir) _binDir = path.join(/*turbopackIgnore: true*/ getTunnelDataDir(), "bin");
+  if (!_binDir) _binDir = path.join(getTunnelDataDir(), "bin");
   return _binDir;
 }
 
 let _tailscaleBin: string | null = null;
 function getTailscaleBinPath() {
-  if (!_tailscaleBin) _tailscaleBin = path.join(/*turbopackIgnore: true*/ getBinDir(), IS_WINDOWS ? "tailscale.exe" : "tailscale");
+  if (!_tailscaleBin) _tailscaleBin = path.join(getBinDir(), IS_WINDOWS ? "tailscale.exe" : "tailscale");
   return _tailscaleBin;
 }
 const WINDOWS_TAILSCALE_BIN = "C:\\Program Files\\Tailscale\\tailscale.exe";
@@ -34,7 +34,7 @@ let cachedTailscaleSocketPath: string | null = null;
 
 function getTailscaleSocketPath() {
   if (cachedTailscaleSocketPath) return cachedTailscaleSocketPath;
-  cachedTailscaleSocketPath = path.join(/*turbopackIgnore: true*/ getTunnelDataDir(), "tailscale", "tailscaled.sock");
+  cachedTailscaleSocketPath = path.join(getTunnelDataDir(), "tailscale", "tailscaled.sock");
   return cachedTailscaleSocketPath;
 }
 
@@ -52,8 +52,8 @@ function resolveTailscaleBin() {
     // not in PATH
   }
   const binPath = getTailscaleBinPath();
-  if (fs.existsSync(/*turbopackIgnore: true*/ binPath)) return binPath;
-  if (IS_WINDOWS && fs.existsSync(/*turbopackIgnore: true*/ WINDOWS_TAILSCALE_BIN)) return WINDOWS_TAILSCALE_BIN;
+  if (fs.existsSync(binPath)) return binPath;
+  if (IS_WINDOWS && fs.existsSync(WINDOWS_TAILSCALE_BIN)) return WINDOWS_TAILSCALE_BIN;
   return null;
 }
 
@@ -179,7 +179,7 @@ export async function stopDaemonRuntime(sudoPassword: string) {
 
     const socketPath = getTailscaleSocketPath();
     try {
-      if (fs.existsSync(/*turbopackIgnore: true*/ socketPath)) fs.unlinkSync(/*turbopackIgnore: true*/ socketPath);
+      if (fs.existsSync(socketPath)) fs.unlinkSync(socketPath);
     } catch {
       // ignore
     }

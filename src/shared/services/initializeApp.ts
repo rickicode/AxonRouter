@@ -33,11 +33,11 @@ type CloudflaredApi = typeof import("@/lib/tunnel/cloudflared");
 type TunnelManagerApi = typeof import("@/lib/tunnel/tunnelManager");
 
 async function cloudflaredApi(): Promise<CloudflaredApi> {
-  return import(/*turbopackIgnore: true*/ "@/lib/tunnel/cloudflared");
+  return import("@/lib/tunnel/cloudflared");
 }
 
 async function tunnelManagerApi(): Promise<TunnelManagerApi> {
-  return import(/*turbopackIgnore: true*/ "@/lib/tunnel/tunnelManager");
+  return import("@/lib/tunnel/tunnelManager");
 }
 
 async function cleanupAppResources() {

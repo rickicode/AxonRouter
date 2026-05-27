@@ -23,18 +23,18 @@ import {
 } from "./sqliteBootstrap";
 
 const isCloudStorage = typeof caches !== "undefined" && typeof caches === "object";
-const DB_JSON_FILE = isCloudStorage ? null : path.join(/*turbopackIgnore: true*/ getDataDir(), "db.json");
+const DB_JSON_FILE = isCloudStorage ? null : path.join(getDataDir(), "db.json");
 
 function ensureDataDirExists() {
   if (isCloudStorage) return;
   const dataDir = getDataDir();
-  if (!fs.existsSync(/*turbopackIgnore: true*/ dataDir)) {
-    fs.mkdirSync(/*turbopackIgnore: true*/ dataDir, { recursive: true });
+  if (!fs.existsSync(dataDir)) {
+    fs.mkdirSync(dataDir, { recursive: true });
   }
 }
 
 export function loadSqliteStorageState() {
-  if (isCloudStorage || !fs.existsSync(/*turbopackIgnore: true*/ DB_SQLITE_FILE)) {
+  if (isCloudStorage || !fs.existsSync(DB_SQLITE_FILE)) {
     return null;
   }
 
@@ -56,7 +56,7 @@ export function bootstrapPersistentStorage() {
   if (isCloudStorage) return;
   ensureDataDirExists();
 
-  if (DB_JSON_FILE && fs.existsSync(/*turbopackIgnore: true*/ DB_JSON_FILE) && !fs.existsSync(/*turbopackIgnore: true*/ DB_SQLITE_FILE)) {
+  if (DB_JSON_FILE && fs.existsSync(DB_JSON_FILE) && !fs.existsSync(DB_SQLITE_FILE)) {
     migrateFromJSON();
     return;
   }

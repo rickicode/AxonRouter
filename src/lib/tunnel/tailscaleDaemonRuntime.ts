@@ -10,13 +10,13 @@ const IS_MAC = os.platform() === "darwin";
 const IS_WINDOWS = os.platform() === "win32";
 
 function getTailscaleBinPath() {
-  return path.join(/*turbopackIgnore: true*/ getDataDir(), "bin", IS_WINDOWS ? "tailscale.exe" : "tailscale");
+  return path.join(getDataDir(), "bin", IS_WINDOWS ? "tailscale.exe" : "tailscale");
 }
 function getTailscaleDir() {
-  return path.join(/*turbopackIgnore: true*/ getDataDir(), "tailscale");
+  return path.join(getDataDir(), "tailscale");
 }
 function getTailscaleSocket() {
-  return path.join(/*turbopackIgnore: true*/ getTailscaleDir(), "tailscaled.sock");
+  return path.join(getTailscaleDir(), "tailscaled.sock");
 }
 
 function getSocketFlag() {
@@ -40,8 +40,8 @@ export function getTailscaleBin() {
     // not in PATH
   }
   const binPath = getTailscaleBinPath();
-  if (fs.existsSync(/*turbopackIgnore: true*/ binPath)) return binPath;
-  if (IS_WINDOWS && fs.existsSync(/*turbopackIgnore: true*/ WINDOWS_TAILSCALE_BIN)) return WINDOWS_TAILSCALE_BIN;
+  if (fs.existsSync(binPath)) return binPath;
+  if (IS_WINDOWS && fs.existsSync(WINDOWS_TAILSCALE_BIN)) return WINDOWS_TAILSCALE_BIN;
   return null;
 }
 
@@ -79,7 +79,7 @@ export async function startDaemonWithPassword(sudoPassword: string) {
   }
 
   const tailscaleDir = getTailscaleDir();
-  if (!fs.existsSync(/*turbopackIgnore: true*/ tailscaleDir)) fs.mkdirSync(/*turbopackIgnore: true*/ tailscaleDir, { recursive: true });
+  if (!fs.existsSync(tailscaleDir)) fs.mkdirSync(tailscaleDir, { recursive: true });
 
   const tailscaledBin = IS_MAC ? "/usr/local/bin/tailscaled" : "tailscaled";
   const socket = getTailscaleSocket();

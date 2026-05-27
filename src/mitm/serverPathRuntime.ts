@@ -10,7 +10,7 @@ function resolveBundledServerPath() {
 function ensureRuntimeServer(bundledPath, log) {
   return ensureRuntimeServerFromNodeModules({
     bundledPath,
-    dataDir: /*turbopackIgnore: true*/ DATA_DIR,
+    dataDir: DATA_DIR,
     log,
   });
 }

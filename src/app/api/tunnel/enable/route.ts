@@ -3,7 +3,7 @@ import { NextResponse } from "next/server";
 const DNS_WARMUP_DELAY_MS = 8000;
 
 function loadRuntimeModule() {
-  return import(/*turbopackIgnore: true*/ "@/lib/tunnel/tunnelConnectionRuntime");
+  return import("@/lib/tunnel/tunnelConnectionRuntime");
 }
 
 export async function POST() {

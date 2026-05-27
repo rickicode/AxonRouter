@@ -1,0 +1,25 @@
+{
+  "id": "FEAT-002",
+  "type": "refactor",
+  "description": "Remove ALL /*turbopackIgnore: true*/ inline comments from the entire codebase and replace them with proper Turbopack configuration in next.config.ts using the native turbopack.ignoreIssue config. This is the proper Turbopack-native way to handle expected dynamic path operations in server modules, instead of littering source code with inline ignore comments.",
+  "status": "in_progress",
+  "steps": [
+    "Step 1 - Remove ALL /*turbopackIgnore: true*/ comments from source files. There are 72 occurrences across these files: src/lib/dataDir.ts, src/lib/tunnel/cloudflared.ts, src/lib/tunnel/tailscaleDaemonRuntime.ts, src/lib/tunnel/tailscaleFunnelRuntime.ts, src/lib/tunnel/tailscaleStatus.ts, src/lib/tunnel/tailscaleInstallRuntime.ts, src/lib/sqliteHelpers.ts, src/lib/localDbStorage.ts, src/lib/sqliteBootstrap.ts, src/mitm/paths.ts, src/shared/services/initializeApp.ts, src/app/api/tunnel/enable/route.ts, src/app/api/tunnel/disable/route.ts, src/app/api/tunnel/tailscale-enable/route.ts, src/app/api/tunnel/tailscale-disable/route.ts. Simply remove the comment text '/*turbopackIgnore: true*/ ' (with trailing space) or '/*turbopackIgnore: true*/' from all path.join, fs.existsSync, import(), and other call sites.",
+    "Step 2 - In next.config.ts, add a `turbopack` configuration block with `ignoreIssue` array to suppress NFT warnings for the known server modules that do runtime I/O. Use path patterns matching the tunnel, lib, and mitm modules. Example config:\n\nturbopack: {\n  ignoreIssue: [\n    { path: /src\\/lib\\/tunnel\\// },\n    { path: /src\\/lib\\/dataDir/ },\n    { path: /src\\/lib\\/sqlite/ },\n    { path: /src\\/lib\\/localDbStorage/ },\n    { path: /src\\/mitm\\/paths/ },\n    { path: /src\\/shared\\/services\\/initializeApp/ },\n  ]\n}\n\nThis is the proper native Turbopack configuration for declaring that certain server-only modules are expected to have dynamic path operations.",
+    "Step 3 - In the API route files (src/app/api/tunnel/enable/route.ts, disable/route.ts, tailscale-enable/route.ts, tailscale-disable/route.ts), change the dynamic imports from `import(/*turbopackIgnore: true*/ ...)` to plain `import(...)`. These routes use dynamic import() to load runtime modules at request time - which is correct behavior. The turbopack.ignoreIssue config handles the tracing concern.",
+    "Step 4 - Verify: run 'source /root/.nvm/nvm.sh && npx tsc --noEmit' passes. Then run 'source /root/.nvm/nvm.sh && npm run build' completes with 0 NFT warnings."
+  ],
+  "acceptance_criteria": [
+    "Zero occurrences of 'turbopackIgnore' in any source file under src/",
+    "next.config.ts has a turbopack.ignoreIssue configuration",
+    "npx tsc --noEmit passes with 0 errors",
+    "npm run build succeeds with 0 NFT warnings (or if Turbopack still warns despite ignoreIssue, the warnings must be suppressed by the config)"
+  ],
+  "verification": [
+    "source /root/.nvm/nvm.sh && grep -r 'turbopackIgnore' src/ | wc -l  (must be 0)",
+    "source /root/.nvm/nvm.sh && npx tsc --noEmit",
+    "source /root/.nvm/nvm.sh && npm run build 2>&1 | grep -c 'NFT'  (must be 0)"
+  ],
+  "blocked_reason": null,
+  "findings": ""
+}
