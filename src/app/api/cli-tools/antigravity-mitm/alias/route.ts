@@ -1,5 +1,3 @@
-"use server";
-
 import { NextResponse } from "next/server";
 import { requireManagementAuth } from "@/lib/api/requireManagementAuth";
 import { getCurrentMitmAlias, setCurrentMitmAliasAll } from "@/lib/modelCatalogAccess";

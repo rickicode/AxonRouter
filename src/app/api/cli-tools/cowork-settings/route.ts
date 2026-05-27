@@ -1,5 +1,3 @@
-"use server";
-
 import { NextResponse } from "next/server";
 import { requireManagementAuth } from "@/lib/api/requireManagementAuth";
 import fs from "fs/promises";

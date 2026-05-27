@@ -251,7 +251,7 @@ async function refreshOAuthToken(connection) {
     }
 
     return null;
-  } catch (err) {
+  } catch (err: any) {
     console.log(`Error refreshing ${provider} token:`, err.message);
     return null;
   }
@@ -352,7 +352,7 @@ async function testOAuthConnection(connection, effectiveProxy = null) {
     if (res.status === 401) return { valid: false, error: "Token invalid or revoked", refreshed };
     if (res.status === 403) return { valid: false, error: "Access denied", refreshed };
     return { valid: false, error: `API returned ${res.status}`, refreshed };
-  } catch (err) {
+  } catch (err: any) {
     return { valid: false, error: err.message, refreshed };
   }
 }
@@ -389,7 +389,7 @@ async function testApiKeyConnection(connection, effectiveProxy = null) {
         headers: { "Authorization": `Bearer ${connection.apiKey}` },
       }, effectiveProxy);
       return { valid: res.ok, error: res.ok ? null : "Invalid API key or base URL" };
-    } catch (err) {
+    } catch (err: any) {
       return { valid: false, error: err.message };
     }
   }
@@ -404,7 +404,7 @@ async function testApiKeyConnection(connection, effectiveProxy = null) {
         headers: { "x-api-key": connection.apiKey, "anthropic-version": "2023-06-01", "Authorization": `Bearer ${connection.apiKey}` },
       }, effectiveProxy);
       return { valid: res.ok, error: res.ok ? null : "Invalid API key or base URL" };
-    } catch (err) {
+    } catch (err: any) {
       return { valid: false, error: err.message };
     }
   }
@@ -674,7 +674,7 @@ async function testApiKeyConnection(connection, effectiveProxy = null) {
       default:
         return { valid: false, error: "Provider test not supported" };
     }
-  } catch (err) {
+  } catch (err: any) {
     return { valid: false, error: err.message };
   }
 }

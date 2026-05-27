@@ -1,5 +1,3 @@
-"use server";
-
 import { NextResponse } from "next/server";
 import { requireManagementAuth } from "@/lib/api/requireManagementAuth";
 import { exec } from "child_process";
