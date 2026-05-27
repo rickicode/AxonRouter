@@ -1,0 +1,19 @@
+{
+  "id": "FEAT-003",
+  "type": "refactor",
+  "description": "Address review findings: refactor tailscaleFunnelRuntime.ts to use @axonrouter/data-dir abstraction, add build script for tunnel package, rebuild dist/, and add port constant comments.",
+  "status": "in_progress",
+  "steps": [
+    "Refactor tailscaleFunnelRuntime.ts to remove os/path imports and use resolveDataPath from @axonrouter/data-dir",
+    "Add build script and tsconfig.build.json to packages/tunnel",
+    "Rebuild dist/ files",
+    "Add port constant comments in tunnelConnectionRuntime.ts and tunnelManager.ts"
+  ],
+  "acceptance_criteria": [
+    "tailscaleFunnelRuntime.ts uses resolveDataPath instead of path.join(os.homedir()...)",
+    "packages/tunnel has a build script",
+    "dist/ files are in sync with source",
+    "npm run build produces 0 NFT warnings",
+    "npm run typecheck passes"
+  ]
+}

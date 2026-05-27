@@ -1,3 +1,4 @@
+// Inlined from src/shared/constants/runtimeDefaults.json -- keep in sync
 const DEFAULT_AXONROUTER_PORT = "12711";
 export async function enableTunnel(localPort = Number(DEFAULT_AXONROUTER_PORT)) {
     const { enableTunnelRuntime } = await import("./tunnelConnectionRuntime");

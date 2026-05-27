@@ -2,6 +2,7 @@ import crypto from "crypto";
 import { hostname } from "node:os";
 import { loadTunnelStateSnapshot, resolveTunnelShortId, saveTunnelConnectionState } from "./state";
 import { getTunnelDeps } from "./deps";
+// Inlined from src/shared/constants/runtimeDefaults.json -- keep in sync
 const DEFAULT_AXONROUTER_PORT = "12711";
 const WORKER_URL = process.env.TUNNEL_WORKER_URL || "https://axonrouter.com";
 const MACHINE_ID_SALT = "axonrouter-tunnel-salt";

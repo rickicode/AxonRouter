@@ -1,43 +1,20 @@
-import os from "os";
-import path from "path";
-import { dataFileExists, unlinkDataFile, execSyncCmd, spawnCmd } from "@axonrouter/data-dir";
+import { resolveDataPath, dataFileExists, unlinkDataFile, execSyncCmd, spawnCmd } from "@axonrouter/data-dir";
 import { execWithPassword } from "./sudoRuntime";
-const IS_WINDOWS = os.platform() === "win32";
-let _tunnelDataDir = null;
-function getTunnelDataDir() {
-    if (_tunnelDataDir)
-        return _tunnelDataDir;
-    if (IS_WINDOWS) {
-        _tunnelDataDir = path.join(process.env.APPDATA || path.join(os.homedir(), "AppData", "Roaming"), "axonrouter");
-    }
-    else {
-        _tunnelDataDir = path.join(os.homedir(), ".axonrouter");
-    }
-    return _tunnelDataDir;
-}
-let _binDir = null;
-function getBinDir() {
-    if (!_binDir)
-        _binDir = path.join(getTunnelDataDir(), "bin");
-    return _binDir;
-}
-let _tailscaleBin = null;
+const IS_WINDOWS = process.platform === "win32";
+const SEP = IS_WINDOWS ? "\\" : "/";
 function getTailscaleBinPath() {
-    if (!_tailscaleBin)
-        _tailscaleBin = path.join(getBinDir(), IS_WINDOWS ? "tailscale.exe" : "tailscale");
-    return _tailscaleBin;
+    return resolveDataPath("bin", IS_WINDOWS ? "tailscale.exe" : "tailscale");
 }
-const WINDOWS_TAILSCALE_BIN = "C:\\Program Files\\Tailscale\\tailscale.exe";
-let cachedTailscaleSocketPath = null;
+function getTailscaleDir() {
+    return resolveDataPath("tailscale");
+}
 function getTailscaleSocketPath() {
-    if (cachedTailscaleSocketPath)
-        return cachedTailscaleSocketPath;
-    cachedTailscaleSocketPath = path.join(getTunnelDataDir(), "tailscale", "tailscaled.sock");
-    return cachedTailscaleSocketPath;
+    return getTailscaleDir() + SEP + "tailscaled.sock";
 }
 function getTailscaleSocketArgs() {
     return IS_WINDOWS ? [] : ["--socket", getTailscaleSocketPath()];
 }
+const WINDOWS_TAILSCALE_BIN = "C:\\Program Files\\Tailscale\\tailscale.exe";
 let cachedTailscaleBin;
 function resolveTailscaleBin() {
     try {
