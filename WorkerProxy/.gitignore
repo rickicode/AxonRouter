@@ -1,0 +1,19 @@
+# Dependencies
+node_modules/
+
+# Wrangler local state & dev artifacts
+.wrangler/
+
+# Build output
+dist/
+
+# Environment variables
+.env
+.env.*
+!.env.example
+
+# OS files
+.DS_Store
+
+# Logs
+*.log

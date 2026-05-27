@@ -1,0 +1,8 @@
+name = "axon-relay-proxy"
+main = "src/index.ts"
+compatibility_date = "2024-12-01"
+compatibility_flags = ["nodejs_compat"]
+
+# Optional: restrict allowed target hosts (comma-separated, no spaces).
+# If empty, all https:// targets are allowed.
+# ALLOWED_HOSTS = "api.openai.com,api.anthropic.com,inference.baseten.co"
