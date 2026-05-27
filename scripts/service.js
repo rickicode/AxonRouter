@@ -332,6 +332,35 @@ exit 0
 }
 
 /**
+ * Check if the user session bus is available for systemctl --user commands.
+ * Returns true if the session bus is accessible, false otherwise.
+ */
+export function isUserSessionAvailable() {
+  if (process.env.XDG_RUNTIME_DIR || process.env.DBUS_SESSION_BUS_ADDRESS) {
+    return true;
+  }
+  // Try running systemctl --user as a final check
+  try {
+    execSync("systemctl --user --no-pager status", { stdio: "ignore" });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Get the user-level unit path for a specific user.
+ * When running as root with SUDO_USER set, resolves to that user's home.
+ */
+export function getUserUnitPath(targetUser) {
+  if (targetUser) {
+    const home = getInstallingUserHome(targetUser);
+    return path.join(home, ".config", "systemd", "user", `${SERVICE_NAME}.service`);
+  }
+  return USER_UNIT_PATH;
+}
+
+/**
  * Install the service (systemd or init.d).
  * When running as non-root with systemd, installs a user-level service.
  * When running as root with systemd, installs a system-level service.
@@ -368,6 +397,14 @@ export function installService() {
       console.log(`[AxonRouter] System-level service installed, enabled, and started.`);
     } else {
       // User-level service installation (no sudo needed)
+      if (!isUserSessionAvailable()) {
+        console.error(`[AxonRouter] ERROR: User session bus is not available.`);
+        console.error(`[AxonRouter] systemctl --user requires an active user session or lingering enabled.`);
+        console.error(`[AxonRouter] To fix this, run: sudo loginctl enable-linger ${user}`);
+        console.error(`[AxonRouter] Then log out and back in, or reboot.`);
+        process.exit(1);
+      }
+
       const unitContent = generateSystemdUnit(execPath, userInfo, { userMode: true });
 
       fs.mkdirSync(USER_SYSTEMD_DIR, { recursive: true });
@@ -414,6 +451,7 @@ export function installService() {
 /**
  * Uninstall the service (stop, disable, remove).
  * Detects whether a user-level or system-level service is installed.
+ * When running as root, checks if SUDO_USER has a user-level unit.
  */
 export function uninstallService() {
   const initSystem = detectInitSystem();
@@ -421,11 +459,17 @@ export function uninstallService() {
   console.log(`[AxonRouter] Detected init system: ${initSystem}`);
 
   if (initSystem === "systemd") {
-    const userLevelExists = fs.existsSync(USER_UNIT_PATH);
+    // When running as root with SUDO_USER, check that user's unit path too
+    const sudoUser = process.env.SUDO_USER;
+    const effectiveUserUnitPath = (isRoot() && sudoUser)
+      ? getUserUnitPath(sudoUser)
+      : USER_UNIT_PATH;
+
+    const userLevelExists = fs.existsSync(effectiveUserUnitPath);
     const systemLevelExists = fs.existsSync(SYSTEMD_UNIT_PATH);
 
     if (userLevelExists && !isRoot()) {
-      // Uninstall user-level service
+      // Uninstall user-level service (current user)
       try {
         execSync(`systemctl --user stop ${SERVICE_NAME}`, { stdio: "inherit" });
       } catch {
@@ -444,6 +488,30 @@ export function uninstallService() {
       }
       execSync("systemctl --user daemon-reload", { stdio: "inherit" });
       console.log(`[AxonRouter] User-level service uninstalled.`);
+    } else if (userLevelExists && isRoot() && sudoUser) {
+      // Root is uninstalling a user-level service owned by SUDO_USER
+      try {
+        execSync(`sudo -u ${sudoUser} XDG_RUNTIME_DIR=/run/user/$(id -u ${sudoUser}) systemctl --user stop ${SERVICE_NAME}`, { stdio: "inherit" });
+      } catch {
+        // Service might not be running
+      }
+      try {
+        execSync(`sudo -u ${sudoUser} XDG_RUNTIME_DIR=/run/user/$(id -u ${sudoUser}) systemctl --user disable ${SERVICE_NAME}`, { stdio: "inherit" });
+      } catch {
+        // Service might not be enabled
+      }
+      try {
+        fs.unlinkSync(effectiveUserUnitPath);
+        console.log(`[AxonRouter] Removed ${effectiveUserUnitPath}`);
+      } catch {
+        // File might not exist
+      }
+      try {
+        execSync(`sudo -u ${sudoUser} XDG_RUNTIME_DIR=/run/user/$(id -u ${sudoUser}) systemctl --user daemon-reload`, { stdio: "inherit" });
+      } catch {
+        // daemon-reload may fail if session not available, but file is already removed
+      }
+      console.log(`[AxonRouter] User-level service for ${sudoUser} uninstalled.`);
     } else if (systemLevelExists) {
       // Uninstall system-level service
       try {
@@ -561,14 +629,21 @@ export function checkService() {
 
 /**
  * Start the service.
- * Uses systemctl --user if user-level service exists and not root.
+ * Checks for user-level service (including via SUDO_USER when root).
  */
 export function startService() {
   const initSystem = detectInitSystem();
 
   if (initSystem === "systemd") {
-    if (fs.existsSync(USER_UNIT_PATH) && !isRoot()) {
+    const sudoUser = process.env.SUDO_USER;
+    const effectiveUserUnitPath = (isRoot() && sudoUser)
+      ? getUserUnitPath(sudoUser)
+      : USER_UNIT_PATH;
+
+    if (fs.existsSync(effectiveUserUnitPath) && !isRoot()) {
       execSync(`systemctl --user start ${SERVICE_NAME}`, { stdio: "inherit" });
+    } else if (fs.existsSync(effectiveUserUnitPath) && isRoot() && sudoUser) {
+      execSync(`sudo -u ${sudoUser} XDG_RUNTIME_DIR=/run/user/$(id -u ${sudoUser}) systemctl --user start ${SERVICE_NAME}`, { stdio: "inherit" });
     } else {
       runWithSudo(`systemctl start ${SERVICE_NAME}`);
     }
@@ -581,14 +656,21 @@ export function startService() {
 
 /**
  * Stop the service.
- * Uses systemctl --user if user-level service exists and not root.
+ * Checks for user-level service (including via SUDO_USER when root).
  */
 export function stopService() {
   const initSystem = detectInitSystem();
 
   if (initSystem === "systemd") {
-    if (fs.existsSync(USER_UNIT_PATH) && !isRoot()) {
+    const sudoUser = process.env.SUDO_USER;
+    const effectiveUserUnitPath = (isRoot() && sudoUser)
+      ? getUserUnitPath(sudoUser)
+      : USER_UNIT_PATH;
+
+    if (fs.existsSync(effectiveUserUnitPath) && !isRoot()) {
       execSync(`systemctl --user stop ${SERVICE_NAME}`, { stdio: "inherit" });
+    } else if (fs.existsSync(effectiveUserUnitPath) && isRoot() && sudoUser) {
+      execSync(`sudo -u ${sudoUser} XDG_RUNTIME_DIR=/run/user/$(id -u ${sudoUser}) systemctl --user stop ${SERVICE_NAME}`, { stdio: "inherit" });
     } else {
       runWithSudo(`systemctl stop ${SERVICE_NAME}`);
     }
@@ -601,14 +683,21 @@ export function stopService() {
 
 /**
  * Restart the service.
- * Uses systemctl --user if user-level service exists and not root.
+ * Checks for user-level service (including via SUDO_USER when root).
  */
 export function restartService() {
   const initSystem = detectInitSystem();
 
   if (initSystem === "systemd") {
-    if (fs.existsSync(USER_UNIT_PATH) && !isRoot()) {
+    const sudoUser = process.env.SUDO_USER;
+    const effectiveUserUnitPath = (isRoot() && sudoUser)
+      ? getUserUnitPath(sudoUser)
+      : USER_UNIT_PATH;
+
+    if (fs.existsSync(effectiveUserUnitPath) && !isRoot()) {
       execSync(`systemctl --user restart ${SERVICE_NAME}`, { stdio: "inherit" });
+    } else if (fs.existsSync(effectiveUserUnitPath) && isRoot() && sudoUser) {
+      execSync(`sudo -u ${sudoUser} XDG_RUNTIME_DIR=/run/user/$(id -u ${sudoUser}) systemctl --user restart ${SERVICE_NAME}`, { stdio: "inherit" });
     } else {
       runWithSudo(`systemctl restart ${SERVICE_NAME}`);
     }

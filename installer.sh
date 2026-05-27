@@ -7,6 +7,9 @@
 # does not inherit nvm PATH. It uses absolute paths throughout.
 
 set -e
+# Note: set -u is intentionally not used here. Several variables ($NVM_DIR,
+# $SUDO_USER, etc.) may be unset in minimal environments, and adding ${VAR:-}
+# guards throughout would reduce readability without meaningful safety gain.
 
 # ===================================
 # Banner
@@ -101,11 +104,8 @@ if [ "$NODE_MAJOR" -lt 22 ] || { [ "$NODE_MAJOR" -eq 22 ] && [ "$NODE_MINOR" -lt
   echo "AxonRouter requires Node.js >= 22.6.0"
   echo "Please upgrade your Node.js installation."
   echo ""
-  read -rp "Continue anyway? [y/N] " CONTINUE_ANYWAY
-  if [[ ! "$CONTINUE_ANYWAY" =~ ^[Yy]$ ]]; then
-    echo "Aborted."
-    exit 1
-  fi
+  echo "Continuing anyway, but AxonRouter may not work correctly."
+  echo ""
 fi
 
 # ===================================
@@ -200,7 +200,7 @@ echo ""
 echo "Dashboard: http://localhost:12711/dashboard"
 echo "API:       http://localhost:12711/v1"
 echo ""
-echo "Default password: 12345677"
+echo "If this is a fresh install, the default password is 12345677"
 echo "(Change it immediately in Settings -> Security)"
 echo ""
 echo "Commands:"

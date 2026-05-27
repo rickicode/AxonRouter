@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
-import { generateSystemdUnit, generateInitdScript, getInstallingUser, getInstallingUserHome } from "../../scripts/service.js";
+import { generateSystemdUnit, generateInitdScript, getInstallingUser, getInstallingUserHome, isUserSessionAvailable, getUserUnitPath } from "../../scripts/service.js";
 
 describe("service user detection", () => {
   const originalEnv = process.env;
@@ -114,6 +114,87 @@ describe("service user detection", () => {
     it("should export HOME in the script", () => {
       const script = generateInitdScript("/usr/local/bin/axonrouter");
       expect(script).toMatch(/export HOME=/);
+    });
+  });
+
+  describe("generateSystemdUnit() with userMode", () => {
+    it("should NOT contain User= directive in user mode", () => {
+      const unit = generateSystemdUnit("/usr/local/bin/axonrouter", undefined, { userMode: true });
+      expect(unit).not.toMatch(/^User=/m);
+    });
+
+    it("should NOT contain Group= directive in user mode", () => {
+      const unit = generateSystemdUnit("/usr/local/bin/axonrouter", undefined, { userMode: true });
+      expect(unit).not.toMatch(/^Group=/m);
+    });
+
+    it("should use WantedBy=default.target in user mode", () => {
+      const unit = generateSystemdUnit("/usr/local/bin/axonrouter", undefined, { userMode: true });
+      expect(unit).toContain("WantedBy=default.target");
+      expect(unit).not.toContain("WantedBy=multi-user.target");
+    });
+
+    it("should still contain standard service directives in user mode", () => {
+      const unit = generateSystemdUnit("/usr/local/bin/axonrouter", undefined, { userMode: true });
+      expect(unit).toContain("[Unit]");
+      expect(unit).toContain("[Service]");
+      expect(unit).toContain("[Install]");
+      expect(unit).toContain("Restart=always");
+      expect(unit).toContain("RestartSec=5");
+      expect(unit).toContain("Environment=NODE_ENV=production");
+      expect(unit).toContain("Environment=PORT=12711");
+      expect(unit).toContain("KillMode=control-group");
+      expect(unit).toContain("TimeoutStopSec=30");
+    });
+
+    it("should contain WorkingDirectory in user mode", () => {
+      const unit = generateSystemdUnit("/home/user/.nvm/versions/node/v22/bin/axonrouter", undefined, { userMode: true });
+      expect(unit).toContain("WorkingDirectory=/home/user/.nvm/versions/node/v22");
+    });
+
+    it("should contain ExecStart with absolute node path in user mode", () => {
+      const unit = generateSystemdUnit("/usr/local/bin/axonrouter", undefined, { userMode: true });
+      expect(unit).toContain(`ExecStart=${process.execPath} /usr/local/bin/axonrouter`);
+    });
+
+    it("should contain Environment=HOME in user mode", () => {
+      const unit = generateSystemdUnit("/usr/local/bin/axonrouter", undefined, { userMode: true });
+      expect(unit).toMatch(/Environment=HOME=/);
+    });
+  });
+
+  describe("isUserSessionAvailable()", () => {
+    it("should be a function", () => {
+      expect(typeof isUserSessionAvailable).toBe("function");
+    });
+
+    it("should return true when XDG_RUNTIME_DIR is set", () => {
+      process.env.XDG_RUNTIME_DIR = "/run/user/1000";
+      expect(isUserSessionAvailable()).toBe(true);
+      delete process.env.XDG_RUNTIME_DIR;
+    });
+
+    it("should return true when DBUS_SESSION_BUS_ADDRESS is set", () => {
+      process.env.DBUS_SESSION_BUS_ADDRESS = "unix:path=/run/user/1000/bus";
+      expect(isUserSessionAvailable()).toBe(true);
+      delete process.env.DBUS_SESSION_BUS_ADDRESS;
+    });
+  });
+
+  describe("getUserUnitPath()", () => {
+    it("should return default USER_UNIT_PATH when no user specified", () => {
+      const result = getUserUnitPath(undefined);
+      expect(result).toContain(".config/systemd/user/axonrouter.service");
+    });
+
+    it("should resolve path for a specific user", () => {
+      const result = getUserUnitPath("testuser");
+      expect(result).toContain(".config/systemd/user/axonrouter.service");
+    });
+
+    it("should resolve to /root/.config/systemd/user/ for root user", () => {
+      const result = getUserUnitPath("root");
+      expect(result).toBe("/root/.config/systemd/user/axonrouter.service");
     });
   });
 });
