@@ -7,6 +7,16 @@ import { normalizeUsageCheckSettings } from "@/lib/localDb/normalize";
 
 const appGlobal = ((global as any).__appSingleton ??= {});
 
+const SCHEDULER_PER_CONNECTION_TIMEOUT_MS = 30000; // 30s max per connection
+
+async function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
+  let timeoutId: ReturnType<typeof setTimeout>;
+  const timeout = new Promise<never>((_, reject) => {
+    timeoutId = setTimeout(() => reject(new Error(`Timeout after ${ms}ms`)), ms);
+  });
+  return Promise.race([promise, timeout]).finally(() => clearTimeout(timeoutId!));
+}
+
 type UsageCheckLastRun = {
   startedAt: string;
   completedAt: string;
@@ -51,7 +61,10 @@ export class UsageCheckScheduler {
       return this.getStatus();
     }
 
-    this.scheduleNext();
+    // Don't reschedule if already running - the finally block will handle it
+    if (!this.running) {
+      this.scheduleNext();
+    }
     this.logger.log?.("[UsageCheck] Scheduler started");
     return this.getStatus();
   }
@@ -102,28 +115,20 @@ export class UsageCheckScheduler {
       let refreshedCount = 0;
       let errorCount = 0;
 
-      const CONCURRENCY = 3;
-      const oauthConnectionsCopy = [...oauthConnections];
-      const results: PromiseSettledResult<unknown>[] = [];
-
-      while (oauthConnectionsCopy.length > 0) {
-        const batch = oauthConnectionsCopy.splice(0, CONCURRENCY);
-        const batchResults = await Promise.allSettled(
-          batch.map((conn: any) =>
+      for (const conn of oauthConnections) {
+        try {
+          await withTimeout(
             runDedupedUsageRefreshJob(conn.id, () =>
               refreshUsageWithTransientSkip(conn.id),
             ),
-          ),
-        );
-        results.push(...batchResults);
-      }
-
-      for (const result of results) {
-        if (result.status === "fulfilled") {
+            SCHEDULER_PER_CONNECTION_TIMEOUT_MS,
+          );
           refreshedCount++;
-        } else {
+        } catch {
           errorCount++;
         }
+        // Yield to event loop - let API requests take priority
+        await new Promise((r) => setTimeout(r, 200));
       }
 
       const completedAt = new Date().toISOString();
@@ -158,7 +163,9 @@ export class UsageCheckScheduler {
       return this.lastRun;
     } finally {
       this.running = false;
-      this.scheduleNext();
+      if (this.settings.enabled !== false) {
+        this.scheduleNext();
+      }
     }
   }
 
