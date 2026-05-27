@@ -245,38 +245,42 @@ export async function handleRequest(request: Request, env: Record<string, unknow
     }
   }
 
-  // ── Root: IP info ─────────────────────────────────────────────────
-  // Detect caller IP from headers (CF Workers) or fall back
-  const callerIp =
-    request.headers.get("cf-connecting-ip") ||
-    request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ||
-    request.headers.get("x-real-ip") ||
-    url.hostname; // fallback for local dev
-
-  // Try ip-api.com for full IP details (free, no key needed, HTTP allowed)
-  let ipInfo: Record<string, unknown> = { ip: callerIp };
+  // ── Root: outbound/server IP info ──────────────────────────────────
+  // Important: this checks the server/worker egress IP, not the client IP.
+  let ipInfo: Record<string, unknown> = {};
   try {
-    const ipRes = await fetch(`http://ip-api.com/json/${callerIp === "0.0.0.0" || callerIp === "localhost" ? "" : callerIp}?fields=66846719`);
+    const ipRes = await fetch("http://ip-api.com/json/?fields=66846719");
     if (ipRes.ok) {
       ipInfo = await ipRes.json() as Record<string, unknown>;
     }
   } catch {
     // ip-api failed — try ipinfo.io as fallback
     try {
-      const ipRes2 = await fetch(`https://ipinfo.io/json`);
+      const ipRes2 = await fetch("https://ipinfo.io/json");
       if (ipRes2.ok) {
         ipInfo = await ipRes2.json() as Record<string, unknown>;
       }
     } catch {
-      // both failed — return basic info
+      // both failed — return minimal diagnostic info
+      ipInfo = { error: "Unable to resolve outbound server IP" };
     }
   }
+
+  const clientIp =
+    request.headers.get("cf-connecting-ip") ||
+    request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ||
+    request.headers.get("x-real-ip") ||
+    null;
 
   return new Response(
     JSON.stringify({
       service: "axon-relay-proxy",
       usage: "Set x-relay-target + x-relay-path headers, or use /go/https://target URL",
-      ip: ipInfo,
+      outboundIp: ipInfo,
+      requestContext: {
+        clientIp,
+        note: "clientIp is the caller IP; outboundIp is the server/worker egress IP",
+      },
     }, null, 2),
     { headers: { "content-type": "application/json" } }
   );
