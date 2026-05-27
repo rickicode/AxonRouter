@@ -4,6 +4,7 @@ import { bootstrapUsageDb } from "@/lib/usageDb/bootstrap";
 import { closeUsageDb } from "@/lib/usageDb/core";
 import { drainUsageQueue } from "@/lib/usageDb/backgroundQueue";
 import { autoStartMitmIfEnabled, bootstrapMitmRuntimeFromInitializeApp } from "@/lib/mitm/initializeMitmAccess";
+import { ensureUsageCheckSchedulerStarted } from "@/lib/usageCheckScheduler/bootstrap";
 
 import os from "os";
 
@@ -121,6 +122,9 @@ export async function initializeApp() {
 
     // Auto-start MITM if it was enabled before restart
     autoStartMitm();
+
+    // Start usage check scheduler (background, non-blocking)
+    ensureUsageCheckSchedulerStarted().catch(() => {});
   } catch (error) {
     console.error("[InitApp] Error:", error);
   }

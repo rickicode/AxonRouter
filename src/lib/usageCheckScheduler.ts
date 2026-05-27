@@ -1,11 +1,11 @@
 import { getCurrentProviderConnections } from "@/lib/connectionAccess";
+import { getCurrentSettings } from "@/lib/settingsAccess";
 import { runDedupedUsageRefreshJob } from "@/lib/usageRefreshQueue";
 import { refreshUsageWithTransientSkip } from "@/lib/usageRefreshAccess";
 import { USAGE_SUPPORTED_PROVIDERS } from "@/shared/constants/providers";
+import { normalizeUsageCheckSettings } from "@/lib/localDb/normalize";
 
 const appGlobal = ((global as any).__appSingleton ??= {});
-
-const DEFAULT_INTERVAL_MINUTES = 5;
 
 type UsageCheckLastRun = {
   startedAt: string;
@@ -33,13 +33,24 @@ export class UsageCheckScheduler {
     this.startedAt = null;
     this.nextRunAt = null;
     this.lastRun = null;
-    // enabled is always true by design - there is no runtime disable path.
-    // The field is kept for API shape consistency with ModelSyncScheduler and future extensibility.
-    this.settings = { enabled: true, intervalMinutes: DEFAULT_INTERVAL_MINUTES };
+    this.settings = normalizeUsageCheckSettings({});
+  }
+
+  async loadSettings() {
+    const dbSettings: any = await getCurrentSettings();
+    this.settings = normalizeUsageCheckSettings(dbSettings.usageCheck || {});
+    return this.settings;
   }
 
   async start() {
     this.startedAt = this.startedAt || new Date().toISOString();
+    await this.loadSettings();
+
+    if (this.settings.enabled !== true) {
+      this.logger.log?.("[UsageCheck] Scheduler disabled via settings");
+      return this.getStatus();
+    }
+
     this.scheduleNext();
     this.logger.log?.("[UsageCheck] Scheduler started");
     return this.getStatus();
@@ -75,6 +86,11 @@ export class UsageCheckScheduler {
     const startedAt = new Date().toISOString();
 
     try {
+      await this.loadSettings();
+      if (this.settings.enabled !== true) {
+        return this.getStatus();
+      }
+
       const allConnections = await getCurrentProviderConnections({ isActive: true });
       const oauthConnections = (allConnections || []).filter(
         (conn: any) =>
