@@ -42,7 +42,7 @@ export default defineConfig({
   test: {
     environment: "node",
     globals: true,
-    setupFiles: ["./setup.ts"],
+    setupFiles: [resolve(__dirname, "setup.ts")],
     include: ["**/*.test.ts", "**/*.test.tsx"],
     exclude: [
       "**/node_modules/**",
