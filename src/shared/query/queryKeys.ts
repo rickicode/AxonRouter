@@ -13,6 +13,7 @@ export const queryKeys = {
   providerNodes: () => ["provider-nodes"] as const,
   kiloFreeModels: () => ["providers", "kilo", "free-models"] as const,
   proxyPools: (filter?: ProxyPoolFilter) => ["proxy-pools", filter ?? {}] as const,
+  proxyGroups: () => ["proxy-groups"] as const,
   combos: () => ["combos"] as const,
   modelComboMappings: () => ["model-combo-mappings"] as const,
   modelAliases: () => ["models", "alias"] as const,

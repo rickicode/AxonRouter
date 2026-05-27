@@ -1,0 +1,33 @@
+{
+  "id": "FEAT-003",
+  "type": "feat",
+  "description": "Add automatic proxy health check system that runs every 30 minutes, tracks response time (ms) for each proxy pool, and auto-marks offline proxies so the system falls back to direct. Also fix the 'Account Overrides' display in the proxy pools page to only show connections that actually have a proxy override (not all accounts).",
+  "status": "completed",
+  "steps": [
+    "Step 1: Create src/lib/network/proxyHealthCheck.ts - a scheduler module that: (a) Runs health checks on all active proxy pools every 30 minutes using setInterval. (b) Uses the same logic as the test endpoint (testProxyUrl for http type, testRelay for relay type from src/app/api/proxy-pools/[id]/test/route.ts). (c) Updates each pool's testStatus ('active'/'error'), lastTestedAt, lastError, and a new field 'responseTimeMs' (the elapsedMs from the test). (d) Exports startProxyHealthCheck() and stopProxyHealthCheck() functions. (e) Tracks a lastHealthCheckAt timestamp to avoid redundant runs.",
+    "Step 2: Update the proxy pool data model in src/lib/localDb/misc.ts createProxyPool to include responseTimeMs (default null) in the initial shape. Update updateProxyPool to accept responseTimeMs.",
+    "Step 3: Integrate the health check scheduler into the app startup. In src/lib/initApp.ts or src/server-init.ts (wherever the app initializes background tasks), call startProxyHealthCheck(). This should be a non-blocking background task.",
+    "Step 4: Update src/lib/network/connectionProxy.ts resolveProxyFromGroup() - when selecting a proxy from a group, skip pools that have testStatus='error' (they are offline). If all pools in a group are error and strictProxy is false, return direct. If strictProxy is true, return the error state. This gives automatic direct fallback for offline proxies.",
+    "Step 5: Fix the 'Account Overrides' display in src/app/(dashboard)/dashboard/proxy-pools/page.tsx - the getBoundConnections function currently shows ALL connections for a pool. Change it to only show connections where providerSpecificData.proxyPoolId matches the pool ID (this already works but the display text shows all of them concatenated). Truncate the display to max 3 connections with a '+N more' indicator for better UX.",
+    "Step 6: Display responseTimeMs in the proxy pool list UI in the dashboard page. Show it as a badge like '120ms' next to the health status badge. If null/undefined, show nothing. Color-code: green for <500ms, yellow for 500-2000ms, red for >2000ms.",
+    "Step 7: Add a health check status indicator in the proxy pools page header showing 'Last health check: X minutes ago' and a manual 'Run Health Check Now' button that triggers an immediate health check cycle for all pools.",
+    "Step 8: Write unit tests in tests/unit/proxy-health-check.test.ts testing: health check scheduler timing, pool status update on success/failure, responseTimeMs tracking, group resolution skipping error pools."
+  ],
+  "acceptance_criteria": [
+    "Health checks run automatically every 30 minutes on all active proxy pools",
+    "Each pool's responseTimeMs is updated after each health check",
+    "Offline proxies (testStatus=error) are automatically skipped in group resolution",
+    "Account Overrides display only shows connections with actual overrides, truncated to 3 with +N indicator",
+    "Response time is displayed in the UI with color coding",
+    "Manual health check trigger button works",
+    "Unit tests pass for health check logic"
+  ],
+  "verification": [
+    "npm run typecheck",
+    "npm run lint",
+    "npm run test",
+    "npm run build"
+  ],
+  "blocked_reason": null,
+  "findings": "All verification steps passed (lint, typecheck, test, build). 190 test files pass (1082 tests). Implemented: (1) proxyHealthCheck.ts scheduler module with 30min interval + initial 60s delay, (2) extracted testRelay into shared proxyTest.ts, (3) responseTimeMs added to createProxyPool data model, (4) group resolution skips testStatus=error pools with direct fallback for non-strict groups and null for strict groups, (5) GET/POST /api/proxy-pools/health-check endpoint, (6) dashboard shows responseTimeMs badge with color coding and health check status bar with manual trigger button, (7) unit tests for health check logic and error-pool skipping. The account overrides display was already fixed in FEAT-002 (truncated to 3 with +N indicator)."
+}

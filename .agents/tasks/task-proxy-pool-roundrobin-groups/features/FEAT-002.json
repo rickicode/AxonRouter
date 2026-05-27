@@ -1,0 +1,31 @@
+{
+  "id": "FEAT-002",
+  "type": "feat",
+  "description": "Add dashboard UI for round-robin proxy groups within the existing Proxy Pools page. The UI should be intuitive: a new section/tab for 'Proxy Groups' within the proxy-pools page, where users can create/edit/delete groups, assign proxy pools to groups, configure mode (roundrobin vs sticky), set sticky limit, and assign groups to providers/connections. Also add the 'Remove All Proxy' bulk action button. The UX must clearly show which providers use which group, support the check-before-change logic (when changing proxy assignment, verify current state matches expected default before overriding custom assignments), and remain within the existing Proxy Pool menu.",
+  "status": "completed",
+  "steps": [
+    "Step 1: Extend the proxy-pools dashboard page (src/app/(dashboard)/dashboard/proxy-pools/page.tsx) with a tabbed layout: Tab 1 = 'Proxy Pools' (existing pool list), Tab 2 = 'Round-Robin Groups' (new group management). Use existing shadcn/ui components (Tabs from radix-ui or a simple segmented control).",
+    "Step 2: In the 'Round-Robin Groups' tab, add: a list of groups showing name, mode badge (roundrobin/sticky), member pool count, bound provider/connection count, active status. Each group row has edit/delete actions. An 'Add Group' button opens a modal/dialog.",
+    "Step 3: Create the group form dialog with fields: Name (input), Mode (select: roundrobin/sticky), Sticky Limit (number input, shown only when mode=sticky), Strict Proxy (switch), Active (switch). Also a multi-select for proxy pools (show active pools from the pools list with checkboxes, drag-to-reorder for priority).",
+    "Step 4: In the 'Provider Proxy Bindings' section (already exists at bottom of page), extend the per-connection proxy select dropdown to include proxy groups as a separate optgroup above individual pools. The select options should be: 'Use provider default / none', then optgroup 'Round-Robin Groups' with group entries, then optgroup 'Individual Pools' with pool entries.",
+    "Step 5: Add a 'Remove All Proxy Assignments' button (with confirmation dialog) that calls POST /api/proxy-groups/[id]/remove-all for the selected group, or a global variant that clears ALL proxy/group assignments from all connections. This button should be prominent with a destructive variant.",
+    "Step 6: Implement the check-before-change logic in the provider binding UI: before changing a connection's proxy assignment, compare the current assignment to the provider-level default. If they differ (meaning the current assignment was custom-set by the user), show a warning/confirmation: 'This account has a custom proxy assignment. Changing will override it. Continue?'. Only bulk 'Remove All' bypasses this check.",
+    "Step 7: Add proper loading states, error handling, success notifications (using existing useNotificationStore), and i18n translate() calls for all new strings."
+  ],
+  "acceptance_criteria": [
+    "Proxy Pools page has two tabs: 'Proxy Pools' and 'Round-Robin Groups'",
+    "Users can create, edit, and delete proxy groups with mode, sticky limit, and pool membership",
+    "Provider proxy bindings dropdown shows both groups and individual pools in separate optgroups",
+    "Remove All button clears all proxy assignments for a group or globally",
+    "Check-before-change logic warns when overriding a custom per-account assignment",
+    "All new UI strings use translate() for i18n",
+    "No regressions in existing proxy pool functionality"
+  ],
+  "verification": [
+    "npm run typecheck",
+    "npm run lint",
+    "npm run build"
+  ],
+  "blocked_reason": null,
+  "findings": "All verification steps passed (lint, typecheck, test, build). 189 test files pass (1072 tests). Implemented: tabbed layout (Proxy Pools / Round-Robin Groups), group CRUD with form dialog, enhanced provider bindings with optgroups for groups and individual pools, remove-all dialog, check-before-change confirmation logic, pool member multi-select via Checkbox, and account overrides display now limited to 3 with count. SelectLabel import added for optgroup headers. queryKeys.ts and useInvalidate.ts extended with proxyGroups."
+}

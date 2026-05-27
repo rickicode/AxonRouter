@@ -3,6 +3,14 @@ import { ProxyAgent, fetch as undiciFetch } from "undici";
 const DEFAULT_TEST_URL = "https://google.com/";
 const DEFAULT_TIMEOUT_MS = 8000;
 
+export type ProxyTestResult = {
+  ok: boolean;
+  status: number;
+  statusText?: string;
+  elapsedMs?: number;
+  error?: string;
+};
+
 function getErrorMessage(err: any) {
   if (!err) return "Unknown error";
   const base = err?.message || String(err);
@@ -87,5 +95,39 @@ export async function testProxyUrl({ proxyUrl, testUrl, timeoutMs }: any = {}) {
     } catch {
       // ignore
     }
+  }
+}
+
+export async function testRelay(relayUrl: string, timeoutMs = 10000): Promise<ProxyTestResult> {
+  const controller = new AbortController();
+  const startedAt = Date.now();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+
+  try {
+    const res = await undiciFetch(relayUrl, {
+      method: "GET",
+      headers: {
+        "x-relay-target": "https://httpbin.org",
+        "x-relay-path": "/get",
+      },
+      signal: controller.signal,
+    });
+
+    return {
+      ok: res.ok,
+      status: res.status,
+      statusText: res.statusText,
+      elapsedMs: Date.now() - startedAt,
+    };
+  } catch (err) {
+    const error = err as { name?: string; message?: string } | undefined;
+
+    return {
+      ok: false,
+      status: 500,
+      error: error?.name === "AbortError" ? "Relay test timed out" : error?.message || String(err),
+    };
+  } finally {
+    clearTimeout(timer);
   }
 }

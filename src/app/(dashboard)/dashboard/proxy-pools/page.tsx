@@ -6,14 +6,16 @@ import { AI_PROVIDERS } from "@/shared/constants/providers";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@/components/ui/empty";
 import { Field, FieldDescription, FieldGroup, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
-import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Spinner } from "@/components/ui/spinner";
 import { Switch } from "@/components/ui/switch";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { useNotificationStore } from "@/store/notificationStore";
 import { useMutation } from "@tanstack/react-query";
@@ -33,6 +35,7 @@ type ProviderConnection = {
   authType?: string;
   providerSpecificData?: {
     proxyPoolId?: string | null;
+    proxyGroupId?: string | null;
     [key: string]: unknown;
   } | null;
 };
@@ -40,6 +43,21 @@ type ProviderConnection = {
 type ProxyPoolRecord = {
   defaultProviderIds?: string[];
   defaultProviderCount?: number;
+};
+
+type ProxyGroup = {
+  id: string;
+  name: string;
+  mode: "roundrobin" | "sticky";
+  stickyLimit: number;
+  strictProxy: boolean;
+  proxyPoolIds: string[];
+  isActive: boolean;
+  boundConnectionCount?: number;
+  defaultProviderCount?: number;
+  defaultProviderIds?: string[];
+  createdAt?: string;
+  updatedAt?: string;
 };
 
 function getConnectionLabel(connection: ProviderConnection) {
@@ -72,6 +90,23 @@ function formatDateTime(value) {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return "Never";
   return date.toLocaleString();
+}
+
+function getResponseTimeColor(ms: number | null | undefined) {
+  if (ms == null) return "";
+  if (ms < 500) return "text-green-600 dark:text-green-400";
+  if (ms <= 2000) return "text-yellow-600 dark:text-yellow-400";
+  return "text-red-600 dark:text-red-400";
+}
+
+function formatRelativeTime(isoDate: string | null) {
+  if (!isoDate) return translate("Never");
+  const diff = Date.now() - new Date(isoDate).getTime();
+  if (diff < 60000) return translate("just now");
+  const mins = Math.floor(diff / 60000);
+  if (mins < 60) return `${mins} ${translate("min ago")}`;
+  const hours = Math.floor(mins / 60);
+  return `${hours} ${translate("hour(s) ago")}`;
 }
 
 function detectProxyPoolType(proxyUrl: string): "http" | "relay" {
@@ -181,8 +216,29 @@ export default function ProxyPoolsPage() {
   const [deploying, setDeploying] = useState(false);
   const [testingId, setTestingId] = useState(null);
   const [testingBatchImport, setTestingBatchImport] = useState(false);
+  const [runningHealthCheck, setRunningHealthCheck] = useState(false);
+  const [lastHealthCheckAt, setLastHealthCheckAt] = useState<string | null>(null);
   const notify = useNotificationStore();
   const inv = useInvalidate();
+
+  // Tab state
+  const [activeTab, setActiveTab] = useState("pools");
+
+  // Proxy Groups state
+  const [proxyGroups, setProxyGroups] = useState<ProxyGroup[]>([]);
+  const [showGroupFormModal, setShowGroupFormModal] = useState(false);
+  const [editingGroup, setEditingGroup] = useState<ProxyGroup | null>(null);
+  const [groupFormData, setGroupFormData] = useState({
+    name: "",
+    mode: "roundrobin" as "roundrobin" | "sticky",
+    stickyLimit: 1,
+    strictProxy: false,
+    isActive: true,
+    proxyPoolIds: [] as string[],
+  });
+  const [groupFormError, setGroupFormError] = useState("");
+  const [showRemoveAllDialog, setShowRemoveAllDialog] = useState(false);
+  const [removeAllGroupId, setRemoveAllGroupId] = useState<string | null>(null);
 
   // Pagination, search & filter state
   const [poolsPage, setPoolsPage] = useState(1);
@@ -190,6 +246,7 @@ export default function ProxyPoolsPage() {
   const [poolsStatusFilter, setPoolsStatusFilter] = useState("all");
   const [bindingsPage, setBindingsPage] = useState(1);
   const [bindingsSearch, setBindingsSearch] = useState("");
+  const [showAllBindings, setShowAllBindings] = useState(false);
 
   const handlePoolsSearchChange = (value: string) => { setPoolsSearch(value); setPoolsPage(1); };
   const handlePoolsStatusFilterChange = (value: string) => { setPoolsStatusFilter(value); setPoolsPage(1); };
@@ -221,24 +278,82 @@ export default function ProxyPoolsPage() {
     }
   }, []);
 
+  const fetchProxyGroups = useCallback(async () => {
+    try {
+      const res = await fetch("/api/proxy-groups?includeUsage=true", { cache: "no-store" });
+      const data = await res.json();
+      if (res.ok) {
+        setProxyGroups(data.proxyGroups || []);
+      }
+    } catch (error) {
+      console.log("Error fetching proxy groups:", error);
+    }
+  }, []);
+
+  const fetchHealthCheckStatus = useCallback(async () => {
+    try {
+      const res = await fetch("/api/proxy-pools/health-check", { cache: "no-store" });
+      const data = await res.json();
+      if (res.ok) {
+        setLastHealthCheckAt(data.lastHealthCheckAt || null);
+      }
+    } catch (error) {
+      console.log("Error fetching health check status:", error);
+    }
+  }, []);
+
+  const handleRunHealthCheck = async () => {
+    setRunningHealthCheck(true);
+    try {
+      const res = await fetch("/api/proxy-pools/health-check", { method: "POST" });
+      const data = await res.json();
+      if (res.ok) {
+        if (data.skipped) {
+          notify.warning(data.reason || translate("Health check already in progress"));
+        } else {
+          setLastHealthCheckAt(data.checkedAt || null);
+          await fetchProxyPools();
+          notify.success(translate("Health check completed"));
+        }
+      } else {
+        notify.error(data.error || "Health check failed");
+      }
+    } catch (error) {
+      console.log("Error running health check:", error);
+      notify.error("Failed to run health check");
+    } finally {
+      setRunningHealthCheck(false);
+    }
+  };
+
   useEffect(() => {
     let cancelled = false;
 
     void (async () => {
       try {
-        const [proxyRes, providersRes] = await Promise.all([
+        const [proxyRes, providersRes, groupsRes, healthRes] = await Promise.all([
           fetch("/api/proxy-pools?includeUsage=true", { cache: "no-store" }),
           fetch("/api/providers", { cache: "no-store" }),
+          fetch("/api/proxy-groups?includeUsage=true", { cache: "no-store" }),
+          fetch("/api/proxy-pools/health-check", { cache: "no-store" }),
         ]);
-        const [proxyData, providersData] = await Promise.all([
+        const [proxyData, providersData, groupsData, healthData] = await Promise.all([
           proxyRes.json().catch(() => ({})),
           providersRes.json().catch(() => ({})),
+          groupsRes.json().catch(() => ({})),
+          healthRes.json().catch(() => ({})),
         ]);
         if (!cancelled && proxyRes.ok) {
           setProxyPools(proxyData.proxyPools || []);
         }
         if (!cancelled && providersRes.ok) {
           setProviderConnections(providersData.connections || []);
+        }
+        if (!cancelled && groupsRes.ok) {
+          setProxyGroups(groupsData.proxyGroups || []);
+        }
+        if (!cancelled && healthRes.ok) {
+          setLastHealthCheckAt(healthData.lastHealthCheckAt || null);
         }
       } catch (error) {
         console.log("Error bootstrapping proxy pools:", error);
@@ -377,6 +492,144 @@ export default function ProxyPoolsPage() {
   const openBatchImportModal = () => {
     setBatchImportText("");
     setShowBatchImportModal(true);
+  };
+
+  // --- Proxy Group Handlers ---
+  const resetGroupForm = () => {
+    setEditingGroup(null);
+    setGroupFormData({ name: "", mode: "roundrobin", stickyLimit: 1, strictProxy: false, isActive: true, proxyPoolIds: [] });
+    setGroupFormError("");
+  };
+
+  const openCreateGroupModal = () => {
+    resetGroupForm();
+    setShowGroupFormModal(true);
+  };
+
+  const openEditGroupModal = (group: ProxyGroup) => {
+    setEditingGroup(group);
+    setGroupFormData({
+      name: group.name,
+      mode: group.mode,
+      stickyLimit: group.stickyLimit,
+      strictProxy: group.strictProxy,
+      isActive: group.isActive,
+      proxyPoolIds: group.proxyPoolIds || [],
+    });
+    setShowGroupFormModal(true);
+  };
+
+  const closeGroupFormModal = () => {
+    setShowGroupFormModal(false);
+    resetGroupForm();
+  };
+
+  const saveGroupMutation = useMutation({
+    retry: false,
+    mutationFn: async (payload: { name: string; mode: string; stickyLimit: number; strictProxy: boolean; isActive: boolean; proxyPoolIds: string[] }) => {
+      const isEdit = !!editingGroup;
+      const res = await fetch(isEdit ? `/api/proxy-groups/${editingGroup!.id}` : "/api/proxy-groups", {
+        method: isEdit ? "PUT" : "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.error || "Failed to save proxy group");
+      }
+      return { isEdit };
+    },
+    onSuccess: ({ isEdit }) => {
+      setGroupFormError("");
+      fetchProxyGroups();
+      closeGroupFormModal();
+      notify.success(isEdit ? translate("Proxy group updated") : translate("Proxy group created"));
+      inv.proxyGroups();
+    },
+    onError: (error: Error) => {
+      setGroupFormError(error.message);
+      notify.error(error.message);
+    },
+  });
+
+  const handleSaveGroup = (event?: React.FormEvent) => {
+    event?.preventDefault();
+    const payload = {
+      name: groupFormData.name.trim(),
+      mode: groupFormData.mode,
+      stickyLimit: groupFormData.stickyLimit,
+      strictProxy: groupFormData.strictProxy,
+      isActive: groupFormData.isActive,
+      proxyPoolIds: groupFormData.proxyPoolIds,
+    };
+    if (!payload.name) return;
+    saveGroupMutation.mutate(payload);
+  };
+
+  const deleteGroupMutation = useMutation({
+    retry: false,
+    mutationFn: async (group: ProxyGroup) => {
+      const res = await fetch(`/api/proxy-groups/${group.id}`, { method: "DELETE" });
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.error || "Failed to delete proxy group");
+      }
+      return { group };
+    },
+    onSuccess: ({ group }) => {
+      setProxyGroups((prev) => prev.filter((g) => g.id !== group.id));
+      notify.success(translate("Proxy group deleted"));
+      inv.proxyGroups();
+      inv.providers();
+    },
+    onError: (error: Error) => {
+      notify.error(error.message);
+    },
+  });
+
+  const handleDeleteGroup = (group: ProxyGroup) => {
+    const confirmed = confirm(`${translate("Delete proxy group")} "${group.name}"?`);
+    if (!confirmed) return;
+    deleteGroupMutation.mutate(group);
+  };
+
+  const removeAllMutation = useMutation({
+    retry: false,
+    mutationFn: async (groupId: string) => {
+      const res = await fetch(`/api/proxy-groups/${groupId}/remove-all`, { method: "POST" });
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.error || "Failed to remove proxy assignments");
+      }
+      const data = await res.json();
+      return data;
+    },
+    onSuccess: (data) => {
+      setShowRemoveAllDialog(false);
+      setRemoveAllGroupId(null);
+      notify.success(`${translate("Removed")} ${data.clearedConnections || 0} ${translate("connection(s)")} ${translate("and")} ${data.clearedProviderDefaults || 0} ${translate("provider default(s)")}`);
+      fetchProxyGroups();
+      fetchProviderConnections();
+      inv.proxyGroups();
+      inv.providers();
+    },
+    onError: (error: Error) => {
+      notify.error(error.message);
+    },
+  });
+
+  const handleRemoveAll = () => {
+    if (!removeAllGroupId) return;
+    removeAllMutation.mutate(removeAllGroupId);
+  };
+
+  const togglePoolInGroup = (poolId: string) => {
+    setGroupFormData((prev) => {
+      const ids = prev.proxyPoolIds.includes(poolId)
+        ? prev.proxyPoolIds.filter((id) => id !== poolId)
+        : [...prev.proxyPoolIds, poolId];
+      return { ...prev, proxyPoolIds: ids };
+    });
   };
 
   const closeBatchImportModal = () => {
@@ -591,11 +844,19 @@ export default function ProxyPoolsPage() {
 
   const updateProviderProxyMutation = useMutation({
     retry: false,
-    mutationFn: async ({ connectionId, proxyPoolId }: { connectionId: string; proxyPoolId: string | null }) => {
+    mutationFn: async ({ connectionId, proxyPoolId, proxyGroupId }: { connectionId: string; proxyPoolId?: string | null; proxyGroupId?: string | null }) => {
+      const body: Record<string, unknown> = {};
+      if (proxyGroupId !== undefined) {
+        body.proxyGroupId = proxyGroupId;
+        body.proxyPoolId = null;
+      } else {
+        body.proxyPoolId = proxyPoolId;
+        body.proxyGroupId = null;
+      }
       const res = await fetch(`/api/providers/${connectionId}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ proxyPoolId }),
+        body: JSON.stringify(body),
       });
 
       if (!res.ok) {
@@ -603,25 +864,28 @@ export default function ProxyPoolsPage() {
         throw new Error(data.error || "Failed to update provider proxy binding");
       }
 
-      return { connectionId, proxyPoolId };
+      return { connectionId, proxyPoolId: proxyPoolId ?? null, proxyGroupId: proxyGroupId ?? null };
     },
-    onSuccess: ({ connectionId, proxyPoolId }) => {
+    onSuccess: ({ connectionId, proxyPoolId, proxyGroupId }) => {
       setProviderConnections((prev) => prev.map((connection) => (
         connection.id === connectionId
           ? {
               ...connection,
               providerSpecificData: {
                 ...(connection.providerSpecificData || {}),
-                proxyPoolId,
+                proxyPoolId: proxyPoolId || undefined,
+                proxyGroupId: proxyGroupId || undefined,
               },
             }
           : connection
       )));
       void fetchProxyPools();
       void fetchProviderConnections();
+      void fetchProxyGroups();
       inv.providers();
       inv.proxyPools();
-      notify.success(proxyPoolId ? "Provider bound to proxy pool" : "Provider unbound from proxy pool");
+      inv.proxyGroups();
+      notify.success(proxyPoolId || proxyGroupId ? translate("Provider proxy binding updated") : translate("Provider unbound from proxy"));
     },
     onError: (error: Error) => {
       notify.error(error.message);
@@ -629,13 +893,28 @@ export default function ProxyPoolsPage() {
   });
 
   const handleProviderProxyChange = (connectionId: string, value: string) => {
-    updateProviderProxyMutation.mutate({
-      connectionId,
-      proxyPoolId: value === "__none__" ? null : value,
-    });
+    const connection = providerConnections.find((c) => c.id === connectionId);
+    const currentPoolId = connection?.providerSpecificData?.proxyPoolId;
+    const currentGroupId = connection?.providerSpecificData?.proxyGroupId;
+    const hasCustomAssignment = !!(currentPoolId || currentGroupId);
+
+    if (hasCustomAssignment && value !== "__none__") {
+      const confirmed = confirm(translate("This account has a custom proxy assignment. Changing will override it. Continue?"));
+      if (!confirmed) return;
+    }
+
+    if (value === "__none__") {
+      updateProviderProxyMutation.mutate({ connectionId, proxyPoolId: null, proxyGroupId: null });
+    } else if (value.startsWith("group::")) {
+      const groupId = value.replace("group::", "");
+      updateProviderProxyMutation.mutate({ connectionId, proxyGroupId: groupId });
+    } else {
+      updateProviderProxyMutation.mutate({ connectionId, proxyPoolId: value });
+    }
   };
 
   const activeProxyPools = useMemo(() => proxyPools.filter((pool) => pool.isActive === true), [proxyPools]);
+  const activeProxyGroups = useMemo(() => proxyGroups.filter((g) => g.isActive === true), [proxyGroups]);
 
   const getProviderDefaultLabels = useCallback((pool: ProxyPoolRecord) => {
     return (pool.defaultProviderIds || []).map((providerId) => getProviderLabel(providerId));
@@ -644,6 +923,19 @@ export default function ProxyPoolsPage() {
   const providerConnectionsForBinding = useMemo(
     () => providerConnections.filter((connection) => connection.id && connection.provider !== "morph-fast"),
     [providerConnections]
+  );
+
+  const connectionsWithOverrides = useMemo(
+    () => providerConnectionsForBinding.filter((connection) => {
+      const psd = connection.providerSpecificData;
+      return psd?.proxyPoolId || psd?.proxyGroupId;
+    }),
+    [providerConnectionsForBinding]
+  );
+
+  const bindingsBaseList = useMemo(
+    () => showAllBindings ? providerConnectionsForBinding : connectionsWithOverrides,
+    [showAllBindings, providerConnectionsForBinding, connectionsWithOverrides]
   );
 
   const activeCount = useMemo(() => proxyPools.filter((pool) => pool.isActive).length, [proxyPools]);
@@ -675,14 +967,14 @@ export default function ProxyPoolsPage() {
 
   // Filtered & paginated bindings
   const filteredBindings = useMemo(() => {
-    if (!bindingsSearch.trim()) return providerConnectionsForBinding;
+    if (!bindingsSearch.trim()) return bindingsBaseList;
     const q = bindingsSearch.toLowerCase();
-    return providerConnectionsForBinding.filter((connection) =>
+    return bindingsBaseList.filter((connection) =>
       getConnectionLabel(connection).toLowerCase().includes(q) ||
       getProviderLabel(connection.provider).toLowerCase().includes(q) ||
       (connection.id || "").toLowerCase().includes(q)
     );
-  }, [providerConnectionsForBinding, bindingsSearch]);
+  }, [bindingsBaseList, bindingsSearch]);
 
   const paginatedBindings = useMemo(() => {
     const start = (bindingsPage - 1) * BINDINGS_PAGE_SIZE;
@@ -721,24 +1013,56 @@ export default function ProxyPoolsPage() {
           </p>
         </div>
 
-        <div className="flex flex-wrap items-center gap-2">
-          <Button variant="secondary" onClick={openVercelModal}>
-            <AppIcon name="cloud_upload" data-icon="inline-start" />
-            {translate("Vercel Relay")}
-          </Button>
-          <Button variant="secondary" onClick={openBatchImportModal}>
-            <AppIcon name="upload" data-icon="inline-start" />
-            {translate("Batch Import")}
-          </Button>
-          <Button onClick={openCreateModal}>
-            <AppIcon name="add" data-icon="inline-start" />
-            {translate("Add Proxy Pool")}
-          </Button>
-        </div>
+        {activeTab === "pools" && (
+          <div className="flex flex-wrap items-center gap-2">
+            <Button variant="secondary" onClick={openVercelModal}>
+              <AppIcon name="cloud_upload" data-icon="inline-start" />
+              {translate("Vercel Relay")}
+            </Button>
+            <Button variant="secondary" onClick={openBatchImportModal}>
+              <AppIcon name="upload" data-icon="inline-start" />
+              {translate("Batch Import")}
+            </Button>
+            <Button onClick={openCreateModal}>
+              <AppIcon name="add" data-icon="inline-start" />
+              {translate("Add Proxy Pool")}
+            </Button>
+          </div>
+        )}
+        {activeTab === "groups" && (
+          <div className="flex flex-wrap items-center gap-2">
+            <Button onClick={openCreateGroupModal}>
+              <AppIcon name="add" data-icon="inline-start" />
+              {translate("Add Group")}
+            </Button>
+          </div>
+        )}
       </div>
 
+      <Tabs value={activeTab} onValueChange={setActiveTab}>
+        <TabsList>
+          <TabsTrigger value="pools">{translate("Proxy Pools")}</TabsTrigger>
+          <TabsTrigger value="groups">{translate("Round-Robin Groups")}</TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="pools">
       <Card>
         <CardContent>
+          <div className="mb-3 flex items-center justify-between rounded-md border border-border/60 bg-muted/30 px-3 py-2">
+            <p className="text-xs text-muted-foreground">
+              {translate("Last health check")}: {formatRelativeTime(lastHealthCheckAt)}
+            </p>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-7 text-xs"
+              onClick={() => void handleRunHealthCheck()}
+              disabled={runningHealthCheck}
+            >
+              {runningHealthCheck ? <Spinner data-icon="inline-start" /> : <AppIcon name="refresh" data-icon="inline-start" />}
+              {runningHealthCheck ? translate("Checking...") : translate("Run Health Check")}
+            </Button>
+          </div>
           <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div className="flex flex-wrap items-center gap-2">
               <Badge variant="secondary">{translate("Total")}: {proxyPools.length}</Badge>
@@ -798,6 +1122,11 @@ export default function ProxyPoolsPage() {
                         <span className="size-1.5 rounded-[4px] bg-current" aria-hidden="true" />
                         {translate(getPoolHealthLabel(pool.testStatus))}
                       </Badge>
+                      {pool.responseTimeMs != null && (
+                        <span className={`text-xs font-medium ${getResponseTimeColor(pool.responseTimeMs)}`}>
+                          {pool.responseTimeMs}ms
+                        </span>
+                      )}
                       <Badge variant={pool.isActive ? "default" : "secondary"}>
                         {pool.isActive ? translate("enabled") : translate("disabled")}
                       </Badge>
@@ -821,7 +1150,7 @@ export default function ProxyPoolsPage() {
                     <p className="mt-1 truncate text-xs text-muted-foreground">{pool.proxyUrl}</p>
                     {getBoundConnections(pool.id, providerConnections).length > 0 ? (
                       <p className="mt-1 truncate text-xs text-muted-foreground">
-                        {translate("Account overrides")}: {getBoundConnections(pool.id, providerConnections).map((connection) => `${getProviderLabel(connection.provider)} / ${getConnectionLabel(connection)}`).join(", ")}
+                        {translate("Account overrides")} ({getBoundConnections(pool.id, providerConnections).length}): {getBoundConnections(pool.id, providerConnections).slice(0, 3).map((connection) => `${getProviderLabel(connection.provider)} / ${getConnectionLabel(connection)}`).join(", ")}{getBoundConnections(pool.id, providerConnections).length > 3 ? ` +${getBoundConnections(pool.id, providerConnections).length - 3} ${translate("more")}` : ""}
                       </p>
                     ) : null}
                     {(pool.defaultProviderCount || 0) > 0 ? (
@@ -878,6 +1207,106 @@ export default function ProxyPoolsPage() {
           <PaginationControls currentPage={poolsPage} totalPages={poolsTotalPages} onPageChange={setPoolsPage} />
         </CardContent>
       </Card>
+        </TabsContent>
+
+        <TabsContent value="groups">
+          <Card>
+            <CardContent>
+              {proxyGroups.length === 0 ? (
+                <Empty className="py-10">
+                  <EmptyHeader>
+                    <EmptyMedia variant="icon"><AppIcon name="hub" /></EmptyMedia>
+                    <EmptyTitle>{translate("No proxy groups yet")}</EmptyTitle>
+                    <EmptyDescription>{translate("Create a round-robin or sticky proxy group to rotate proxies automatically.")}</EmptyDescription>
+                  </EmptyHeader>
+                </Empty>
+              ) : (
+                <div className="flex flex-col divide-y divide-border/60">
+                  {proxyGroups.map((group) => (
+                    <div key={group.id} className="group flex items-center justify-between gap-3 py-3">
+                      <div className="min-w-0 flex-1">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <p className="truncate text-sm font-medium">{group.name}</p>
+                          <Badge variant={group.mode === "roundrobin" ? "default" : "secondary"}>
+                            {group.mode}
+                          </Badge>
+                          {group.mode === "sticky" && (
+                            <Badge variant="outline">{translate("limit")}: {group.stickyLimit}</Badge>
+                          )}
+                          <Badge variant={group.isActive ? "default" : "secondary"}>
+                            {group.isActive ? translate("active") : translate("inactive")}
+                          </Badge>
+                          <Badge variant="secondary">
+                            {group.proxyPoolIds?.length || 0} {translate("pool(s)")}
+                          </Badge>
+                          {(group.boundConnectionCount || 0) > 0 && (
+                            <Badge variant="secondary">
+                              {group.boundConnectionCount} {translate("bound")}
+                            </Badge>
+                          )}
+                          {(group.defaultProviderCount || 0) > 0 && (
+                            <Badge variant="secondary">
+                              {group.defaultProviderCount} {translate("provider default")}
+                            </Badge>
+                          )}
+                          {group.strictProxy && (
+                            <Badge variant="destructive">{translate("strict")}</Badge>
+                          )}
+                        </div>
+                        <p className="mt-1 text-xs text-muted-foreground">
+                          {translate("Pools")}: {group.proxyPoolIds?.length > 0
+                            ? group.proxyPoolIds.map((pid) => {
+                                const pool = proxyPools.find((p) => p.id === pid);
+                                return pool?.name || pid.slice(0, 8);
+                              }).join(", ")
+                            : translate("none")}
+                        </p>
+                      </div>
+
+                      <div className="flex items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100">
+                        <Button
+                          onClick={() => {
+                            setRemoveAllGroupId(group.id);
+                            setShowRemoveAllDialog(true);
+                          }}
+                          variant="ghost"
+                          size="sm"
+                          className="rounded-[4px] text-destructive hover:bg-destructive/10 hover:text-destructive"
+                          title={translate("Remove all assignments")}
+                          aria-label={translate("Remove all assignments")}
+                          disabled={(group.boundConnectionCount || 0) === 0 && (group.defaultProviderCount || 0) === 0}
+                        >
+                          <AppIcon name="link_off" data-icon="inline-start" />
+                        </Button>
+                        <Button
+                          onClick={() => openEditGroupModal(group)}
+                          variant="ghost"
+                          size="sm"
+                          className="rounded-[4px] text-muted-foreground hover:text-primary"
+                          title={translate("Edit")}
+                          aria-label={translate("Edit")}
+                        >
+                          <AppIcon name="edit" data-icon="inline-start" />
+                        </Button>
+                        <Button
+                          onClick={() => handleDeleteGroup(group)}
+                          variant="ghost"
+                          size="sm"
+                          className="rounded-[4px] text-destructive hover:bg-destructive/10 hover:text-destructive"
+                          title={translate("Delete")}
+                          aria-label={translate("Delete")}
+                        >
+                          <AppIcon name="delete" data-icon="inline-start" />
+                        </Button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+      </Tabs>
 
       <Card>
         <CardContent className="flex flex-col gap-4">
@@ -889,7 +1318,21 @@ export default function ProxyPoolsPage() {
               </p>
             </div>
             <div className="flex flex-wrap items-center gap-2">
-              <Badge variant="secondary">{filteredBindings.length} {translate("connections")}</Badge>
+              <Badge variant="secondary">
+                {showAllBindings
+                  ? `${filteredBindings.length} ${translate("connections")}`
+                  : `${connectionsWithOverrides.length} ${translate("overrides")}`}
+              </Badge>
+              <div className="flex items-center gap-1.5">
+                <Switch
+                  id="show-all-bindings"
+                  checked={showAllBindings}
+                  onToggle={(checked) => { setShowAllBindings(checked); setBindingsPage(1); }}
+                />
+                <label htmlFor="show-all-bindings" className="text-xs text-muted-foreground cursor-pointer whitespace-nowrap">
+                  {translate("Show all accounts")}
+                </label>
+              </div>
               <Input
                 value={bindingsSearch}
                 onChange={(e) => handleBindingsSearchChange(e.target.value)}
@@ -911,16 +1354,25 @@ export default function ProxyPoolsPage() {
             <Empty className="py-6">
               <EmptyHeader>
                 <EmptyMedia variant="icon"><AppIcon name="search" /></EmptyMedia>
-                <EmptyTitle>{translate("No matching connections")}</EmptyTitle>
-                <EmptyDescription>{translate("Try adjusting your search.")}</EmptyDescription>
+                <EmptyTitle>{!showAllBindings && !bindingsSearch.trim() ? translate("No accounts with proxy overrides") : translate("No matching connections")}</EmptyTitle>
+                <EmptyDescription>{!showAllBindings && !bindingsSearch.trim() ? translate("Enable 'Show all accounts' to assign proxy overrides.") : translate("Try adjusting your search.")}</EmptyDescription>
               </EmptyHeader>
             </Empty>
           ) : (
             <div className="flex flex-col divide-y divide-border/60">
               {paginatedBindings.map((connection) => {
-                const selectedPoolId = connection.providerSpecificData?.proxyPoolId || "__none__";
-                const selectedPool = selectedPoolId === "__none__" ? null : proxyPools.find((pool) => pool.id === selectedPoolId);
+                const poolId = connection.providerSpecificData?.proxyPoolId;
+                const groupId = connection.providerSpecificData?.proxyGroupId;
+                const selectedValue = groupId ? `group::${groupId}` : poolId || "__none__";
+                const selectedPool = poolId ? proxyPools.find((pool) => pool.id === poolId) : null;
+                const selectedGroup = groupId ? proxyGroups.find((g) => g.id === groupId) : null;
                 const isUpdating = updateProviderProxyMutation.isPending && updateProviderProxyMutation.variables?.connectionId === connection.id;
+
+                const overrideLabel = selectedGroup
+                  ? `${translate("Override")}: ${selectedGroup.name} (${translate("group")})`
+                  : selectedPool
+                    ? `${translate("Override")}: ${selectedPool.name}`
+                    : translate("No per-account override");
 
                 return (
                   <div key={connection.id} className="flex flex-col gap-3 py-3 sm:flex-row sm:items-center sm:justify-between">
@@ -933,14 +1385,14 @@ export default function ProxyPoolsPage() {
                         </Badge>
                       </div>
                       <p className="mt-1 truncate text-xs text-muted-foreground">
-                        {selectedPool ? `${translate("Override")}: ${selectedPool.name}` : translate("No per-account override")}
+                        {overrideLabel}
                       </p>
                     </div>
 
                     <div className="flex items-center gap-2 sm:min-w-[260px]">
                       {isUpdating ? <Spinner data-icon="inline-start" /> : null}
                       <Select
-                        value={selectedPoolId}
+                        value={selectedValue}
                         onValueChange={(value) => handleProviderProxyChange(connection.id, value)}
                         disabled={isUpdating}
                       >
@@ -950,6 +1402,19 @@ export default function ProxyPoolsPage() {
                         <SelectContent>
                           <SelectGroup>
                             <SelectItem value="__none__">{translate("Use provider default / none")}</SelectItem>
+                          </SelectGroup>
+                          {activeProxyGroups.length > 0 && (
+                            <SelectGroup>
+                              <SelectLabel>{translate("Round-Robin Groups")}</SelectLabel>
+                              {activeProxyGroups.map((group) => (
+                                <SelectItem key={`group::${group.id}`} value={`group::${group.id}`}>
+                                  {group.name} ({group.mode})
+                                </SelectItem>
+                              ))}
+                            </SelectGroup>
+                          )}
+                          <SelectGroup>
+                            <SelectLabel>{translate("Individual Pools")}</SelectLabel>
                             {activeProxyPools.map((pool) => (
                               <SelectItem key={pool.id} value={pool.id}>{pool.name}</SelectItem>
                             ))}
@@ -1170,6 +1635,154 @@ export default function ProxyPoolsPage() {
               </Button>
             </div>
           </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* Group Form Dialog */}
+      <Dialog open={showGroupFormModal} onOpenChange={(open) => { if (!open) closeGroupFormModal(); }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{editingGroup ? translate("Edit Proxy Group") : translate("Add Proxy Group")}</DialogTitle>
+            <DialogDescription>{translate("Configure a round-robin or sticky proxy group.")}</DialogDescription>
+          </DialogHeader>
+          <form onSubmit={handleSaveGroup} className="flex flex-col gap-4">
+            {groupFormError ? (
+              <div className="rounded-[4px] border border-destructive/20 bg-destructive/5 px-3 py-2 text-sm text-destructive">
+                {groupFormError}
+              </div>
+            ) : null}
+            <FieldGroup>
+              <Field>
+                <FieldLabel>{translate("Name")}</FieldLabel>
+                <Input
+                  value={groupFormData.name}
+                  onChange={(e) => setGroupFormData((prev) => ({ ...prev, name: e.target.value }))}
+                  placeholder={translate("My Proxy Group")}
+                  required
+                />
+              </Field>
+              <Field>
+                <FieldLabel>{translate("Mode")}</FieldLabel>
+                <Select
+                  value={groupFormData.mode}
+                  onValueChange={(value) => setGroupFormData((prev) => ({ ...prev, mode: value as "roundrobin" | "sticky" }))}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="roundrobin">{translate("Round-Robin")}</SelectItem>
+                    <SelectItem value="sticky">{translate("Sticky")}</SelectItem>
+                  </SelectContent>
+                </Select>
+                <FieldDescription>
+                  {translate("Round-robin rotates on each request. Sticky reuses the same proxy for N requests.")}
+                </FieldDescription>
+              </Field>
+              {groupFormData.mode === "sticky" && (
+                <Field>
+                  <FieldLabel>{translate("Sticky Limit")}</FieldLabel>
+                  <Input
+                    type="number"
+                    min={1}
+                    value={groupFormData.stickyLimit}
+                    onChange={(e) => setGroupFormData((prev) => ({ ...prev, stickyLimit: Math.max(1, parseInt(e.target.value) || 1) }))}
+                  />
+                  <FieldDescription>{translate("Number of requests before rotating to the next proxy.")}</FieldDescription>
+                </Field>
+              )}
+            </FieldGroup>
+
+            <div className="flex items-center justify-between rounded-[4px] border border-border/50 p-3">
+              <div>
+                <p className="text-sm font-medium">{translate("Active")}</p>
+                <p className="text-xs text-muted-foreground">{translate("Inactive groups are ignored during resolution.")}</p>
+              </div>
+              <Switch
+                checked={groupFormData.isActive}
+                onToggle={() => setGroupFormData((prev) => ({ ...prev, isActive: !prev.isActive }))}
+                disabled={saveGroupMutation.isPending}
+              />
+            </div>
+
+            <div className="flex items-center justify-between rounded-[4px] border border-border/50 p-3">
+              <div>
+                <p className="text-sm font-medium">{translate("Strict Proxy")}</p>
+                <p className="text-xs text-muted-foreground">{translate("Fail request if all proxies in the group are unreachable.")}</p>
+              </div>
+              <Switch
+                checked={groupFormData.strictProxy}
+                onToggle={() => setGroupFormData((prev) => ({ ...prev, strictProxy: !prev.strictProxy }))}
+                disabled={saveGroupMutation.isPending}
+              />
+            </div>
+
+            <div className="rounded-[4px] border border-border/50 p-3">
+              <p className="mb-2 text-sm font-medium">{translate("Pool Members")}</p>
+              <p className="mb-3 text-xs text-muted-foreground">{translate("Select which proxy pools belong to this group.")}</p>
+              {proxyPools.length === 0 ? (
+                <p className="text-xs text-muted-foreground">{translate("No proxy pools available. Create pools first.")}</p>
+              ) : (
+                <div className="flex max-h-[200px] flex-col gap-2 overflow-y-auto">
+                  {proxyPools.map((pool) => (
+                    <label key={pool.id} className="flex cursor-pointer items-center gap-2 rounded px-2 py-1 hover:bg-secondary/50">
+                      <Checkbox
+                        checked={groupFormData.proxyPoolIds.includes(pool.id)}
+                        onCheckedChange={() => togglePoolInGroup(pool.id)}
+                      />
+                      <span className="text-sm">{pool.name}</span>
+                      {!pool.isActive && <Badge variant="secondary" className="text-[10px]">{translate("disabled")}</Badge>}
+                    </label>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <div className="flex flex-col gap-2 sm:flex-row">
+              <Button
+                type="submit"
+                className="w-full"
+                disabled={!groupFormData.name.trim() || saveGroupMutation.isPending}
+              >
+                {saveGroupMutation.isPending ? <Spinner data-icon="inline-start" /> : null}
+                {saveGroupMutation.isPending ? translate("Saving") : translate("Save")}
+              </Button>
+              <Button type="button" className="w-full" variant="ghost" onClick={closeGroupFormModal} disabled={saveGroupMutation.isPending}>
+                {translate("Cancel")}
+              </Button>
+            </div>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* Remove All Proxy Assignments Dialog */}
+      <Dialog open={showRemoveAllDialog} onOpenChange={(open) => { if (!open) { setShowRemoveAllDialog(false); setRemoveAllGroupId(null); } }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{translate("Remove All Proxy Assignments")}</DialogTitle>
+            <DialogDescription>
+              {translate("This will remove this group assignment from all connections and provider defaults. This action cannot be undone.")}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex flex-col gap-2 sm:flex-row">
+            <Button
+              variant="destructive"
+              className="w-full"
+              onClick={handleRemoveAll}
+              disabled={removeAllMutation.isPending}
+            >
+              {removeAllMutation.isPending ? <Spinner data-icon="inline-start" /> : null}
+              {translate("Remove All")}
+            </Button>
+            <Button
+              variant="ghost"
+              className="w-full"
+              onClick={() => { setShowRemoveAllDialog(false); setRemoveAllGroupId(null); }}
+              disabled={removeAllMutation.isPending}
+            >
+              {translate("Cancel")}
+            </Button>
+          </div>
         </DialogContent>
       </Dialog>
     </div>

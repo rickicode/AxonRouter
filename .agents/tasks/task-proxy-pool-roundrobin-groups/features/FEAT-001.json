@@ -1,0 +1,34 @@
+{
+  "id": "FEAT-001",
+  "type": "feat",
+  "description": "Add round-robin proxy group data model, API endpoints, and backend resolution logic. This adds the concept of 'proxy groups' (round-robin groups) to the proxy pool system. Each group contains multiple proxy pool entries and has a mode: 'roundrobin' (rotate through proxies on each request) or 'sticky' (stick to one proxy for N requests, configurable). A 'default' group is auto-created. The resolution chain changes: when a provider/connection is assigned to a round-robin group, the system picks the next proxy from that group according to its mode. Strict proxy mode is inherited: if the selected proxy fails and strictProxy is false, fallback to direct; if strictProxy is true, fail the request.",
+  "status": "completed",
+  "steps": [
+    "Step 1: Add ProxyGroup data model to src/lib/localDb/misc.ts. Add CRUD functions: getProxyGroups, getProxyGroupById, createProxyGroup, updateProxyGroup, deleteProxyGroup. Each ProxyGroup has: id (uuid), name (string, 'default' for the auto-created one), mode ('roundrobin' | 'sticky'), stickyLimit (number, default 1, only relevant when mode=sticky), strictProxy (boolean), proxyPoolIds (string[] - ordered list of proxy pool IDs in this group), isActive (boolean), createdAt, updatedAt. Export them from src/lib/localDb.ts barrel.",
+    "Step 2: Add proxyGroupAccess.ts in src/lib/ (following the same pattern as src/lib/proxyPoolAccess.ts) with async wrapper functions for the CRUD operations.",
+    "Step 3: Add API routes for proxy groups at src/app/api/proxy-groups/route.ts (GET list, POST create) and src/app/api/proxy-groups/[id]/route.ts (GET detail, PUT update, DELETE). Follow the same auth/validation patterns as src/app/api/proxy-pools/route.ts. The GET list endpoint should support ?includeUsage=true to show how many providers/connections use each group. Ensure a 'default' group is auto-created on first GET if none exists.",
+    "Step 4: Extend settings.providerProxyDefaults to support a new field: proxyGroupId (in addition to existing proxyPoolId). When proxyGroupId is set, it takes precedence over proxyPoolId. Update src/app/api/settings/route.ts to handle providerProxyDefaults with proxyGroupId field.",
+    "Step 5: Extend providerSpecificData to support proxyGroupId field for per-connection group assignment. Update the providers/[id]/route.ts PUT handler to accept proxyGroupId similarly to proxyPoolId.",
+    "Step 6: Rewrite src/lib/network/connectionProxy.ts resolveConnectionProxyConfig to add group resolution. New resolution chain: 1) Check connection-level proxyGroupId -> resolve group -> pick proxy from group. 2) Check connection-level proxyPoolId -> use directly. 3) Check provider-default proxyGroupId -> resolve group -> pick proxy. 4) Check provider-default proxyPoolId -> use directly. 5) Return none. Add a new function resolveProxyFromGroup(groupId) that: loads the group, filters to active pools, implements round-robin cursor (in-memory Map<groupId, index>) or sticky logic (track last-used pool + count per group in-memory).",
+    "Step 7: Add API endpoint src/app/api/proxy-groups/[id]/remove-all/route.ts (POST) that removes the group assignment from ALL connections and provider defaults that reference this group. This is the 'Remove all proxy for all accounts' action.",
+    "Step 8: Write unit tests in tests/unit/proxy-group-resolution.test.ts that verify: group creation, round-robin rotation across pools, sticky mode staying on same pool within limit, fallback to direct when strictProxy=false and proxy fails, error when strictProxy=true and proxy fails, resolution chain priority (connection group > connection pool > provider group > provider pool > none)."
+  ],
+  "acceptance_criteria": [
+    "ProxyGroup CRUD works via API endpoints with proper validation",
+    "A 'default' group is auto-created on first access if none exists",
+    "Round-robin mode rotates through active proxy pools in the group on each resolution call",
+    "Sticky mode reuses the same proxy pool up to stickyLimit times before rotating",
+    "Resolution chain respects priority: connection proxyGroupId > connection proxyPoolId > provider default proxyGroupId > provider default proxyPoolId > none",
+    "strictProxy=true on group causes request failure instead of direct fallback",
+    "Remove-all endpoint clears all references to a group across connections and settings",
+    "Unit tests pass for all resolution scenarios"
+  ],
+  "verification": [
+    "npm run typecheck",
+    "npm run lint",
+    "npm run test",
+    "npm run build"
+  ],
+  "blocked_reason": null,
+  "findings": "All verification steps passed (lint, typecheck, test, build). Node 22 installed via mise. 189 test files pass (1072 tests). User sent steering about health checks/auto-test and account overrides display -- these are separate features outside FEAT-001 scope."
+}

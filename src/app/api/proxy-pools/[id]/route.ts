@@ -7,6 +7,7 @@ import {
   getCurrentProxyPoolById,
   updateCurrentProxyPool,
 } from "@/lib/proxyPoolAccess";
+import { getCurrentProxyGroups, updateCurrentProxyGroup } from "@/lib/proxyGroupAccess";
 
 type ProxyPoolUpdateBody = {
   name?: unknown;
@@ -235,6 +236,16 @@ export async function DELETE(request: Request, { params }: RouteContext) {
       getCurrentSettings(),
     ]);
     const cascadeResult = await cascadeRemoveProxyPoolReferences(id, connections, settings);
+
+    // Remove stale pool ID from any proxy group's proxyPoolIds array
+    const groups = await getCurrentProxyGroups();
+    for (const group of groups) {
+      if (group.proxyPoolIds?.includes(id)) {
+        await updateCurrentProxyGroup(group.id, {
+          proxyPoolIds: group.proxyPoolIds.filter((pid: string) => pid !== id),
+        });
+      }
+    }
 
     await deleteCurrentProxyPool(id);
     return NextResponse.json({ success: true, cascade: cascadeResult });

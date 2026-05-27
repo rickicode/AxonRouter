@@ -291,6 +291,18 @@ export async function PATCH(request: Request) {
                 return NextResponse.json({ error: `Proxy pool "${poolId.trim()}" is inactive for provider "${key}". Activate it first.` }, { status: 400 });
               }
             }
+            // Validate: proxy group must exist and be active (if provided)
+            const groupId = typeof value === "object" && value !== null ? (value as any).proxyGroupId : undefined;
+            if (typeof groupId === "string" && groupId.trim()) {
+              const { getCurrentProxyGroupById } = await import("@/lib/proxyGroupAccess");
+              const group = await getCurrentProxyGroupById(groupId.trim());
+              if (!group) {
+                return NextResponse.json({ error: `Proxy group "${groupId.trim()}" not found for provider "${key}"` }, { status: 400 });
+              }
+              if (group.isActive !== true) {
+                return NextResponse.json({ error: `Proxy group "${groupId.trim()}" is inactive for provider "${key}". Activate it first.` }, { status: 400 });
+              }
+            }
             mergedDefaults[key] = value;
           }
         }

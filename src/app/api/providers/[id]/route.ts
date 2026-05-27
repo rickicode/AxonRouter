@@ -36,6 +36,7 @@ type ProviderRouteBody = {
   apiKey?: unknown;
   providerSpecificData?: Record<string, unknown>;
   proxyPoolId?: unknown;
+  proxyGroupId?: unknown;
   routingOrderLocked?: unknown;
   routingOrder?: unknown;
   // Status fields (used by test-all and validate flows)
@@ -53,6 +54,12 @@ type ProviderRouteBody = {
 type ProxyPoolUpdateResult = {
   hasProxyPoolField: boolean;
   proxyPoolId: string | null;
+  error?: string;
+};
+
+type ProxyGroupUpdateResult = {
+  hasProxyGroupField: boolean;
+  proxyGroupId: string | null;
   error?: string;
 };
 
@@ -100,6 +107,34 @@ async function normalizeProxyPoolUpdate(
   }
 
   return { hasProxyPoolField: true, proxyPoolId };
+}
+
+async function normalizeProxyGroupUpdate(
+  proxyGroupIdInput: unknown,
+): Promise<ProxyGroupUpdateResult> {
+  if (proxyGroupIdInput === undefined) {
+    return { hasProxyGroupField: false, proxyGroupId: null };
+  }
+
+  if (proxyGroupIdInput === null || proxyGroupIdInput === "" || proxyGroupIdInput === "__none__") {
+    return { hasProxyGroupField: true, proxyGroupId: null };
+  }
+
+  const proxyGroupId = String(proxyGroupIdInput).trim();
+  if (!proxyGroupId) {
+    return { hasProxyGroupField: true, proxyGroupId: null };
+  }
+
+  const { getCurrentProxyGroupById } = await import("@/lib/proxyGroupAccess");
+  const proxyGroup = await getCurrentProxyGroupById(proxyGroupId);
+  if (!proxyGroup) {
+    return { hasProxyGroupField: true, proxyGroupId: null, error: "Proxy group not found" };
+  }
+  if (proxyGroup.isActive !== true) {
+    return { hasProxyGroupField: true, proxyGroupId: null, error: "Proxy group is inactive. Activate it first before assigning." };
+  }
+
+  return { hasProxyGroupField: true, proxyGroupId };
 }
 
 function shouldMergeProviderSpecificData(
@@ -194,6 +229,11 @@ export async function PUT(request: Request, { params }: RouteContext) {
       return NextResponse.json({ error: proxyPoolResult.error }, { status: 400 });
     }
 
+    const proxyGroupResult = await normalizeProxyGroupUpdate(body.proxyGroupId);
+    if (proxyGroupResult.error) {
+      return NextResponse.json({ error: proxyGroupResult.error }, { status: 400 });
+    }
+
     const updateData: Record<string, unknown> = {};
     if (name !== undefined) updateData.name = name;
     if (priority !== undefined) updateData.priority = priority;
@@ -217,6 +257,7 @@ export async function PUT(request: Request, { params }: RouteContext) {
         providerSpecificData,
         proxyPoolResult.hasProxyPoolField,
       )
+      || proxyGroupResult.hasProxyGroupField
       || routingOrderLocked !== undefined
     ) {
       const mergedProviderSpecificData: Record<string, unknown> = {
@@ -243,6 +284,14 @@ export async function PUT(request: Request, { params }: RouteContext) {
           delete mergedProviderSpecificData.proxyPoolId;
         } else {
           mergedProviderSpecificData.proxyPoolId = proxyPoolResult.proxyPoolId;
+        }
+      }
+
+      if (proxyGroupResult.hasProxyGroupField) {
+        if (proxyGroupResult.proxyGroupId === null) {
+          delete mergedProviderSpecificData.proxyGroupId;
+        } else {
+          mergedProviderSpecificData.proxyGroupId = proxyGroupResult.proxyGroupId;
         }
       }
 
