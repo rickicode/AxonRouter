@@ -204,7 +204,7 @@ export const APIKEY_PROVIDERS = {
   "ollama-local": { id: "ollama-local", alias: "ollama-local", name: "Ollama Local", icon: "cloud", color: "#ffffffff", textIcon: "OL", website: "https://ollama.com" },
   "vertex-partner": { id: "vertex-partner", alias: "vxp", name: "Vertex Partner", icon: "cloud", color: "#34A853", textIcon: "VP", website: "https://cloud.google.com/vertex-ai/generative-ai/docs/partner-models/use-partner-models" },
   tavily: { id: "tavily", alias: "tavily", name: "Tavily", icon: "search", color: "#5B21B6", textIcon: "TV", website: "https://tavily.com", serviceKinds: ["webSearch"] },
-  "brave-search": { id: "brave-search", alias: "brave", name: "Brave Search", icon: "travel_explore", color: "#FB542B", textIcon: "BR", website: "https://brave.com/search/api", serviceKinds: ["webSearch"] },
+  "brave-search": { id: "brave-search", alias: "brave-search", name: "Brave Search", icon: "travel_explore", color: "#FB542B", textIcon: "BR", website: "https://brave.com/search/api", hasFree: true, authHint: "Subscription token from Brave Search API dashboard", serviceKinds: ["webSearch"] },
   serper: { id: "serper", alias: "serper", name: "Serper", icon: "search", color: "#4F46E5", textIcon: "SP", website: "https://serper.dev", serviceKinds: ["webSearch"] },
   exa: { id: "exa", alias: "exa", name: "Exa", icon: "manage_search", color: "#2563EB", textIcon: "EX", website: "https://exa.ai", serviceKinds: ["webSearch"] },
   searxng: { id: "searxng", alias: "searxng", name: "SearXNG", icon: "saved_search", color: "#3B82F6", textIcon: "SX", website: "https://docs.searxng.org", serviceKinds: ["webSearch"], noAuth: true },
@@ -236,7 +236,7 @@ export const APIKEY_PROVIDERS = {
   ideogram: { id: "ideogram", alias: "ideo", name: "Ideogram", icon: "image", color: "#EC4899", textIcon: "ID", website: "https://ideogram.ai" },
   suno: { id: "suno", alias: "suno", name: "Suno", icon: "music_note", color: "#F59E0B", textIcon: "SU", website: "https://suno.ai" },
   udio: { id: "udio", alias: "udio", name: "Udio", icon: "music_note", color: "#10B981", textIcon: "UD", website: "https://udio.com" },
-  "cloudflare-ai": { id: "cloudflare-ai", alias: "cf", name: "Cloudflare Workers AI", icon: "cloud", color: "#F48120", textIcon: "CF", website: "https://developers.cloudflare.com/workers-ai", hasFree: true, freeNote: "Free 10K Neurons/day" },
+  "cloudflare-ai": { id: "cloudflare-ai", alias: "cf", name: "Cloudflare Workers AI", icon: "cloud", color: "#F48120", textIcon: "CW", website: "https://developers.cloudflare.com/workers-ai", hasFree: true, freeNote: "Free 10K Neurons/day" },
   scaleway: { id: "scaleway", alias: "scw", name: "Scaleway AI", icon: "cloud", color: "#4F0599", textIcon: "SCW", website: "https://www.scaleway.com/en/ai/generative-apis", hasFree: true, freeNote: "1M free tokens for new accounts" },
   deepinfra: { id: "deepinfra", alias: "deepinfra", name: "DeepInfra", icon: "hub", color: "#2563EB", textIcon: "DI", website: "https://deepinfra.com", hasFree: true, freeNote: "Free signup credits for API testing" },
   "vercel-ai-gateway": { id: "vercel-ai-gateway", alias: "vag", name: "Vercel AI Gateway", icon: "route", color: "#111827", textIcon: "VAI", website: "https://vercel.com/docs/ai-gateway" },
@@ -260,7 +260,7 @@ export const APIKEY_PROVIDERS = {
   galadriel: { id: "galadriel", alias: "galadriel", name: "Galadriel", icon: "auto_awesome", color: "#F59E0B", textIcon: "GA", website: "https://galadriel.com" },
   databricks: { id: "databricks", alias: "databricks", name: "Databricks", icon: "table_chart", color: "#F97316", textIcon: "DB", website: "https://www.databricks.com" },
   datarobot: { id: "datarobot", alias: "datarobot", name: "DataRobot", icon: "precision_manufacturing", color: "#6D28D9", textIcon: "DR", website: "https://docs.datarobot.com", passthroughModels: true },
-  clarifai: { id: "clarifai", alias: "clarifai", name: "Clarifai", icon: "hub", color: "#7C3AED", textIcon: "CF", website: "https://docs.clarifai.com", passthroughModels: true },
+  clarifai: { id: "clarifai", alias: "clarifai", name: "Clarifai", icon: "hub", color: "#7C3AED", textIcon: "CL", website: "https://docs.clarifai.com", passthroughModels: true },
   snowflake: { id: "snowflake", alias: "snowflake", name: "Snowflake Cortex", icon: "ac_unit", color: "#29B5E8", textIcon: "SF", website: "https://www.snowflake.com" },
   wandb: { id: "wandb", alias: "wandb", name: "Weights & Biases Inference", icon: "monitoring", color: "#FFBE0B", textIcon: "WB", website: "https://wandb.ai" },
   ai21: { id: "ai21", alias: "ai21", name: "AI21 Labs", icon: "psychology_alt", color: "#0284C7", textIcon: "AI21", website: "https://www.ai21.com", hasFree: true, freeNote: "$10 trial credits on signup" },
@@ -304,7 +304,7 @@ export const APIKEY_PROVIDERS = {
   stepfun: { id: "stepfun", alias: "stepfun", name: "StepFun", icon: "auto_awesome", color: "#8B5CF6", textIcon: "SF", website: "https://stepfun.com", hasFree: true, passthroughModels: true },
   coze: { id: "coze", alias: "coze", name: "Coze", icon: "smart_toy", color: "#3B82F6", textIcon: "CZ", website: "https://coze.com", hasFree: true, passthroughModels: true },
   "360ai": { id: "360ai", alias: "360ai", name: "360 AI", icon: "auto_awesome", color: "#00B96B", textIcon: "360", website: "https://ai.360.cn", hasFree: true, passthroughModels: true },
-  doubao: { id: "doubao", alias: "doubao", name: "Doubao", icon: "auto_awesome", color: "#FE2C55", textIcon: "DB", website: "https://doubao.com", hasFree: true, passthroughModels: true },
+  doubao: { id: "doubao", alias: "doubao", name: "Doubao", icon: "auto_awesome", color: "#FE2C55", textIcon: "DA", website: "https://doubao.com", hasFree: true, passthroughModels: true },
   sensenova: { id: "sensenova", alias: "sensenova", name: "SenseNova", icon: "auto_awesome", color: "#0066FF", textIcon: "SN", website: "https://platform.sensenova.cn", hasFree: true, passthroughModels: true },
   sparkdesk: { id: "sparkdesk", alias: "sparkdesk", name: "SparkDesk", icon: "auto_awesome", color: "#0066FF", textIcon: "SD", website: "https://xinghuo.xfyun.cn", hasFree: true, passthroughModels: true },
   phind: { id: "phind", alias: "phind", name: "Phind", icon: "search", color: "#EC4899", textIcon: "PH", website: "https://phind.com", hasFree: true, passthroughModels: true },
@@ -371,7 +371,7 @@ export const LOCAL_PROVIDERS = {
 
 export const SEARCH_PROVIDERS = {
   "perplexity-search": { id: "perplexity-search", alias: "pplx-search", name: "Perplexity Search", icon: "search", color: "#20808D", textIcon: "PS", website: "https://docs.perplexity.ai/guides/search-quickstart", authHint: "Same API key as Perplexity (pplx-...)", serviceKinds: ["webSearch"] },
-  "serper-search": { id: "serper-search", alias: "serper-search", name: "Serper Search", icon: "search", color: "#4285F4", textIcon: "SP", website: "https://serper.dev", hasFree: true, authHint: "API key from serper.dev dashboard", serviceKinds: ["webSearch"] },
+  "serper-search": { id: "serper-search", alias: "serper-search", name: "Serper Search", icon: "search", color: "#4285F4", textIcon: "SS", website: "https://serper.dev", hasFree: true, authHint: "API key from serper.dev dashboard", serviceKinds: ["webSearch"] },
   "brave-search": { id: "brave-search", alias: "brave-search", name: "Brave Search", icon: "travel_explore", color: "#FB542B", textIcon: "BR", website: "https://brave.com/search/api", hasFree: true, authHint: "Subscription token from Brave Search API dashboard", serviceKinds: ["webSearch"] },
   "exa-search": { id: "exa-search", alias: "exa-search", name: "Exa Search", icon: "neurology", color: "#1E40AF", textIcon: "EX", website: "https://exa.ai", hasFree: true, authHint: "API key from dashboard.exa.ai", serviceKinds: ["webSearch", "webFetch"] },
   "tavily-search": { id: "tavily-search", alias: "tavily-search", name: "Tavily Search", icon: "manage_search", color: "#5B4FDB", textIcon: "TV", website: "https://tavily.com", hasFree: true, authHint: "API key from app.tavily.com (format: tvly-...)", serviceKinds: ["webSearch", "webFetch"] },
@@ -454,19 +454,19 @@ export const OPENAI_COMPATIBLE_PREFIX = "openai-compatible-";
 export const ANTHROPIC_COMPATIBLE_PREFIX = "anthropic-compatible-";
 export const CLAUDE_CODE_COMPATIBLE_PREFIX = "anthropic-compatible-cc-";
 
-export function isOpenAICompatibleProvider(providerId) {
+export function isOpenAICompatibleProvider(providerId: unknown): providerId is string {
   return typeof providerId === "string" && providerId.startsWith(OPENAI_COMPATIBLE_PREFIX);
 }
 
-export function isAnthropicCompatibleProvider(providerId) {
+export function isAnthropicCompatibleProvider(providerId: unknown): providerId is string {
   return typeof providerId === "string" && providerId.startsWith(ANTHROPIC_COMPATIBLE_PREFIX);
 }
 
-export function isClaudeCodeCompatibleProvider(providerId) {
+export function isClaudeCodeCompatibleProvider(providerId: unknown): providerId is string {
   return typeof providerId === "string" && providerId.startsWith(CLAUDE_CODE_COMPATIBLE_PREFIX);
 }
 
-export function isMorphManagedProvider(providerId) {
+export function isMorphManagedProvider(providerId: unknown): boolean {
   return providerId === MORPH_MANAGED_PROVIDER_ID;
 }
 
@@ -474,7 +474,9 @@ export function isMorphManagedProvider(providerId) {
 // HELPER FUNCTIONS
 // ============================================================================
 
-export function isLocalProvider(providerId) {
+// Checks if provider is in LOCAL_PROVIDERS map (includes all local inference servers;
+// future local providers like sdwebui/comfyui for image gen may not be chat providers).
+export function isLocalProvider(providerId: unknown): boolean {
   return typeof providerId === "string" && Object.prototype.hasOwnProperty.call(LOCAL_PROVIDERS, providerId);
 }
 
@@ -483,11 +485,14 @@ export const SELF_HOSTED_CHAT_PROVIDER_IDS = new Set([
   "triton", "docker-model-runner", "xinference", "oobabooga",
 ]);
 
-export function isSelfHostedChatProvider(providerId) {
+// Checks if provider runs a local OpenAI-compatible chat endpoint (subset of local
+// providers used for optional API key logic). Distinct from isLocalProvider because
+// future local providers (e.g. image-only tools) may not expose a chat endpoint.
+export function isSelfHostedChatProvider(providerId: unknown): boolean {
   return typeof providerId === "string" && SELF_HOSTED_CHAT_PROVIDER_IDS.has(providerId);
 }
 
-export function providerAllowsOptionalApiKey(providerId) {
+export function providerAllowsOptionalApiKey(providerId: unknown): boolean {
   return (
     providerId === "searxng-search" ||
     providerId === "petals" ||
@@ -511,7 +516,7 @@ const BULK_API_KEY_EXCLUDED = new Set([
   "google-pse-search", "command-code", "azure", "cloudflare-ai",
 ]);
 
-export function supportsBulkApiKey(providerId) {
+export function supportsBulkApiKey(providerId: unknown): boolean {
   if (typeof providerId !== "string" || !providerId) return false;
   if (BULK_API_KEY_EXCLUDED.has(providerId)) return false;
   if (isLocalProvider(providerId)) return false;
@@ -556,7 +561,7 @@ export const AUTH_METHODS = {
 // ============================================================================
 
 // Helper: Get provider by alias
-export function getProviderByAlias(alias) {
+export function getProviderByAlias(alias: unknown) {
   for (const provider of Object.values(AI_PROVIDERS)) {
     if (provider.alias === alias || provider.id === alias) {
       return provider;
@@ -566,15 +571,15 @@ export function getProviderByAlias(alias) {
 }
 
 // Helper: Get provider ID from alias
-export function resolveProviderId(aliasOrId) {
+export function resolveProviderId(aliasOrId: unknown): string {
   const provider = getProviderByAlias(aliasOrId);
-  return provider?.id || aliasOrId;
+  return provider?.id || (aliasOrId as string);
 }
 
 // Helper: Get alias from provider ID
-export function getProviderAlias(providerId) {
-  const provider = AI_PROVIDERS[providerId];
-  return provider?.alias || providerId;
+export function getProviderAlias(providerId: unknown): string {
+  const provider = typeof providerId === "string" ? AI_PROVIDERS[providerId] : undefined;
+  return provider?.alias || (providerId as string);
 }
 
 // Alias to ID mapping (for quick lookup)
@@ -591,20 +596,20 @@ export const ID_TO_ALIAS = Object.values(AI_PROVIDERS).reduce((acc, p) => {
 
 // Helper: Get providers by service kind (e.g. "tts", "embedding", "image")
 // Providers without serviceKinds default to ["llm"]
-export function getProvidersByKind(kind) {
+export function getProvidersByKind(kind: unknown) {
   return Object.values(AI_PROVIDERS).filter((provider) => {
     const p: any = provider;
     const kinds = Array.isArray(p.serviceKinds) ? p.serviceKinds : ["llm"];
-    if (!kinds.includes(kind)) return false;
+    if (!kinds.includes(kind as string)) return false;
     if (p.hidden === true) return false; // globally hidden
     if (Array.isArray(p.hiddenKinds) && p.hiddenKinds.includes(kind)) return false; // hidden for specific kind
     return true;
   });
 }
 
-export function getProviderSupportedModes(provider) {
+export function getProviderSupportedModes(provider: any) {
   const serviceKinds = provider?.serviceKinds ?? ["llm"];
-  const modes = [];
+  const modes: string[] = [];
   if (serviceKinds.includes("llm")) modes.push("text");
   if (serviceKinds.includes("image")) modes.push("image");
   if (serviceKinds.includes("tts") || serviceKinds.includes("stt")) modes.push("audio");
