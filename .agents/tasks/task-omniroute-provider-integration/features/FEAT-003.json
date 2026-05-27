@@ -2,7 +2,7 @@
   "id": "FEAT-003",
   "type": "feat",
   "description": "Update the providers dashboard page (src/app/(dashboard)/dashboard/providers/page.tsx) to display providers organized in clean categorized sections like OmniRoute's /provider page. Add sections for Local/Self-Hosted, Search, Audio, Cloud Agent, Upstream Proxy, and IDE providers. Add free tier badges where hasFree is true.",
-  "status": "in_progress",
+  "status": "completed",
   "steps": [
     "Step 1 - Import the new provider category exports into the providers page: LOCAL_PROVIDERS, SEARCH_PROVIDERS, AUDIO_ONLY_PROVIDERS, UPSTREAM_PROXY_PROVIDERS, CLOUD_AGENT_PROVIDERS, IDE_PROVIDER_IDS, AGGREGATOR_PROVIDER_IDS, ENTERPRISE_CLOUD_PROVIDER_IDS.",
     "Step 2 - Add filtered lists for each new category section: filteredLocalProviders, filteredSearchProviders, filteredAudioProviders, filteredCloudAgentProviders, filteredUpstreamProxyProviders. Apply the same matchesHeaderSearch filter pattern already used for other sections.",
@@ -29,5 +29,5 @@
     "npm run build"
   ],
   "blocked_reason": null,
-  "findings": ""
+  "findings": "Split page.tsx (was 1975 lines) into 4 modules: page.tsx (1097 lines), ProviderCards.tsx (311 lines), AddCompatibleModals.tsx (475 lines), ProviderTestResults.tsx (91 lines). Updated smoke test to match renamed filteredNonIdeOauthProviders variable. All tests pass (188 files, 1056 tests). Build and typecheck clean."
 }
