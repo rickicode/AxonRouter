@@ -1,4 +1,5 @@
 import crypto from "crypto";
+import { dataFileExists, readDataFile, writeDataFile, ensureDataDir, resolveDataPath } from "@axonrouter/data-dir";
 
 const CACHE_KEY = "__AXONROUTER_API_KEY_SECRET__";
 
@@ -13,19 +14,12 @@ function getApiKeySecret(): string {
     return (globalThis as any)[CACHE_KEY];
   }
 
-  // Load or generate from data dir using lazy require to avoid NFT tracing
+  // Load or generate from data dir
   try {
-    const _require = (globalThis as any).__non_webpack_require__ || eval("require");
-    const fs = _require("fs");
-    const path = _require("path");
-    const os = _require("os");
-    const dataDir = os.platform() === "win32"
-      ? path.join(process.env.APPDATA || path.join(os.homedir(), "AppData", "Roaming"), "axonrouter")
-      : path.join(os.homedir(), ".axonrouter");
-    const secretFile = path.join(dataDir, ".api-key-secret");
+    const secretFile = resolveDataPath(".api-key-secret");
 
-    if (fs.existsSync(secretFile)) {
-      const secret = fs.readFileSync(secretFile, "utf8").trim();
+    if (dataFileExists(secretFile)) {
+      const secret = (readDataFile(secretFile, "utf8") as string).trim();
       if (secret) {
         (globalThis as any)[CACHE_KEY] = secret;
         return secret;
@@ -34,8 +28,8 @@ function getApiKeySecret(): string {
 
     // Generate new
     const newSecret = crypto.randomBytes(32).toString("base64url");
-    if (!fs.existsSync(dataDir)) fs.mkdirSync(dataDir, { recursive: true });
-    fs.writeFileSync(secretFile, newSecret, { mode: 0o600 });
+    ensureDataDir();
+    writeDataFile(secretFile, newSecret);
     (globalThis as any)[CACHE_KEY] = newSecret;
     return newSecret;
   } catch {
