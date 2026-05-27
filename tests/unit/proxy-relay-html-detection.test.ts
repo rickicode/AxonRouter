@@ -21,6 +21,13 @@ function makeHtmlResponse(status: number, body = "<html><body>Error</body></html
   });
 }
 
+function makeNoContentTypeResponse(status: number, body = "<html><body>Error</body></html>") {
+  return new Response(body, {
+    status,
+    headers: {},
+  });
+}
+
 function makeJsonResponse(status: number, body: Record<string, unknown> = { error: "rate_limited" }) {
   return new Response(JSON.stringify(body), {
     status,
@@ -160,6 +167,52 @@ describe("Relay HTML error detection", () => {
       );
       warnSpy.mockRestore();
     });
+
+    it("should detect relay response with missing content-type header as relay error", async () => {
+      const directResponse = makeJsonResponse(200, { ok: true });
+      mockFetch.mockResolvedValueOnce(makeNoContentTypeResponse(429));
+      mockFetch.mockResolvedValueOnce(directResponse);
+
+      const { proxyAwareFetch } = await loadModule();
+      const result = await proxyAwareFetch("https://api.openai.com/v1/chat/completions", {}, {
+        relayUrl: "https://relay.workers.dev",
+        strictProxy: false,
+      });
+
+      expect(result).toBe(directResponse);
+      expect(mockFetch).toHaveBeenCalledTimes(2);
+    });
+
+    it("should detect relay response with missing content-type as error (strictProxy=true throws)", async () => {
+      mockFetch.mockResolvedValueOnce(makeNoContentTypeResponse(502));
+
+      const { proxyAwareFetch } = await loadModule();
+
+      await expect(
+        proxyAwareFetch("https://api.openai.com/v1/chat/completions", {}, {
+          relayUrl: "https://relay.workers.dev",
+          strictProxy: true,
+        })
+      ).rejects.toThrow(/Relay returned HTML error page/);
+    });
+
+    it("should NOT re-throw non-diagnostic errors that happen to have a .phase property", async () => {
+      const directResponse = makeJsonResponse(200, { ok: true });
+      const fakeError = new Error("Some third-party error");
+      (fakeError as any).phase = "some-random-phase";
+      mockFetch.mockRejectedValueOnce(fakeError);
+      mockFetch.mockResolvedValueOnce(directResponse);
+
+      const { proxyAwareFetch } = await loadModule();
+      const result = await proxyAwareFetch("https://api.openai.com/v1/chat/completions", {}, {
+        relayUrl: "https://relay.workers.dev",
+        strictProxy: false,
+      });
+
+      // Should fall through to direct fetch, not re-throw
+      expect(result).toBe(directResponse);
+      expect(mockFetch).toHaveBeenCalledTimes(2);
+    });
   });
 
   describe("HTTP proxy path", () => {
@@ -223,6 +276,22 @@ describe("Relay HTML error detection", () => {
       });
 
       expect(result).toBe(jsonResponse);
+    });
+
+    it("should detect HTTP proxy response with missing content-type as proxy error", async () => {
+      const directResponse = makeJsonResponse(200, { choices: [] });
+      mockFetch.mockResolvedValueOnce(makeNoContentTypeResponse(502));
+      mockFetch.mockResolvedValueOnce(directResponse);
+
+      const { proxyAwareFetch } = await loadModule();
+      const result = await proxyAwareFetch("https://api.openai.com/v1/chat/completions", {}, {
+        connectionProxyEnabled: true,
+        url: "http://proxy.example.com:8080",
+        strictProxy: false,
+      });
+
+      expect(result).toBe(directResponse);
+      expect(mockFetch).toHaveBeenCalledTimes(2);
     });
   });
 });

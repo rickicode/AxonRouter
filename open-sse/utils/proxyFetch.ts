@@ -300,26 +300,55 @@ async function createGotScrapingResponse(targetUrl, options) {
 const RELAY_ERROR_STATUSES = new Set([403, 429, 502, 503, 504]);
 const PROXY_ERROR_STATUSES = new Set([403, 407, 429, 502, 503, 504]);
 
-function isRelayHtmlError(response: Response): boolean {
+// Phases created by HTML detection that should always be re-thrown
+const HTML_DETECTION_PHASES = new Set([
+  "relay-html-error",
+  "proxy-html-error",
+  "relay-html-fallback-direct",
+  "proxy-html-fallback-direct",
+]);
+
+function isHtmlErrorResponse(response: Response, errorStatuses: Set<number>): boolean {
   const status = response.status;
   if (status >= 200 && status < 300) return false;
-  if (!RELAY_ERROR_STATUSES.has(status) && status < 500) return false;
+  if (!errorStatuses.has(status) && status < 500) return false;
   const contentType = response.headers.get("content-type") || "";
   if (contentType.includes("application/json")) return false;
   if (contentType.includes("text/event-stream")) return false;
   if (contentType.includes("text/html")) return true;
+  // Missing content-type or generic text/plain on error statuses from proxies
+  // indicates likely HTML error page (many minimal proxies/CDN edges omit or
+  // mistype the content-type header on error pages)
+  if (errorStatuses.has(status) && (!contentType || contentType.startsWith("text/plain"))) return true;
   return false;
 }
 
+function isRelayHtmlError(response: Response): boolean {
+  return isHtmlErrorResponse(response, RELAY_ERROR_STATUSES);
+}
+
 function isProxyHtmlError(response: Response): boolean {
-  const status = response.status;
-  if (status >= 200 && status < 300) return false;
-  if (!PROXY_ERROR_STATUSES.has(status) && status < 500) return false;
-  const contentType = response.headers.get("content-type") || "";
-  if (contentType.includes("application/json")) return false;
-  if (contentType.includes("text/event-stream")) return false;
-  if (contentType.includes("text/html")) return true;
-  return false;
+  return isHtmlErrorResponse(response, PROXY_ERROR_STATUSES);
+}
+
+/**
+ * Safely consume/discard a response body to prevent socket leaks.
+ */
+function discardResponseBody(response: Response): void {
+  try {
+    if (response.body) {
+      response.body.cancel().catch(() => {});
+    }
+  } catch { /* ignore */ }
+}
+
+/**
+ * Check if an error is a diagnostic error created by our HTML detection logic.
+ */
+function isHtmlDetectionError(error: unknown): boolean {
+  if (!(error instanceof Error)) return false;
+  const phase = (error as any).phase;
+  return typeof phase === "string" && HTML_DETECTION_PHASES.has(phase);
 }
 
 export async function proxyAwareFetch(url, options: any = {}, proxyOptions: any = null) {
@@ -364,7 +393,9 @@ export async function proxyAwareFetch(url, options: any = {}, proxyOptions: any 
 
       // Detect HTML error pages from relay (rate limits, Cloudflare blocks, nginx errors)
       if (isRelayHtmlError(relayResponse)) {
-        console.warn(`[ProxyFetch] Relay returned HTML error (likely rate limit/block), status=${relayResponse.status}`);
+        const ct = relayResponse.headers.get("content-type") || "(none)";
+        console.warn(`[ProxyFetch] Relay returned HTML error (likely rate limit/block), status=${relayResponse.status}, content-type=${ct}`);
+        discardResponseBody(relayResponse);
         if (proxyOptions?.strictProxy === true) {
           throw formatDiagnosticError("Relay returned HTML error page", new Error(`HTTP ${relayResponse.status} with text/html`), {
             phase: "relay-html-error",
@@ -387,7 +418,7 @@ export async function proxyAwareFetch(url, options: any = {}, proxyOptions: any 
       return relayResponse;
     } catch (relayError) {
       // Re-throw diagnostic errors from HTML detection above
-      if (relayError instanceof Error && (relayError as any).phase) {
+      if (isHtmlDetectionError(relayError)) {
         throw relayError;
       }
 
@@ -452,7 +483,9 @@ export async function proxyAwareFetch(url, options: any = {}, proxyOptions: any 
 
       // Detect HTML error pages from HTTP proxy
       if (isProxyHtmlError(proxyResponse)) {
-        console.warn(`[ProxyFetch] HTTP proxy returned HTML error (likely rate limit/block), status=${proxyResponse.status}`);
+        const ct = proxyResponse.headers.get("content-type") || "(none)";
+        console.warn(`[ProxyFetch] HTTP proxy returned HTML error (likely rate limit/block), status=${proxyResponse.status}, content-type=${ct}`);
+        discardResponseBody(proxyResponse);
         if (proxyOptions?.strictProxy === true) {
           throw formatDiagnosticError("HTTP proxy returned HTML error page", new Error(`HTTP ${proxyResponse.status} with text/html`), {
             phase: "proxy-html-error",
@@ -475,7 +508,7 @@ export async function proxyAwareFetch(url, options: any = {}, proxyOptions: any 
       return proxyResponse;
     } catch (proxyError) {
       // Re-throw diagnostic errors from HTML detection above
-      if (proxyError instanceof Error && (proxyError as any).phase) {
+      if (isHtmlDetectionError(proxyError)) {
         throw proxyError;
       }
 
