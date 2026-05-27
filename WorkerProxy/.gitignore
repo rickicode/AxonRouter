@@ -4,13 +4,13 @@ node_modules/
 # Wrangler local state & dev artifacts
 .wrangler/
 
+# Build output
+dist/
+
 # Environment variables
 .env
 .env.*
 !.env.example
-
-# Build output
-dist/
 
 # OS files
 .DS_Store
