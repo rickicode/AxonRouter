@@ -307,9 +307,13 @@ export default function ProxyPoolsPage() {
       const res = await fetch("/api/proxy-pools/health-check", { method: "POST" });
       const data = await res.json();
       if (res.ok) {
-        setLastHealthCheckAt(data.checkedAt || null);
-        await fetchProxyPools();
-        notify.success(translate("Health check completed"));
+        if (data.skipped) {
+          notify.warning(data.reason || translate("Health check already in progress"));
+        } else {
+          setLastHealthCheckAt(data.checkedAt || null);
+          await fetchProxyPools();
+          notify.success(translate("Health check completed"));
+        }
       } else {
         notify.error(data.error || "Health check failed");
       }

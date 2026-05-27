@@ -19,8 +19,8 @@ export async function POST(request: Request) {
   if (authError) return authError;
 
   try {
-    const { checkedAt, results } = await runHealthCheckNow();
-    return NextResponse.json({ ok: true, checkedAt, results });
+    const { checkedAt, results, skipped, reason } = await runHealthCheckNow();
+    return NextResponse.json({ ok: true, checkedAt, results, skipped: skipped || false, reason: reason || null });
   } catch (error) {
     console.log("Error running health check:", error);
     return NextResponse.json({ error: "Failed to run health check" }, { status: 500 });

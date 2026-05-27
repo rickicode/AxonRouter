@@ -13,9 +13,9 @@ export function getLastHealthCheckAt(): string | null {
   return lastHealthCheckAt;
 }
 
-export async function runHealthCheckNow(): Promise<{ checkedAt: string; results: any[] }> {
+export async function runHealthCheckNow(): Promise<{ checkedAt: string; results: any[]; skipped?: boolean; reason?: string }> {
   if (isRunning) {
-    return { checkedAt: lastHealthCheckAt || new Date().toISOString(), results: [] };
+    return { checkedAt: lastHealthCheckAt || new Date().toISOString(), results: [], skipped: true, reason: "Health check already in progress" };
   }
 
   isRunning = true;
