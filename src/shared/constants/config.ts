@@ -64,12 +64,19 @@ export const PROVIDER_ENDPOINTS = {
   "ollama-local": "http://localhost:11434/api/chat",
 };
 
-// Re-export from providers.js for backward compatibility
+// Re-export from providers for backward compatibility
 export {
   FREE_PROVIDERS,
+  FREE_TIER_PROVIDERS,
   OAUTH_PROVIDERS,
   APIKEY_PROVIDERS,
   WEB_COOKIE_PROVIDERS,
+  LOCAL_PROVIDERS,
+  SEARCH_PROVIDERS,
+  AUDIO_ONLY_PROVIDERS,
+  UPSTREAM_PROXY_PROVIDERS,
+  CLOUD_AGENT_PROVIDERS,
+  SYSTEM_PROVIDERS,
   AI_PROVIDERS,
   AUTH_METHODS,
 } from "./providers";
