@@ -2,7 +2,10 @@
   "name": "axonrouter",
   "version": "0.2.0",
   "description": "Route AI coding tools across providers.",
-  "private": false,
+  "private": true,
+  "workspaces": [
+    "packages/*"
+  ],
   "type": "module",
   "files": [
     "bin/axonrouter.js",
