@@ -1,3 +1,5 @@
+// IMPORTANT: This must produce the same path as @axonrouter/data-dir's getDataDir()
+// If you change the data directory logic, update both this file and packages/data-dir/src/index.js
 const path = require("path");
 const os = require("os");
 

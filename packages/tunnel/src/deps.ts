@@ -18,6 +18,6 @@ export function configureTunnelDeps(deps: TunnelDeps) {
 }
 
 export function getDeps(): TunnelDeps {
-  if (!_deps) throw new Error("Tunnel dependencies not configured. Call configureTunnelDeps() first.");
+  if (!_deps) throw new Error("Tunnel deps not configured. Ensure instrumentation.ts imports initializeApp before route handlers execute.");
   return _deps;
 }

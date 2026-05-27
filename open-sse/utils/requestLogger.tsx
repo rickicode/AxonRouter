@@ -10,14 +10,17 @@ let fs: any = null;
 let pathMod: any = null;
 let LOGS_DIR: string | null = null;
 
-// Lazy load Node.js modules using Function constructor to avoid Turbopack tracing
-function ensureNodeModulesSync() {
+// Lazy load Node.js modules using dynamic import with variable indirection to avoid bundler tracing
+async function ensureNodeModules() {
   if (!isNode || !isLoggingEnabled() || fs) return;
   try {
-    const req = new Function("m", "return require(m)");
-    fs = req("fs");
-    pathMod = req("path");
-    LOGS_DIR = pathMod.join(/*turbopackIgnore: true*/ process.cwd(), "logs");
+    const fsName = ["node", "fs"].join(":");
+    const pathName = ["node", "path"].join(":");
+    const fsMod = await import(/* webpackIgnore: true */ fsName);
+    const pathModule = await import(/* webpackIgnore: true */ pathName);
+    fs = fsMod.default || fsMod;
+    pathMod = pathModule.default || pathModule;
+    LOGS_DIR = pathMod.join(process.cwd(), "logs");
   } catch {
     // Running in non-Node environment
   }
@@ -38,7 +41,7 @@ function formatTimestamp(date = new Date()) {
 
 // Create log session folder: {sourceFormat}_{targetFormat}_{model}_{timestamp}
 async function createLogSession(sourceFormat, targetFormat, model) {
-  ensureNodeModulesSync();
+  await ensureNodeModules();
   if (!fs || !LOGS_DIR) return null;
   
   try {
