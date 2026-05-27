@@ -27,6 +27,7 @@ export function useInvalidate() {
     modelAliases: () => invalidate(queryKeys.modelAliases()),
     modelSync: () => invalidate(queryKeys.modelSync()),
     proxyPools: () => invalidate(queryKeys.proxyPools()),
+    proxyGroups: () => invalidate(queryKeys.proxyGroups()),
     combos: () => invalidate(queryKeys.combos()),
     keys: () => invalidate(queryKeys.keys()),
 

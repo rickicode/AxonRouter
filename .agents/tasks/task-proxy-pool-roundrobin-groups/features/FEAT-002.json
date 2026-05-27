@@ -2,7 +2,7 @@
   "id": "FEAT-002",
   "type": "feat",
   "description": "Add dashboard UI for round-robin proxy groups within the existing Proxy Pools page. The UI should be intuitive: a new section/tab for 'Proxy Groups' within the proxy-pools page, where users can create/edit/delete groups, assign proxy pools to groups, configure mode (roundrobin vs sticky), set sticky limit, and assign groups to providers/connections. Also add the 'Remove All Proxy' bulk action button. The UX must clearly show which providers use which group, support the check-before-change logic (when changing proxy assignment, verify current state matches expected default before overriding custom assignments), and remain within the existing Proxy Pool menu.",
-  "status": "pending",
+  "status": "in_progress",
   "steps": [
     "Step 1: Extend the proxy-pools dashboard page (src/app/(dashboard)/dashboard/proxy-pools/page.tsx) with a tabbed layout: Tab 1 = 'Proxy Pools' (existing pool list), Tab 2 = 'Round-Robin Groups' (new group management). Use existing shadcn/ui components (Tabs from radix-ui or a simple segmented control).",
     "Step 2: In the 'Round-Robin Groups' tab, add: a list of groups showing name, mode badge (roundrobin/sticky), member pool count, bound provider/connection count, active status. Each group row has edit/delete actions. An 'Add Group' button opens a modal/dialog.",
