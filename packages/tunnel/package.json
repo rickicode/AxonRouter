@@ -1,0 +1,99 @@
+{
+  "name": "@axonrouter/tunnel",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./deps": {
+      "types": "./dist/deps.d.ts",
+      "default": "./dist/deps.js"
+    },
+    "./cloudflared": {
+      "types": "./dist/cloudflared.d.ts",
+      "default": "./dist/cloudflared.js"
+    },
+    "./tunnelManager": {
+      "types": "./dist/tunnelManager.d.ts",
+      "default": "./dist/tunnelManager.js"
+    },
+    "./tunnelConnectionRuntime": {
+      "types": "./dist/tunnelConnectionRuntime.d.ts",
+      "default": "./dist/tunnelConnectionRuntime.js"
+    },
+    "./cloudflaredDownloadState": {
+      "types": "./dist/cloudflaredDownloadState.d.ts",
+      "default": "./dist/cloudflaredDownloadState.js"
+    },
+    "./tunnelStatus": {
+      "types": "./dist/tunnelStatus.d.ts",
+      "default": "./dist/tunnelStatus.js"
+    },
+    "./state": {
+      "types": "./dist/state.d.ts",
+      "default": "./dist/state.js"
+    },
+    "./shortId": {
+      "types": "./dist/shortId.d.ts",
+      "default": "./dist/shortId.js"
+    },
+    "./tailscaleCheckAccess": {
+      "types": "./dist/tailscaleCheckAccess.d.ts",
+      "default": "./dist/tailscaleCheckAccess.js"
+    },
+    "./tailscaleInstallAccess": {
+      "types": "./dist/tailscaleInstallAccess.d.ts",
+      "default": "./dist/tailscaleInstallAccess.js"
+    },
+    "./tailscaleLoginAccess": {
+      "types": "./dist/tailscaleLoginAccess.d.ts",
+      "default": "./dist/tailscaleLoginAccess.js"
+    },
+    "./tailscaleDaemonStart": {
+      "types": "./dist/tailscaleDaemonStart.d.ts",
+      "default": "./dist/tailscaleDaemonStart.js"
+    },
+    "./tailscaleTunnelRuntime": {
+      "types": "./dist/tailscaleTunnelRuntime.d.ts",
+      "default": "./dist/tailscaleTunnelRuntime.js"
+    },
+    "./tailscaleStatusRuntime": {
+      "types": "./dist/tailscaleStatusRuntime.d.ts",
+      "default": "./dist/tailscaleStatusRuntime.js"
+    },
+    "./tailscaleFunnelRuntime": {
+      "types": "./dist/tailscaleFunnelRuntime.d.ts",
+      "default": "./dist/tailscaleFunnelRuntime.js"
+    },
+    "./tailscaleDaemonRuntime": {
+      "types": "./dist/tailscaleDaemonRuntime.d.ts",
+      "default": "./dist/tailscaleDaemonRuntime.js"
+    },
+    "./tailscaleInstallRuntime": {
+      "types": "./dist/tailscaleInstallRuntime.d.ts",
+      "default": "./dist/tailscaleInstallRuntime.js"
+    },
+    "./tailscaleInstall": {
+      "types": "./dist/tailscaleInstall.d.ts",
+      "default": "./dist/tailscaleInstall.js"
+    },
+    "./tailscaleLogin": {
+      "types": "./dist/tailscaleLogin.d.ts",
+      "default": "./dist/tailscaleLogin.js"
+    },
+    "./tailscaleStatus": {
+      "types": "./dist/tailscaleStatus.d.ts",
+      "default": "./dist/tailscaleStatus.js"
+    },
+    "./tailscaleMitmHooksRuntime": {
+      "types": "./dist/tailscaleMitmHooksRuntime.d.ts",
+      "default": "./dist/tailscaleMitmHooksRuntime.js"
+    },
+    "./sudoRuntime": {
+      "types": "./dist/sudoRuntime.d.ts",
+      "default": "./dist/sudoRuntime.js"
+    }
+  },
+  "dependencies": {
+    "@axonrouter/data-dir": "*"
+  }
+}

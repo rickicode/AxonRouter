@@ -54,6 +54,7 @@
   ],
   "exclude": [
     "node_modules",
+    "packages/tunnel",
     "tests/node_modules",
     "tests/tmp",
     "tests/**/*.test.ts",

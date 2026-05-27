@@ -3,8 +3,8 @@ import { NextResponse } from "next/server";
 export async function GET() {
   try {
     const [{ getCloudflaredDownloadStatus }, { getTunnelStatusPayload }] = await Promise.all([
-      import("@/lib/tunnel/cloudflaredDownloadState"),
-      import("@/lib/tunnel/tunnelStatus"),
+      import("@axonrouter/tunnel/cloudflaredDownloadState"),
+      import("@axonrouter/tunnel/tunnelStatus"),
     ]);
     const download = getCloudflaredDownloadStatus();
     const result = await getTunnelStatusPayload(download);

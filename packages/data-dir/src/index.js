@@ -2,6 +2,8 @@ import { createRequire } from "node:module";
 
 const _require = createRequire(import.meta.url);
 const _fs = _require("fs");
+const _child_process = _require("child_process");
+const _https = _require("https");
 
 const SEP = process.platform === "win32" ? "\\" : "/";
 
@@ -100,4 +102,16 @@ export function rmDataPath(dirPath, options) {
 
 export function mkdtempForData(prefix) {
   return _fs.mkdtempSync(prefix);
+}
+
+export function execSyncCmd(cmd, options) {
+  return _child_process.execSync(cmd, options);
+}
+
+export function spawnCmd(cmd, args, options) {
+  return _child_process.spawn(cmd, args, options);
+}
+
+export function httpsGet(url, callback) {
+  return _https.get(url, callback);
 }

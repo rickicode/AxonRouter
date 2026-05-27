@@ -1,4 +1,5 @@
 import type { WriteStream, Stats } from "node:fs";
+import type { ChildProcess, ExecSyncOptions, SpawnOptions } from "node:child_process";
 
 export declare function getDataDir(): string;
 export declare function resolveDataPath(...segments: string[]): string;
@@ -20,3 +21,6 @@ export declare function chmodDataFile(filePath: string, mode: string): void;
 export declare function writeDataFile(filePath: string, content: string, encoding?: BufferEncoding): void;
 export declare function rmDataPath(dirPath: string, options?: { recursive?: boolean; force?: boolean }): void;
 export declare function mkdtempForData(prefix: string): string;
+export declare function execSyncCmd(cmd: string, options?: ExecSyncOptions): Buffer | string;
+export declare function spawnCmd(cmd: string, args?: readonly string[], options?: SpawnOptions): ChildProcess;
+export declare function httpsGet(url: string, callback: (res: any) => void): any;

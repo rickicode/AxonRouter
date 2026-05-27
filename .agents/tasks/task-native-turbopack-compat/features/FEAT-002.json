@@ -1,0 +1,39 @@
+{
+  "id": "FEAT-002",
+  "type": "refactor",
+  "description": "Move the tunnel system into a workspace package @axonrouter/tunnel and externalize it via serverExternalPackages to eliminate the remaining 24 NFT warnings. The warnings come from cloudflared.ts being traced (it has execSync/spawn with dynamic paths). By externalizing the entire tunnel package, Turbopack will skip tracing it entirely.",
+  "status": "in_progress",
+  "steps": [
+    "Step 1: Create packages/tunnel/package.json with name '@axonrouter/tunnel', private: true, type: 'module', and exports map for each submodule (cloudflared, tunnelManager, tunnelConnectionRuntime, state, shortId, cloudflaredDownloadState, tunnelStatus, tailscaleCheckAccess, tailscaleInstallAccess, tailscaleLoginAccess, tailscaleDaemonStart, tailscaleTunnelRuntime, tailscaleStatusRuntime, tailscaleFunnelRuntime, tailscaleDaemonRuntime, tailscaleInstallRuntime, tailscaleInstall, tailscaleLogin, tailscaleStatus, tailscaleMitmHooksRuntime, sudoRuntime). It should depend on '@axonrouter/data-dir': 'workspace:*'",
+    "Step 2: Move ALL files from src/lib/tunnel/ into packages/tunnel/src/ (cloudflared.ts, tunnelManager.ts, tunnelConnectionRuntime.ts, state.ts, shortId.ts, cloudflaredDownloadState.ts, tunnelStatus.ts, tailscaleCheckAccess.ts, tailscaleInstallAccess.ts, tailscaleLoginAccess.ts, tailscaleDaemonStart.ts, tailscaleTunnelRuntime.ts, tailscaleStatusRuntime.ts, tailscaleFunnelRuntime.ts, tailscaleDaemonRuntime.ts, tailscaleInstallRuntime.ts, tailscaleInstall.ts, tailscaleLogin.ts, tailscaleStatus.ts, tailscaleMitmHooksRuntime.ts, sudoRuntime.ts)",
+    "Step 3: Fix internal imports within packages/tunnel/src/ - change relative imports like './state' to stay as relative imports (they're still within the same package). Change '@/lib/dataDir' imports to '@axonrouter/data-dir'. Change '@axonrouter/data-dir' imports to stay as-is (it's a workspace dep).",
+    "Step 4: For imports of @/shared/constants/runtimeDefaults - inline the constant value (DEFAULT_AXONROUTER_PORT = 12712) directly in the tunnel package since it's just a port number constant. Read the value from src/shared/constants/runtimeDefaults.json first to get the actual value.",
+    "Step 5: For imports of @/lib/settingsAccess - create a packages/tunnel/src/deps.ts that provides a dependency injection mechanism. Export a configure() function and accessor functions. The main app will call configure() to inject the settings functions before the tunnel is used.",
+    "Step 6: For imports of @/lib/sqliteHelpers and @/lib/sqliteWriteGate (used by state.ts) - include these deps in the dependency injection mechanism from deps.ts. state.ts will call getDeps().loadSingletonFromSqlite() etc.",
+    "Step 7: For imports of @/mitm/dns/dnsConfig and @/mitm/statusFacade (used by tailscaleDaemonRuntime.ts and tailscaleInstall.ts) - include these in the dependency injection mechanism",
+    "Step 8: Update packages/tunnel/package.json exports to expose all submodules: { './cloudflared': './src/cloudflared.ts', './tunnelManager': './src/tunnelManager.ts', './tunnelConnectionRuntime': './src/tunnelConnectionRuntime.ts', './cloudflaredDownloadState': './src/cloudflaredDownloadState.ts', './tunnelStatus': './src/tunnelStatus.ts', './tailscaleCheckAccess': './src/tailscaleCheckAccess.ts', etc. }",
+    "Step 9: Add '@axonrouter/tunnel' to serverExternalPackages in next.config.ts",
+    "Step 10: Update src/shared/services/initializeApp.ts - change import('@/lib/tunnel/cloudflared') to import('@axonrouter/tunnel/cloudflared'), change import('@/lib/tunnel/tunnelManager') to import('@axonrouter/tunnel/tunnelManager'). Also add a call to configure the tunnel deps at the top.",
+    "Step 11: Update all API routes that import from @/lib/tunnel/ to import from @axonrouter/tunnel/ instead (src/app/api/tunnel/status/route.ts, src/app/api/tunnel/disable/route.ts, src/app/api/tunnel/enable/route.ts, src/app/api/tunnel/tailscale-check/route.ts, src/app/api/tunnel/tailscale-disable/route.ts, src/app/api/tunnel/tailscale-enable/route.ts, src/app/api/tunnel/tailscale-install/route.ts, src/app/api/tunnel/tailscale-login/route.ts, src/app/api/tunnel/tailscale-start-daemon/route.ts)",
+    "Step 12: Remove the now-empty src/lib/tunnel/ directory",
+    "Step 13: Add '@axonrouter/tunnel' path alias to tsconfig.json: '@axonrouter/tunnel/*': ['./packages/tunnel/src/*']",
+    "Step 14: Run npm install to link the workspace package",
+    "Step 15: Run npm run typecheck and fix any type errors",
+    "Step 16: Run npm run build and verify 0 NFT warnings"
+  ],
+  "acceptance_criteria": [
+    "npm run build produces 0 NFT warnings",
+    "npm run typecheck passes",
+    "No turbopackIgnore or ignoreIssue anywhere in the project",
+    "All tunnel functionality preserved (same exports, same behavior)",
+    "src/lib/tunnel/ directory no longer exists"
+  ],
+  "verification": [
+    "source /root/.nvm/nvm.sh && npm run build 2>&1 | grep -c 'unexpected file in NFT' (must be 0)",
+    "source /root/.nvm/nvm.sh && npm run typecheck",
+    "grep -r 'turbopackIgnore' /projects/sandbox/AxonRouter/src/ || echo 'NONE (good)'",
+    "grep 'ignoreIssue' /projects/sandbox/AxonRouter/next.config.ts || echo 'NONE (good)'"
+  ],
+  "blocked_reason": null,
+  "findings": "The remaining 24 NFT warnings all trace through: next.config.ts <- src/lib/tunnel/cloudflared.ts <- src/shared/services/initializeApp.ts <- src/lib/initApp.ts. The cloudflared.ts file has execSync/spawn with dynamic paths that Turbopack cannot scope. Moving the entire tunnel system into an external workspace package will prevent Turbopack from tracing into it at all."
+}

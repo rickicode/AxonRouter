@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { startTailscaleLoginFlow } from "@/lib/tunnel/tailscaleLoginAccess";
+import { startTailscaleLoginFlow } from "@axonrouter/tunnel/tailscaleLoginAccess";
 
 export async function POST() {
   try {

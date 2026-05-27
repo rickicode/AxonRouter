@@ -4,7 +4,7 @@ const DNS_WARMUP_DELAY_MS = 8000;
 
 export async function POST() {
   try {
-    const { enableTunnelRuntime } = await import("@/lib/tunnel/tunnelConnectionRuntime");
+    const { enableTunnelRuntime } = await import("@axonrouter/tunnel/tunnelConnectionRuntime");
     const result = await enableTunnelRuntime();
     // Wait for DNS warmup to propagate at Cloudflare edge after tunnel registered.
     await new Promise((resolve) => setTimeout(resolve, DNS_WARMUP_DELAY_MS));

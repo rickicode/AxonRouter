@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 
 export async function POST() {
   try {
-    const { disableTunnelRuntime } = await import("@/lib/tunnel/tunnelConnectionRuntime");
+    const { disableTunnelRuntime } = await import("@axonrouter/tunnel/tunnelConnectionRuntime");
     const result = await disableTunnelRuntime();
     return NextResponse.json(result);
   } catch (error) {

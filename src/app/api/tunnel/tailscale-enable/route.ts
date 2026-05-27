@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 
 export async function POST() {
   try {
-    const { enableTailscaleRuntime } = await import("@/lib/tunnel/tailscaleTunnelRuntime");
+    const { enableTailscaleRuntime } = await import("@axonrouter/tunnel/tailscaleTunnelRuntime");
     const result = await enableTailscaleRuntime();
     return NextResponse.json(result);
   } catch (error) {

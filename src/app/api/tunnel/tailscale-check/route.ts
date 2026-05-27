@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getTailscaleCheckPayload } from "@/lib/tunnel/tailscaleCheckAccess";
+import { getTailscaleCheckPayload } from "@axonrouter/tunnel/tailscaleCheckAccess";
 
 export async function GET() {
   try {

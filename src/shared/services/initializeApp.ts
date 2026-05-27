@@ -4,8 +4,26 @@ import { bootstrapUsageDb } from "@/lib/usageDb/bootstrap";
 import { closeUsageDb } from "@/lib/usageDb/core";
 import { drainUsageQueue } from "@/lib/usageDb/backgroundQueue";
 import { autoStartMitmIfEnabled, bootstrapMitmRuntimeFromInitializeApp } from "@/lib/mitm/initializeMitmAccess";
+import { configureTunnelDeps } from "@axonrouter/tunnel/deps";
+import { getCurrentSettings, updateCurrentSettings } from "@/lib/settingsAccess";
+import { loadSingletonFromSqlite, upsertSingleton } from "@/lib/sqliteHelpers";
+import { sqliteWriteGate } from "@/lib/sqliteWriteGate";
 
 import os from "os";
+
+// Configure tunnel package dependencies before any tunnel usage
+configureTunnelDeps({
+  getCurrentSettings,
+  updateCurrentSettings,
+  loadSingletonFromSqlite,
+  upsertSingleton,
+  sqliteWriteGate,
+  execWithPassword: async (cmd: string, pwd: string) => {
+    const mod = await import("@/mitm/dns/dnsConfig");
+    return (mod as any).execWithPassword(cmd, pwd);
+  },
+  getMitmStatusFacade: () => import("@/mitm/statusFacade") as any,
+});
 
 // Inject correct paths and DB hooks into the MITM runtime once from the initializer context.
 void bootstrapMitmRuntimeFromInitializeApp();
@@ -29,15 +47,15 @@ const WATCHDOG_INTERVAL_MS = 60000;
 const NETWORK_CHECK_INTERVAL_MS = 5000;
 const NETWORK_RESTART_COOLDOWN_MS = 30000;
 
-type CloudflaredApi = typeof import("@/lib/tunnel/cloudflared");
-type TunnelManagerApi = typeof import("@/lib/tunnel/tunnelManager");
+type CloudflaredApi = typeof import("@axonrouter/tunnel/cloudflared");
+type TunnelManagerApi = typeof import("@axonrouter/tunnel/tunnelManager");
 
 async function cloudflaredApi(): Promise<CloudflaredApi> {
-  return import("@/lib/tunnel/cloudflared");
+  return import("@axonrouter/tunnel/cloudflared");
 }
 
 async function tunnelManagerApi(): Promise<TunnelManagerApi> {
-  return import("@/lib/tunnel/tunnelManager");
+  return import("@axonrouter/tunnel/tunnelManager");
 }
 
 async function cleanupAppResources() {
