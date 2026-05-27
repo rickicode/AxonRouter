@@ -2,7 +2,7 @@
   "name": "axonrouter",
   "version": "0.2.0",
   "description": "Route AI coding tools across providers.",
-  "private": true,
+  "private": false,
   "workspaces": [
     "packages/*"
   ],
