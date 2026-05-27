@@ -39,6 +39,11 @@ const FILTERS: Record<string, ModelFilter> = {
     models
       .filter((m): m is SuggestedModel & { id: string } => typeof m.id === "string" && m.id.endsWith("-free"))
       .map((m) => ({ id: m.id, name: m.id })),
+
+  "opencode-zen": (models) =>
+    models
+      .filter((m): m is SuggestedModel & { id: string } => typeof m.id === "string")
+      .map((m) => ({ id: m.id, name: m.name ?? m.id })),
 };
 
 export async function GET(request: Request) {
