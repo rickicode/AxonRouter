@@ -435,6 +435,15 @@ export function syncStandaloneAssets(projectRoot, standaloneServerPath) {
   const standalonePublicDir = path.join(standaloneRoot, "public");
   const standaloneMitmDir = path.join(standaloneRoot, "src", "mitm");
 
+  // Skip sync if we don't have write permission to the standalone directory
+  // (e.g. global npm install owned by root, running as non-root user)
+  try {
+    fs.accessSync(standaloneRoot, fs.constants.W_OK);
+  } catch {
+    // No write access - assets are already in place from npm publish/install
+    return;
+  }
+
   if (fs.existsSync(sourceStaticDir)) {
     fs.mkdirSync(path.dirname(standaloneStaticDir), { recursive: true });
     fs.rmSync(standaloneStaticDir, { recursive: true, force: true });
