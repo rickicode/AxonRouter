@@ -1,6 +1,15 @@
+import { getTunnelDeps } from "./deps";
 // Inlined from src/shared/constants/runtimeDefaults.json -- keep in sync
-const DEFAULT_AXONROUTER_PORT = "12711";
-export async function enableTunnel(localPort = Number(DEFAULT_AXONROUTER_PORT)) {
+function getDefaultPort() {
+    try {
+        return getTunnelDeps().defaultPort || "12711";
+    }
+    catch {
+        return "12711";
+    }
+}
+export async function enableTunnel(localPort) {
+    localPort = localPort ?? Number(getDefaultPort());
     const { enableTunnelRuntime } = await import("./tunnelConnectionRuntime");
     return enableTunnelRuntime(localPort);
 }
@@ -33,7 +42,8 @@ export function isTunnelReconnecting() {
     return cachedTunnelFlags?.isTunnelReconnecting() ?? false;
 }
 // Tailscale Funnel
-export async function enableTailscale(localPort = Number(DEFAULT_AXONROUTER_PORT)) {
+export async function enableTailscale(localPort) {
+    localPort = localPort ?? Number(getDefaultPort());
     const { enableTailscaleRuntime } = await import("./tailscaleTunnelRuntime");
     return enableTailscaleRuntime(localPort);
 }

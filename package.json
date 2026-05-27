@@ -33,7 +33,8 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run --reporter=verbose --root tests",
     "publish": "bash ./scripts/publish.sh",
-    "prepack": "npm run build"
+    "prepack": "npm run build",
+    "build:tunnel": "npm run build -w packages/tunnel"
   },
   "dependencies": {
     "@monaco-editor/react": "^4.7.0",

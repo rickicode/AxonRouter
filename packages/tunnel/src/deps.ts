@@ -6,6 +6,7 @@ export type TunnelDeps = {
   sqliteWriteGate: <T>(fn: () => T) => T;
   execWithPassword: (cmd: string, pwd: string) => Promise<string>;
   getMitmStatusFacade: () => Promise<any>;
+  defaultPort?: string;
 };
 
 let _deps: TunnelDeps | null = null;

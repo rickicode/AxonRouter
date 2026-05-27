@@ -1,7 +1,15 @@
 import { loadTunnelStateSnapshot, resolveTunnelShortId } from "./state";
 import { getTunnelDeps } from "./deps";
 import { getTailscaleMitmHooks } from "./tailscaleMitmHooksRuntime";
-const DEFAULT_AXONROUTER_PORT = "12711";
+const DEFAULT_AXONROUTER_PORT_FALLBACK = "12711";
+function getDefaultPort() {
+    try {
+        return getTunnelDeps().defaultPort || DEFAULT_AXONROUTER_PORT_FALLBACK;
+    }
+    catch {
+        return DEFAULT_AXONROUTER_PORT_FALLBACK;
+    }
+}
 function resolveTailscaleHostname() {
     const existing = loadTunnelStateSnapshot();
     return existing?.shortId || resolveTunnelShortId();
@@ -10,7 +18,8 @@ async function loadTailscaleSudoPassword() {
     const { getCachedPassword, loadEncryptedPassword } = await getTailscaleMitmHooks();
     return getCachedPassword() || (await loadEncryptedPassword()) || "";
 }
-export async function enableTailscaleRuntime(localPort = Number(DEFAULT_AXONROUTER_PORT)) {
+export async function enableTailscaleRuntime(localPort) {
+    localPort = localPort ?? Number(getDefaultPort());
     const [funnelRuntime, tailscaleStatus, tailscaleDaemon, tailscaleLogin] = await Promise.all([
         import("./tailscaleFunnelRuntime"),
         import("./tailscaleStatus"),

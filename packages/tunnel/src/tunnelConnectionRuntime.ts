@@ -4,7 +4,9 @@ import { loadTunnelStateSnapshot, resolveTunnelShortId, saveTunnelConnectionStat
 import { getTunnelDeps } from "./deps";
 
 // Inlined from src/shared/constants/runtimeDefaults.json -- keep in sync
-const DEFAULT_AXONROUTER_PORT = "12711";
+function getDefaultPort() {
+  try { return getTunnelDeps().defaultPort || "12711"; } catch { return "12711"; }
+}
 const WORKER_URL = process.env.TUNNEL_WORKER_URL || "https://axonrouter.com";
 const MACHINE_ID_SALT = "axonrouter-tunnel-salt";
 const RECONNECT_DELAYS_MS = [5000, 10000, 20000, 30000, 60000];
@@ -45,7 +47,8 @@ async function registerTunnelUrl(shortId: string, tunnelUrl: string) {
   });
 }
 
-export async function enableTunnelRuntime(localPort = Number(DEFAULT_AXONROUTER_PORT)) {
+export async function enableTunnelRuntime(localPort?: number) {
+  localPort = localPort ?? Number(getDefaultPort());
   manualDisabled = false;
   const { getCurrentSettings, updateCurrentSettings } = getTunnelDeps();
 

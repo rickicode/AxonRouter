@@ -8,6 +8,7 @@ import { configureTunnelDeps } from "@axonrouter/tunnel/deps";
 import { getCurrentSettings, updateCurrentSettings } from "@/lib/settingsAccess";
 import { loadSingletonFromSqlite, upsertSingleton } from "@/lib/sqliteHelpers";
 import { sqliteWriteGate } from "@/lib/sqliteWriteGate";
+import { ensureUsageCheckSchedulerStarted } from "@/lib/usageCheckScheduler/bootstrap";
 
 import os from "os";
 
@@ -23,6 +24,7 @@ configureTunnelDeps({
     return (mod as any).execWithPassword(cmd, pwd);
   },
   getMitmStatusFacade: () => import("@/mitm/statusFacade") as any,
+  defaultPort: "12711",
 });
 
 // Inject correct paths and DB hooks into the MITM runtime once from the initializer context.
@@ -139,6 +141,9 @@ export async function initializeApp() {
 
     // Auto-start MITM if it was enabled before restart
     autoStartMitm();
+
+    // Start usage check scheduler (background, non-blocking)
+    ensureUsageCheckSchedulerStarted().catch(() => {});
   } catch (error) {
     console.error("[InitApp] Error:", error);
   }
