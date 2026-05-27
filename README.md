@@ -141,6 +141,36 @@ More tool-specific notes are in [docs/DOCS.md](./docs/DOCS.md).
 
 ---
 
+## Service Management
+
+AxonRouter can be installed as a system service for automatic startup:
+
+```bash
+# Install as system service (requires root/sudo)
+sudo axonrouter install-service
+
+# Check service status
+axonrouter check-service
+
+# Service control
+sudo axonrouter start
+sudo axonrouter stop
+sudo axonrouter restart
+
+# Remove service
+sudo axonrouter uninstall-service
+```
+
+Commands also work with `--` flags: `--install-service`, `--check-service`, `--start`, `--stop`, `--restart`, `--uninstall-service`.
+
+Features:
+- Auto-detects systemd or init.d
+- Auto-replaces existing service if present
+- Enables auto-start on boot
+- Requires root/sudo (clear error message if not root)
+
+---
+
 ## Install From Source
 
 ```bash
