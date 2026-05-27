@@ -27,5 +27,5 @@
     "npm run build"
   ],
   "blocked_reason": null,
-  "findings": "Node.js 22.22.3 required for build (bun fails with better-sqlite3 native module). Installed via mise. All verification passed: typecheck, lint, build (149 pages generated), and 1043 tests pass."
+  "findings": "Node.js 22.22.3 required for build (bun fails with better-sqlite3 native module). Installed via mise. All verification passed: typecheck, lint, build (149 pages generated), and 1043 tests pass. Review v1 fix applied: removed conditional 'Logging in...' text - Button's loading prop already shows a Spinner, so label stays as 'Login'."
 }
