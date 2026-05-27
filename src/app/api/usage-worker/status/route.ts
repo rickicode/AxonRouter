@@ -31,6 +31,9 @@ export async function POST(request: Request) {
   try {
     await ensureUsageCheckSchedulerStarted();
     const result = await getUsageCheckScheduler().runScheduled();
+    if (result && "skipped" in result && result.skipped) {
+      return NextResponse.json(result, { status: 200 });
+    }
     return NextResponse.json(result);
   } catch (error) {
     const routeError = error as RouteError;

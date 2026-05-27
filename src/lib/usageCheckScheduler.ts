@@ -33,6 +33,8 @@ export class UsageCheckScheduler {
     this.startedAt = null;
     this.nextRunAt = null;
     this.lastRun = null;
+    // enabled is always true by design - there is no runtime disable path.
+    // The field is kept for API shape consistency with ModelSyncScheduler and future extensibility.
     this.settings = { enabled: true, intervalMinutes: DEFAULT_INTERVAL_MINUTES };
   }
 
@@ -65,7 +67,7 @@ export class UsageCheckScheduler {
   async runScheduled() {
     if (this.running) {
       this.logger.warn?.("[UsageCheck] Run already active, skipping scheduled tick");
-      return this.lastRun;
+      return { skipped: true, reason: "already_running", lastRun: this.lastRun };
     }
 
     this.running = true;
@@ -84,13 +86,21 @@ export class UsageCheckScheduler {
       let refreshedCount = 0;
       let errorCount = 0;
 
-      const results = await Promise.allSettled(
-        oauthConnections.map((conn: any) =>
-          runDedupedUsageRefreshJob(conn.id, () =>
-            refreshUsageWithTransientSkip(conn.id),
+      const CONCURRENCY = 3;
+      const oauthConnectionsCopy = [...oauthConnections];
+      const results: PromiseSettledResult<unknown>[] = [];
+
+      while (oauthConnectionsCopy.length > 0) {
+        const batch = oauthConnectionsCopy.splice(0, CONCURRENCY);
+        const batchResults = await Promise.allSettled(
+          batch.map((conn: any) =>
+            runDedupedUsageRefreshJob(conn.id, () =>
+              refreshUsageWithTransientSkip(conn.id),
+            ),
           ),
-        ),
-      );
+        );
+        results.push(...batchResults);
+      }
 
       for (const result of results) {
         if (result.status === "fulfilled") {
