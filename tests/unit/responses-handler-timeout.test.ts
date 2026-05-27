@@ -45,6 +45,7 @@ describe("handleResponsesCore timeout handling", () => {
   });
 
   it("returns 504 when responses SSE-to-JSON conversion hits upstream timeout", async () => {
+    const spy = vi.spyOn(console, "error").mockImplementation(() => {});
     const stream = new ReadableStream({
       start(controller) {
         controller.error(Object.assign(new Error("codex upstream timed out after 45000ms"), {
@@ -77,5 +78,6 @@ describe("handleResponsesCore timeout handling", () => {
         code: "gateway_timeout",
       }),
     });
+    spy.mockRestore();
   });
 });

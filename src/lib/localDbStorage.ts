@@ -1,5 +1,4 @@
-import path from "node:path";
-import fs from "node:fs";
+import { pathJoin, existsSync, mkdirSync } from "@axonrouter/data-dir";
 
 import { getDataDir } from "./dataDir";
 import {
@@ -23,18 +22,18 @@ import {
 } from "./sqliteBootstrap";
 
 const isCloudStorage = typeof caches !== "undefined" && typeof caches === "object";
-const DB_JSON_FILE = isCloudStorage ? null : path.join(/*turbopackIgnore: true*/ getDataDir(), "db.json");
+const DB_JSON_FILE = isCloudStorage ? null : pathJoin(getDataDir(), "db.json");
 
 function ensureDataDirExists() {
   if (isCloudStorage) return;
   const dataDir = getDataDir();
-  if (!fs.existsSync(/*turbopackIgnore: true*/ dataDir)) {
-    fs.mkdirSync(/*turbopackIgnore: true*/ dataDir, { recursive: true });
+  if (!existsSync(dataDir)) {
+    mkdirSync(dataDir, { recursive: true });
   }
 }
 
 export function loadSqliteStorageState() {
-  if (isCloudStorage || !fs.existsSync(/*turbopackIgnore: true*/ DB_SQLITE_FILE)) {
+  if (isCloudStorage || !existsSync(DB_SQLITE_FILE)) {
     return null;
   }
 
@@ -56,7 +55,7 @@ export function bootstrapPersistentStorage() {
   if (isCloudStorage) return;
   ensureDataDirExists();
 
-  if (DB_JSON_FILE && fs.existsSync(/*turbopackIgnore: true*/ DB_JSON_FILE) && !fs.existsSync(/*turbopackIgnore: true*/ DB_SQLITE_FILE)) {
+  if (DB_JSON_FILE && existsSync(DB_JSON_FILE) && !existsSync(DB_SQLITE_FILE)) {
     migrateFromJSON();
     return;
   }

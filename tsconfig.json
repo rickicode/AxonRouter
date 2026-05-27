@@ -33,6 +33,15 @@
       ],
       "open-sse/*": [
         "./open-sse/*"
+      ],
+      "@axonrouter/data-dir": [
+        "./packages/data-dir/src"
+      ],
+      "@axonrouter/tunnel": [
+        "./packages/tunnel/src"
+      ],
+      "@axonrouter/tunnel/*": [
+        "./packages/tunnel/src/*"
       ]
     },
     "plugins": [

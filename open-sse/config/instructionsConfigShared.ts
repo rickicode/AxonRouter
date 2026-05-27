@@ -12,11 +12,6 @@ type DataDirModule = {
 	getDataDir?: () => string | null;
 };
 
-type ImportModuleShape = {
-	default?: unknown;
-	[key: string]: unknown;
-};
-
 type MinimalFs = {
 	existsSync(path: string): boolean;
 	readFileSync(path: string, encoding: string): string;
@@ -48,36 +43,24 @@ async function importDataDirModule(): Promise<DataDirModule | null> {
 }
 
 async function importNodeFs(): Promise<MinimalFs | null> {
+	if (isWorkerRuntime()) return null;
 	try {
-		const importer = new Function(
-			"return import('fs')",
-		) as () => Promise<ImportModuleShape>;
-		const mod = await importer();
+		const modName = ["node", "fs"].join(":");
+		const mod = await (import(/* webpackIgnore: true */ modName) as Promise<any>);
 		return (mod.default || mod) as MinimalFs;
 	} catch {
-		try {
-			const mod = await import("node:fs");
-			return (mod.default || mod) as MinimalFs;
-		} catch {
-			return null;
-		}
+		return null;
 	}
 }
 
 async function importNodePath(): Promise<MinimalPath | null> {
+	if (isWorkerRuntime()) return null;
 	try {
-		const importer = new Function(
-			"return import('path')",
-			) as () => Promise<ImportModuleShape>;
-		const mod = await importer();
+		const modName = ["node", "path"].join(":");
+		const mod = await (import(/* webpackIgnore: true */ modName) as Promise<any>);
 		return (mod.default || mod) as MinimalPath;
 	} catch {
-		try {
-			const mod = await import("node:path");
-			return (mod.default || mod) as MinimalPath;
-		} catch {
-			return null;
-		}
+		return null;
 	}
 }
 

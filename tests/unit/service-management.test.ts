@@ -51,12 +51,16 @@ describe("service management - systemd unit generation", () => {
     expect(unit).toContain("[Unit]");
     expect(unit).toContain("Description=AxonRouter AI Router");
     expect(unit).toContain("After=network.target");
+    expect(unit).toContain("StartLimitIntervalSec=300");
+    expect(unit).toContain("StartLimitBurst=5");
     expect(unit).toContain("[Service]");
     expect(unit).toContain("ExecStart=/usr/local/bin/axonrouter");
-    expect(unit).toContain("Restart=on-failure");
+    expect(unit).toContain("Restart=always");
     expect(unit).toContain("RestartSec=5");
     expect(unit).toContain("Environment=NODE_ENV=production");
     expect(unit).toContain("Environment=PORT=12711");
+    expect(unit).toContain("TimeoutStopSec=30");
+    expect(unit).toContain("KillMode=control-group");
     expect(unit).toContain("[Install]");
     expect(unit).toContain("WantedBy=multi-user.target");
   });

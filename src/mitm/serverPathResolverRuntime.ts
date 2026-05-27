@@ -38,7 +38,7 @@ function resolveBundledServerPathFromCandidates() {
 
   const candidates = [
     packagedServerPath,
-    path.join(/*turbopackIgnore: true*/ process.cwd(), "src", "mitm", "server.ts"),
+    path.join(process.cwd(), "src", "mitm", "server.ts"),
   ];
 
   const complete = candidates.find(isCompleteMitmServer);

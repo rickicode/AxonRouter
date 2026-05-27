@@ -60,14 +60,20 @@ export function generateSystemdUnit(execPath) {
   return `[Unit]
 Description=AxonRouter AI Router
 After=network.target
+StartLimitIntervalSec=300
+StartLimitBurst=5
 
 [Service]
 Type=simple
 ExecStart=${execPath}
-Restart=on-failure
+Restart=always
 RestartSec=5
 Environment=NODE_ENV=production
 Environment=PORT=${DEFAULT_PORT}
+# Graceful shutdown timeout
+TimeoutStopSec=30
+# Kill remaining child processes (cloudflared, tailscaled) on stop
+KillMode=control-group
 
 [Install]
 WantedBy=multi-user.target
@@ -92,6 +98,7 @@ export function generateInitdScript(execPath) {
 DAEMON="${execPath}"
 PIDFILE="${PID_FILE}"
 NAME="${SERVICE_NAME}"
+LOG_FILE="/var/log/${SERVICE_NAME}.log"
 export NODE_ENV=production
 export PORT=${DEFAULT_PORT}
 
@@ -101,7 +108,22 @@ start() {
     return 1
   fi
   echo "Starting $NAME..."
-  nohup "$DAEMON" > /var/log/${SERVICE_NAME}.log 2>&1 &
+  # Start with auto-respawn: restart up to 10 times with 5s delay if process exits
+  (
+    RESTART_COUNT=0
+    MAX_RESTARTS=10
+    while [ $RESTART_COUNT -lt $MAX_RESTARTS ]; do
+      "$DAEMON" >> "$LOG_FILE" 2>&1
+      EXIT_CODE=$?
+      if [ $EXIT_CODE -eq 0 ]; then
+        break
+      fi
+      RESTART_COUNT=$((RESTART_COUNT + 1))
+      echo "$(date) - $NAME exited with code $EXIT_CODE, restarting ($RESTART_COUNT/$MAX_RESTARTS)..." >> "$LOG_FILE"
+      sleep 5
+    done
+    rm -f "$PIDFILE"
+  ) &
   echo $! > "$PIDFILE"
   echo "$NAME started."
 }

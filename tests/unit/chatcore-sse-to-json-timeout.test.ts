@@ -17,6 +17,7 @@ const { handleForcedSSEToJson } = await import("../../open-sse/handlers/chatCore
 
 describe("handleForcedSSEToJson timeout handling", () => {
   it("returns 504 when Responses API SSE conversion aborts on upstream timeout", async () => {
+    const spy = vi.spyOn(console, "error").mockImplementation(() => {});
     const stream = new ReadableStream({
       start(controller) {
         controller.error(Object.assign(new Error("openai upstream timed out after 45000ms"), {
@@ -57,5 +58,6 @@ describe("handleForcedSSEToJson timeout handling", () => {
         code: "gateway_timeout",
       }),
     });
+    spy.mockRestore();
   });
 });

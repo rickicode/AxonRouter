@@ -81,10 +81,11 @@ function UsageWorkerStatusBar() {
   }, []);
 
   useEffect(() => {
-    fetchStatus();
+    const id = setTimeout(fetchStatus, 0);
     intervalRef.current = setInterval(fetchStatus, 30000);
     tickRef.current = setInterval(() => setTick((t) => t + 1), 5000);
     return () => {
+      clearTimeout(id);
       if (intervalRef.current) clearInterval(intervalRef.current);
       if (tickRef.current) clearInterval(tickRef.current);
     };

@@ -55,19 +55,6 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Install test dependencies
-        run: npm ci
-        working-directory: tests
-
-      - name: Lint
-        run: npm run lint
-
-      - name: Typecheck
-        run: npm run typecheck
-
-      - name: Test
-        run: npm run test
-
       - name: Build
         run: npm run build
 

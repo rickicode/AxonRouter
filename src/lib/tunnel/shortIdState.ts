@@ -1,1 +1,0 @@
-export { loadPersistedShortId } from "./state";

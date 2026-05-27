@@ -1,5 +1,4 @@
-import fs from 'node:fs';
-import path from 'node:path';
+import { existsSync, pathJoin, pathBasename, readFileAbsolute, renameAbsolute, unlinkAbsolute } from '@axonrouter/data-dir';
 
 import { getDataDir } from './dataDir';
 import {
@@ -15,7 +14,7 @@ type SQLiteRow = Record<string, unknown>;
 
 const COLLECTION_KEYS = ['providerConnections', 'providerNodes', 'proxyPools', 'combos', 'apiKeys', 'customModels', 'modelComboMappings'];
 const SINGLETON_KEYS = ['settings', 'modelAliases', 'mitmAlias', 'opencodeSync', 'runtimeConfig', 'tunnelState', 'pricing', 'disabledModels', 'customSkills', 'syncedAvailableModels'];
-const DB_JSON_FILE = path.join(/*turbopackIgnore: true*/ getDataDir(), 'db.json');
+const DB_JSON_FILE = pathJoin(getDataDir(), 'db.json');
 
 function validateCollectionRecords(data, collectionName) {
   const records = Array.isArray(data?.[collectionName]) ? data[collectionName] : [];
@@ -38,8 +37,8 @@ function validateSqliteImportCollections(data) {
 
 function removeSqliteArtifacts() {
   for (const file of [DB_SQLITE_FILE, `${DB_SQLITE_FILE}-wal`, `${DB_SQLITE_FILE}-shm`]) {
-    if (fs.existsSync(/*turbopackIgnore: true*/ file)) {
-      fs.unlinkSync(/*turbopackIgnore: true*/ file);
+    if (existsSync(file)) {
+      unlinkAbsolute(file);
     }
   }
 }
@@ -48,8 +47,8 @@ export function migrateFromJSON() {
   const options = arguments[0] && typeof arguments[0] === 'object' ? arguments[0] : {};
   const preserveJson = options.preserveJson !== false;
 
-  const jsonExists = fs.existsSync(/*turbopackIgnore: true*/ DB_JSON_FILE);
-  const sqliteExists = fs.existsSync(/*turbopackIgnore: true*/ DB_SQLITE_FILE);
+  const jsonExists = existsSync(DB_JSON_FILE);
+  const sqliteExists = existsSync(DB_SQLITE_FILE);
 
   if (!jsonExists || sqliteExists) {
     return { migrated: false };
@@ -60,12 +59,12 @@ export function migrateFromJSON() {
   try {
     let jsonData;
     try {
-      jsonData = JSON.parse(fs.readFileSync(/*turbopackIgnore: true*/ DB_JSON_FILE, 'utf-8'));
+      jsonData = JSON.parse(readFileAbsolute(DB_JSON_FILE, 'utf-8') as string);
     } catch (parseError) {
       // Corrupt JSON - rename and start fresh
       const corruptPath = `${DB_JSON_FILE}.corrupt.${Date.now()}`;
-      console.warn(`[DB] db.json is corrupt, renaming to ${path.basename(corruptPath)} and starting fresh`);
-      fs.renameSync(/*turbopackIgnore: true*/ DB_JSON_FILE, /*turbopackIgnore: true*/ corruptPath);
+      console.warn(`[DB] db.json is corrupt, renaming to ${pathBasename(corruptPath)} and starting fresh`);
+      renameAbsolute(DB_JSON_FILE, corruptPath);
       return { migrated: false };
     }
     validateSqliteImportCollections(jsonData);
@@ -126,7 +125,7 @@ export function migrateFromJSON() {
     }
 
     if (!preserveJson) {
-      fs.renameSync(/*turbopackIgnore: true*/ DB_JSON_FILE, `${DB_JSON_FILE}.backup`);
+      renameAbsolute(DB_JSON_FILE, `${DB_JSON_FILE}.backup`);
     }
 
     console.log('[DB] Migration completed successfully');
