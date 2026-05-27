@@ -1,4 +1,6 @@
-export async function getTunnelStatusPayload(download: unknown = undefined) {
+import type { CloudflaredDownloadState } from "./cloudflaredDownloadState";
+
+export async function getTunnelStatusPayload(download?: CloudflaredDownloadState) {
   const [{ getTunnelStatusRuntime }, { getTailscaleStatusRuntime }] = await Promise.all([
     import("./tunnelConnectionRuntime"),
     import("./tailscaleStatusRuntime"),

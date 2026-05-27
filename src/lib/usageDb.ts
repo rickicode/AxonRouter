@@ -7,7 +7,7 @@ import {
   getUpstreamTimeoutMs,
   getStreamIdleTimeoutMs,
 } from "../../open-sse/utils/abort";
-import { DATA_DIR } from "./dataDir";
+import { getDataDir } from "./dataDir";
 import { ensureUsageSchema } from "./usageDb/bootstrap";
 import { getUsageDbInstance } from "./usageDb/core";
 import { getPluginUsageSummary } from "./usageDb/queries/analytics";
@@ -245,7 +245,7 @@ export async function appendRequestLog({ model, provider, connectionId, tokens, 
 }
 
 function getLegacyUsageStatsFallback(period) {
-  const usageFile = path.join(DATA_DIR, "usage.json");
+  const usageFile = path.join(getDataDir(), "usage.json");
   if (!fs.existsSync(usageFile)) return null;
   const parsed = JSON.parse(fs.readFileSync(usageFile, "utf8"));
   const dailySummary = parsed?.dailySummary || {};

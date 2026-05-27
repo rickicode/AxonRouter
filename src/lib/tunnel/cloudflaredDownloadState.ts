@@ -1,4 +1,4 @@
-type CloudflaredDownloadState = {
+export type CloudflaredDownloadState = {
   downloading: boolean;
   progress: number;
 };

@@ -1,12 +1,8 @@
 import { NextResponse } from "next/server";
 
-function loadRuntimeModule() {
-  return import("@/lib/tunnel/tailscaleTunnelRuntime");
-}
-
 export async function POST() {
   try {
-    const { enableTailscaleRuntime } = await loadRuntimeModule();
+    const { enableTailscaleRuntime } = await import("@/lib/tunnel/tailscaleTunnelRuntime");
     const result = await enableTailscaleRuntime();
     return NextResponse.json(result);
   } catch (error) {

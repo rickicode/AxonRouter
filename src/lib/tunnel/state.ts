@@ -60,7 +60,6 @@ export function clearTailscalePid() {
 
 export { generateShortId };
 
-// Consolidated from tunnelStateAccess.ts
 export function loadTunnelStateSnapshot() {
   return loadState();
 }

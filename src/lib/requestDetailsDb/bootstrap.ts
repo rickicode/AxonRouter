@@ -1,6 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
-import { DATA_DIR } from "../dataDir";
+import { getDataDir } from "../dataDir";
 import { getRequestDetailsDbInstance } from "./core";
 import {
   LATEST_REQUEST_DETAILS_SQLITE_SCHEMA_VERSION,
@@ -8,7 +8,10 @@ import {
   REQUEST_DETAILS_SQLITE_MIGRATIONS,
 } from "./migrations";
 
-const REQUEST_DETAILS_PAYLOAD_DIR = path.join(DATA_DIR, "request-details");
+let _requestDetailsPayloadDir: string | undefined;
+function getRequestDetailsPayloadDir() {
+  return _requestDetailsPayloadDir ??= path.join(getDataDir(), "request-details");
+}
 
 function ensureRequestDetailsMigrationTable(db) {
   db.exec(`
@@ -45,14 +48,14 @@ export function ensureRequestDetailsSchema(db = getRequestDetailsDbInstance()) {
     applyMigration();
   }
 
-  if (!fs.existsSync(REQUEST_DETAILS_PAYLOAD_DIR)) {
-    fs.mkdirSync(REQUEST_DETAILS_PAYLOAD_DIR, { recursive: true });
+  if (!fs.existsSync(getRequestDetailsPayloadDir())) {
+    fs.mkdirSync(getRequestDetailsPayloadDir(), { recursive: true });
   }
 
   return {
     version: LATEST_REQUEST_DETAILS_SQLITE_SCHEMA_VERSION,
     file: "request-details.sqlite",
-    payloadDir: REQUEST_DETAILS_PAYLOAD_DIR,
+    payloadDir: getRequestDetailsPayloadDir(),
   };
 }
 

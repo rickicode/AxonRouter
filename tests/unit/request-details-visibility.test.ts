@@ -15,7 +15,7 @@ vi.mock("@/lib/localDb", () => ({
 }));
 
 vi.mock("@/lib/dataDir", () => ({
-  DATA_DIR: "/tmp/axonrouter-tests",
+  getDataDir: () => "/tmp/axonrouter-tests",
 }));
 
 const state = {

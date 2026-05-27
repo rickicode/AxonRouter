@@ -3,7 +3,7 @@ import path from 'node:path';
 
 import { getDataDir } from './dataDir';
 import {
-  DB_SQLITE_FILE,
+  getDbSqliteFile,
   closeSqliteDb,
   ensureSchema,
   getSqliteDb,
@@ -15,7 +15,11 @@ type SQLiteRow = Record<string, unknown>;
 
 const COLLECTION_KEYS = ['providerConnections', 'providerNodes', 'proxyPools', 'combos', 'apiKeys', 'customModels', 'modelComboMappings'];
 const SINGLETON_KEYS = ['settings', 'modelAliases', 'mitmAlias', 'opencodeSync', 'runtimeConfig', 'tunnelState', 'pricing', 'disabledModels', 'customSkills', 'syncedAvailableModels'];
-const DB_JSON_FILE = path.join(getDataDir(), 'db.json');
+
+let _dbJsonFile: string | undefined;
+function getDbJsonFilePath() {
+  return _dbJsonFile ??= path.join(getDataDir(), 'db.json');
+}
 
 function validateCollectionRecords(data, collectionName) {
   const records = Array.isArray(data?.[collectionName]) ? data[collectionName] : [];
@@ -37,7 +41,8 @@ function validateSqliteImportCollections(data) {
 }
 
 function removeSqliteArtifacts() {
-  for (const file of [DB_SQLITE_FILE, `${DB_SQLITE_FILE}-wal`, `${DB_SQLITE_FILE}-shm`]) {
+  const dbFile = getDbSqliteFile();
+  for (const file of [dbFile, `${dbFile}-wal`, `${dbFile}-shm`]) {
     if (fs.existsSync(file)) {
       fs.unlinkSync(file);
     }
@@ -48,8 +53,8 @@ export function migrateFromJSON() {
   const options = arguments[0] && typeof arguments[0] === 'object' ? arguments[0] : {};
   const preserveJson = options.preserveJson !== false;
 
-  const jsonExists = fs.existsSync(DB_JSON_FILE);
-  const sqliteExists = fs.existsSync(DB_SQLITE_FILE);
+  const jsonExists = fs.existsSync(getDbJsonFilePath());
+  const sqliteExists = fs.existsSync(getDbSqliteFile());
 
   if (!jsonExists || sqliteExists) {
     return { migrated: false };
@@ -60,12 +65,12 @@ export function migrateFromJSON() {
   try {
     let jsonData;
     try {
-      jsonData = JSON.parse(fs.readFileSync(DB_JSON_FILE, 'utf-8'));
+      jsonData = JSON.parse(fs.readFileSync(getDbJsonFilePath(), 'utf-8'));
     } catch (parseError) {
       // Corrupt JSON - rename and start fresh
-      const corruptPath = `${DB_JSON_FILE}.corrupt.${Date.now()}`;
+      const corruptPath = `${getDbJsonFilePath()}.corrupt.${Date.now()}`;
       console.warn(`[DB] db.json is corrupt, renaming to ${path.basename(corruptPath)} and starting fresh`);
-      fs.renameSync(DB_JSON_FILE, corruptPath);
+      fs.renameSync(getDbJsonFilePath(), corruptPath);
       return { migrated: false };
     }
     validateSqliteImportCollections(jsonData);
@@ -126,7 +131,7 @@ export function migrateFromJSON() {
     }
 
     if (!preserveJson) {
-      fs.renameSync(DB_JSON_FILE, `${DB_JSON_FILE}.backup`);
+      fs.renameSync(getDbJsonFilePath(), `${getDbJsonFilePath()}.backup`);
     }
 
     console.log('[DB] Migration completed successfully');
@@ -223,4 +228,4 @@ export function saveAllDataToSqlite(data) {
   });
 }
 
-export { DB_JSON_FILE, loadSingletonFromSqlite };
+export { loadSingletonFromSqlite };

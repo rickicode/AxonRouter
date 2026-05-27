@@ -1,8 +1,11 @@
 import fs from "node:fs/promises";
 import path from "node:path";
-import { DATA_DIR } from "../dataDir";
+import { getDataDir } from "../dataDir";
 
-const REQUEST_DETAILS_PAYLOAD_DIR = path.join(DATA_DIR, "request-details");
+let _requestDetailsPayloadDir: string | undefined;
+function getRequestDetailsPayloadDir() {
+  return _requestDetailsPayloadDir ??= path.join(getDataDir(), "request-details");
+}
 const DEFAULT_REQUEST_PAYLOAD_MAX_BYTES = 16 * 1024;
 const DEFAULT_RESPONSE_PAYLOAD_MAX_BYTES = 64 * 1024;
 
@@ -12,7 +15,7 @@ function getDateDir(timestamp: any) {
 }
 
 export function buildRequestDetailPayloadPaths(id: any, timestamp: any) {
-  const dayDir = path.join(REQUEST_DETAILS_PAYLOAD_DIR, getDateDir(timestamp));
+  const dayDir = path.join(getRequestDetailsPayloadDir(), getDateDir(timestamp));
   return {
     dir: dayDir,
     request: path.join(dayDir, `${id}.request.json`),

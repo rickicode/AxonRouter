@@ -50,13 +50,14 @@ type LocalSettingsShape = {
 
 async function loadNodeHelpers(): Promise<NodeHelpers | null> {
 	try {
-		const [fsModule, pathModule, { DATA_DIR }] = await Promise.all([
+		const [fsModule, pathModule, { getDataDir }] = await Promise.all([
 			import("node:fs"),
 			import("node:path"),
 			import("../../src/lib/dataDir"),
 		]);
 		const fs = fsModule.default;
 		const path = pathModule.default;
+		const DATA_DIR = getDataDir();
 
 		if (typeof DATA_DIR !== "string" || !DATA_DIR) {
 			return null;

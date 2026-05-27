@@ -1,12 +1,16 @@
 import fs from "node:fs";
 import path from "node:path";
 import { createRequire } from "node:module";
-import { DATA_DIR } from "../dataDir";
+import { getDataDir } from "../dataDir";
 import { ensureUsageSchema } from "./bootstrap";
 
 const nodeRequire = createRequire(import.meta.url);
 const DEFAULT_SQLITE_MMAP_SIZE = 256 * 1024 * 1024;
-const USAGE_DB_SQLITE_FILE = path.join(DATA_DIR, "usage.sqlite");
+
+let _usageDbSqliteFile: string | undefined;
+function getUsageDbSqliteFile() {
+  return _usageDbSqliteFile ??= path.join(getDataDir(), "usage.sqlite");
+}
 
 type SQLiteStatementLike = {
   run: (...args: unknown[]) => unknown;
@@ -40,12 +44,13 @@ const NodeSQLiteDatabase: DatabaseDriver = function NodeSQLiteDatabase(filePath:
 } as unknown as DatabaseDriver;
 
 export function getUsageSqliteFile() {
-  return USAGE_DB_SQLITE_FILE;
+  return getUsageDbSqliteFile();
 }
 
 export function ensureUsageDbDir() {
-  if (!fs.existsSync(DATA_DIR)) {
-    fs.mkdirSync(DATA_DIR, { recursive: true });
+  const dataDir = getDataDir();
+  if (!fs.existsSync(dataDir)) {
+    fs.mkdirSync(dataDir, { recursive: true });
   }
 }
 
@@ -81,7 +86,7 @@ export function getUsageDbInstance() {
 
   ensureUsageDbDir();
   const Driver = loadDatabaseDriver();
-  const db = new Driver(USAGE_DB_SQLITE_FILE);
+  const db = new Driver(getUsageDbSqliteFile());
   configureUsageSqlitePragmas(db);
   usageDb = db;
   startUsageWalCheckpoint();

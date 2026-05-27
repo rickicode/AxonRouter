@@ -1,9 +1,16 @@
 import fs from "node:fs/promises";
 import path from "node:path";
-import { DATA_DIR } from "../../src/lib/dataDir";
+import { getDataDir } from "../../src/lib/dataDir";
 
-const RUNTIME_DIR = path.join(DATA_DIR, "runtime");
-const HEARTBEAT_PATH = path.join(RUNTIME_DIR, "mcp-heartbeat.json");
+let _runtimeDir: string | undefined;
+function getRuntimeDir() {
+  return _runtimeDir ??= path.join(getDataDir(), "runtime");
+}
+
+let _heartbeatPath: string | undefined;
+function getHeartbeatPath() {
+  return _heartbeatPath ??= path.join(getRuntimeDir(), "mcp-heartbeat.json");
+}
 const HTTP_STATE_KEY = "__nineRouterMcpHttpState";
 
 function getHttpState() {
@@ -19,17 +26,17 @@ function getHttpState() {
 }
 
 export function resolveMcpHeartbeatPath() {
-  return HEARTBEAT_PATH;
+  return getHeartbeatPath();
 }
 
 export async function writeMcpHeartbeat(snapshot) {
-  await fs.mkdir(RUNTIME_DIR, { recursive: true });
-  await fs.writeFile(HEARTBEAT_PATH, JSON.stringify(snapshot, null, 2), "utf8");
+  await fs.mkdir(getRuntimeDir(), { recursive: true });
+  await fs.writeFile(getHeartbeatPath(), JSON.stringify(snapshot, null, 2), "utf8");
 }
 
 export async function readMcpHeartbeat() {
   try {
-    const raw = await fs.readFile(HEARTBEAT_PATH, "utf8");
+    const raw = await fs.readFile(getHeartbeatPath(), "utf8");
     return JSON.parse(raw);
   } catch {
     return null;

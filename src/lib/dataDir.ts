@@ -14,5 +14,3 @@ export function getDataDir() {
   }
   return _dataDir;
 }
-
-export const DATA_DIR = getDataDir();

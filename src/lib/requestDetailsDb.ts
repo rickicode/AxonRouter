@@ -2,7 +2,7 @@ import { Low } from "lowdb";
 import { JSONFile } from "lowdb/node";
 import path from "node:path";
 import fs from "node:fs";
-import { DATA_DIR } from "./dataDir";
+import { getDataDir } from "./dataDir";
 import { getChatObservabilityMode, getChatObservabilitySampleRate } from "../../open-sse/utils/abort";
 import { bootstrapRequestDetailsDb } from "./requestDetailsDb/bootstrap";
 import {
@@ -29,8 +29,8 @@ const DEFAULT_FLUSH_INTERVAL_MS = 5000;
 const CONFIG_CACHE_TTL_MS = 5000;
 const SHUTDOWN_FLUSH_TIMEOUT_MS = 2000;
 
-if (!isCloud && !fs.existsSync(DATA_DIR)) {
-  fs.mkdirSync(DATA_DIR, { recursive: true });
+if (!isCloud && !fs.existsSync(getDataDir())) {
+  fs.mkdirSync(getDataDir(), { recursive: true });
 }
 
 let cachedConfig = null;

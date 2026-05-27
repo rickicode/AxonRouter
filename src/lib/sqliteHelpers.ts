@@ -42,7 +42,10 @@ function NodeSQLiteDatabase(filePath: string): SQLiteDatabaseLike {
   return new (BetterSqliteDatabase as unknown as new (filePath: string) => SQLiteDatabaseLike)(filePath);
 }
 
-const DB_SQLITE_FILE = path.join(getDataDir(), 'db.sqlite');
+let _dbSqliteFile: string | undefined;
+function getDbSqliteFile() {
+  return _dbSqliteFile ??= path.join(getDataDir(), 'db.sqlite');
+}
 
 let sqliteDb: SQLiteDatabaseLike | null = null;
 let _closed = false;
@@ -213,15 +216,15 @@ export function getSqliteDb() {
   if (sqliteDb) return sqliteDb;
 
   // Ensure data directory exists before opening DB
-  const dbDir = path.dirname(DB_SQLITE_FILE);
+  const dbDir = path.dirname(getDbSqliteFile());
   if (!fs.existsSync(dbDir)) {
     fs.mkdirSync(dbDir, { recursive: true });
   }
 
   const Driver = loadDatabaseDriver();
   const db = typeof Driver === 'function' && 'prototype' in Driver && Driver.prototype
-    ? new (Driver as new (filePath: string) => SQLiteDatabaseLike)(DB_SQLITE_FILE)
-    : (Driver as (filePath: string) => SQLiteDatabaseLike)(DB_SQLITE_FILE);
+    ? new (Driver as new (filePath: string) => SQLiteDatabaseLike)(getDbSqliteFile())
+    : (Driver as (filePath: string) => SQLiteDatabaseLike)(getDbSqliteFile());
 
   configureSqlitePragmas(db);
 
@@ -594,4 +597,4 @@ export function rebuildHotStateFromConnections(connections) {
   });
 }
 
-export { DB_SQLITE_FILE };
+export { getDbSqliteFile };

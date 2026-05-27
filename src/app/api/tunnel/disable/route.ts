@@ -1,12 +1,8 @@
 import { NextResponse } from "next/server";
 
-function loadRuntimeModule() {
-  return import("@/lib/tunnel/tunnelConnectionRuntime");
-}
-
 export async function POST() {
   try {
-    const { disableTunnelRuntime } = await loadRuntimeModule();
+    const { disableTunnelRuntime } = await import("@/lib/tunnel/tunnelConnectionRuntime");
     const result = await disableTunnelRuntime();
     return NextResponse.json(result);
   } catch (error) {

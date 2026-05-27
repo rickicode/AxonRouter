@@ -3,7 +3,7 @@ import fs from "node:fs";
 
 import { getDataDir } from "./dataDir";
 import {
-  DB_SQLITE_FILE,
+  getDbSqliteFile,
   clearHotStateForProvider,
   closeSqliteDb,
   deleteEntity,
@@ -23,7 +23,13 @@ import {
 } from "./sqliteBootstrap";
 
 const isCloudStorage = typeof caches !== "undefined" && typeof caches === "object";
-const DB_JSON_FILE = isCloudStorage ? null : path.join(getDataDir(), "db.json");
+
+let _dbJsonFile: string | null | undefined;
+function getDbJsonFile() {
+  if (_dbJsonFile !== undefined) return _dbJsonFile;
+  _dbJsonFile = isCloudStorage ? null : path.join(getDataDir(), "db.json");
+  return _dbJsonFile;
+}
 
 function ensureDataDirExists() {
   if (isCloudStorage) return;
@@ -34,7 +40,7 @@ function ensureDataDirExists() {
 }
 
 export function loadSqliteStorageState() {
-  if (isCloudStorage || !fs.existsSync(DB_SQLITE_FILE)) {
+  if (isCloudStorage || !fs.existsSync(getDbSqliteFile())) {
     return null;
   }
 
@@ -56,7 +62,7 @@ export function bootstrapPersistentStorage() {
   if (isCloudStorage) return;
   ensureDataDirExists();
 
-  if (DB_JSON_FILE && fs.existsSync(DB_JSON_FILE) && !fs.existsSync(DB_SQLITE_FILE)) {
+  if (getDbJsonFile() && fs.existsSync(getDbJsonFile()!) && !fs.existsSync(getDbSqliteFile())) {
     migrateFromJSON();
     return;
   }

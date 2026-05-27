@@ -1,0 +1,26 @@
+{
+  "id": "FEAT-003",
+  "type": "refactor",
+  "description": "Address review findings: remove turbopack.ignoreIssue config, make all path computations lazy, inline loadRuntimeModule wrappers, fix download type, remove comment noise.",
+  "status": "in_progress",
+  "steps": [
+    "Step 1 - Make all top-level path computations lazy in dataDir.ts, sqliteHelpers.ts, localDbStorage.ts, sqliteBootstrap.ts, mitm/paths.ts, requestDetailsDb/core.ts, usageDb/core.ts",
+    "Step 2 - Remove turbopack.ignoreIssue block from next.config.ts",
+    "Step 3 - Inline loadRuntimeModule wrappers in 4 API route files",
+    "Step 4 - Fix download type in tunnelStatus.ts",
+    "Step 5 - Remove comment noise in state.ts",
+    "Step 6 - Verify: tsc --noEmit, npm run build"
+  ],
+  "acceptance_criteria": [
+    "Zero turbopack.ignoreIssue in next.config.ts",
+    "Zero top-level path.join with dynamic values in affected modules",
+    "npx tsc --noEmit passes",
+    "npm run build succeeds"
+  ],
+  "verification": [
+    "source /root/.nvm/nvm.sh && npx tsc --noEmit",
+    "source /root/.nvm/nvm.sh && npm run build"
+  ],
+  "blocked_reason": null,
+  "findings": null
+}

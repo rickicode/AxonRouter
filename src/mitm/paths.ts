@@ -10,7 +10,18 @@ function getDataDir() {
   return path.join(os.homedir(), ".axonrouter");
 }
 
-const DATA_DIR = getDataDir();
-const MITM_DIR = path.join(DATA_DIR, "mitm");
+let _dataDir;
+let _mitmDir;
 
-module.exports = { DATA_DIR, MITM_DIR };
+function getDataDirLazy() {
+  return _dataDir ??= getDataDir();
+}
+
+function getMitmDir() {
+  return _mitmDir ??= path.join(getDataDirLazy(), "mitm");
+}
+
+module.exports = {
+  get DATA_DIR() { return getDataDirLazy(); },
+  get MITM_DIR() { return getMitmDir(); },
+};
