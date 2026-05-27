@@ -2,7 +2,7 @@
   "id": "FEAT-002",
   "type": "feat",
   "description": "Redesign the login page to be minimalist and consistent with the dashboard UI. Remove the two-column layout, decorative left panel, accessPoints grid, trustChecks list, and verbose descriptions. Replace with a single centered card using shadcn/ui components (Card, Input, Button, Label) and Tailwind CSS, matching the dark theme of the dashboard.",
-  "status": "in_progress",
+  "status": "completed",
   "steps": [
     "Rewrite src/app/login/page.tsx to remove the entire inline style object (shell), the accessPoints array, the trustChecks array, and the two-column layout.",
     "Create a minimalist single-column centered layout: full-viewport dark background (bg-background), vertically and horizontally centered content using flex/grid.",
@@ -27,5 +27,5 @@
     "npm run build"
   ],
   "blocked_reason": null,
-  "findings": ""
+  "findings": "Node.js 22.22.3 required for build (bun fails with better-sqlite3 native module). Installed via mise. All verification passed: typecheck, lint, build (149 pages generated), and 1043 tests pass."
 }
