@@ -407,8 +407,14 @@ export function restartService() {
  * Show help message with available commands.
  */
 export function showHelp() {
+  let version = "unknown";
+  try {
+    const pkgUrl = new URL("../package.json", import.meta.url);
+    version = JSON.parse(fs.readFileSync(pkgUrl, "utf8")).version;
+  } catch {}
+
   console.log(`
-\x1b[1mAxonRouter - AI Router Service Management\x1b[0m
+\x1b[1mAxonRouter v${version} - AI Router\x1b[0m
 
 \x1b[33mUsage:\x1b[0m
   axonrouter <command> [options]
