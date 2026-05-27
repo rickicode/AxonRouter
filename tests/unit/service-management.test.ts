@@ -10,6 +10,9 @@ import {
   generateSystemdUnit,
   generateInitdScript,
   SERVICE_COMMANDS,
+  showHelp,
+  runWithSudo,
+  runWithSudoSilent,
 } from "../../scripts/service.js";
 
 describe("service management - root detection", () => {
@@ -54,7 +57,7 @@ describe("service management - systemd unit generation", () => {
     expect(unit).toContain("StartLimitIntervalSec=300");
     expect(unit).toContain("StartLimitBurst=5");
     expect(unit).toContain("[Service]");
-    expect(unit).toContain("ExecStart=/usr/local/bin/axonrouter");
+    expect(unit).toContain("/usr/local/bin/axonrouter");
     expect(unit).toContain("Restart=always");
     expect(unit).toContain("RestartSec=5");
     expect(unit).toContain("Environment=NODE_ENV=production");
@@ -67,7 +70,13 @@ describe("service management - systemd unit generation", () => {
 
   it("uses the provided exec path in ExecStart", () => {
     const unit = generateSystemdUnit("/custom/path/axonrouter");
-    expect(unit).toContain("ExecStart=/custom/path/axonrouter");
+    expect(unit).toContain("/custom/path/axonrouter");
+  });
+
+  it("uses absolute node path in ExecStart to avoid shebang issues", () => {
+    const unit = generateSystemdUnit("/usr/local/bin/axonrouter");
+    // ExecStart should contain both node path and script path
+    expect(unit).toContain(`ExecStart=${process.execPath} /usr/local/bin/axonrouter`);
   });
 });
 
@@ -80,6 +89,7 @@ describe("service management - init.d script generation", () => {
     expect(script).toContain("# Provides:          axonrouter");
     expect(script).toContain("# Short-Description: AxonRouter AI Router");
     expect(script).toContain('DAEMON="/usr/local/bin/axonrouter"');
+    expect(script).toContain(`NODE="${process.execPath}"`);
     expect(script).toContain('PIDFILE="/var/run/axonrouter.pid"');
     expect(script).toContain("NODE_ENV=production");
     expect(script).toContain("PORT=12711");
@@ -98,6 +108,11 @@ describe("service management - init.d script generation", () => {
     const script = generateInitdScript("/opt/bin/axonrouter");
     expect(script).toContain('DAEMON="/opt/bin/axonrouter"');
   });
+
+  it("uses $NODE $DAEMON to launch the process", () => {
+    const script = generateInitdScript("/usr/local/bin/axonrouter");
+    expect(script).toContain('"$NODE" "$DAEMON"');
+  });
 });
 
 describe("service management - SERVICE_COMMANDS export", () => {
@@ -108,11 +123,45 @@ describe("service management - SERVICE_COMMANDS export", () => {
     expect(SERVICE_COMMANDS).toHaveProperty("start");
     expect(SERVICE_COMMANDS).toHaveProperty("stop");
     expect(SERVICE_COMMANDS).toHaveProperty("restart");
+    expect(SERVICE_COMMANDS).toHaveProperty("help");
+    expect(SERVICE_COMMANDS).toHaveProperty("--help");
 
     // All handlers should be functions
     for (const [key, handler] of Object.entries(SERVICE_COMMANDS)) {
       expect(typeof handler).toBe("function");
     }
+  });
+
+  it("help and --help both point to showHelp", () => {
+    expect(SERVICE_COMMANDS["help"]).toBe(showHelp);
+    expect(SERVICE_COMMANDS["--help"]).toBe(showHelp);
+  });
+});
+
+describe("service management - showHelp", () => {
+  it("prints help text to console", () => {
+    const spy = vi.spyOn(console, "log").mockImplementation(() => {});
+    showHelp();
+    expect(spy).toHaveBeenCalled();
+    const output = spy.mock.calls[0][0];
+    expect(output).toContain("AxonRouter");
+    expect(output).toContain("install-service");
+    expect(output).toContain("uninstall-service");
+    expect(output).toContain("check-service");
+    expect(output).toContain("start");
+    expect(output).toContain("stop");
+    expect(output).toContain("restart");
+    expect(output).toContain("mcp");
+    expect(output).toContain("help");
+    expect(output).toContain("--port");
+    spy.mockRestore();
+  });
+});
+
+describe("service management - sudo helpers", () => {
+  it("runWithSudo and runWithSudoSilent are exported functions", () => {
+    expect(typeof runWithSudo).toBe("function");
+    expect(typeof runWithSudoSilent).toBe("function");
   });
 });
 
@@ -195,5 +244,17 @@ describe("service management - CLI arg parsing integration", () => {
     const result = parseArgs(["mcp"]);
     expect(result.serviceCommand).toBeNull();
     expect(result.forwardArgs).toEqual(["mcp"]);
+  });
+
+  it("detects help as positional command", () => {
+    const result = parseArgs(["help"]);
+    expect(result.serviceCommand).toBe("help");
+    expect(result.forwardArgs).toEqual([]);
+  });
+
+  it("detects --help as flag command", () => {
+    const result = parseArgs(["--help"]);
+    expect(result.serviceCommand).toBe("help");
+    expect(result.forwardArgs).toEqual([]);
   });
 });
