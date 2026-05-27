@@ -1,21 +1,34 @@
-import fs from "fs";
-import path from "path";
 import https from "https";
-import os from "os";
 import { execSync, spawn } from "child_process";
 import { savePid, loadPid, clearPid } from "./state";
 import {
   getCloudflaredDownloadStatus,
   setCloudflaredDownloadStatus,
 } from "./cloudflaredDownloadState";
-import { getDataDir } from "@/lib/dataDir";
+import {
+  resolveDataPath,
+  dataFileExists,
+  mkdirForData,
+  createWriteStreamForData,
+  statDataFile,
+  openDataFile,
+  readDataFd,
+  closeDataFd,
+  unlinkDataFile,
+  chmodDataFile,
+  renameDataFile,
+  writeDataFile,
+  rmDataPath,
+  mkdtempForData,
+} from "@axonrouter/data-dir";
 
 const BINARY_NAME = "cloudflared";
-const IS_WINDOWS = os.platform() === "win32";
+const IS_WINDOWS = process.platform === "win32";
 const BIN_NAME = IS_WINDOWS ? `${BINARY_NAME}.exe` : BINARY_NAME;
+const SEP = IS_WINDOWS ? "\\" : "/";
 
-function getBinDir() { return path.join(getDataDir(), "bin"); }
-function getBinPath() { return path.join(getBinDir(), BIN_NAME); }
+function getBinDir() { return resolveDataPath("bin"); }
+function getBinPath() { return getBinDir() + SEP + BIN_NAME; }
 
 const GITHUB_BASE_URL = "https://github.com/cloudflare/cloudflared/releases/latest/download";
 
@@ -43,8 +56,8 @@ const PLATFORM_FALLBACK = {
 };
 
 function getDownloadUrl() {
-  const platform = os.platform();
-  const arch = os.arch();
+  const platform = process.platform;
+  const arch = process.arch;
 
   const platformMapping = PLATFORM_MAPPINGS[platform];
   if (!platformMapping) {
@@ -62,24 +75,24 @@ export function getDownloadStatus() {
 function downloadFile(url, dest) {
   return new Promise((resolve, reject) => {
     // Ensure parent directory exists before creating write stream
-    const destDir = path.dirname(dest);
-    if (!fs.existsSync(destDir)) {
-      fs.mkdirSync(destDir, { recursive: true });
+    const destDir = dest.substring(0, dest.lastIndexOf(SEP));
+    if (!dataFileExists(destDir)) {
+      mkdirForData(destDir, { recursive: true });
     }
 
-    const file = fs.createWriteStream(dest);
+    const file = createWriteStreamForData(dest);
 
     https.get(url, (response) => {
       if ([301, 302, 303, 307, 308].includes(response.statusCode)) {
         file.close();
-        try { if (fs.existsSync(dest)) fs.unlinkSync(dest); } catch { /* ignore */ }
+        try { if (dataFileExists(dest)) unlinkDataFile(dest); } catch { /* ignore */ }
         downloadFile(response.headers.location, dest).then(resolve).catch(reject);
         return;
       }
 
       if (response.statusCode !== 200) {
         file.close();
-        try { if (fs.existsSync(dest)) fs.unlinkSync(dest); } catch { /* ignore */ }
+        try { if (dataFileExists(dest)) unlinkDataFile(dest); } catch { /* ignore */ }
         reject(new Error(`Download failed with status ${response.statusCode}`));
         return;
       }
@@ -105,13 +118,13 @@ function downloadFile(url, dest) {
       file.on("error", (err) => {
         setCloudflaredDownloadStatus({ downloading: false, progress: 0 });
         file.close();
-        try { if (fs.existsSync(dest)) fs.unlinkSync(dest); } catch { /* ignore */ }
+        try { if (dataFileExists(dest)) unlinkDataFile(dest); } catch { /* ignore */ }
         reject(err);
       });
     }).on("error", (err) => {
       setCloudflaredDownloadStatus({ downloading: false, progress: 0 });
       file.close();
-      try { if (fs.existsSync(dest)) fs.unlinkSync(dest); } catch { /* ignore */ }
+      try { if (dataFileExists(dest)) unlinkDataFile(dest); } catch { /* ignore */ }
       reject(err);
     });
   });
@@ -122,15 +135,15 @@ const MIN_BINARY_SIZE = 1024 * 1024; // 1MB - cloudflared is ~30MB+
 // Validate binary is executable on current platform and not truncated
 function isValidBinary(filePath) {
   try {
-    const stat = fs.statSync(filePath);
+    const stat = statDataFile(filePath);
     if (stat.size < MIN_BINARY_SIZE) return false;
-    const fd = fs.openSync(filePath, "r");
+    const fd = openDataFile(filePath, "r");
     const buf = Buffer.alloc(4);
-    fs.readSync(fd, buf, 0, 4, 0);
-    fs.closeSync(fd);
+    readDataFd(fd, buf, 0, 4, 0);
+    closeDataFd(fd);
     const magic = buf.toString("hex");
     if (IS_WINDOWS) return magic.startsWith("4d5a"); // PE (MZ)
-    if (os.platform() === "darwin") return magic.startsWith("cffaedfe") || magic.startsWith("cefaedfe");
+    if (process.platform === "darwin") return magic.startsWith("cffaedfe") || magic.startsWith("cefaedfe");
     return magic.startsWith("7f454c46"); // ELF (Linux)
   } catch {
     return false;
@@ -146,41 +159,41 @@ export async function ensureCloudflared() {
 }
 
 async function _ensureCloudflared() {
-  if (!fs.existsSync(getBinDir())) {
-    fs.mkdirSync(getBinDir(), { recursive: true });
+  if (!dataFileExists(getBinDir())) {
+    mkdirForData(getBinDir(), { recursive: true });
   }
 
   // Clean up incomplete downloads from previous runs
   const tmpPath = `${getBinPath()}.tmp`;
-  if (fs.existsSync(tmpPath)) {
-    try { fs.unlinkSync(tmpPath); } catch { /* ignore */ }
+  if (dataFileExists(tmpPath)) {
+    try { unlinkDataFile(tmpPath); } catch { /* ignore */ }
   }
 
-  if (fs.existsSync(getBinPath())) {
+  if (dataFileExists(getBinPath())) {
     if (!isValidBinary(getBinPath())) {
       console.log("[cloudflared] Invalid binary detected, re-downloading...");
-      fs.unlinkSync(getBinPath());
+      unlinkDataFile(getBinPath());
     } else {
-      if (!IS_WINDOWS) fs.chmodSync(getBinPath(), "755");
+      if (!IS_WINDOWS) chmodDataFile(getBinPath(), "755");
       return getBinPath();
     }
   }
 
   const url = getDownloadUrl();
   const isArchive = url.endsWith(".tgz");
-  const downloadDest = isArchive ? path.join(getBinDir(), "cloudflared.tgz.tmp") : tmpPath;
+  const downloadDest = isArchive ? getBinDir() + SEP + "cloudflared.tgz.tmp" : tmpPath;
 
   await downloadFile(url, downloadDest);
 
   if (isArchive) {
     execSync(`tar -xzf "${downloadDest}" -C "${getBinDir()}"`, { stdio: "pipe", windowsHide: true });
-    fs.unlinkSync(downloadDest);
+    unlinkDataFile(downloadDest);
   } else {
-    fs.renameSync(downloadDest, getBinPath());
+    renameDataFile(downloadDest, getBinPath());
   }
 
   if (!IS_WINDOWS) {
-    fs.chmodSync(getBinPath(), "755");
+    chmodDataFile(getBinPath(), "755");
   }
 
   return getBinPath();
@@ -286,17 +299,18 @@ export async function spawnCloudflared(tunnelToken) {
 export async function spawnQuickTunnel(localPort, onUrlUpdate) {
   const binaryPath = await ensureCloudflared();
 
-  const configDir = fs.mkdtempSync(path.join(os.tmpdir(), "cloudflared-quick-"));
-  const configPath = path.join(configDir, "config.yml");
+  const tmpBase = process.env.TMPDIR || process.env.TEMP || process.env.TMP || "/tmp";
+  const configDir = mkdtempForData(tmpBase + SEP + "cloudflared-quick-");
+  const configPath = configDir + SEP + "config.yml";
   // Avoid using default ~/.cloudflared/config.yml, which can conflict with quick tunnel behavior.
-  fs.writeFileSync(configPath, "# quick-tunnel config placeholder\n", "utf8");
+  writeDataFile(configPath, "# quick-tunnel config placeholder\n", "utf8");
 
   let isCleaned = false;
   const cleanup = () => {
     if (isCleaned) return;
     isCleaned = true;
     try {
-      fs.rmSync(configDir, { recursive: true, force: true });
+      rmDataPath(configDir, { recursive: true, force: true });
     } catch (e) { /* ignore */ }
   };
 

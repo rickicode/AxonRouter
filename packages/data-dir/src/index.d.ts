@@ -1,0 +1,22 @@
+import type { WriteStream, Stats } from "node:fs";
+
+export declare function getDataDir(): string;
+export declare function resolveDataPath(...segments: string[]): string;
+export declare function getDbSqliteFile(): string;
+export declare function getDbJsonFile(): string;
+export declare function ensureDataDir(): void;
+export declare function dataDirExists(): boolean;
+export declare function dataFileExists(filePath: string): boolean;
+export declare function readDataFile(filePath: string, encoding: BufferEncoding): string;
+export declare function renameDataFile(oldPath: string, newPath: string): void;
+export declare function unlinkDataFile(filePath: string): void;
+export declare function mkdirForData(dirPath: string, options?: { recursive?: boolean }): string | undefined;
+export declare function createWriteStreamForData(filePath: string): WriteStream;
+export declare function statDataFile(filePath: string): Stats;
+export declare function openDataFile(filePath: string, flags: string): number;
+export declare function readDataFd(fd: number, buffer: Buffer, offset: number, length: number, position: number): number;
+export declare function closeDataFd(fd: number): void;
+export declare function chmodDataFile(filePath: string, mode: string): void;
+export declare function writeDataFile(filePath: string, content: string, encoding?: BufferEncoding): void;
+export declare function rmDataPath(dirPath: string, options?: { recursive?: boolean; force?: boolean }): void;
+export declare function mkdtempForData(prefix: string): string;

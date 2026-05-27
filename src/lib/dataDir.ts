@@ -1,16 +1,22 @@
-import path from "path";
-import os from "os";
-
-let _dataDir: string | null = null;
-
-export function getDataDir() {
-  if (_dataDir) return _dataDir;
-  if (process.platform === "win32") {
-    const roaming = path.join(os.homedir(), "AppData", "Roaming");
-    const appdata = process.env.APPDATA;
-    _dataDir = path.join(appdata || roaming, "axonrouter");
-  } else {
-    _dataDir = path.join(os.homedir(), ".axonrouter");
-  }
-  return _dataDir;
-}
+export {
+  getDataDir,
+  resolveDataPath,
+  getDbSqliteFile,
+  getDbJsonFile,
+  ensureDataDir,
+  dataDirExists,
+  dataFileExists,
+  readDataFile,
+  renameDataFile,
+  unlinkDataFile,
+  mkdirForData,
+  createWriteStreamForData,
+  statDataFile,
+  openDataFile,
+  readDataFd,
+  closeDataFd,
+  chmodDataFile,
+  writeDataFile,
+  rmDataPath,
+  mkdtempForData,
+} from "@axonrouter/data-dir";

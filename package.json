@@ -4,6 +4,7 @@
   "description": "Route AI coding tools across providers.",
   "private": false,
   "type": "module",
+  "workspaces": ["packages/*"],
   "files": [
     "bin/axonrouter.js",
     ".next/standalone/",

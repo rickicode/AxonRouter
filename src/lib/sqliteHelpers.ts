@@ -1,9 +1,7 @@
-import path from 'node:path';
-import fs from 'node:fs';
 import BetterSqliteDatabase from 'better-sqlite3';
 import { HOT_STATE_KEYS } from './hotStateKeys';
 import { readSqliteMigrationSql, SQLITE_MIGRATIONS } from './sqliteMigrations';
-import { getDataDir } from './dataDir';
+import { getDbSqliteFile, ensureDataDir } from './dataDir';
 import { sqliteWriteGate } from './sqliteWriteGate';
 
 type SQLiteRow = Record<string, unknown>;
@@ -40,11 +38,6 @@ function loadDatabaseDriver(): DatabaseDriver {
 
 function NodeSQLiteDatabase(filePath: string): SQLiteDatabaseLike {
   return new (BetterSqliteDatabase as unknown as new (filePath: string) => SQLiteDatabaseLike)(filePath);
-}
-
-let _dbSqliteFile: string | undefined;
-function getDbSqliteFile() {
-  return _dbSqliteFile ??= path.join(getDataDir(), 'db.sqlite');
 }
 
 let sqliteDb: SQLiteDatabaseLike | null = null;
@@ -216,10 +209,7 @@ export function getSqliteDb() {
   if (sqliteDb) return sqliteDb;
 
   // Ensure data directory exists before opening DB
-  const dbDir = path.dirname(getDbSqliteFile());
-  if (!fs.existsSync(dbDir)) {
-    fs.mkdirSync(dbDir, { recursive: true });
-  }
+  ensureDataDir();
 
   const Driver = loadDatabaseDriver();
   const db = typeof Driver === 'function' && 'prototype' in Driver && Driver.prototype
@@ -597,4 +587,4 @@ export function rebuildHotStateFromConnections(connections) {
   });
 }
 
-export { getDbSqliteFile };
+export { getDbSqliteFile } from './dataDir';

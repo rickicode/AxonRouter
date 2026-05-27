@@ -1,7 +1,6 @@
 import fs from "node:fs";
-import path from "node:path";
 import { createRequire } from "node:module";
-import { getDataDir } from "../dataDir";
+import { getDataDir, resolveDataPath } from "../dataDir";
 import { ensureUsageSchema } from "./bootstrap";
 
 const nodeRequire = createRequire(import.meta.url);
@@ -9,7 +8,7 @@ const DEFAULT_SQLITE_MMAP_SIZE = 256 * 1024 * 1024;
 
 let _usageDbSqliteFile: string | undefined;
 function getUsageDbSqliteFile() {
-  return _usageDbSqliteFile ??= path.join(getDataDir(), "usage.sqlite");
+  return _usageDbSqliteFile ??= resolveDataPath("usage.sqlite");
 }
 
 type SQLiteStatementLike = {

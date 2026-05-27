@@ -1,7 +1,4 @@
-import fs from 'node:fs';
-import path from 'node:path';
-
-import { getDataDir } from './dataDir';
+import { getDbJsonFile, dataFileExists, readDataFile, renameDataFile, unlinkDataFile } from './dataDir';
 import {
   getDbSqliteFile,
   closeSqliteDb,
@@ -18,7 +15,7 @@ const SINGLETON_KEYS = ['settings', 'modelAliases', 'mitmAlias', 'opencodeSync',
 
 let _dbJsonFile: string | undefined;
 function getDbJsonFilePath() {
-  return _dbJsonFile ??= path.join(getDataDir(), 'db.json');
+  return _dbJsonFile ??= getDbJsonFile();
 }
 
 function validateCollectionRecords(data, collectionName) {
@@ -43,8 +40,8 @@ function validateSqliteImportCollections(data) {
 function removeSqliteArtifacts() {
   const dbFile = getDbSqliteFile();
   for (const file of [dbFile, `${dbFile}-wal`, `${dbFile}-shm`]) {
-    if (fs.existsSync(file)) {
-      fs.unlinkSync(file);
+    if (dataFileExists(file)) {
+      unlinkDataFile(file);
     }
   }
 }
@@ -53,8 +50,8 @@ export function migrateFromJSON() {
   const options = arguments[0] && typeof arguments[0] === 'object' ? arguments[0] : {};
   const preserveJson = options.preserveJson !== false;
 
-  const jsonExists = fs.existsSync(getDbJsonFilePath());
-  const sqliteExists = fs.existsSync(getDbSqliteFile());
+  const jsonExists = dataFileExists(getDbJsonFilePath());
+  const sqliteExists = dataFileExists(getDbSqliteFile());
 
   if (!jsonExists || sqliteExists) {
     return { migrated: false };
@@ -65,12 +62,12 @@ export function migrateFromJSON() {
   try {
     let jsonData;
     try {
-      jsonData = JSON.parse(fs.readFileSync(getDbJsonFilePath(), 'utf-8'));
+      jsonData = JSON.parse(readDataFile(getDbJsonFilePath(), 'utf-8'));
     } catch (parseError) {
       // Corrupt JSON - rename and start fresh
       const corruptPath = `${getDbJsonFilePath()}.corrupt.${Date.now()}`;
-      console.warn(`[DB] db.json is corrupt, renaming to ${path.basename(corruptPath)} and starting fresh`);
-      fs.renameSync(getDbJsonFilePath(), corruptPath);
+      console.warn(`[DB] db.json is corrupt, renaming to ${corruptPath.split('/').pop() || corruptPath.split('\\').pop()} and starting fresh`);
+      renameDataFile(getDbJsonFilePath(), corruptPath);
       return { migrated: false };
     }
     validateSqliteImportCollections(jsonData);
@@ -131,7 +128,7 @@ export function migrateFromJSON() {
     }
 
     if (!preserveJson) {
-      fs.renameSync(getDbJsonFilePath(), `${getDbJsonFilePath()}.backup`);
+      renameDataFile(getDbJsonFilePath(), `${getDbJsonFilePath()}.backup`);
     }
 
     console.log('[DB] Migration completed successfully');

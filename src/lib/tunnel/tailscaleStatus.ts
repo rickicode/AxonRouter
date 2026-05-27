@@ -1,19 +1,19 @@
 import fs from "fs";
 import { execSync } from "child_process";
 import os from "os";
-import path from "path";
-import { getDataDir } from "@/lib/dataDir";
+import { resolveDataPath } from "@/lib/dataDir";
 
 const IS_WINDOWS = os.platform() === "win32";
+const SEP = IS_WINDOWS ? "\\" : "/";
 
 function getTailscaleBinPath() {
-  return path.join(getDataDir(), "bin", IS_WINDOWS ? "tailscale.exe" : "tailscale");
+  return resolveDataPath("bin", IS_WINDOWS ? "tailscale.exe" : "tailscale");
 }
 function getTailscaleDir() {
-  return path.join(getDataDir(), "tailscale");
+  return resolveDataPath("tailscale");
 }
 function getTailscaleSocket() {
-  return path.join(getTailscaleDir(), "tailscaled.sock");
+  return getTailscaleDir() + SEP + "tailscaled.sock";
 }
 
 function getSocketFlag() {

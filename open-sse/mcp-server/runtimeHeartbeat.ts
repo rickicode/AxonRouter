@@ -1,15 +1,16 @@
 import fs from "node:fs/promises";
-import path from "node:path";
-import { getDataDir } from "../../src/lib/dataDir";
+import { resolveDataPath } from "../../src/lib/dataDir";
+
+const SEP = process.platform === "win32" ? "\\" : "/";
 
 let _runtimeDir: string | undefined;
 function getRuntimeDir() {
-  return _runtimeDir ??= path.join(getDataDir(), "runtime");
+  return _runtimeDir ??= resolveDataPath("runtime");
 }
 
 let _heartbeatPath: string | undefined;
 function getHeartbeatPath() {
-  return _heartbeatPath ??= path.join(getRuntimeDir(), "mcp-heartbeat.json");
+  return _heartbeatPath ??= getRuntimeDir() + SEP + "mcp-heartbeat.json";
 }
 const HTTP_STATE_KEY = "__nineRouterMcpHttpState";
 

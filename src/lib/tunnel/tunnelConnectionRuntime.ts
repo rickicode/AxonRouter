@@ -3,7 +3,6 @@ import crypto from "crypto";
 import { hostname } from "node:os";
 import { loadTunnelStateSnapshot, resolveTunnelShortId, saveTunnelConnectionState } from "./state";
 import { getCurrentSettings, updateCurrentSettings } from "@/lib/settingsAccess";
-import * as cloudflared from "./cloudflared";
 
 const WORKER_URL = process.env.TUNNEL_WORKER_URL || "https://axonrouter.com";
 const MACHINE_ID_SALT = "axonrouter-tunnel-salt";
@@ -48,7 +47,7 @@ async function registerTunnelUrl(shortId: string, tunnelUrl: string) {
 export async function enableTunnelRuntime(localPort = Number(DEFAULT_AXONROUTER_PORT)) {
   manualDisabled = false;
 
-  const cloudflaredModule = cloudflared;
+  const cloudflaredModule = await import("./cloudflared");
 
   if (cloudflaredModule.isCloudflaredRunning()) {
     const existing = loadTunnelStateSnapshot();
@@ -145,7 +144,7 @@ export async function disableTunnelRuntime() {
     clearTimeout(reconnectTimeoutId);
     reconnectTimeoutId = null;
   }
-  const cloudflaredModule = cloudflared;
+  const cloudflaredModule = await import("./cloudflared");
   cloudflaredModule.setUnexpectedExitHandler(null);
   exitHandlerRegistered = false;
 
@@ -163,7 +162,7 @@ export async function disableTunnelRuntime() {
 
 export async function getTunnelStatusRuntime() {
   const state = loadTunnelStateSnapshot();
-  const cloudflaredModule = cloudflared;
+  const cloudflaredModule = await import("./cloudflared");
   const running = cloudflaredModule.isCloudflaredRunning();
   const settings: any = await getCurrentSettings();
   const shortId = state?.shortId || "";

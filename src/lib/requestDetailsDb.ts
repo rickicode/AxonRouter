@@ -1,6 +1,5 @@
 import { Low } from "lowdb";
 import { JSONFile } from "lowdb/node";
-import path from "node:path";
 import fs from "node:fs";
 import { getDataDir } from "./dataDir";
 import { getChatObservabilityMode, getChatObservabilitySampleRate } from "../../open-sse/utils/abort";

@@ -1,7 +1,5 @@
 import { getApiKeys, getSettings, updateSettings } from "@/lib/localDb";
-import { existsSync } from "fs";
-import { dirname, join } from "path";
-import { fileURLToPath } from "url";
+import { dataFileExists } from "@/lib/dataDir";
 
 type MitmInitApi = {
   getMitmStatus: () => Promise<{ running?: boolean }>;
@@ -24,10 +22,16 @@ export async function bootstrapMitmRuntimeFromInitializeApp() {
 
   if (!process.env.MITM_SERVER_PATH) {
     try {
-      const thisFile = fileURLToPath(import.meta.url);
-      const appSrc = dirname(dirname(thisFile));
-      const candidate = join(appSrc, "mitm", "server.ts");
-      if (existsSync(candidate)) {
+      const thisUrl = new URL(import.meta.url);
+      const thisFile = thisUrl.pathname;
+      const sep = process.platform === "win32" ? "\\" : "/";
+      const parts = thisFile.split(sep);
+      // Go up two directories from this file to get src/
+      parts.pop(); // remove filename
+      parts.pop(); // remove mitm/
+      const appSrc = parts.join(sep);
+      const candidate = appSrc + sep + "mitm" + sep + "server.ts";
+      if (dataFileExists(candidate)) {
         process.env.MITM_SERVER_PATH = candidate;
       }
     } catch {

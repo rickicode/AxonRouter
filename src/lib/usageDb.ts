@@ -1,5 +1,4 @@
 import fs from "node:fs";
-import path from "node:path";
 import { EventEmitter } from "events";
 import {
   getChatObservabilityMode,
@@ -7,7 +6,7 @@ import {
   getUpstreamTimeoutMs,
   getStreamIdleTimeoutMs,
 } from "../../open-sse/utils/abort";
-import { getDataDir } from "./dataDir";
+import { resolveDataPath } from "./dataDir";
 import { ensureUsageSchema } from "./usageDb/bootstrap";
 import { getUsageDbInstance } from "./usageDb/core";
 import { getPluginUsageSummary } from "./usageDb/queries/analytics";
@@ -245,7 +244,7 @@ export async function appendRequestLog({ model, provider, connectionId, tokens, 
 }
 
 function getLegacyUsageStatsFallback(period) {
-  const usageFile = path.join(getDataDir(), "usage.json");
+  const usageFile = resolveDataPath("usage.json");
   if (!fs.existsSync(usageFile)) return null;
   const parsed = JSON.parse(fs.readFileSync(usageFile, "utf8"));
   const dailySummary = parsed?.dailySummary || {};

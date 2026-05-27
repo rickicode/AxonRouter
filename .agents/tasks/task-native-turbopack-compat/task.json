@@ -1,0 +1,7 @@
+{
+  "task_id": "task-native-turbopack-compat",
+  "task_description": "Make all modules natively Turbopack-compatible by eliminating turbopack ignoreIssue config and turbopackIgnore comments. The fix externalizes the getDataDir() module (root cause of NFT warnings) into a workspace package added to serverExternalPackages.",
+  "status": "in_progress",
+  "feature_order": ["FEAT-001"],
+  "blocked_reason": null
+}

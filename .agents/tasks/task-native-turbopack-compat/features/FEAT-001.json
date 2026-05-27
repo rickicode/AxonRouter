@@ -1,0 +1,40 @@
+{
+  "id": "FEAT-001",
+  "type": "refactor",
+  "description": "Create @axonrouter/data-dir workspace package and externalize getDataDir() from Turbopack tracing. This eliminates all 81 NFT warnings by moving the dynamic path computation (os.homedir() + path.join) into a serverExternalPackages entry that Turbopack will not trace.",
+  "status": "blocked",
+  "blocked_reason": {
+    "retryable": true,
+    "detail": "Reduced NFT warnings from 81 to 31 by externalizing getDataDir and all path.join/fs operations into @axonrouter/data-dir workspace package. Removed turbopack ignoreIssue config and all turbopackIgnore comments. However, Turbopack's NFT tracer still traces into the externalized package's fs operations (serverExternalPackages only prevents bundling, not NFT tracing). The remaining 31 warnings come from @axonrouter/data-dir's fs.existsSync calls with dynamic paths and src/lib/mitm/initializeMitmAccess.ts. Cannot reach 0 warnings without turbopackIgnore or ignoreIssue."
+  },
+  "steps": [
+    "Create packages/data-dir/package.json with name '@axonrouter/data-dir', type 'module', main 'src/index.ts', exports map pointing to './src/index.ts'",
+    "Create packages/data-dir/src/index.ts that exports the getDataDir() function (move logic from src/lib/dataDir.ts)",
+    "Create packages/data-dir/tsconfig.json with appropriate compiler options for a Node.js library",
+    "Update root package.json to add 'workspaces': ['packages/*']",
+    "Run 'npm install' to link the workspace package",
+    "Update tsconfig.json to add path alias '@axonrouter/data-dir' -> ['./packages/data-dir/src/index.ts']",
+    "Update src/lib/dataDir.ts to re-export from '@axonrouter/data-dir' (keeps backward compat for existing @/lib/dataDir imports)",
+    "Add '@axonrouter/data-dir' to serverExternalPackages array in next.config.ts",
+    "Remove the entire 'turbopack: { ignoreIssue: [...] }' block from next.config.ts",
+    "Run 'npm run build' and verify 0 NFT warnings in output",
+    "Run 'npm run typecheck' and verify it passes",
+    "Run grep across the project to confirm zero turbopackIgnore comments and zero ignoreIssue config"
+  ],
+  "acceptance_criteria": [
+    "npm run build produces 0 warnings (no 'Encountered unexpected file in NFT list' messages)",
+    "npm run typecheck passes with no errors",
+    "grep -r 'turbopackIgnore' src/ returns 0 results",
+    "grep -r 'ignoreIssue' next.config.ts returns 0 results",
+    "The turbopack config block is completely absent from next.config.ts",
+    "All existing functionality preserved - getDataDir() still returns ~/.axonrouter path at runtime"
+  ],
+  "verification": [
+    "source /root/.nvm/nvm.sh && npm run build 2>&1 | grep -c 'unexpected file in NFT' (must output 0)",
+    "source /root/.nvm/nvm.sh && npm run typecheck",
+    "grep -r 'turbopackIgnore' /projects/sandbox/AxonRouter/src/ || echo 'NONE FOUND (good)'",
+    "grep 'ignoreIssue' /projects/sandbox/AxonRouter/next.config.ts || echo 'NONE FOUND (good)'"
+  ],
+  "blocked_reason": null,
+  "findings": "The 81 NFT warnings all share the same import trace: next.config.ts -> sqliteBootstrap.ts -> localDbStorage.ts -> localDb/misc.ts -> otel.ts -> route.ts. The root cause is getDataDir() in src/lib/dataDir.ts using os.homedir() + path.join() which Turbopack cannot statically scope. By externalizing this into a workspace package listed in serverExternalPackages, Turbopack will not trace into it and the warnings disappear. The existing serverExternalPackages pattern is already proven with better-sqlite3."
+}

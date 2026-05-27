@@ -1,6 +1,5 @@
 import fs from "node:fs";
-import path from "node:path";
-import { getDataDir } from "../dataDir";
+import { resolveDataPath } from "../dataDir";
 import { getRequestDetailsDbInstance } from "./core";
 import {
   LATEST_REQUEST_DETAILS_SQLITE_SCHEMA_VERSION,
@@ -10,7 +9,7 @@ import {
 
 let _requestDetailsPayloadDir: string | undefined;
 function getRequestDetailsPayloadDir() {
-  return _requestDetailsPayloadDir ??= path.join(getDataDir(), "request-details");
+  return _requestDetailsPayloadDir ??= resolveDataPath("request-details");
 }
 
 function ensureRequestDetailsMigrationTable(db) {

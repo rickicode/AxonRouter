@@ -1,5 +1,4 @@
-import path from "node:path";
-import { existsSync } from "node:fs";
+import { dataFileExists } from "@/lib/dataDir";
 import { resolveMorphInstructionsForRequest } from "../../../open-sse/config/morphInstructionsResolver";
 import { buildMorphRepoContext } from "./repoContext";
 import { estimateMorphTokenCount } from "./autoRouting";
@@ -166,14 +165,17 @@ function resolveToolCallTargetPath(toolCall) {
 function resolveWorkspaceFilePath(targetPath) {
   if (typeof targetPath !== "string" || !targetPath.trim()) return null;
   const normalized = targetPath.trim();
-  return path.isAbsolute(normalized) ? normalized : path.join(process.cwd(), normalized);
+  if (normalized.startsWith("/") || /^[A-Za-z]:\\/.test(normalized)) return normalized;
+  const cwd = process.cwd();
+  const sep = process.platform === "win32" ? "\\" : "/";
+  return cwd + sep + normalized;
 }
 
 function isExistingFilePath(targetPath) {
   const absolutePath = resolveWorkspaceFilePath(targetPath);
   if (!absolutePath) return false;
   try {
-    return existsSync(absolutePath);
+    return dataFileExists(absolutePath);
   } catch {
     return false;
   }

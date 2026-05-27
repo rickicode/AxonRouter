@@ -1,14 +1,13 @@
 import fs from "node:fs";
-import path from "node:path";
 import { createRequire } from "node:module";
-import { getDataDir } from "../dataDir";
+import { getDataDir, resolveDataPath } from "../dataDir";
 
 const nodeRequire = createRequire(import.meta.url);
 const DEFAULT_SQLITE_MMAP_SIZE = 128 * 1024 * 1024;
 
 let _requestDetailsDbFile: string | undefined;
 function getRequestDetailsDbSqliteFile() {
-  return _requestDetailsDbFile ??= path.join(getDataDir(), "request-details.sqlite");
+  return _requestDetailsDbFile ??= resolveDataPath("request-details.sqlite");
 }
 
 type SQLiteStatementLike = {

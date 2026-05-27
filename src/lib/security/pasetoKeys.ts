@@ -1,7 +1,6 @@
 import crypto from "crypto";
 import fs from "fs";
-import path from "path";
-import { getDataDir } from "@/lib/dataDir";
+import { getDataDir, resolveDataPath } from "@/lib/dataDir";
 
 const GENERATED_PASETO_KEYS = "__AXONROUTER_GENERATED_PASETO_KEYS__";
 const PASETO_PRIVATE_KEY_ENV = "PASETO_PRIVATE_KEY_B64";
@@ -25,7 +24,7 @@ function setCachedKeys(keys: PasetoKeyPair) {
 }
 
 function getEnvFilePath(): string {
-  return path.join(getDataDir(), ".env");
+  return resolveDataPath(".env");
 }
 
 function parseEnvValue(content: string, key: string): string | null {
@@ -67,7 +66,7 @@ function persistToEnvFile(keys: PasetoKeyPair): void {
     `${PASETO_PUBLIC_KEY_ENV}=${encodePublicKey(keys)}`,
   ];
 
-  fs.mkdirSync(path.dirname(envPath), { recursive: true });
+  fs.mkdirSync(getDataDir(), { recursive: true });
 
   if (fs.existsSync(envPath)) {
     const content = fs.readFileSync(envPath, "utf8");

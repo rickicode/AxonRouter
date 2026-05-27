@@ -1,22 +1,22 @@
 import fs from "fs";
 import os from "os";
-import path from "path";
 import { execSync } from "child_process";
 import * as dnsConfig from "@/mitm/dns/dnsConfig";
-import { getDataDir } from "@/lib/dataDir";
+import { resolveDataPath } from "@/lib/dataDir";
 
 const { execWithPassword } = dnsConfig as any;
 const IS_MAC = os.platform() === "darwin";
 const IS_WINDOWS = os.platform() === "win32";
+const SEP = IS_WINDOWS ? "\\" : "/";
 
 function getTailscaleBinPath() {
-  return path.join(getDataDir(), "bin", IS_WINDOWS ? "tailscale.exe" : "tailscale");
+  return resolveDataPath("bin", IS_WINDOWS ? "tailscale.exe" : "tailscale");
 }
 function getTailscaleDir() {
-  return path.join(getDataDir(), "tailscale");
+  return resolveDataPath("tailscale");
 }
 function getTailscaleSocket() {
-  return path.join(getTailscaleDir(), "tailscaled.sock");
+  return getTailscaleDir() + SEP + "tailscaled.sock";
 }
 
 function getSocketFlag() {

@@ -1,10 +1,11 @@
 import fs from "node:fs/promises";
-import path from "node:path";
-import { getDataDir } from "../dataDir";
+import { resolveDataPath } from "../dataDir";
+
+const SEP = process.platform === "win32" ? "\\" : "/";
 
 let _requestDetailsPayloadDir: string | undefined;
 function getRequestDetailsPayloadDir() {
-  return _requestDetailsPayloadDir ??= path.join(getDataDir(), "request-details");
+  return _requestDetailsPayloadDir ??= resolveDataPath("request-details");
 }
 const DEFAULT_REQUEST_PAYLOAD_MAX_BYTES = 16 * 1024;
 const DEFAULT_RESPONSE_PAYLOAD_MAX_BYTES = 64 * 1024;
@@ -15,13 +16,13 @@ function getDateDir(timestamp: any) {
 }
 
 export function buildRequestDetailPayloadPaths(id: any, timestamp: any) {
-  const dayDir = path.join(getRequestDetailsPayloadDir(), getDateDir(timestamp));
+  const dayDir = getRequestDetailsPayloadDir() + SEP + getDateDir(timestamp);
   return {
     dir: dayDir,
-    request: path.join(dayDir, `${id}.request.json`),
-    providerRequest: path.join(dayDir, `${id}.provider-request.json`),
-    providerResponse: path.join(dayDir, `${id}.provider-response.json`),
-    response: path.join(dayDir, `${id}.response.json`),
+    request: dayDir + SEP + `${id}.request.json`,
+    providerRequest: dayDir + SEP + `${id}.provider-request.json`,
+    providerResponse: dayDir + SEP + `${id}.provider-response.json`,
+    response: dayDir + SEP + `${id}.response.json`,
   };
 }
 
@@ -45,7 +46,8 @@ export function serializePayloadForStorage(value: any, maxBytes: any) {
 }
 
 async function writeJsonFile(filePath: any, payload: any) {
-  await fs.mkdir(path.dirname(filePath), { recursive: true });
+  const dir = filePath.substring(0, filePath.lastIndexOf(SEP));
+  await fs.mkdir(dir, { recursive: true });
   await fs.writeFile(filePath, JSON.stringify(payload), "utf8");
 }
 

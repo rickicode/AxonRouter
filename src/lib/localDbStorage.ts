@@ -1,7 +1,4 @@
-import path from "node:path";
-import fs from "node:fs";
-
-import { getDataDir } from "./dataDir";
+import { ensureDataDir, getDbJsonFile as getDbJsonFilePath, dataFileExists } from "./dataDir";
 import {
   getDbSqliteFile,
   clearHotStateForProvider,
@@ -27,20 +24,17 @@ const isCloudStorage = typeof caches !== "undefined" && typeof caches === "objec
 let _dbJsonFile: string | null | undefined;
 function getDbJsonFile() {
   if (_dbJsonFile !== undefined) return _dbJsonFile;
-  _dbJsonFile = isCloudStorage ? null : path.join(getDataDir(), "db.json");
+  _dbJsonFile = isCloudStorage ? null : getDbJsonFilePath();
   return _dbJsonFile;
 }
 
 function ensureDataDirExists() {
   if (isCloudStorage) return;
-  const dataDir = getDataDir();
-  if (!fs.existsSync(dataDir)) {
-    fs.mkdirSync(dataDir, { recursive: true });
-  }
+  ensureDataDir();
 }
 
 export function loadSqliteStorageState() {
-  if (isCloudStorage || !fs.existsSync(getDbSqliteFile())) {
+  if (isCloudStorage || !dataFileExists(getDbSqliteFile())) {
     return null;
   }
 
@@ -62,7 +56,7 @@ export function bootstrapPersistentStorage() {
   if (isCloudStorage) return;
   ensureDataDirExists();
 
-  if (getDbJsonFile() && fs.existsSync(getDbJsonFile()!) && !fs.existsSync(getDbSqliteFile())) {
+  if (getDbJsonFile() && dataFileExists(getDbJsonFile()!) && !dataFileExists(getDbSqliteFile())) {
     migrateFromJSON();
     return;
   }
