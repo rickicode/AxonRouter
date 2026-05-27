@@ -1,0 +1,24 @@
+{
+  "id": "FEAT-001",
+  "type": "fix",
+  "description": "Fix all 25+ NFT warnings during npm run build by refactoring the import chain that causes Turbopack to trace the whole project. All warnings have the same import trace: route.ts -> initApp.ts -> initializeApp.ts -> cloudflared.ts -> next.config.ts. The cloudflared.ts file uses extensive fs/path/exec operations with dynamic paths that cause Turbopack NFT to trace unintentionally.",
+  "status": "in_progress",
+  "steps": [
+    "Step 1: Fix src/lib/tunnel/cloudflared.ts - Add /*turbopackIgnore: true*/ to ALL remaining dynamic path/fs operations that don't already have it. Specifically: (a) path.dirname(dest) on line 65 needs the ignore comment, (b) all fs.existsSync(), fs.mkdirSync(), fs.createWriteStream(), fs.mkdtempSync(), fs.writeFileSync(), fs.chmodSync(), fs.statSync(), fs.openSync(), fs.readSync(), fs.closeSync(), fs.unlinkSync(), fs.renameSync() calls with dynamic arguments need the ignore comment as the first argument. (c) execSync calls with dynamic string arguments need the ignore comment.",
+    "Step 2: Fix src/shared/services/initializeApp.ts - Add /*turbopackIgnore: true*/ inside the dynamic import() calls for cloudflared and tunnelManager. Change `import(\"@/lib/tunnel/cloudflared\")` to `import(/*turbopackIgnore: true*/ \"@/lib/tunnel/cloudflared\")` and similarly for tunnelManager. This tells Turbopack to not trace through these dynamic imports at all.",
+    "Step 3: Run `source /root/.nvm/nvm.sh && cd /projects/sandbox/AxonRouter && npm run build 2>&1 | grep -i 'nft\\|warning\\|Encountered unexpected'` to verify 0 NFT warnings remain.",
+    "Step 4: Run `source /root/.nvm/nvm.sh && cd /projects/sandbox/AxonRouter && npx tsc --noEmit` to verify no type errors were introduced."
+  ],
+  "acceptance_criteria": [
+    "npm run build produces 0 'Encountered unexpected file in NFT list' warnings",
+    "npm run build still completes successfully (exit code 0)",
+    "npx tsc --noEmit passes with no errors",
+    "The runtime behavior is unchanged - cloudflared operations still work (only build-time tracing is affected)"
+  ],
+  "verification": [
+    "source /root/.nvm/nvm.sh && cd /projects/sandbox/AxonRouter && npm run build 2>&1 | grep -c 'Encountered unexpected' (should output 0)",
+    "source /root/.nvm/nvm.sh && cd /projects/sandbox/AxonRouter && npx tsc --noEmit"
+  ],
+  "blocked_reason": null,
+  "findings": ""
+}

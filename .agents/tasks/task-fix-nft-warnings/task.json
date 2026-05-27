@@ -1,0 +1,7 @@
+{
+  "task_id": "task-fix-nft-warnings",
+  "task_description": "Fix all NFT (Node File Tracing) warnings produced during npm run build by adding turbopackIgnore comments and refactoring the import chain from cloudflared.ts through initializeApp.ts",
+  "status": "in_progress",
+  "feature_order": ["FEAT-001"],
+  "blocked_reason": null
+}
