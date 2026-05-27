@@ -1,6 +1,6 @@
 import crypto from "crypto";
 import open from "open";
-import { ANTIGRAVITY_CONFIG } from "../constants/oauth";
+import { ANTIGRAVITY_CONFIG, getOAuthClientMetadata } from "../constants/oauth";
 import { startLocalServer } from "../utils/server";
 import { spinner as createSpinner } from "../utils/ui";
 import { DEFAULT_AXONROUTER_BASE_URL } from "@/shared/constants/runtimeDefaults";
@@ -120,14 +120,10 @@ export class AntigravityService {
 
   /**
    * Get metadata object for loadCodeAssist / onboardUser API calls.
-   * Uses string enum values matching CLIProxyAPI Go source.
+   * Uses numeric enum values matching the working 9router implementation.
    */
   getMetadata() {
-    return {
-      ideType: "IDE_UNSPECIFIED",
-      platform: "PLATFORM_UNSPECIFIED",
-      pluginType: "GEMINI",
-    };
+    return getOAuthClientMetadata();
   }
 
   /**
