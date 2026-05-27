@@ -1,0 +1,33 @@
+{
+  "id": "FEAT-003",
+  "type": "feat",
+  "description": "Update the providers dashboard page (src/app/(dashboard)/dashboard/providers/page.tsx) to display providers organized in clean categorized sections like OmniRoute's /provider page. Add sections for Local/Self-Hosted, Search, Audio, Cloud Agent, Upstream Proxy, and IDE providers. Add free tier badges where hasFree is true.",
+  "status": "in_progress",
+  "steps": [
+    "Step 1 - Import the new provider category exports into the providers page: LOCAL_PROVIDERS, SEARCH_PROVIDERS, AUDIO_ONLY_PROVIDERS, UPSTREAM_PROXY_PROVIDERS, CLOUD_AGENT_PROVIDERS, IDE_PROVIDER_IDS, AGGREGATOR_PROVIDER_IDS, ENTERPRISE_CLOUD_PROVIDER_IDS.",
+    "Step 2 - Add filtered lists for each new category section: filteredLocalProviders, filteredSearchProviders, filteredAudioProviders, filteredCloudAgentProviders, filteredUpstreamProxyProviders. Apply the same matchesHeaderSearch filter pattern already used for other sections.",
+    "Step 3 - For OAuth providers section, filter out IDE_PROVIDER_IDS from the main OAuth list (they will render in their own section). Add a separate 'IDE Providers' section for providers whose ID is in IDE_PROVIDER_IDS.",
+    "Step 4 - Uncomment the Web Cookie Providers section that is currently commented out. Render it with the new OmniRoute web cookie providers.",
+    "Step 5 - Add a 'Local / Self-Hosted Providers' section after API Key Providers. Use the grid layout pattern. Each card links to /dashboard/providers/[id]. Shows a description hint about the localDefault URL.",
+    "Step 6 - Add a 'Search Providers' section. Same grid layout pattern.",
+    "Step 7 - Add an 'Audio Providers' section. Same grid layout pattern.",
+    "Step 8 - Add a 'Cloud Agent Providers' section. Same grid layout pattern.",
+    "Step 9 - Add an 'Upstream Proxy' section (only if UPSTREAM_PROXY_PROVIDERS has entries). Same grid layout.",
+    "Step 10 - Update the ApiKeyProviderCard component to show a 'Free' badge (small green badge) when provider.hasFree === true. Show the freeNote as a tooltip or small subtitle.",
+    "Step 11 - Ensure all sections maintain the same responsive grid: grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4",
+    "Step 12 - Run `npx tsc --noEmit` to verify no type errors after page changes."
+  ],
+  "acceptance_criteria": [
+    "The providers page shows distinct visual sections: OAuth, IDE, Free & Free Tier, Managed, API Key, Web Cookie, Local/Self-Hosted, Search, Audio, Cloud Agent, Upstream Proxy, and OpenAI/Anthropic Compatible",
+    "Each section has a clear heading and consistent grid layout",
+    "Free tier badge appears on provider cards where hasFree is true",
+    "Header search filters apply across all sections",
+    "npx tsc --noEmit passes"
+  ],
+  "verification": [
+    "npx tsc --noEmit",
+    "npm run build"
+  ],
+  "blocked_reason": null,
+  "findings": ""
+}
