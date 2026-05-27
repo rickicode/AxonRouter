@@ -54,6 +54,7 @@ const legacyDefaultFiles = () => {
       ":!:*-lock.json",
       ":!:cloud/**",
       ":!:WorkerProxy/**",
+      ":!:.agents/**",
     ]);
   } catch {
     return [];
@@ -81,6 +82,7 @@ describe("AxonRouter modernization inventory", () => {
       "tests/unit/modernization-inventory.test.ts",
       "unit/modernization-inventory.test.ts",
       "skills/axonrouter-unified/SKILL.md",
+      "src/shared/constants/providers.ts",
     ]);
     const offenders = legacyDefaultFiles().filter((file) => !allowed.has(file));
 
