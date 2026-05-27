@@ -23,6 +23,16 @@ postcss.config.ts
 next.config.ts
 tsconfig.json
 
+# Native binary files - force recompile on user's machine
+**/*.node
+**/*.o
+**/*.a
+**/*.dylib
+**/*.so
+**/build/Release/
+**/build/Debug/
+**/prebuilds/
+
 # Build artifacts not in "files"
 .next/cache/
 .next/standalone/data/
