@@ -9,7 +9,7 @@ export async function POST() {
     // Wait for DNS warmup to propagate at Cloudflare edge after tunnel registered.
     await new Promise((resolve) => setTimeout(resolve, DNS_WARMUP_DELAY_MS));
     return NextResponse.json(result);
-  } catch (error) {
+  } catch (error: any) {
     console.error("Tunnel enable error:", error);
     return NextResponse.json({ error: error.message }, { status: 500 });
   }

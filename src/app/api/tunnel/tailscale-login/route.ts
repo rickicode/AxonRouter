@@ -5,7 +5,7 @@ export async function POST() {
   try {
     const result = await startTailscaleLoginFlow();
     return NextResponse.json(result);
-  } catch (error) {
+  } catch (error: any) {
     console.error("Tailscale login error:", error);
     return NextResponse.json({ error: error.message }, { status: 500 });
   }

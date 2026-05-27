@@ -1,5 +1,3 @@
-"use server";
-
 import { NextResponse } from "next/server";
 import { startTailscaleDaemonFromStoredPassword } from "@axonrouter/tunnel/tailscaleDaemonStart";
 

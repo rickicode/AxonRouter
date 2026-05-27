@@ -104,7 +104,7 @@ export async function initializeApp() {
           const { enableTunnel } = await tunnelManagerApi();
           await enableTunnel();
           console.log("[InitApp] Tunnel reconnected");
-        } catch (error) {
+        } catch (error: any) {
           console.log("[InitApp] Tunnel reconnect failed:", error.message);
         }
       }
@@ -155,7 +155,7 @@ async function autoStartMitm() {
   g.mitmStartInProgress = true;
   try {
     await autoStartMitmIfEnabled();
-  } catch (err) {
+  } catch (err: any) {
     console.log("[InitApp] MITM auto-start failed:", err.message);
   } finally {
     g.mitmStartInProgress = false;
@@ -183,7 +183,7 @@ function startWatchdog() {
       } finally {
         g.tunnelRestartInProgress = false;
       }
-    } catch (err) {
+    } catch (err: any) {
       console.log("[Watchdog] Recovery failed:", err.message);
     }
   }, WATCHDOG_INTERVAL_MS);
@@ -253,7 +253,7 @@ function startNetworkMonitor() {
       } finally {
         g.tunnelRestartInProgress = false;
       }
-    } catch (err) {
+    } catch (err: any) {
       console.log("[NetworkMonitor] Tunnel restart failed:", err.message);
     }
   }, NETWORK_CHECK_INTERVAL_MS);

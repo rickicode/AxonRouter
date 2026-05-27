@@ -1,5 +1,3 @@
-"use server";
-
 import { createTailscaleInstallStream } from "@axonrouter/tunnel/tailscaleInstallAccess";
 
 export async function POST(request: Request) {

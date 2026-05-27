@@ -9,7 +9,7 @@ export async function GET() {
     const download = getCloudflaredDownloadStatus();
     const result = await getTunnelStatusPayload(download);
     return NextResponse.json(result);
-  } catch (error) {
+  } catch (error: any) {
     console.error("Tunnel status error:", error);
     return NextResponse.json({ error: error.message }, { status: 500 });
   }

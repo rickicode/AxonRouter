@@ -4,7 +4,7 @@ import { getTailscaleCheckPayload } from "@axonrouter/tunnel/tailscaleCheckAcces
 export async function GET() {
   try {
     return NextResponse.json(getTailscaleCheckPayload());
-  } catch (error) {
+  } catch (error: any) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 }

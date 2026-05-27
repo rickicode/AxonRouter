@@ -5,7 +5,7 @@ export async function POST() {
     const { enableTailscaleRuntime } = await import("@axonrouter/tunnel/tailscaleTunnelRuntime");
     const result = await enableTailscaleRuntime();
     return NextResponse.json(result);
-  } catch (error) {
+  } catch (error: any) {
     console.error("Tailscale enable error:", error);
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
