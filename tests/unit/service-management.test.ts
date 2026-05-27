@@ -109,9 +109,10 @@ describe("service management - init.d script generation", () => {
     expect(script).toContain('DAEMON="/opt/bin/axonrouter"');
   });
 
-  it("uses $NODE $DAEMON to launch the process", () => {
+  it("uses quoted paths in su invocation for privilege dropping", () => {
     const script = generateInitdScript("/usr/local/bin/axonrouter");
-    expect(script).toContain('"$NODE" "$DAEMON"');
+    expect(script).toContain('su - "$USER"');
+    expect(script).toMatch(/su - "\$USER" -c "HOME='/);
   });
 });
 

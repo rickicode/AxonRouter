@@ -1,0 +1,31 @@
+{
+  "id": "FEAT-002",
+  "type": "feat",
+  "description": "Redesign the login page to be minimalist and consistent with the dashboard UI. Remove the two-column layout, decorative left panel, accessPoints grid, trustChecks list, and verbose descriptions. Replace with a single centered card using shadcn/ui components (Card, Input, Button, Label) and Tailwind CSS, matching the dark theme of the dashboard.",
+  "status": "completed",
+  "steps": [
+    "Rewrite src/app/login/page.tsx to remove the entire inline style object (shell), the accessPoints array, the trustChecks array, and the two-column layout.",
+    "Create a minimalist single-column centered layout: full-viewport dark background (bg-background), vertically and horizontally centered content using flex/grid.",
+    "Use a Card component from @/components/ui/card containing: a small AxonRouter logo/icon header with LockKeyhole icon, the login form with Label + Input (type=password) + Button (submit), and a simple error display.",
+    "Keep the existing React logic: useState for password/error/loading, useEffect for checkAuth, handleLogin submit handler, and the loading state check. These must remain functional.",
+    "Style using Tailwind utility classes and shadcn/ui component props. Match the dashboard dark theme: bg-background for page, Card component for the form container, Input component for password field, Button component for submit. No inline style objects.",
+    "Remove all unnecessary text: no 'secure dashboard access' eyebrow, no 'Route AI requests' title, no long subtitles. Keep only: app name 'AxonRouter' as a small heading, the password input with a minimal label, the login button, and the error message area.",
+    "For the first-run scenario (hasPassword === false), show a brief note below the input like 'Default password: 12345677' in muted text rather than a long paragraph."
+  ],
+  "acceptance_criteria": [
+    "Login page renders a single centered card with password input and login button",
+    "No two-column layout, no accessPoints grid, no trustChecks list",
+    "Uses shadcn/ui components: Card, Input, Button, Label from @/components/ui/",
+    "Uses Tailwind CSS classes instead of inline styles",
+    "Login functionality (password submit, error display, redirect on success) still works",
+    "npm run typecheck passes",
+    "npm run build passes"
+  ],
+  "verification": [
+    "npm run typecheck",
+    "npm run lint",
+    "npm run build"
+  ],
+  "blocked_reason": null,
+  "findings": "Node.js 22.22.3 required for build (bun fails with better-sqlite3 native module). Installed via mise. All verification passed: typecheck, lint, build (149 pages generated), and 1043 tests pass. Review v1 fix applied: removed conditional 'Logging in...' text - Button's loading prop already shows a Spinner, so label stays as 'Login'."
+}

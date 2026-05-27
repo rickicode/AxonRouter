@@ -2,6 +2,7 @@
 
 import { execSync, spawnSync } from "node:child_process";
 import fs from "node:fs";
+import os from "node:os";
 import path from "node:path";
 
 const SERVICE_NAME = "axonrouter";
@@ -84,11 +85,111 @@ export function getNodePath() {
 }
 
 /**
+ * Resolve the home directory for a given user.
+ * When SUDO_USER is set, tries /etc/passwd lookup, then falls back to /home/<user>.
+ * For root, returns /root. Otherwise falls back to os.homedir().
+ */
+export function getInstallingUserHome(user) {
+  if (user === "root") {
+    return "/root";
+  }
+
+  // Try to read from /etc/passwd
+  try {
+    const passwd = fs.readFileSync("/etc/passwd", "utf-8");
+    const lines = passwd.split("\n");
+    for (const line of lines) {
+      const fields = line.split(":");
+      if (fields[0] === user && fields[5]) {
+        return fields[5];
+      }
+    }
+  } catch {
+    // /etc/passwd not readable, fall through
+  }
+
+  // Fall back to /home/<user> if SUDO_USER is set
+  if (process.env.SUDO_USER) {
+    return `/home/${user}`;
+  }
+
+  return os.homedir();
+}
+
+/**
+ * Detect the real (non-root) user who invoked the install command.
+ * When run via sudo, reads SUDO_USER and SUDO_GID for the original user.
+ * Otherwise uses os.userInfo() for the current user.
+ * Returns { user, group, home }.
+ */
+export function getInstallingUser() {
+  const sudoUser = process.env.SUDO_USER;
+
+  if (sudoUser) {
+    let group = process.env.SUDO_GID || String(os.userInfo().gid);
+    // Try to resolve group name from GID via /etc/group
+    try {
+      const groupFile = fs.readFileSync("/etc/group", "utf-8");
+      const lines = groupFile.split("\n");
+      for (const line of lines) {
+        const fields = line.split(":");
+        if (fields[2] === group) {
+          group = fields[0];
+          break;
+        }
+      }
+    } catch {
+      // If we can't resolve the group name, use the username as group
+      group = sudoUser;
+    }
+
+    // If group is still numeric (GID didn't resolve), fall back to username
+    if (/^\d+$/.test(group)) {
+      group = sudoUser;
+    }
+
+    const home = getInstallingUserHome(sudoUser);
+    return { user: sudoUser, group, home };
+  }
+
+  const info = os.userInfo();
+  const user = info.username;
+  let group = String(info.gid);
+
+  // Try to resolve group name from GID via /etc/group
+  try {
+    const groupFile = fs.readFileSync("/etc/group", "utf-8");
+    const lines = groupFile.split("\n");
+    for (const line of lines) {
+      const fields = line.split(":");
+      if (fields[2] === group) {
+        group = fields[0];
+        break;
+      }
+    }
+  } catch {
+    // Fall back to username as group
+    group = user;
+  }
+
+  // If group is still numeric (GID didn't resolve), fall back to username
+  if (/^\d+$/.test(group)) {
+    group = user;
+  }
+
+  const home = getInstallingUserHome(user);
+  return { user, group, home };
+}
+
+/**
  * Generate systemd unit file content.
  * Uses absolute node path + script path to avoid shebang/PATH issues under systemd.
+ * Accepts an optional userInfo parameter to avoid repeated getInstallingUser() calls.
  */
-export function generateSystemdUnit(execPath) {
+export function generateSystemdUnit(execPath, userInfo) {
   const nodePath = getNodePath();
+  const { user, group, home } = userInfo || getInstallingUser();
+  const workingDirectory = path.resolve(path.dirname(execPath), "..");
   return `[Unit]
 Description=AxonRouter AI Router
 After=network.target
@@ -97,11 +198,15 @@ StartLimitBurst=5
 
 [Service]
 Type=simple
+User=${user}
+Group=${group}
+WorkingDirectory=${workingDirectory}
 ExecStart=${nodePath} ${execPath}
 Restart=always
 RestartSec=5
 Environment=NODE_ENV=production
 Environment=PORT=${DEFAULT_PORT}
+Environment=HOME=${home}
 # Graceful shutdown timeout
 TimeoutStopSec=30
 # Kill remaining child processes (cloudflared, tailscaled) on stop
@@ -115,9 +220,11 @@ WantedBy=multi-user.target
 /**
  * Generate init.d script content (LSB format).
  * Uses absolute node path to avoid PATH issues in init environment.
+ * Accepts an optional userInfo parameter to avoid repeated getInstallingUser() calls.
  */
-export function generateInitdScript(execPath) {
+export function generateInitdScript(execPath, userInfo) {
   const nodePath = getNodePath();
+  const { user, group, home } = userInfo || getInstallingUser();
   return `#!/bin/sh
 ### BEGIN INIT INFO
 # Provides:          ${SERVICE_NAME}
@@ -134,21 +241,24 @@ DAEMON="${execPath}"
 PIDFILE="${PID_FILE}"
 NAME="${SERVICE_NAME}"
 LOG_FILE="/var/log/${SERVICE_NAME}.log"
+USER="${user}"
+GROUP="${group}"
 export NODE_ENV=production
 export PORT=${DEFAULT_PORT}
+export HOME=${home}
 
 start() {
   if [ -f "$PIDFILE" ] && kill -0 "$(cat "$PIDFILE")" 2>/dev/null; then
     echo "$NAME is already running."
     return 1
   fi
-  echo "Starting $NAME..."
+  echo "Starting $NAME as user $USER..."
   # Start with auto-respawn: restart up to 10 times with 5s delay if process exits
   (
     RESTART_COUNT=0
     MAX_RESTARTS=10
     while [ $RESTART_COUNT -lt $MAX_RESTARTS ]; do
-      "$NODE" "$DAEMON" >> "$LOG_FILE" 2>&1
+      su - "$USER" -c "HOME='${home}' NODE_ENV=production PORT=${DEFAULT_PORT} '${nodePath}' '${execPath}'" >> "$LOG_FILE" 2>&1
       EXIT_CODE=$?
       if [ $EXIT_CODE -eq 0 ]; then
         break
@@ -211,12 +321,16 @@ exit 0
 export function installService() {
   const initSystem = detectInitSystem();
   const execPath = getExecPath();
+  const { user, group } = getInstallingUser();
 
   console.log(`[AxonRouter] Detected init system: ${initSystem}`);
   console.log(`[AxonRouter] Executable path: ${execPath}`);
+  console.log(`[AxonRouter] Service will run as user: ${user} (group: ${group})`);
+
+  const userInfo = { user, group, home: getInstallingUserHome(user) };
 
   if (initSystem === "systemd") {
-    const unitContent = generateSystemdUnit(execPath);
+    const unitContent = generateSystemdUnit(execPath, userInfo);
     // Write unit file via sudo tee (since we may not be root)
     const child = spawnSync("sudo", ["tee", SYSTEMD_UNIT_PATH], {
       input: unitContent,
@@ -233,7 +347,7 @@ export function installService() {
     runWithSudo(`systemctl start ${SERVICE_NAME}`);
     console.log(`[AxonRouter] Service installed, enabled, and started.`);
   } else {
-    const scriptContent = generateInitdScript(execPath);
+    const scriptContent = generateInitdScript(execPath, userInfo);
     const child = spawnSync("sudo", ["tee", INITD_SCRIPT_PATH], {
       input: scriptContent,
       stdio: ["pipe", "pipe", "inherit"],
