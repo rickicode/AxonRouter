@@ -1,0 +1,7 @@
+{
+  "task_id": "task-split-opencode-providers",
+  "task_description": "Split the single opencode provider into separate tiers (opencode free, opencode-go, opencode-zen) matching how OmniRoute handles it, instead of one provider with unfiltered auto-sync.",
+  "status": "in_progress",
+  "feature_order": ["FEAT-001"],
+  "blocked_reason": null
+}
