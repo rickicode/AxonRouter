@@ -2,7 +2,7 @@
   "id": "FEAT-001",
   "type": "refactor",
   "description": "Remove dead/unused wrapper files and consolidate the Cloudflare tunnel indirection layers from 6 layers down to 2-3 layers. The turbopackIgnore comments are acceptable and should remain. The goal is purely architectural cleanup.",
-  "status": "in_progress",
+  "status": "completed",
   "steps": [
     "Step 1 - Delete dead files that have ZERO external consumers (confirmed via grep): (a) src/lib/tunnel/enableAccess.ts - enableTunnelWithDnsWarmup is never imported outside itself. (b) src/lib/tunnel/disableAccess.ts - disableTunnelAccess is never imported outside itself. (c) src/lib/tunnel/statusAccess.ts - getTunnelStatusPayload is never imported outside itself. (d) src/lib/tunnel/tailscaleAccess.ts - enableTailscaleAccess/disableTailscaleAccess never imported outside itself. (e) src/lib/tunnel/shortIdState.ts - only re-exports loadPersistedShortId from state.ts; single consumer (tailscaleLoginAccess.ts) should import directly from state.ts. (f) src/lib/tunnel/tailscale.ts - barrel re-export file, never imported. (g) src/lib/tunnel/tailscaleRuntimeFacade.ts - only imported by tailscale.ts which is dead.",
     "Step 2 - Consolidate tunnelStateFacade.ts into tunnelManager.ts: tunnelStateFacade just lazy-loads tunnelManager via tunnelStateManagerRuntime. Since tunnelManager already does lazy-loading of tunnelConnectionRuntime, merge the 'AndPersist' naming into tunnelManager directly. Then delete tunnelStateFacade.ts and tunnelStateManagerRuntime.ts. No external consumers exist for these files outside the tunnel directory (the API routes use direct runtime imports).",
@@ -26,5 +26,5 @@
     "source /root/.nvm/nvm.sh && npm run build"
   ],
   "blocked_reason": null,
-  "findings": ""
+  "findings": "All 13 files deleted successfully. TypeCheck and build pass. One NFT warning remains on the status route trace (tunnelStatus.ts -> tunnelConnectionRuntime.ts -> cloudflared.ts) which is acceptable per user confirmation that turbopackIgnore/NFT warnings are not the priority. The new Function hack is fully eliminated from the tunnel system."
 }
