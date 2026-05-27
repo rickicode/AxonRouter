@@ -92,6 +92,23 @@ function formatDateTime(value) {
   return date.toLocaleString();
 }
 
+function getResponseTimeColor(ms: number | null | undefined) {
+  if (ms == null) return "";
+  if (ms < 500) return "text-green-600 dark:text-green-400";
+  if (ms <= 2000) return "text-yellow-600 dark:text-yellow-400";
+  return "text-red-600 dark:text-red-400";
+}
+
+function formatRelativeTime(isoDate: string | null) {
+  if (!isoDate) return translate("Never");
+  const diff = Date.now() - new Date(isoDate).getTime();
+  if (diff < 60000) return translate("just now");
+  const mins = Math.floor(diff / 60000);
+  if (mins < 60) return `${mins} ${translate("min ago")}`;
+  const hours = Math.floor(mins / 60);
+  return `${hours} ${translate("hour(s) ago")}`;
+}
+
 function detectProxyPoolType(proxyUrl: string): "http" | "relay" {
   try {
     const u = new URL(proxyUrl.trim());
@@ -199,6 +216,8 @@ export default function ProxyPoolsPage() {
   const [deploying, setDeploying] = useState(false);
   const [testingId, setTestingId] = useState(null);
   const [testingBatchImport, setTestingBatchImport] = useState(false);
+  const [runningHealthCheck, setRunningHealthCheck] = useState(false);
+  const [lastHealthCheckAt, setLastHealthCheckAt] = useState<string | null>(null);
   const notify = useNotificationStore();
   const inv = useInvalidate();
 
@@ -270,20 +289,54 @@ export default function ProxyPoolsPage() {
     }
   }, []);
 
+  const fetchHealthCheckStatus = useCallback(async () => {
+    try {
+      const res = await fetch("/api/proxy-pools/health-check", { cache: "no-store" });
+      const data = await res.json();
+      if (res.ok) {
+        setLastHealthCheckAt(data.lastHealthCheckAt || null);
+      }
+    } catch (error) {
+      console.log("Error fetching health check status:", error);
+    }
+  }, []);
+
+  const handleRunHealthCheck = async () => {
+    setRunningHealthCheck(true);
+    try {
+      const res = await fetch("/api/proxy-pools/health-check", { method: "POST" });
+      const data = await res.json();
+      if (res.ok) {
+        setLastHealthCheckAt(data.checkedAt || null);
+        await fetchProxyPools();
+        notify.success(translate("Health check completed"));
+      } else {
+        notify.error(data.error || "Health check failed");
+      }
+    } catch (error) {
+      console.log("Error running health check:", error);
+      notify.error("Failed to run health check");
+    } finally {
+      setRunningHealthCheck(false);
+    }
+  };
+
   useEffect(() => {
     let cancelled = false;
 
     void (async () => {
       try {
-        const [proxyRes, providersRes, groupsRes] = await Promise.all([
+        const [proxyRes, providersRes, groupsRes, healthRes] = await Promise.all([
           fetch("/api/proxy-pools?includeUsage=true", { cache: "no-store" }),
           fetch("/api/providers", { cache: "no-store" }),
           fetch("/api/proxy-groups?includeUsage=true", { cache: "no-store" }),
+          fetch("/api/proxy-pools/health-check", { cache: "no-store" }),
         ]);
-        const [proxyData, providersData, groupsData] = await Promise.all([
+        const [proxyData, providersData, groupsData, healthData] = await Promise.all([
           proxyRes.json().catch(() => ({})),
           providersRes.json().catch(() => ({})),
           groupsRes.json().catch(() => ({})),
+          healthRes.json().catch(() => ({})),
         ]);
         if (!cancelled && proxyRes.ok) {
           setProxyPools(proxyData.proxyPools || []);
@@ -293,6 +346,9 @@ export default function ProxyPoolsPage() {
         }
         if (!cancelled && groupsRes.ok) {
           setProxyGroups(groupsData.proxyGroups || []);
+        }
+        if (!cancelled && healthRes.ok) {
+          setLastHealthCheckAt(healthData.lastHealthCheckAt || null);
         }
       } catch (error) {
         console.log("Error bootstrapping proxy pools:", error);
@@ -974,6 +1030,21 @@ export default function ProxyPoolsPage() {
         <TabsContent value="pools">
       <Card>
         <CardContent>
+          <div className="mb-3 flex items-center justify-between rounded-md border border-border/60 bg-muted/30 px-3 py-2">
+            <p className="text-xs text-muted-foreground">
+              {translate("Last health check")}: {formatRelativeTime(lastHealthCheckAt)}
+            </p>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-7 text-xs"
+              onClick={() => void handleRunHealthCheck()}
+              disabled={runningHealthCheck}
+            >
+              {runningHealthCheck ? <Spinner data-icon="inline-start" /> : <AppIcon name="refresh" data-icon="inline-start" />}
+              {runningHealthCheck ? translate("Checking...") : translate("Run Health Check")}
+            </Button>
+          </div>
           <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div className="flex flex-wrap items-center gap-2">
               <Badge variant="secondary">{translate("Total")}: {proxyPools.length}</Badge>
@@ -1033,6 +1104,11 @@ export default function ProxyPoolsPage() {
                         <span className="size-1.5 rounded-[4px] bg-current" aria-hidden="true" />
                         {translate(getPoolHealthLabel(pool.testStatus))}
                       </Badge>
+                      {pool.responseTimeMs != null && (
+                        <span className={`text-xs font-medium ${getResponseTimeColor(pool.responseTimeMs)}`}>
+                          {pool.responseTimeMs}ms
+                        </span>
+                      )}
                       <Badge variant={pool.isActive ? "default" : "secondary"}>
                         {pool.isActive ? translate("enabled") : translate("disabled")}
                       </Badge>

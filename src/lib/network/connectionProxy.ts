@@ -59,16 +59,38 @@ export async function resolveProxyFromGroup(groupId: string, source: string) {
     return null;
   }
 
-  // Filter to active pools (must load each to check)
+  // Filter to active pools (must load each to check), skip error pools
   const activePools: { id: string; proxyPool: any }[] = [];
+  let hasErrorPools = false;
   for (const pid of poolIds) {
     const pool = await getCurrentProxyPoolById(pid);
     if (pool && pool.isActive === true && normalizeString(pool.proxyUrl)) {
-      activePools.push({ id: pid, proxyPool: pool });
+      if (pool.testStatus === "error") {
+        hasErrorPools = true;
+      } else {
+        activePools.push({ id: pid, proxyPool: pool });
+      }
     }
   }
 
   if (activePools.length === 0) {
+    // If we have error pools (all healthy ones are down), use direct fallback logic
+    if (hasErrorPools) {
+      if (group.strictProxy === true) {
+        return null;
+      }
+      return {
+        source,
+        proxyPoolId: null,
+        proxyPool: null,
+        connectionProxyEnabled: false,
+        connectionProxyUrl: "",
+        connectionNoProxy: "",
+        strictProxy: false,
+        relayUrl: "",
+      };
+    }
+    // No pools at all (all inactive/empty) - return null to fall through
     return null;
   }
 

@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server";
-import { fetch as undiciFetch } from "undici";
 import { requireManagementAuth } from "@/lib/api/requireManagementAuth";
-import { testProxyUrl } from "@/lib/network/proxyTest";
+import { testProxyUrl, testRelay } from "@/lib/network/proxyTest";
 import { getCurrentProxyPoolById, updateCurrentProxyPool } from "@/lib/proxyPoolAccess";
 
 type RouteContext = {
@@ -9,48 +8,6 @@ type RouteContext = {
     id: string;
   }>;
 };
-
-type ProxyTestResult = {
-  ok: boolean;
-  status: number;
-  statusText?: string;
-  elapsedMs?: number;
-  error?: string;
-};
-
-async function testRelay(relayUrl: string, timeoutMs = 10000): Promise<ProxyTestResult> {
-  const controller = new AbortController();
-  const startedAt = Date.now();
-  const timer = setTimeout(() => controller.abort(), timeoutMs);
-
-  try {
-    const res = await undiciFetch(relayUrl, {
-      method: "GET",
-      headers: {
-        "x-relay-target": "https://httpbin.org",
-        "x-relay-path": "/get",
-      },
-      signal: controller.signal,
-    });
-
-    return {
-      ok: res.ok,
-      status: res.status,
-      statusText: res.statusText,
-      elapsedMs: Date.now() - startedAt,
-    };
-  } catch (err) {
-    const error = err as { name?: string; message?: string } | undefined;
-
-    return {
-      ok: false,
-      status: 500,
-      error: error?.name === "AbortError" ? "Relay test timed out" : error?.message || String(err),
-    };
-  } finally {
-    clearTimeout(timer);
-  }
-}
 
 // POST /api/proxy-pools/[id]/test - Test proxy pool entry
 export async function POST(request: Request, { params }: RouteContext) {
@@ -75,6 +32,7 @@ export async function POST(request: Request, { params }: RouteContext) {
       testStatus: result.ok ? "active" : "error",
       lastTestedAt: now,
       lastError: result.ok ? null : result.error || `Proxy test failed with status ${result.status}`,
+      responseTimeMs: result.elapsedMs ?? null,
     });
 
     return NextResponse.json({

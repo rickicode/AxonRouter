@@ -143,6 +143,7 @@ export async function createProxyPool(data) {
       testStatus: data.testStatus || "unknown",
       lastTestedAt: data.lastTestedAt || null,
       lastError: data.lastError || null,
+      responseTimeMs: data.responseTimeMs || null,
       createdAt: now,
       updatedAt: now,
     };

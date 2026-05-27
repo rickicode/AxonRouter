@@ -5,6 +5,7 @@ import { closeUsageDb } from "@/lib/usageDb/core";
 import { drainUsageQueue } from "@/lib/usageDb/backgroundQueue";
 import { autoStartMitmIfEnabled, bootstrapMitmRuntimeFromInitializeApp } from "@/lib/mitm/initializeMitmAccess";
 import { ensureUsageCheckSchedulerStarted } from "@/lib/usageCheckScheduler/bootstrap";
+import { startProxyHealthCheck } from "@/lib/network/proxyHealthCheck";
 import { getCurrentSettings, updateCurrentSettings } from "@/lib/settingsAccess";
 import { loadSingletonFromSqlite, upsertSingleton } from "@/lib/sqliteHelpers";
 import { sqliteWriteGate } from "@/lib/sqliteWriteGate";
@@ -144,6 +145,9 @@ export async function initializeApp() {
 
     // Start usage check scheduler (background, non-blocking)
     ensureUsageCheckSchedulerStarted().catch(() => {});
+
+    // Start proxy health check scheduler (background, non-blocking)
+    startProxyHealthCheck();
   } catch (error) {
     console.error("[InitApp] Error:", error);
   }
