@@ -1,5 +1,6 @@
 import { runDedupedUsageRefreshJob } from "../../../../lib/usageRefreshQueue";
 import { refreshUsageWithTransientSkip } from "@/lib/usageRefreshAccess";
+import { ensureUsageCheckSchedulerStarted } from "@/lib/usageCheckScheduler/bootstrap";
 
 type RouteContext = {
   params: Promise<{
@@ -15,6 +16,7 @@ type UsageRefreshError = Error & {
 export async function GET(request: Request, { params }: RouteContext): Promise<Response> {
   try {
     const { connectionId } = await params;
+    ensureUsageCheckSchedulerStarted().catch(() => {});
     const searchParams = new URL(request.url).searchParams;
     const runConnectionTest = searchParams.get("test") === "1";
     const includeMetadata = runConnectionTest || searchParams.get("meta") === "1";

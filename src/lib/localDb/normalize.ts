@@ -166,6 +166,7 @@ const DEFAULT_SETTINGS = {
   outboundNoProxy: "",
   mitmRouterBaseUrl: DEFAULT_AXONROUTER_BASE_URL,
   modelSync: DEFAULT_MODEL_SYNC_SETTINGS,
+  usageCheck: { enabled: true, intervalMinutes: 5 },
   quotaExhaustedThresholdPercent: 10,
   governance: {
     enabled: false,
@@ -508,6 +509,22 @@ export function normalizeMorphSettings(morph: any = {}) {
   };
 }
 
+export const DEFAULT_USAGE_CHECK_SETTINGS = Object.freeze({
+  enabled: true,
+  intervalMinutes: 5,
+});
+
+export function normalizeUsageCheckSettings(input: unknown = {}) {
+  const record: any = input && typeof input === "object" && !Array.isArray(input) ? input : {};
+  const intervalMinutes = Number(record.intervalMinutes);
+  return {
+    enabled: record.enabled !== false,
+    intervalMinutes: Number.isFinite(intervalMinutes) && intervalMinutes > 0
+      ? Math.max(1, Math.round(intervalMinutes))
+      : DEFAULT_USAGE_CHECK_SETTINGS.intervalMinutes,
+  };
+}
+
 export function mergeSettingsWithDefaults(settings: any = {}) {
   const sourceSettings: any = settings && typeof settings === "object" && !Array.isArray(settings)
     ? { ...settings }
@@ -529,6 +546,12 @@ export function mergeSettingsWithDefaults(settings: any = {}) {
   merged.modelSync = normalizeModelSyncSettings(
     sourceSettings?.modelSync && typeof sourceSettings.modelSync === "object" && !Array.isArray(sourceSettings.modelSync)
       ? sourceSettings.modelSync
+      : {}
+  );
+
+  merged.usageCheck = normalizeUsageCheckSettings(
+    sourceSettings?.usageCheck && typeof sourceSettings.usageCheck === "object" && !Array.isArray(sourceSettings.usageCheck)
+      ? sourceSettings.usageCheck
       : {}
   );
 
