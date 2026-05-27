@@ -39,7 +39,7 @@ function validateSqliteImportCollections(data) {
 function removeSqliteArtifacts() {
   for (const file of [DB_SQLITE_FILE, `${DB_SQLITE_FILE}-wal`, `${DB_SQLITE_FILE}-shm`]) {
     if (fs.existsSync(/*turbopackIgnore: true*/ file)) {
-      fs.unlinkSync(/*turbopackIgnore: true*/ file);
+      fs.unlinkSync(file);
     }
   }
 }
@@ -65,7 +65,7 @@ export function migrateFromJSON() {
       // Corrupt JSON - rename and start fresh
       const corruptPath = `${DB_JSON_FILE}.corrupt.${Date.now()}`;
       console.warn(`[DB] db.json is corrupt, renaming to ${path.basename(corruptPath)} and starting fresh`);
-      fs.renameSync(/*turbopackIgnore: true*/ DB_JSON_FILE, /*turbopackIgnore: true*/ corruptPath);
+      fs.renameSync(DB_JSON_FILE, corruptPath);
       return { migrated: false };
     }
     validateSqliteImportCollections(jsonData);

@@ -29,7 +29,7 @@ function ensureDataDirExists() {
   if (isCloudStorage) return;
   const dataDir = getDataDir();
   if (!fs.existsSync(/*turbopackIgnore: true*/ dataDir)) {
-    fs.mkdirSync(/*turbopackIgnore: true*/ dataDir, { recursive: true });
+    fs.mkdirSync(dataDir, { recursive: true });
   }
 }
 

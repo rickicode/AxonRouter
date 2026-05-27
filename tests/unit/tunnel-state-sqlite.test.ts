@@ -11,6 +11,17 @@ vi.mock("@/lib/dataDir", () => ({
   get DATA_DIR() { return process.env.DATA_DIR; },
 }));
 
+vi.mock("@axonrouter/tunnel/deps", () => {
+  let _deps = null;
+  return {
+    configureTunnelDeps: (deps) => { _deps = deps; },
+    getDeps: () => {
+      if (!_deps) throw new Error("Tunnel dependencies not configured");
+      return _deps;
+    },
+  };
+});
+
 async function createTempDataDir() {
   const dir = await fs.mkdtemp(path.join(os.tmpdir(), "axonrouter-tunnel-state-"));
   tempDirs.push(dir);
@@ -23,8 +34,21 @@ async function pathExists(targetPath) {
 
 async function loadModules() {
   vi.resetModules();
-  const tunnelState = await import("@/lib/tunnel/state");
   const sqliteHelpers = await import("@/lib/sqliteHelpers");
+  const { configureTunnelDeps } = await import("@axonrouter/tunnel/deps");
+  configureTunnelDeps({
+    getCurrentSettings: async () => ({}),
+    updateCurrentSettings: async () => ({}),
+    loadSingletonFromSqlite: sqliteHelpers.loadSingletonFromSqlite,
+    upsertSingleton: sqliteHelpers.upsertSingleton,
+    sqliteWriteGate: (fn) => fn(),
+    getMitmCachedPassword: () => null,
+    loadMitmEncryptedPassword: async () => null,
+    mitmInitDbHooks: () => {},
+    execWithPasswordFromDns: async () => "",
+    DEFAULT_AXONROUTER_PORT: 12712,
+  });
+  const tunnelState = await import("@axonrouter/tunnel/state");
   return { tunnelState, sqliteHelpers };
 }
 
@@ -68,7 +92,22 @@ describe("tunnel state SQLite storage", () => {
 
     sqliteHelpers.closeSqliteDb();
     vi.resetModules();
-    const reloaded = await import("@/lib/tunnel/state");
+
+    const sqliteHelpersReloaded = await import("@/lib/sqliteHelpers");
+    const { configureTunnelDeps: configReloaded } = await import("@axonrouter/tunnel/deps");
+    configReloaded({
+      getCurrentSettings: async () => ({}),
+      updateCurrentSettings: async () => ({}),
+      loadSingletonFromSqlite: sqliteHelpersReloaded.loadSingletonFromSqlite,
+      upsertSingleton: sqliteHelpersReloaded.upsertSingleton,
+      sqliteWriteGate: (fn) => fn(),
+      getMitmCachedPassword: () => null,
+      loadMitmEncryptedPassword: async () => null,
+      mitmInitDbHooks: () => {},
+      execWithPasswordFromDns: async () => "",
+      DEFAULT_AXONROUTER_PORT: 12712,
+    });
+    const reloaded = await import("@axonrouter/tunnel/state");
 
     expect(reloaded.loadState()).toEqual({ provider: "cloudflare", url: "https://example.trycloudflare.com" });
     expect(reloaded.loadPid()).toBe(1234);

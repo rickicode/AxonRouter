@@ -96,6 +96,7 @@ describe("plugin usage summary route", () => {
   });
 
   it("returns 500 when summary fetch fails unexpectedly", async () => {
+    const spy = vi.spyOn(console, "error").mockImplementation(() => {});
     getUsageDb.mockRejectedValueOnce(new Error("boom"));
     const { GET } = await import("../../src/app/api/plugin/usage-summary/route.ts");
 
@@ -106,9 +107,11 @@ describe("plugin usage summary route", () => {
       ok: false,
       error: "Failed to fetch plugin usage summary",
     });
+    spy.mockRestore();
   });
 
   it("returns 500 when request.url is malformed or non-absolute", async () => {
+    const spy = vi.spyOn(console, "error").mockImplementation(() => {});
     const { GET } = await import("../../src/app/api/plugin/usage-summary/route.ts");
 
     const response = await GET({ url: "/api/plugin/usage-summary?period=today" });
@@ -120,6 +123,7 @@ describe("plugin usage summary route", () => {
     });
     expect(getUsageDb).not.toHaveBeenCalled();
     expect(getPluginUsageSummary).not.toHaveBeenCalled();
+    spy.mockRestore();
   });
 
   it("normalizes malformed history and dailySummary shapes before building the summary", async () => {

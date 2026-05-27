@@ -57,6 +57,10 @@ export default defineConfig({
   },
   resolve: {
     alias: {
+      "@axonrouter/tunnel/cloudflared": resolve(__dirname, "../packages/tunnel/src/cloudflared.ts"),
+      "@axonrouter/tunnel/state": resolve(__dirname, "../packages/tunnel/src/state.ts"),
+      "@axonrouter/tunnel/deps": resolve(__dirname, "../packages/tunnel/src/deps.ts"),
+      "@axonrouter/tunnel": resolve(__dirname, "../packages/tunnel/src"),
       "@": resolve(__dirname, "../src"),
       "open-sse": resolve(__dirname, "../open-sse"),
     },

@@ -35,7 +35,7 @@ async function resolveWorkspacePath(targetPath) {
   const { path } = await getNodeRuntime();
   return path.isAbsolute(normalized)
     ? normalized
-    : path.join(/*turbopackIgnore: true*/ process.cwd(), normalized);
+    : path.join(process.cwd(), normalized);
 }
 
 function extractLatestFastApplyToolCall(messages) {
