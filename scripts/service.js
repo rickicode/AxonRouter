@@ -143,6 +143,11 @@ export function getInstallingUser() {
       group = sudoUser;
     }
 
+    // If group is still numeric (GID didn't resolve), fall back to username
+    if (/^\d+$/.test(group)) {
+      group = sudoUser;
+    }
+
     const home = getInstallingUserHome(sudoUser);
     return { user: sudoUser, group, home };
   }
@@ -167,6 +172,11 @@ export function getInstallingUser() {
     group = user;
   }
 
+  // If group is still numeric (GID didn't resolve), fall back to username
+  if (/^\d+$/.test(group)) {
+    group = user;
+  }
+
   const home = getInstallingUserHome(user);
   return { user, group, home };
 }
@@ -174,10 +184,11 @@ export function getInstallingUser() {
 /**
  * Generate systemd unit file content.
  * Uses absolute node path + script path to avoid shebang/PATH issues under systemd.
+ * Accepts an optional userInfo parameter to avoid repeated getInstallingUser() calls.
  */
-export function generateSystemdUnit(execPath) {
+export function generateSystemdUnit(execPath, userInfo) {
   const nodePath = getNodePath();
-  const { user, group, home } = getInstallingUser();
+  const { user, group, home } = userInfo || getInstallingUser();
   const workingDirectory = path.resolve(path.dirname(execPath), "..");
   return `[Unit]
 Description=AxonRouter AI Router
@@ -209,10 +220,11 @@ WantedBy=multi-user.target
 /**
  * Generate init.d script content (LSB format).
  * Uses absolute node path to avoid PATH issues in init environment.
+ * Accepts an optional userInfo parameter to avoid repeated getInstallingUser() calls.
  */
-export function generateInitdScript(execPath) {
+export function generateInitdScript(execPath, userInfo) {
   const nodePath = getNodePath();
-  const { user, group, home } = getInstallingUser();
+  const { user, group, home } = userInfo || getInstallingUser();
   return `#!/bin/sh
 ### BEGIN INIT INFO
 # Provides:          ${SERVICE_NAME}
@@ -246,7 +258,7 @@ start() {
     RESTART_COUNT=0
     MAX_RESTARTS=10
     while [ $RESTART_COUNT -lt $MAX_RESTARTS ]; do
-      su - $USER -c "HOME=${home} NODE_ENV=production PORT=${DEFAULT_PORT} $NODE $DAEMON" >> "$LOG_FILE" 2>&1
+      su - "$USER" -c "HOME='${home}' NODE_ENV=production PORT=${DEFAULT_PORT} '${nodePath}' '${execPath}'" >> "$LOG_FILE" 2>&1
       EXIT_CODE=$?
       if [ $EXIT_CODE -eq 0 ]; then
         break
@@ -315,8 +327,10 @@ export function installService() {
   console.log(`[AxonRouter] Executable path: ${execPath}`);
   console.log(`[AxonRouter] Service will run as user: ${user} (group: ${group})`);
 
+  const userInfo = { user, group, home: getInstallingUserHome(user) };
+
   if (initSystem === "systemd") {
-    const unitContent = generateSystemdUnit(execPath);
+    const unitContent = generateSystemdUnit(execPath, userInfo);
     // Write unit file via sudo tee (since we may not be root)
     const child = spawnSync("sudo", ["tee", SYSTEMD_UNIT_PATH], {
       input: unitContent,
@@ -333,7 +347,7 @@ export function installService() {
     runWithSudo(`systemctl start ${SERVICE_NAME}`);
     console.log(`[AxonRouter] Service installed, enabled, and started.`);
   } else {
-    const scriptContent = generateInitdScript(execPath);
+    const scriptContent = generateInitdScript(execPath, userInfo);
     const child = spawnSync("sudo", ["tee", INITD_SCRIPT_PATH], {
       input: scriptContent,
       stdio: ["pipe", "pipe", "inherit"],

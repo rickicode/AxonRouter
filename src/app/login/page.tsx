@@ -122,7 +122,7 @@ export default function LoginPage() {
 
 						<Button type="submit" size="lg" loading={loading} className="w-full">
 							<LockKeyhole size={16} aria-hidden="true" />
-							<span>{loading ? translate("Logging in...") : translate("Login")}</span>
+							<span>{translate("Login")}</span>
 						</Button>
 					</form>
 
