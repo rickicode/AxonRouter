@@ -2,7 +2,7 @@
   "id": "FEAT-002",
   "type": "refactor",
   "description": "Remove ALL /*turbopackIgnore: true*/ inline comments from the entire codebase and replace them with proper Turbopack configuration in next.config.ts using the native turbopack.ignoreIssue config. This is the proper Turbopack-native way to handle expected dynamic path operations in server modules, instead of littering source code with inline ignore comments.",
-  "status": "in_progress",
+  "status": "completed",
   "steps": [
     "Step 1 - Remove ALL /*turbopackIgnore: true*/ comments from source files. There are 72 occurrences across these files: src/lib/dataDir.ts, src/lib/tunnel/cloudflared.ts, src/lib/tunnel/tailscaleDaemonRuntime.ts, src/lib/tunnel/tailscaleFunnelRuntime.ts, src/lib/tunnel/tailscaleStatus.ts, src/lib/tunnel/tailscaleInstallRuntime.ts, src/lib/sqliteHelpers.ts, src/lib/localDbStorage.ts, src/lib/sqliteBootstrap.ts, src/mitm/paths.ts, src/shared/services/initializeApp.ts, src/app/api/tunnel/enable/route.ts, src/app/api/tunnel/disable/route.ts, src/app/api/tunnel/tailscale-enable/route.ts, src/app/api/tunnel/tailscale-disable/route.ts. Simply remove the comment text '/*turbopackIgnore: true*/ ' (with trailing space) or '/*turbopackIgnore: true*/' from all path.join, fs.existsSync, import(), and other call sites.",
     "Step 2 - In next.config.ts, add a `turbopack` configuration block with `ignoreIssue` array to suppress NFT warnings for the known server modules that do runtime I/O. Use path patterns matching the tunnel, lib, and mitm modules. Example config:\n\nturbopack: {\n  ignoreIssue: [\n    { path: /src\\/lib\\/tunnel\\// },\n    { path: /src\\/lib\\/dataDir/ },\n    { path: /src\\/lib\\/sqlite/ },\n    { path: /src\\/lib\\/localDbStorage/ },\n    { path: /src\\/mitm\\/paths/ },\n    { path: /src\\/shared\\/services\\/initializeApp/ },\n  ]\n}\n\nThis is the proper native Turbopack configuration for declaring that certain server-only modules are expected to have dynamic path operations.",
@@ -21,5 +21,5 @@
     "source /root/.nvm/nvm.sh && npm run build 2>&1 | grep -c 'NFT'  (must be 0)"
   ],
   "blocked_reason": null,
-  "findings": ""
+  "findings": "Removed turbopackIgnore from 20 files (more than the 15 listed in the task - also found occurrences in src/lib/morph/, src/lib/security/, src/mitm/dns/, src/mitm/serverPath*). The turbopack.ignoreIssue config requires `path` as a required field (glob string or RegExp). The NFT warnings during build all report from ./next.config.ts path, so the rule { path: '**/next.config*', title: /unexpected file in NFT/ } is what suppresses them. Additional path-specific rules added for dev-time coverage of all the affected modules."
 }
