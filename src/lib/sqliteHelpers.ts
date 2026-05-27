@@ -1,5 +1,4 @@
-import path from 'node:path';
-import fs from 'node:fs';
+import { pathJoin, pathDirname, existsSync, mkdirSync } from '@axonrouter/data-dir';
 import BetterSqliteDatabase from 'better-sqlite3';
 import { HOT_STATE_KEYS } from './hotStateKeys';
 import { readSqliteMigrationSql, SQLITE_MIGRATIONS } from './sqliteMigrations';
@@ -42,7 +41,7 @@ function NodeSQLiteDatabase(filePath: string): SQLiteDatabaseLike {
   return new (BetterSqliteDatabase as unknown as new (filePath: string) => SQLiteDatabaseLike)(filePath);
 }
 
-const DB_SQLITE_FILE = path.join(/*turbopackIgnore: true*/ getDataDir(), 'db.sqlite');
+const DB_SQLITE_FILE = pathJoin(getDataDir(), 'db.sqlite');
 
 let sqliteDb: SQLiteDatabaseLike | null = null;
 let _closed = false;
@@ -213,9 +212,9 @@ export function getSqliteDb() {
   if (sqliteDb) return sqliteDb;
 
   // Ensure data directory exists before opening DB
-  const dbDir = path.dirname(DB_SQLITE_FILE);
-  if (!fs.existsSync(/*turbopackIgnore: true*/ dbDir)) {
-    fs.mkdirSync(dbDir, { recursive: true });
+  const dbDir = pathDirname(DB_SQLITE_FILE);
+  if (!existsSync(dbDir)) {
+    mkdirSync(dbDir, { recursive: true });
   }
 
   const Driver = loadDatabaseDriver();

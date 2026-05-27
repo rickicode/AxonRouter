@@ -111,3 +111,12 @@ export declare function cryptoCreateHash(algorithm: string): Hash;
 
 /** Generates a random UUID (v4). */
 export declare function cryptoRandomUUID(): string;
+
+/** Reads a file at an absolute path. */
+export declare function readFileAbsolute(p: string, enc?: BufferEncoding): string | Buffer;
+
+/** Renames a file at an absolute path. */
+export declare function renameAbsolute(src: string, dst: string): void;
+
+/** Returns the basename of a path. */
+export declare function pathBasename(p: string): string;

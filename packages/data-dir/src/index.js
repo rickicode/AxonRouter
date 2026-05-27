@@ -1,5 +1,5 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync, createWriteStream, statSync, openSync, readSync, closeSync, chmodSync, rmSync, mkdtempSync, unlinkSync, renameSync } from 'node:fs';
-import { join, dirname, isAbsolute } from 'node:path';
+import { join, dirname, isAbsolute, basename } from 'node:path';
 import { execSync, spawn } from 'node:child_process';
 import { get as httpsGetRaw } from 'node:https';
 import { platform, arch, homedir, tmpdir, hostname } from 'node:os';
@@ -258,4 +258,25 @@ export function cryptoCreateHash(algorithm) {
  */
 export function cryptoRandomUUID() {
   return randomUUID();
+}
+
+/**
+ * Reads a file at an absolute path.
+ */
+export function readFileAbsolute(p, enc) {
+  return readFileSync(p, enc);
+}
+
+/**
+ * Renames a file at an absolute path.
+ */
+export function renameAbsolute(src, dst) {
+  return renameSync(src, dst);
+}
+
+/**
+ * Returns the basename of a path.
+ */
+export function pathBasename(p) {
+  return basename(p);
 }
