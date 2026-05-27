@@ -1,4 +1,4 @@
-import { existsSync, execSyncCmd, spawnCmd, osPlatform, osTmpdir, pathJoin } from "@axonrouter/data-dir";
+import { existsSync, execSyncCmd, spawnCmd, osPlatform, osTmpdir, pathJoin, unlinkAbsolute } from "@axonrouter/data-dir";
 import { startLogin } from "./tailscaleLogin";
 import { startDaemonWithPassword } from "./tailscaleDaemonRuntime";
 
@@ -179,8 +179,7 @@ async function installTailscaleWindows(log: (message: string) => void) {
     });
     child.on("close", (c) => {
       try {
-        const fs = require("fs") as typeof import("fs");
-        fs.unlinkSync(msiPath);
+        unlinkAbsolute(msiPath);
       } catch {
         // ignore
       }

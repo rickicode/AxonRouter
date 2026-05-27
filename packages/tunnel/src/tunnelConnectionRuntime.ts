@@ -1,6 +1,5 @@
 import { getDeps } from "./deps";
-import crypto from "node:crypto";
-import { hostname } from "node:os";
+import { osHostname, cryptoCreateHash, cryptoRandomUUID } from "@axonrouter/data-dir";
 import { loadTunnelStateSnapshot, resolveTunnelShortId, saveTunnelConnectionState } from "./tunnelStateAccess";
 import * as cloudflared from "./cloudflared";
 
@@ -27,10 +26,10 @@ export function isTunnelReconnecting() {
 
 function getMachineId() {
   try {
-    const raw = hostname();
-    return crypto.createHash("sha256").update(raw + MACHINE_ID_SALT).digest("hex").substring(0, 16);
+    const raw = osHostname();
+    return cryptoCreateHash("sha256").update(raw + MACHINE_ID_SALT).digest("hex").substring(0, 16);
   } catch {
-    return crypto.randomUUID().replace(/-/g, "").substring(0, 16);
+    return cryptoRandomUUID().replace(/-/g, "").substring(0, 16);
   }
 }
 

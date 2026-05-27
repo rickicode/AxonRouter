@@ -2,6 +2,7 @@ import type { ChildProcess, SpawnOptionsWithoutStdio } from 'node:child_process'
 import type { WriteStream } from 'node:fs';
 import type { IncomingMessage, ClientRequest } from 'node:http';
 import type { Stats } from 'node:fs';
+import type { Hash } from 'node:crypto';
 
 /** Returns the platform-specific data directory for axonrouter. */
 export declare function getDataDir(): string;
@@ -95,3 +96,18 @@ export declare function osTmpdir(): string;
 
 /** Returns the hostname of the operating system. */
 export declare function osHostname(): string;
+
+/** Creates a write stream for an absolute path (outside the data directory). */
+export declare function createWriteStreamAbsolute(p: string): WriteStream;
+
+/** Removes a file or directory at an absolute path (outside the data directory). */
+export declare function rmAbsolute(p: string, opts?: { recursive?: boolean; force?: boolean }): void;
+
+/** Unlinks (deletes) a file at an absolute path (outside the data directory). */
+export declare function unlinkAbsolute(p: string): void;
+
+/** Creates a hash object using the specified algorithm (e.g., 'sha256'). */
+export declare function cryptoCreateHash(algorithm: string): Hash;
+
+/** Generates a random UUID (v4). */
+export declare function cryptoRandomUUID(): string;

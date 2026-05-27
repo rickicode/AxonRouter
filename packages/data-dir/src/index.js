@@ -3,6 +3,7 @@ import { join, dirname, isAbsolute } from 'node:path';
 import { execSync, spawn } from 'node:child_process';
 import { get as httpsGetRaw } from 'node:https';
 import { platform, arch, homedir, tmpdir, hostname } from 'node:os';
+import { createHash, randomUUID } from 'node:crypto';
 
 /**
  * Returns the platform-specific data directory for axonrouter.
@@ -222,4 +223,39 @@ export function osTmpdir() {
  */
 export function osHostname() {
   return hostname();
+}
+
+/**
+ * Creates a write stream for an absolute path (outside the data directory).
+ */
+export function createWriteStreamAbsolute(p) {
+  return createWriteStream(p);
+}
+
+/**
+ * Removes a file or directory at an absolute path (outside the data directory).
+ */
+export function rmAbsolute(p, opts) {
+  return rmSync(p, opts);
+}
+
+/**
+ * Unlinks (deletes) a file at an absolute path (outside the data directory).
+ */
+export function unlinkAbsolute(p) {
+  return unlinkSync(p);
+}
+
+/**
+ * Creates a hash object using the specified algorithm (e.g., 'sha256').
+ */
+export function cryptoCreateHash(algorithm) {
+  return createHash(algorithm);
+}
+
+/**
+ * Generates a random UUID (v4).
+ */
+export function cryptoRandomUUID() {
+  return randomUUID();
 }

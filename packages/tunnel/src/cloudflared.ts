@@ -14,6 +14,8 @@ import {
   dataFileExists,
   mkdirForData,
   createWriteStreamForData,
+  createWriteStreamAbsolute,
+  rmAbsolute,
   statDataFile,
   openDataFile,
   readDataFd,
@@ -94,9 +96,8 @@ function downloadFile(url, dest) {
       const relPath = dest.slice(dataDir.length).replace(/^\//, "");
       file = createWriteStreamForData(relPath);
     } else {
-      // For absolute paths outside data dir (shouldn't happen for cloudflared but be safe)
-      const fs = require("fs") as typeof import("fs");
-      file = fs.createWriteStream(dest);
+      // For absolute paths outside data dir
+      file = createWriteStreamAbsolute(dest);
     }
 
     httpsGet(url, (response) => {
@@ -345,8 +346,7 @@ export async function spawnQuickTunnel(localPort, onUrlUpdate) {
     if (isCleaned) return;
     isCleaned = true;
     try {
-      const fs = require("fs") as typeof import("fs");
-      fs.rmSync(configDir, { recursive: true, force: true });
+      rmAbsolute(configDir, { recursive: true, force: true });
     } catch (e) { /* ignore */ }
   };
 

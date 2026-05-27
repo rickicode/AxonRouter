@@ -1,4 +1,4 @@
-import { existsSync, execSyncCmd, spawnCmd, osPlatform, osHomedir, resolveDataPath, pathJoin } from "@axonrouter/data-dir";
+import { existsSync, execSyncCmd, spawnCmd, osPlatform, osHomedir, resolveDataPath, pathJoin, unlinkAbsolute } from "@axonrouter/data-dir";
 import { execWithPassword } from "./sudoRuntime";
 
 const IS_WINDOWS = osPlatform() === "win32";
@@ -165,8 +165,7 @@ export async function stopDaemonRuntime(sudoPassword: string) {
     const socketPath = getTailscaleSocketPath();
     try {
       if (existsSync(socketPath)) {
-        const fs = require("fs") as typeof import("fs");
-        fs.unlinkSync(socketPath);
+        unlinkAbsolute(socketPath);
       }
     } catch {
       // ignore
