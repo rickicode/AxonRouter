@@ -2,7 +2,7 @@
   "id": "FEAT-002",
   "type": "refactor",
   "description": "Move the tunnel system into a workspace package @axonrouter/tunnel and externalize it via serverExternalPackages to eliminate the remaining 24 NFT warnings. The warnings come from cloudflared.ts being traced (it has execSync/spawn with dynamic paths). By externalizing the entire tunnel package, Turbopack will skip tracing it entirely.",
-  "status": "in_progress",
+  "status": "completed",
   "steps": [
     "Step 1: Create packages/tunnel/package.json with name '@axonrouter/tunnel', private: true, type: 'module', and exports map for each submodule (cloudflared, tunnelManager, tunnelConnectionRuntime, state, shortId, cloudflaredDownloadState, tunnelStatus, tailscaleCheckAccess, tailscaleInstallAccess, tailscaleLoginAccess, tailscaleDaemonStart, tailscaleTunnelRuntime, tailscaleStatusRuntime, tailscaleFunnelRuntime, tailscaleDaemonRuntime, tailscaleInstallRuntime, tailscaleInstall, tailscaleLogin, tailscaleStatus, tailscaleMitmHooksRuntime, sudoRuntime). It should depend on '@axonrouter/data-dir': 'workspace:*'",
     "Step 2: Move ALL files from src/lib/tunnel/ into packages/tunnel/src/ (cloudflared.ts, tunnelManager.ts, tunnelConnectionRuntime.ts, state.ts, shortId.ts, cloudflaredDownloadState.ts, tunnelStatus.ts, tailscaleCheckAccess.ts, tailscaleInstallAccess.ts, tailscaleLoginAccess.ts, tailscaleDaemonStart.ts, tailscaleTunnelRuntime.ts, tailscaleStatusRuntime.ts, tailscaleFunnelRuntime.ts, tailscaleDaemonRuntime.ts, tailscaleInstallRuntime.ts, tailscaleInstall.ts, tailscaleLogin.ts, tailscaleStatus.ts, tailscaleMitmHooksRuntime.ts, sudoRuntime.ts)",
@@ -35,5 +35,5 @@
     "grep 'ignoreIssue' /projects/sandbox/AxonRouter/next.config.ts || echo 'NONE (good)'"
   ],
   "blocked_reason": null,
-  "findings": "The remaining 24 NFT warnings all trace through: next.config.ts <- src/lib/tunnel/cloudflared.ts <- src/shared/services/initializeApp.ts <- src/lib/initApp.ts. The cloudflared.ts file has execSync/spawn with dynamic paths that Turbopack cannot scope. Moving the entire tunnel system into an external workspace package will prevent Turbopack from tracing into it at all."
+  "findings": "Successfully eliminated all NFT warnings by: 1) Moving tunnel files to packages/tunnel/ workspace package, 2) Compiling to JS via tsc (Turbopack traces .ts files as source regardless of location), 3) Using createRequire-based wrappers in @axonrouter/data-dir for child_process and https (makes them opaque to NFT tracer), 4) Adding @axonrouter/tunnel to serverExternalPackages, 5) Excluding packages/tunnel from root tsconfig include. Key insight: serverExternalPackages alone does NOT prevent NFT tracing - the package must use .js files AND node built-in imports must be opaque (via createRequire pattern) to avoid triggering the tracer."
 }
