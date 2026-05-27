@@ -62,7 +62,7 @@ export function getDownloadStatus() {
 function downloadFile(url, dest) {
   return new Promise((resolve, reject) => {
     // Ensure parent directory exists before creating write stream
-    const destDir = path.dirname(dest);
+    const destDir = path.dirname(/*turbopackIgnore: true*/ dest);
     if (!fs.existsSync(destDir)) {
       fs.mkdirSync(destDir, { recursive: true });
     }
