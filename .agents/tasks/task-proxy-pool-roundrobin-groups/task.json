@@ -1,0 +1,7 @@
+{
+  "task_id": "task-proxy-pool-roundrobin-groups",
+  "task_description": "Redesign the proxy pool system to support round-robin proxy groups with sticky and pure round-robin modes. Groups contain multiple proxy pools and rotate/stick according to mode. Each provider/connection can be assigned to a group or individual pool. Strict proxy mode fails requests instead of falling back to direct. The UI remains in the Proxy Pool menu with good UX including check-before-change logic and bulk remove functionality.",
+  "status": "in_progress",
+  "feature_order": ["FEAT-001", "FEAT-002"],
+  "blocked_reason": null
+}

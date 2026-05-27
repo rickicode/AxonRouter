@@ -191,6 +191,86 @@ export async function deleteProxyPool(id) {
   return removed;
 }
 
+// --- Proxy Groups (Round-Robin) ---
+
+export async function getProxyGroups(filter: any = {}) {
+  const db = await getDb();
+  let groups: any[] = db.data.proxyGroups || [];
+
+  if (filter.isActive !== undefined) groups = groups.filter((g) => g.isActive === filter.isActive);
+
+  return groups.sort((a: any, b: any) => Number(new Date(b.updatedAt || 0)) - Number(new Date(a.updatedAt || 0)));
+}
+
+export async function getProxyGroupById(id) {
+  const db = await getDb();
+  return (db.data.proxyGroups || []).find((group) => group.id === id) || null;
+}
+
+export async function createProxyGroup(data) {
+  const db = await getDb();
+  let group;
+  await withLocalDbMutex(async () => {
+    await safeRead(db);
+    if (!db.data.proxyGroups) db.data.proxyGroups = [];
+
+    const now = new Date().toISOString();
+    group = {
+      id: data.id || uuidv4(),
+      name: data.name,
+      mode: data.mode === "sticky" ? "sticky" : "roundrobin",
+      stickyLimit: typeof data.stickyLimit === "number" && data.stickyLimit >= 1 ? data.stickyLimit : 1,
+      strictProxy: data.strictProxy === true,
+      proxyPoolIds: Array.isArray(data.proxyPoolIds) ? data.proxyPoolIds : [],
+      isActive: data.isActive !== undefined ? data.isActive : true,
+      createdAt: now,
+      updatedAt: now,
+    };
+
+    db.data.proxyGroups.push(group);
+    await persistDbWrite(db);
+  });
+  return group;
+}
+
+export async function updateProxyGroup(id, data) {
+  const db = await getDb();
+  let result = null;
+  await withLocalDbMutex(async () => {
+    await safeRead(db);
+    if (!db.data.proxyGroups) db.data.proxyGroups = [];
+
+    const index = db.data.proxyGroups.findIndex((group) => group.id === id);
+    if (index === -1) return;
+
+    db.data.proxyGroups[index] = {
+      ...db.data.proxyGroups[index],
+      ...data,
+      updatedAt: new Date().toISOString(),
+    };
+
+    await persistDbWrite(db);
+    result = db.data.proxyGroups[index];
+  });
+  return result;
+}
+
+export async function deleteProxyGroup(id) {
+  const db = await getDb();
+  let removed = null;
+  await withLocalDbMutex(async () => {
+    await safeRead(db);
+    if (!db.data.proxyGroups) db.data.proxyGroups = [];
+
+    const index = db.data.proxyGroups.findIndex((group) => group.id === id);
+    if (index === -1) return;
+
+    [removed] = db.data.proxyGroups.splice(index, 1);
+    await persistDbWrite(db);
+  });
+  return removed;
+}
+
 // --- Model Aliases ---
 
 export async function getModelAliases() {
