@@ -391,6 +391,13 @@ export const PROVIDERS = {
       "x-command-code-version": "0.25.0"
     }
   },
+  freebuff: {
+    baseUrl: "https://www.codebuff.com/api/v1/chat/completions",
+    format: "openai",
+    headers: {
+      "User-Agent": "ai-sdk/openai-compatible/0.0.96/codebuff-freebuff"
+    }
+  },
 };
 
 export const OLLAMA_LOCAL_DEFAULT_HOST = "http://localhost:11434";

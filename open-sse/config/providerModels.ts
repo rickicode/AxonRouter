@@ -575,6 +575,9 @@ export const PROVIDER_MODELS = {
     { id: "gpt-5.5", name: "GPT-5.5" },
     { id: "gpt-5.3-codex", name: "GPT-5.3 Codex" },
   ],
+  freebuff: [
+    { id: "deepseek/deepseek-v4-flash", name: "DeepSeek V4 Flash (Free)" },
+  ],
 
   // TTS entries are loaded from ttsModels.js via buildTtsProviderModels()
   ...buildTtsProviderModels(),

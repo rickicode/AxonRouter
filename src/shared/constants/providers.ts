@@ -115,7 +115,6 @@ export const APIKEY_PROVIDERS = {
   [MORPH_MANAGED_PROVIDER_ID]: MORPH_MANAGED_PROVIDER,
   commandcode: { id: "commandcode", alias: "ccmd", name: "Command Code", icon: "terminal", color: "#6366F1", textIcon: "CC", website: "https://commandcode.ai", passthroughModels: true, serviceKinds: ["llm"], apiKeyCompatible: true },
   freebuff: { id: "freebuff", alias: "fb", name: "Freebuff", icon: "terminal", color: "#06B6D4", textIcon: "FB", website: "https://www.codebuff.com", authHint: "Uses the installed Freebuff login flow and imports credentials from ~/.config/manicode/credentials.json.", hasProviderSpecificData: true, serviceKinds: ["llm"] },
-  freebuff: { id: "freebuff", alias: "fb", name: "Freebuff", icon: "terminal", color: "#06B6D4", textIcon: "FB", website: "https://www.codebuff.com", authHint: "Uses the installed Freebuff login flow and imports credentials from ~/.config/manicode/credentials.json.", hasProviderSpecificData: true, serviceKinds: ["llm"] },
   glm: { id: "glm", alias: "glm", name: "GLM Coding", icon: "code", color: "#2563EB", textIcon: "GL", website: "https://open.bigmodel.cn", apiKeyCompatible: true },
   "glm-cn": { id: "glm-cn", alias: "glm-cn", name: "GLM (China)", icon: "code", color: "#DC2626", textIcon: "GC", website: "https://open.bigmodel.cn", apiKeyCompatible: true },
   kimi: { id: "kimi", alias: "kimi", name: "Kimi", icon: "psychology", color: "#1E3A8A", textIcon: "KM", website: "https://kimi.moonshot.cn", serviceKinds: ["llm", "webSearch"], apiKeyCompatible: true },

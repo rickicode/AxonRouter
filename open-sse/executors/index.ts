@@ -15,6 +15,7 @@ import { OpenCodeZenExecutor } from "./opencode-zen";
 import { OpenCodeProviderExecutor } from "./opencode-provider";
 import { GrokWebExecutor } from "./grok-web";
 import { PerplexityWebExecutor } from "./perplexity-web";
+import { FreebuffExecutor } from "./freebuff";
 import { DefaultExecutor } from "./default";
 
 const executors = {
@@ -38,6 +39,7 @@ const executors = {
   "opencode-provider": new OpenCodeProviderExecutor(),
   "grok-web": new GrokWebExecutor(),
   "perplexity-web": new PerplexityWebExecutor(),
+  freebuff: new FreebuffExecutor(),
 };
 
 const defaultCache = new Map();
@@ -71,3 +73,4 @@ export { OpenCodeZenExecutor } from "./opencode-zen";
 export { OpenCodeProviderExecutor } from "./opencode-provider";
 export { GrokWebExecutor } from "./grok-web";
 export { PerplexityWebExecutor } from "./perplexity-web";
+export { FreebuffExecutor } from "./freebuff";
