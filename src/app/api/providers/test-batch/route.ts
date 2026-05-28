@@ -5,6 +5,8 @@ import {
   FREE_PROVIDERS,
   OAUTH_PROVIDERS,
   APIKEY_PROVIDERS,
+  FREE_TIER_PROVIDERS,
+  WEB_COOKIE_PROVIDERS,
   OPENAI_COMPATIBLE_PREFIX,
   ANTHROPIC_COMPATIBLE_PREFIX,
 } from "@/shared/constants/providers";
@@ -22,8 +24,10 @@ function getAuthGroup(providerId: any, connection: any = null) {
   
   // Fallback to constants
   if (FREE_PROVIDERS[providerId]) return "free";
+  if (FREE_TIER_PROVIDERS[providerId]) return "freetier";
   if (OAUTH_PROVIDERS[providerId]) return "oauth";
   if (APIKEY_PROVIDERS[providerId]) return "apikey";
+  if (WEB_COOKIE_PROVIDERS[providerId]) return "webcookie";
   if (
     typeof providerId === "string" &&
     (providerId.startsWith(OPENAI_COMPATIBLE_PREFIX) || providerId.startsWith(ANTHROPIC_COMPATIBLE_PREFIX))
@@ -65,11 +69,15 @@ export async function POST(request: Request) {
       connectionsToTest = allConnections.filter((c) => getAuthGroup(c.provider, c) === "apikey");
     } else if (mode === "compatible") {
       connectionsToTest = allConnections.filter((c) => isCompatibleProvider(c.provider));
+    } else if (mode === "webcookie") {
+      connectionsToTest = allConnections.filter((c) => getAuthGroup(c.provider, c) === "webcookie");
+    } else if (mode === "freetier") {
+      connectionsToTest = allConnections.filter((c) => getAuthGroup(c.provider, c) === "freetier");
     } else if (mode === "all") {
       connectionsToTest = allConnections;
     } else {
       return NextResponse.json(
-        { error: "Invalid mode. Use: provider, oauth, free, apikey, compatible, all" },
+        { error: "Invalid mode. Use: provider, oauth, free, apikey, compatible, webcookie, freetier, all" },
         { status: 400 }
       );
     }
