@@ -2,7 +2,7 @@
   "id": "FEAT-004",
   "type": "fix",
   "description": "Strengthen API routing/translation layer for completeness and fix existing inconsistencies: add opencode-zen to open-sse/config/providers.ts so it is properly routed instead of falling through to DefaultExecutor, ensure targetFormat annotations on providerModels entries are respected during translation selection, and add missing provider entries in the routing config for providers that currently rely on DefaultExecutor but need specific headers or URL construction.",
-  "status": "in_progress",
+  "status": "completed",
   "steps": [
     "1. Add 'opencode-zen' entry in open-sse/config/providers.ts: baseUrl 'https://opencode.ai', format 'openai', headers with x-opencode-client. This ensures opencode-zen no longer silently falls through to DefaultExecutor with generic behavior.",
     "2. Add 'opencode-provider' entry in open-sse/config/providers.ts: baseUrl 'https://opencode.ai', format 'openai', headers with x-opencode-client.",
@@ -24,5 +24,5 @@
     "export PATH=/root/.nvm/versions/node/v22.22.3/bin:$PATH && npm run test"
   ],
   "blocked_reason": null,
-  "findings": ""
+  "findings": "Fixed opencode-go.ts CLAUDE_FORMAT_MODELS missing qwen3.6-plus and qwen3.5-plus. Providers opencode-zen and opencode-provider already existed in config from FEAT-002. All 195 test files pass (1134 tests), typecheck clean."
 }
