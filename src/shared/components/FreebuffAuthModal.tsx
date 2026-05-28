@@ -1,7 +1,7 @@
 "use client";
 
 import { CheckCircle2, ExternalLink, Info, LoaderCircle, Terminal, Clock3, ShieldCheck, Sparkles } from "lucide-react";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import PropTypes from "prop-types";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -34,12 +34,12 @@ export default function FreebuffAuthModal({ isOpen, onSuccess, onClose }) {
   const preLaunchCredentialsMtimeRef = useRef(0);
   const preLaunchInstanceOwnerMtimeRef = useRef(0);
 
-  const clearPollingTimer = () => {
+  const clearPollingTimer = useCallback(() => {
     if (pollTimerRef.current) {
       clearTimeout(pollTimerRef.current);
       pollTimerRef.current = null;
     }
-  };
+  }, []);
 
   const buildFingerprintSignature = (data) => {
     if (!data || typeof data !== "object") return "";
@@ -52,7 +52,7 @@ export default function FreebuffAuthModal({ isOpen, onSuccess, onClose }) {
     ].join("|");
   };
 
-  const detectCredentials = async ({ silent = false } = {}) => {
+  const detectCredentials = useCallback(async ({ silent = false } = {}) => {
     if (!silent) {
       setDetecting(true);
       setError(null);
@@ -83,13 +83,16 @@ export default function FreebuffAuthModal({ isOpen, onSuccess, onClose }) {
         setDetecting(false);
       }
     }
-  };
+  }, []);
 
   const activeCredentials = freshDetected || null;
+  const detectedCredentialsMtimeMs = typeof detected?.credentialsMtimeMs === "number"
+    ? detected.credentialsMtimeMs
+    : null;
   const detectedAtLabel = useMemo(() => {
-    if (typeof detected?.credentialsMtimeMs !== "number") return null;
-    return new Date(detected.credentialsMtimeMs).toLocaleString();
-  }, [detected?.credentialsMtimeMs]);
+    if (detectedCredentialsMtimeMs === null) return null;
+    return new Date(detectedCredentialsMtimeMs).toLocaleString();
+  }, [detectedCredentialsMtimeMs]);
   const statusTone = useMemo(() => {
     if (error) return "error";
     if (freshDetected) return "success";
@@ -152,11 +155,11 @@ export default function FreebuffAuthModal({ isOpen, onSuccess, onClose }) {
     }
   };
 
-  const stopAutoPolling = () => {
+  const stopAutoPolling = useCallback(() => {
     clearPollingTimer();
     pollAttemptRef.current = 0;
     setAutoPolling(false);
-  };
+  }, [clearPollingTimer]);
 
   const handleRealtest = async () => {
     if (!activeCredentials?.authToken) {
@@ -262,18 +265,21 @@ export default function FreebuffAuthModal({ isOpen, onSuccess, onClose }) {
 
   useEffect(() => {
     if (!isOpen) return undefined;
-    setStatusMessage("");
-    setRealtestResult(null);
-    setFreshDetected(null);
-    setLaunchAuthUrl("");
-    setLaunchOutput("");
-    void detectCredentials();
+    const resetTimer = window.setTimeout(() => {
+      setStatusMessage("");
+      setRealtestResult(null);
+      setFreshDetected(null);
+      setLaunchAuthUrl("");
+      setLaunchOutput("");
+      void detectCredentials();
+    }, 0);
 
     return () => {
+      window.clearTimeout(resetTimer);
       stopAutoPolling();
       setStatusMessage("");
     };
-  }, [isOpen]);
+  }, [detectCredentials, isOpen, stopAutoPolling]);
 
   const handleLaunchLogin = async () => {
     setLaunching(true);

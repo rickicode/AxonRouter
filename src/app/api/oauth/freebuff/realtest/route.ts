@@ -2,8 +2,9 @@ import { NextResponse } from "next/server";
 import {
   FREEBUFF_DEFAULT_CLIENT_ID,
   FREEBUFF_DEFAULT_MODEL,
+  ensureFreebuffSession,
   explainFreebuffError,
-  getFreebuffSession,
+  extractFreebuffFingerprint,
   sendFreebuffCompletion,
   startFreebuffRun,
 } from "@/lib/freebuff/probe";
@@ -37,7 +38,13 @@ export async function POST(request: Request) {
       ? body.model.trim()
       : FREEBUFF_DEFAULT_MODEL;
 
-    const session = await getFreebuffSession(authToken);
+    const session = await ensureFreebuffSession(authToken, {
+      model,
+      forceJoin: true,
+    });
+    const activeSessionPayload = session.join?.data || session.session?.data;
+    const sessionClientId = extractFreebuffFingerprint(activeSessionPayload) || clientId;
+    const freebuffInstanceId = extractFreebuffFingerprint(activeSessionPayload);
     const run = await startFreebuffRun(authToken, agentId);
 
     let completion = null;
@@ -45,7 +52,8 @@ export async function POST(request: Request) {
       completion = await sendFreebuffCompletion(authToken, {
         runId: run.data.runId,
         prompt,
-        clientId,
+        clientId: sessionClientId,
+        freebuffInstanceId,
         model,
       });
     }
@@ -53,9 +61,21 @@ export async function POST(request: Request) {
     return NextResponse.json({
       ok: true,
       session: {
-        status: session.response.status,
-        payload: session.data,
-        interpretation: explainFreebuffError(session.data),
+        active: session.active,
+        status: session.session?.response.status || null,
+        payload: session.session?.data || null,
+        interpretation: explainFreebuffError(session.session?.data),
+      },
+      join: session.join
+        ? {
+            status: session.join.response.status,
+            payload: session.join.data,
+            interpretation: explainFreebuffError(session.join.data),
+          }
+        : null,
+      activeSession: {
+        payload: session.join?.data || session.session.data,
+        interpretation: explainFreebuffError(session.join?.data || session.session.data),
       },
       run: {
         status: run.response.status,

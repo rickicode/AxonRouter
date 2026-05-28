@@ -8,8 +8,11 @@ import {
   buildFreebuffRunStartRequest,
   explainFreebuffError,
   extractFreebuffFingerprint,
+  ensureFreebuffSession,
   isValidFreebuffCombo,
   getFreebuffSession,
+  joinFreebuffSession,
+  resolveFreebuffClientId,
   startFreebuffRun,
   sendFreebuffCompletion,
 } from "../../src/lib/freebuff/probe.ts";
@@ -76,6 +79,18 @@ describe("freebuff probe helpers", () => {
     expect(extractFreebuffFingerprint({ instanceId: "fp-123" })).toBe("fp-123");
   });
 
+  it("resolves the freebuff client id from imported runtime metadata", () => {
+    expect(resolveFreebuffClientId({
+      providerSpecificData: { instanceId: "inst-123", fingerprint: "fp-123" },
+    })).toBe("inst-123");
+
+    expect(resolveFreebuffClientId({
+      providerSpecificData: { fingerprint: "fp-123" },
+    })).toBe("fp-123");
+
+    expect(resolveFreebuffClientId({})).toBe("axonrouter-freebuff-probe");
+  });
+
   it("calls the expected endpoints for session, run, and completion probes", async () => {
     const fetchMock = vi.fn()
       .mockResolvedValueOnce({ json: async () => ({ status: "active", instanceId: "inst-1" }) })
@@ -89,6 +104,7 @@ describe("freebuff probe helpers", () => {
     const completion = await sendFreebuffCompletion("token-abc", {
       runId: "run-1",
       prompt: "hello",
+      freebuffInstanceId: "inst-1",
     });
 
     expect(session.data).toMatchObject({ status: "active", instanceId: "inst-1" });
@@ -123,7 +139,58 @@ describe("freebuff probe helpers", () => {
       codebuff_metadata: expect.objectContaining({
         run_id: "run-1",
         cost_mode: "free",
+        freebuff_instance_id: "inst-1",
       }),
     });
+  });
+
+  it("joins a freebuff session when no active session exists", async () => {
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce({ json: async () => ({ status: "none" }) })
+      .mockResolvedValueOnce({
+        json: async () => ({
+          status: "active",
+          instanceId: "inst-1",
+          remainingMs: 3_600_000,
+        }),
+      });
+
+    global.fetch = fetchMock as any;
+
+    const result = await ensureFreebuffSession("token-abc");
+
+    expect(result.active).toBe(true);
+    expect(result.join?.data).toMatchObject({ status: "active", instanceId: "inst-1" });
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      1,
+      "https://www.codebuff.com/api/v1/freebuff/session",
+      expect.objectContaining({ method: "GET" }),
+    );
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      2,
+      "https://www.codebuff.com/api/v1/freebuff/session",
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify({ model: FREEBUFF_DEFAULT_MODEL }),
+      }),
+    );
+  });
+
+  it("can post a freebuff session join request directly", async () => {
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce({ json: async () => ({ status: "rate_limited" }) });
+
+    global.fetch = fetchMock as any;
+
+    const join = await joinFreebuffSession("token-abc");
+
+    expect(join.data).toMatchObject({ status: "rate_limited" });
+    expect(fetchMock).toHaveBeenCalledWith(
+      "https://www.codebuff.com/api/v1/freebuff/session",
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify({ model: FREEBUFF_DEFAULT_MODEL }),
+      }),
+    );
   });
 });

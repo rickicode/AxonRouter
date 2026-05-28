@@ -684,10 +684,67 @@ Specialized executors:
 - `opencode-go`
 - `grok-web`
 - `perplexity-web`
+- `freebuff` (alias: `fb`)
 
 Default executor path:
 
 - providers not in the specialized map are routed to `open-sse/executors/default.ts` and cached per provider
+
+### Freebuff Provider (Free-Tier Codebuff)
+
+Freebuff is the free-tier mode of Codebuff (`codebuff.com`). It provides free access to DeepSeek models with rate limits.
+
+**Key files:**
+- `open-sse/executors/freebuff.ts`: specialized executor with session lifecycle and retry
+- `src/lib/freebuff/probe.ts`: API client library (session, run, completion helpers)
+- `src/app/api/oauth/freebuff/*`: auth routes (auto-detect, import, login)
+- `src/shared/components/FreebuffAuthModal.tsx`: dashboard auth UI
+- `scripts/freebuff-probe.ts`: CLI probe script
+- `tests/unit/freebuff-*.test.ts`: unit tests
+
+**Session lifecycle:**
+
+```mermaid
+flowchart TD
+    A[Request masuk] --> B[ensureFreebuffSession
+forceJoin=false]
+    B --> C{Session aktif?}
+    C -- Yes --> D[REUSE session
+hemat rate limit]
+    C -- No --> E{Alasan?}
+    E -- expired/inactive --> F[AUTO-JOIN
+POST /api/v1/freebuff/session]
+    E -- rate_limited --> G[Throw error
+quota habis]
+    E -- country_blocked --> G
+    D --> H[startFreebuffRun
+POST /api/v1/agent-runs]
+    F --> H
+    H --> I[POST /api/v1/chat/completions
+dengan codebuff_metadata]
+    I --> J{Response status?}
+    J -- 200 --> K[Return SSE/JSON response]
+    J -- 426/409 --> L[forceJoin=true
+fresh session]
+    L --> M[Retry completion
+satu kali]
+    M --> K
+    J -- 4xx/5xx --> N[Return error]
+```
+
+**Rate limits:** 5 completions per Pacific-day (resets 07:00 PT). Session lifetime ~1 hour.
+
+**Critical metadata fields** (server rejects with 426 if missing):
+- `codebuff_metadata.run_id`: from `startFreebuffRun()`
+- `codebuff_metadata.client_id`: session fingerprint or default probe ID
+- `codebuff_metadata.cost_mode`: always `"free"`
+- `codebuff_metadata.freebuff_instance_id`: session `instanceId` (REQUIRED — fallback chain: session fingerprint → clientId → default ID)
+- `provider.order`: `["deepseek"]`
+- `provider.allow_fallbacks`: `true`
+
+**Retry mechanism:** On HTTP 426 (`freebuff_update_required`) or 409 (`session_superseded`), the executor force-joins a fresh session and retries the completion once. This handles session expiry between the session check and the actual completion request.
+
+**Auth flow:** Credentials auto-detected from `~/.config/manicode/credentials.json` (shared with freebuff CLI). Dashboard modal supports auto-detect, CLI login, and manual token entry.
 
 ## Format Translation Coverage
 

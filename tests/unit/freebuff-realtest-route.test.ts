@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const getFreebuffSession = vi.fn();
+const ensureFreebuffSession = vi.fn();
 const startFreebuffRun = vi.fn();
 const sendFreebuffCompletion = vi.fn();
 const explainFreebuffError = vi.fn((payload) => payload?.error || payload?.status || null);
@@ -18,25 +18,30 @@ vi.mock("next/server", () => ({
 vi.mock("@/lib/freebuff/probe", () => ({
   FREEBUFF_DEFAULT_CLIENT_ID: "axonrouter-freebuff-probe",
   FREEBUFF_DEFAULT_MODEL: "deepseek/deepseek-v4-flash",
-  getFreebuffSession,
+  ensureFreebuffSession,
   startFreebuffRun,
   sendFreebuffCompletion,
   explainFreebuffError,
+  extractFreebuffFingerprint: (payload: any) => payload?.instanceId,
 }));
 
 describe("Freebuff realtest route", () => {
   beforeEach(() => {
     vi.resetModules();
-    getFreebuffSession.mockReset();
+    ensureFreebuffSession.mockReset();
     startFreebuffRun.mockReset();
     sendFreebuffCompletion.mockReset();
     explainFreebuffError.mockClear();
   });
 
   it("runs session, run, and completion probes in one request", async () => {
-    getFreebuffSession.mockResolvedValue({
-      response: { status: 200 },
-      data: { status: "active" },
+    ensureFreebuffSession.mockResolvedValue({
+      active: true,
+      session: {
+        response: { status: 200 },
+        data: { status: "active", instanceId: "session-inst-123" },
+      },
+      join: null,
     });
     startFreebuffRun.mockResolvedValue({
       response: { status: 200 },
@@ -55,11 +60,15 @@ describe("Freebuff realtest route", () => {
     }));
 
     expect(response.status).toBe(200);
-    expect(getFreebuffSession).toHaveBeenCalledWith("token-123");
+    expect(ensureFreebuffSession).toHaveBeenCalledWith("token-123", {
+      model: "deepseek/deepseek-v4-flash",
+      forceJoin: true,
+    });
     expect(startFreebuffRun).toHaveBeenCalledWith("token-123", undefined);
     expect(sendFreebuffCompletion).toHaveBeenCalledWith("token-123", expect.objectContaining({
       runId: "run-123",
-      clientId: "fp-123",
+      clientId: "session-inst-123",
+      freebuffInstanceId: "session-inst-123",
     }));
     expect(response.body).toMatchObject({
       ok: true,

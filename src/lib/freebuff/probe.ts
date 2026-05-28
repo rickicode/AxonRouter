@@ -14,6 +14,11 @@ export type FreebuffProbeCredential = {
   providerSpecificData?: Record<string, unknown>;
 };
 
+export type FreebuffCredentialLike = {
+  providerSpecificData?: Record<string, unknown> | null;
+  [key: string]: unknown;
+} | null | undefined;
+
 export type FreebuffSessionResponse = {
   status?: string;
   accessTier?: string;
@@ -40,6 +45,7 @@ export type FreebuffCompletionRequest = {
     run_id: string;
     client_id: string;
     cost_mode: "free";
+    freebuff_instance_id?: string;
   };
   provider: {
     order: string[];
@@ -79,6 +85,7 @@ export function buildFreebuffCompletionRequest(options: {
   runId: string;
   prompt: string;
   clientId?: string;
+  freebuffInstanceId?: string;
   model?: string;
   providerOrder?: string[];
   maxTokens?: number;
@@ -93,6 +100,7 @@ export function buildFreebuffCompletionRequest(options: {
       run_id: options.runId,
       client_id: options.clientId || FREEBUFF_DEFAULT_CLIENT_ID,
       cost_mode: "free",
+      ...(options.freebuffInstanceId ? { freebuff_instance_id: options.freebuffInstanceId } : {}),
     },
     provider: {
       order: providerOrder,
@@ -106,6 +114,36 @@ export function extractFreebuffFingerprint(session: FreebuffSessionResponse | nu
   const direct = session.instanceId;
   if (typeof direct === "string" && direct.trim()) return direct.trim();
   return undefined;
+}
+
+export function resolveFreebuffClientId(credentials?: FreebuffCredentialLike) {
+  const providerSpecificData = credentials?.providerSpecificData;
+  const source = providerSpecificData && typeof providerSpecificData === "object"
+    ? providerSpecificData
+    : credentials && typeof credentials === "object"
+      ? credentials
+      : {};
+
+  const candidateKeys = ["instanceId", "fingerprint", "fingerprintId", "accountId"];
+  for (const key of candidateKeys) {
+    const value = source[key];
+    if (typeof value === "string" && value.trim()) {
+      return value.trim();
+    }
+  }
+
+  return FREEBUFF_DEFAULT_CLIENT_ID;
+}
+
+export function isFreebuffSessionActive(session: FreebuffSessionResponse | null | undefined) {
+  if (!session || typeof session !== "object") return false;
+  if (session.status !== "active") return false;
+  if (typeof session.remainingMs === "number" && session.remainingMs <= 0) return false;
+  if (typeof session.expiresAt === "string") {
+    const expiresAtMs = Date.parse(session.expiresAt);
+    if (Number.isFinite(expiresAtMs) && expiresAtMs <= Date.now()) return false;
+  }
+  return true;
 }
 
 export function buildFreebuffCredentialRecord(input: FreebuffProbeCredential) {
@@ -148,13 +186,55 @@ export function explainFreebuffError(payload: any) {
   return null;
 }
 
-export async function getFreebuffSession(apiKey: string) {
+export async function getFreebuffSession(apiKey: string, instanceId?: string) {
   const response = await fetch(buildFreebuffSessionUrl(), {
     method: "GET",
-    headers: buildFreebuffHeaders(apiKey),
+    headers: buildFreebuffHeaders(apiKey, instanceId ? { "X-Freebuff-Instance-Id": instanceId } : {}),
   });
   const data = await response.json().catch(() => null);
   return { response, data };
+}
+
+export async function joinFreebuffSession(apiKey: string, model = FREEBUFF_DEFAULT_MODEL) {
+  const response = await fetch(buildFreebuffSessionUrl(), {
+    method: "POST",
+    headers: buildFreebuffHeaders(apiKey),
+    body: JSON.stringify({ model }),
+  });
+  const data = await response.json().catch(() => null);
+  return { response, data };
+}
+
+export async function ensureFreebuffSession(apiKey: string, options: {
+  instanceId?: string;
+  model?: string;
+  forceJoin?: boolean;
+} = {}) {
+  if (options.forceJoin) {
+    const join = await joinFreebuffSession(apiKey, options.model || FREEBUFF_DEFAULT_MODEL);
+    return {
+      active: isFreebuffSessionActive(join.data),
+      session: null,
+      join,
+    };
+  }
+
+  const session = await getFreebuffSession(apiKey, options.instanceId);
+  if (isFreebuffSessionActive(session.data)) {
+    return { active: true, session, join: null };
+  }
+
+  const status = session.data?.status;
+  if (status === "rate_limited" || status === "country_blocked" || status === "banned") {
+    return { active: false, session, join: null };
+  }
+
+  const join = await joinFreebuffSession(apiKey, options.model || FREEBUFF_DEFAULT_MODEL);
+  return {
+    active: isFreebuffSessionActive(join.data),
+    session,
+    join,
+  };
 }
 
 export async function startFreebuffRun(apiKey: string, agentId = FREEBUFF_DEFAULT_AGENT_ID) {
@@ -171,6 +251,7 @@ export async function sendFreebuffCompletion(apiKey: string, options: {
   runId: string;
   prompt: string;
   clientId?: string;
+  freebuffInstanceId?: string;
   model?: string;
   providerOrder?: string[];
   maxTokens?: number;
