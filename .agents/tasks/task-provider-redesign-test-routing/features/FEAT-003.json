@@ -2,7 +2,7 @@
   "id": "FEAT-003",
   "type": "fix",
   "description": "Audit the provider test system to ensure ALL provider types can be tested. The batch test at src/app/api/providers/test-batch/route.ts iterates through connections from getCurrentActiveProviderConnections() and calls testSingleConnection for each. The issue: providers with no connections (unconfigured) cannot be tested, and some provider types (OAuth, Free, Web Cookie) may have test limitations. The getProviderTestCapabilities function in providers.ts defines what each provider supports. Ensure: (1) the test-batch API correctly groups and tests all provider types including web cookie, (2) the frontend always shows the test button regardless of provider type, (3) the getProviderTestCapabilities function handles all edge cases (deprecated providers, compatible providers, providers with no serviceKinds).",
-  "status": "in_progress",
+  "status": "completed",
   "steps": [
     "Read src/app/api/providers/test-batch/route.ts to understand how connections are grouped and tested. Verify all auth type groups (free, oauth, apikey, compatible, web-cookie) are handled.",
     "Add 'webcookie' mode support to the test-batch route handler - currently it only handles: provider, oauth, free, apikey, compatible, all. Add 'webcookie' group filter for WEB_COOKIE_PROVIDERS.",
@@ -24,5 +24,5 @@
     "npm run test"
   ],
   "blocked_reason": null,
-  "findings": ""
+  "findings": "All 13 tests pass including new edge case tests. Typecheck passes clean. The AUDIO_ONLY_PROVIDERS set correctly identifies providers without LLM capability. The LOCAL_PROVIDERS set correctly identifies self-hosted providers. No pre-existing test failures in the affected test files. FEAT-002 noted sqlite-related test failures that are unrelated to these changes."
 }
