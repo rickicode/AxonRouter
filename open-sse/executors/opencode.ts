@@ -2,7 +2,7 @@ import { BaseExecutor } from "./base";
 import { PROVIDERS } from "../config/providers";
 
 // Models that use /zen/v1/messages (claude format)
-const MESSAGES_MODELS = new Set(["big-pickle"]);
+const MESSAGES_MODELS = new Set(["minimax-m2.5-free"]);
 
 export class OpenCodeExecutor extends BaseExecutor {
   constructor() {

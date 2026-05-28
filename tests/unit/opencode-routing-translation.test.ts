@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { PROVIDERS } from "../../open-sse/config/providers";
 import { PROVIDER_MODELS } from "../../open-sse/config/providerModels";
+import { OpenCodeExecutor } from "../../open-sse/executors/opencode";
 import { OpenCodeGoExecutor } from "../../open-sse/executors/opencode-go";
 import { OpenCodeZenExecutor } from "../../open-sse/executors/opencode-zen";
 import { OpenCodeProviderExecutor } from "../../open-sse/executors/opencode-provider";
@@ -127,6 +128,32 @@ describe("opencode routing and translation", () => {
     for (const modelId of claudeModels) {
       const url = executor.buildUrl(modelId);
       expect(url, `Model ${modelId} should route to /messages`).toContain("/messages");
+    }
+  });
+
+  it("OpenCodeExecutor routes oc claude-format models to /messages", () => {
+    const executor = new OpenCodeExecutor();
+    const claudeModels = (PROVIDER_MODELS["oc"] || [])
+      .filter(m => m.targetFormat === "claude")
+      .map(m => m.id);
+
+    expect(claudeModels.length).toBeGreaterThan(0);
+    for (const modelId of claudeModels) {
+      const url = executor.buildUrl(modelId);
+      expect(url, `Model ${modelId} should route to /messages`).toContain("/messages");
+    }
+  });
+
+  it("OpenCodeExecutor routes oc non-claude models to /chat/completions", () => {
+    const executor = new OpenCodeExecutor();
+    const nonClaudeModels = (PROVIDER_MODELS["oc"] || [])
+      .filter(m => !m.targetFormat)
+      .map(m => m.id);
+
+    expect(nonClaudeModels.length).toBeGreaterThan(0);
+    for (const modelId of nonClaudeModels) {
+      const url = executor.buildUrl(modelId);
+      expect(url, `Model ${modelId} should route to /chat/completions`).toContain("/chat/completions");
     }
   });
 });
