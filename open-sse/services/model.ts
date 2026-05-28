@@ -58,6 +58,14 @@ const ALIAS_TO_PROVIDER_ID = {
   vertex: "vertex",
   vxp: "vertex-partner",
   "vertex-partner": "vertex-partner",
+  // Freebuff provider
+  fb: "freebuff",
+  freebuff: "freebuff",
+  // OpenCode variants
+  ocz: "opencode-zen",
+  "opencode-zen": "opencode-zen",
+  ocp: "opencode-provider",
+  "opencode-provider": "opencode-provider",
   // Web cookie providers
   gw: "grok-web",
   "grok-web": "grok-web",
