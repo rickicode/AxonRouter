@@ -2,6 +2,7 @@
  * OAuth Configuration Constants
  */
 import { platform, arch } from "os";
+import { getGeminiCliCredentials } from "../../../../open-sse/utils/publicCreds";
 
 const env = (name: string) => process.env[name] || "";
 
@@ -44,8 +45,8 @@ export const CODEX_CONFIG = {
 
 // Gemini (Google) OAuth Configuration (Standard OAuth2)
 export const GEMINI_CONFIG = {
-  clientId: env("GEMINI_OAUTH_CLIENT_ID"),
-  clientSecret: env("GEMINI_OAUTH_CLIENT_SECRET"),
+  clientId: getGeminiCliCredentials().clientId,
+  clientSecret: getGeminiCliCredentials().clientSecret,
   authorizeUrl: "https://accounts.google.com/o/oauth2/v2/auth",
   tokenUrl: "https://oauth2.googleapis.com/token",
   userInfoUrl: "https://www.googleapis.com/oauth2/v1/userinfo",

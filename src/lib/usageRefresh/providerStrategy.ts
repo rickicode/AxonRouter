@@ -62,7 +62,14 @@ const STRATEGIES: Record<string, Partial<UsageRefreshStrategy>> = {
     timeoutMs: 10000,
   },
   antigravity: {
+    requiresQuota: true,
     timeoutMs: 10000,
+    credentialRefreshOnTransientFailure: true,
+  },
+  "gemini-cli": {
+    requiresQuota: true,
+    timeoutMs: 10000,
+    credentialRefreshOnTransientFailure: true,
   },
   github: {
     timeoutMs: 10000,
