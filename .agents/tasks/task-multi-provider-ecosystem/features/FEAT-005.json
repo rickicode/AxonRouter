@@ -2,7 +2,7 @@
   "id": "FEAT-005",
   "type": "chore",
   "description": "Final verification pass: run typecheck, lint, test, and build to confirm zero errors across the entire stack. Fix any remaining issues introduced by FEAT-001 through FEAT-004. Ensure cross-layer contract consistency between backend registry, API routes, translation layer, frontend UI, and test utilities.",
-  "status": "pending",
+  "status": "in_progress",
   "steps": [
     "1. Run npm run typecheck and fix any type errors.",
     "2. Run npm run lint and fix any lint errors or warnings.",
