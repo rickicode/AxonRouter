@@ -1,5 +1,9 @@
 import { NextResponse } from "next/server";
-import { createCurrentProviderConnection } from "@/lib/connectionAccess";
+import {
+  createCurrentProviderConnection,
+  getCurrentProviderConnections,
+  updateCurrentProviderConnection,
+} from "@/lib/connectionAccess";
 import { finalizePostConnectValidation } from "@/lib/oauth/postConnectValidation";
 import { getFreebuffSession } from "@/lib/freebuff/probe";
 
@@ -12,7 +16,24 @@ type FreebuffImportBody = {
   fingerprintHash?: unknown;
   instanceId?: unknown;
   authMethod?: unknown;
+  /** If set, update this connection instead of creating a new one (reset flow). */
+  replaceConnectionId?: unknown;
 };
+
+/** Deduplicate by email — return the existing connection with the same email, if any. */
+async function findConnectionByEmail(
+  email: string,
+  excludeId?: string,
+): Promise<{ id: string } | null> {
+  const all = await getCurrentProviderConnections({ provider: "freebuff" });
+  if (!Array.isArray(all)) return null;
+  for (const conn of all) {
+    if (conn.email === email && conn.id !== excludeId) {
+      return { id: conn.id };
+    }
+  }
+  return null;
+}
 
 export async function POST(request: Request) {
   try {
@@ -32,7 +53,7 @@ export async function POST(request: Request) {
       }, { status: 400 });
     }
 
-    // Resolve display name: email > name > accountId > fallback
+    // ── Resolve fields ──────────────────────────────────────────────────
     const email = typeof body.email === "string" && body.email.trim()
       ? body.email.trim()
       : null;
@@ -40,7 +61,6 @@ export async function POST(request: Request) {
       || (typeof body.name === "string" && body.name.trim() ? body.name.trim() : null)
       || (typeof body.accountId === "string" && body.accountId.trim() ? body.accountId.trim() : null)
       || "Freebuff Account";
-
     const fingerprintId = typeof body.fingerprintId === "string" && body.fingerprintId.trim()
       ? body.fingerprintId.trim()
       : null;
@@ -59,37 +79,60 @@ export async function POST(request: Request) {
     const authMethod = typeof body.authMethod === "string" && body.authMethod.trim()
       ? body.authMethod.trim()
       : "import-session";
+    const replaceConnectionId = typeof body.replaceConnectionId === "string" && body.replaceConnectionId.trim()
+      ? body.replaceConnectionId.trim()
+      : null;
 
-    const connection = await createCurrentProviderConnection({
+    // ── Dedup: reject same email ────────────────────────────────────────
+    if (email) {
+      const colliding = await findConnectionByEmail(email, replaceConnectionId ?? undefined);
+      if (colliding) {
+        const reason = replaceConnectionId
+          ? "Akun ini sudah terhubung sebagai koneksi lain. Import gagal."
+          : "Email ini sudah terhubung di koneksi Freebuff lain. Gunakan Reset Credentials untuk mengganti.";
+        return NextResponse.json({ error: reason }, { status: 409 });
+      }
+    }
+
+    const providerSpecificData = {
+      authMethod,
+      accountId,
+      fingerprint: fingerprintId,
+      fingerprintHash,
+      instanceId,
+      name: userName,
+      email,
+    };
+    const connectionPayload = {
       provider: "freebuff",
-      authType: "apikey",
+      authType: "apikey" as const,
       name: displayName,
-      email, // Store email so it shows like OAuth connections
+      email,
       apiKey: authToken,
-      routingStatus: "eligible",
-      quotaState: session.response.status === 429 ? "cooldown" : "ok",
-      authState: "ok",
-      healthStatus: "healthy",
-      reasonCode: session.response.status === 429 ? "quota_exhausted" : null,
-      reasonDetail: session.response.status === 429 ? (sessionPayload?.message || "Daily session limit reached") : null,
+      routingStatus: "eligible" as const,
+      quotaState: (session.response.status === 429 ? "cooldown" : "ok") as "cooldown" | "ok",
+      authState: "ok" as const,
+      healthStatus: "healthy" as const,
+      reasonCode: session.response.status === 429 ? ("quota_exhausted" as const) : null,
+      reasonDetail: session.response.status === 429
+        ? (sessionPayload?.message || "Daily session limit reached")
+        : null,
       nextRetryAt: sessionPayload?.resetAt || null,
       resetAt: sessionPayload?.resetAt || null,
       lastCheckedAt: new Date().toISOString(),
-      providerSpecificData: {
-        authMethod,
-        accountId,
-        fingerprint: fingerprintId,
-        fingerprintHash,
-        instanceId,
-        name: userName, // Store original name from credentials.json
-        email, // Also store email in providerSpecificData for executor use
-      },
-    });
+      providerSpecificData,
+    };
 
-    const latestConnection = await finalizePostConnectValidation(connection, "Freebuff Import");
+    // ── Create or update ────────────────────────────────────────────────
+    const connection = replaceConnectionId
+      ? await updateCurrentProviderConnection(replaceConnectionId, connectionPayload)
+      : await createCurrentProviderConnection(connectionPayload);
+
+    const latestConnection = await finalizePostConnectValidation(connection, `Freebuff ${replaceConnectionId ? "Reset" : "Import"}`);
 
     return NextResponse.json({
       success: true,
+      replaced: !!replaceConnectionId,
       connection: {
         id: latestConnection.id,
         provider: latestConnection.provider,
