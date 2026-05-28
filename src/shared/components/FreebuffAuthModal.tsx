@@ -25,6 +25,9 @@ export default function FreebuffAuthModal({ isOpen, onSuccess, onClose }) {
   const [realtestResult, setRealtestResult] = useState(null);
   const [launchAuthUrl, setLaunchAuthUrl] = useState("");
   const [launchOutput, setLaunchOutput] = useState("");
+  const [manualToken, setManualToken] = useState("");
+  const [showManualInput, setShowManualInput] = useState(false);
+  const [manualImporting, setManualImporting] = useState(false);
   const pollAttemptRef = useRef(0);
   const pollTimerRef = useRef(null);
   const preLaunchFingerprintRef = useRef("");
@@ -185,6 +188,39 @@ export default function FreebuffAuthModal({ isOpen, onSuccess, onClose }) {
       setStatusMessage("");
     } finally {
       setRealTesting(false);
+    }
+  };
+
+  const handleManualImport = async () => {
+    if (!manualToken.trim()) {
+      setError("Please paste a valid token.");
+      return;
+    }
+    setManualImporting(true);
+    setError(null);
+    setStatusMessage("Importing manually pasted token...");
+    try {
+      const res = await fetch("/api/oauth/freebuff/import", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          authToken: manualToken.trim(),
+          authMethod: "manual-token",
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error || "Failed to import token");
+      }
+      setStatusMessage("Token imported successfully.");
+      setManualToken("");
+      onSuccess?.(data.connection || null);
+      onClose();
+    } catch (err) {
+      setError(err?.message || "Failed to import token");
+      setStatusMessage("");
+    } finally {
+      setManualImporting(false);
     }
   };
 
@@ -415,6 +451,41 @@ export default function FreebuffAuthModal({ isOpen, onSuccess, onClose }) {
             <Button onClick={onClose} variant="ghost" className="w-full" disabled={importing || launching || realTesting}>
               Cancel
             </Button>
+          </div>
+
+          {/* Manual Token Input */}
+          <div className="border-t border-border pt-4">
+            <button
+              type="button"
+              onClick={() => setShowManualInput(!showManualInput)}
+              className="flex items-center gap-2 text-sm font-medium text-text-muted hover:text-text-primary transition-colors"
+            >
+              <Terminal className="size-4" />
+              {showManualInput ? "Hide Manual Token Input" : "Paste Token Manually"}
+            </button>
+            {showManualInput && (
+              <div className="mt-3 flex flex-col gap-3">
+                <div className="rounded-md border border-border bg-background/70 p-3 text-xs text-text-muted">
+                  <p className="font-medium text-text-primary mb-1">Where to find your token:</p>
+                  <p>Open <code className="rounded bg-muted px-1 py-0.5">~/.config/manicode/credentials.json</code> and copy the value of <code className="rounded bg-muted px-1 py-0.5">default.authToken</code></p>
+                </div>
+                <input
+                  type="password"
+                  value={manualToken}
+                  onChange={(e) => setManualToken(e.target.value)}
+                  placeholder="Paste your Freebuff auth token here"
+                  className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm placeholder:text-text-muted focus:border-primary focus:outline-none"
+                />
+                <Button
+                  onClick={handleManualImport}
+                  disabled={!manualToken.trim() || manualImporting || importing}
+                  className="w-full"
+                >
+                  {manualImporting ? <Spinner className="size-4" /> : null}
+                  {manualImporting ? "Importing..." : "Import Token"}
+                </Button>
+              </div>
+            )}
           </div>
 
           {launchOutput ? (
