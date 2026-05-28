@@ -8,6 +8,22 @@ import { normalizeUsageCheckSettings } from "@/lib/localDb/normalize";
 const appGlobal = ((global as any).__appSingleton ??= {});
 
 const SCHEDULER_PER_CONNECTION_TIMEOUT_MS = 30000; // 30s max per connection
+const SCHEDULER_JITTER_MIN_PCT = 0.25;
+const SCHEDULER_JITTER_MAX_PCT = 0.45;
+
+function isFutureTimestamp(value: string | null | undefined): boolean {
+  if (!value) return false;
+  const ts = new Date(value).getTime();
+  return Number.isFinite(ts) && ts > Date.now();
+}
+
+function getNextRetryWaitMs(conn: any): number | null {
+  if (!conn?.nextRetryAt) return null;
+  const ts = new Date(conn.nextRetryAt).getTime();
+  if (!Number.isFinite(ts)) return null;
+  const remaining = ts - Date.now();
+  return remaining > 0 ? remaining : null;
+}
 
 async function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
   let timeoutId: ReturnType<typeof setTimeout>;
@@ -75,7 +91,9 @@ export class UsageCheckScheduler {
       this.timerId = null;
     }
 
-    const intervalMs = this.settings.intervalMinutes * 60 * 1000;
+    const baseMs = this.settings.intervalMinutes * 60 * 1000;
+    const jitter = baseMs * (SCHEDULER_JITTER_MIN_PCT + Math.random() * (SCHEDULER_JITTER_MAX_PCT - SCHEDULER_JITTER_MIN_PCT));
+    const intervalMs = baseMs + Math.round(jitter);
     this.nextRunAt = new Date(Date.now() + intervalMs).toISOString();
     this.timerId = setTimeout(() => {
       this.runScheduled().catch((error) => {
@@ -111,11 +129,21 @@ export class UsageCheckScheduler {
           USAGE_SUPPORTED_PROVIDERS.includes(conn.provider),
       );
 
-      const totalConnections = oauthConnections.length;
+      // Skip connections with future nextRetryAt (in backoff)
+      const now = Date.now();
+      const activeConnections = oauthConnections.filter((conn: any) => {
+        if (!conn?.nextRetryAt) return true;
+        const retryAt = new Date(conn.nextRetryAt).getTime();
+        return !Number.isFinite(retryAt) || retryAt <= now;
+      });
+      const skippedCount = oauthConnections.length - activeConnections.length;
+      const originalTotal = oauthConnections.length;
+
+      const totalConnections = activeConnections.length;
       let refreshedCount = 0;
       let errorCount = 0;
 
-      for (const conn of oauthConnections) {
+      for (const conn of activeConnections) {
         try {
           await withTimeout(
             runDedupedUsageRefreshJob(conn.id, () =>
@@ -134,9 +162,11 @@ export class UsageCheckScheduler {
       const completedAt = new Date().toISOString();
       const status = errorCount === 0 ? "success" : "partial";
       const message =
-        errorCount === 0
-          ? `Refreshed ${refreshedCount}/${totalConnections} connections`
-          : `Refreshed ${refreshedCount}/${totalConnections}, ${errorCount} errors`;
+        skippedCount > 0
+          ? `Refreshed ${refreshedCount}/${totalConnections}, ${errorCount} errors, ${skippedCount}/${originalTotal} skipped (backoff)`
+          : errorCount === 0
+            ? `Refreshed ${refreshedCount}/${totalConnections} connections`
+            : `Refreshed ${refreshedCount}/${totalConnections}, ${errorCount} errors`;
 
       this.lastRun = {
         startedAt,

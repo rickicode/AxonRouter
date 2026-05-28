@@ -6,6 +6,7 @@ import { getFreebuffSession } from "@/lib/freebuff/probe";
 type FreebuffImportBody = {
   authToken?: unknown;
   name?: unknown;
+  email?: unknown;
   accountId?: unknown;
   fingerprintId?: unknown;
   fingerprintHash?: unknown;
@@ -21,6 +22,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Auth token is required" }, { status: 400 });
     }
 
+    // Validate token against Freebuff API
     const session = await getFreebuffSession(authToken);
     const sessionPayload = session.data && typeof session.data === "object" ? session.data : null;
     const validToken = session.response.ok || session.response.status === 429;
@@ -30,16 +32,39 @@ export async function POST(request: Request) {
       }, { status: 400 });
     }
 
-    const name = typeof body.name === "string" && body.name.trim()
+    // Resolve display name: email > name > accountId > fallback
+    const email = typeof body.email === "string" && body.email.trim()
+      ? body.email.trim()
+      : null;
+    const displayName = email
+      || (typeof body.name === "string" && body.name.trim() ? body.name.trim() : null)
+      || (typeof body.accountId === "string" && body.accountId.trim() ? body.accountId.trim() : null)
+      || "Freebuff Account";
+
+    const fingerprintId = typeof body.fingerprintId === "string" && body.fingerprintId.trim()
+      ? body.fingerprintId.trim()
+      : null;
+    const fingerprintHash = typeof body.fingerprintHash === "string" && body.fingerprintHash.trim()
+      ? body.fingerprintHash.trim()
+      : null;
+    const instanceId = typeof body.instanceId === "string" && body.instanceId.trim()
+      ? body.instanceId.trim()
+      : null;
+    const accountId = typeof body.accountId === "string" && body.accountId.trim()
+      ? body.accountId.trim()
+      : null;
+    const userName = typeof body.name === "string" && body.name.trim()
       ? body.name.trim()
-      : typeof body.accountId === "string" && body.accountId.trim()
-        ? body.accountId.trim()
-        : "Freebuff Account";
+      : null;
+    const authMethod = typeof body.authMethod === "string" && body.authMethod.trim()
+      ? body.authMethod.trim()
+      : "import-session";
 
     const connection = await createCurrentProviderConnection({
       provider: "freebuff",
       authType: "apikey",
-      name,
+      name: displayName,
+      email, // Store email so it shows like OAuth connections
       apiKey: authToken,
       routingStatus: "eligible",
       quotaState: session.response.status === 429 ? "cooldown" : "ok",
@@ -51,11 +76,13 @@ export async function POST(request: Request) {
       resetAt: sessionPayload?.resetAt || null,
       lastCheckedAt: new Date().toISOString(),
       providerSpecificData: {
-        authMethod: typeof body.authMethod === "string" && body.authMethod.trim() ? body.authMethod.trim() : "import-session",
-        ...(typeof body.accountId === "string" && body.accountId.trim() ? { accountId: body.accountId.trim() } : {}),
-        ...(typeof body.fingerprintId === "string" && body.fingerprintId.trim() ? { fingerprint: body.fingerprintId.trim() } : {}),
-        ...(typeof body.fingerprintHash === "string" && body.fingerprintHash.trim() ? { fingerprintHash: body.fingerprintHash.trim() } : {}),
-        ...(typeof body.instanceId === "string" && body.instanceId.trim() ? { instanceId: body.instanceId.trim() } : {}),
+        authMethod,
+        accountId,
+        fingerprint: fingerprintId,
+        fingerprintHash,
+        instanceId,
+        name: userName, // Store original name from credentials.json
+        email, // Also store email in providerSpecificData for executor use
       },
     });
 

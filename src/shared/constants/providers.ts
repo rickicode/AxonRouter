@@ -67,6 +67,7 @@ export const FREE_TIER_PROVIDERS = {
   ollama: { id: "ollama", alias: "ollama", name: "Ollama Cloud", icon: "cloud", color: "#ffffffff", textIcon: "OL", website: "https://ollama.com", notice: { text: "Free tier: light usage, 1 cloud model at a time (limits reset every 5h & 7d). Pro 0/mo. Max 00/mo.", apiKeyUrl: "https://ollama.com/settings/keys" } },
   vertex: { id: "vertex", alias: "vx", name: "Vertex AI", icon: "cloud", color: "#4285F4", textIcon: "VX", website: "https://cloud.google.com/vertex-ai", notice: { text: "New Google Cloud accounts get 00 free credits. Requires GCP project + Service Account with Vertex AI API enabled.", apiKeyUrl: "https://console.cloud.google.com/iam-admin/serviceaccounts" } },
   gemini: { id: "gemini", alias: "gemini", name: "Gemini", icon: "diamond", color: "#4285F4", textIcon: "GE", website: "https://ai.google.dev", serviceKinds: ["llm", "embedding", "image", "imageToText", "webSearch", "stt", "tts"], sttConfig: { format: "gemini-stt", authType: "apiKey", baseUrl: "https://generativelanguage.googleapis.com/v1beta/models", authHeader: "bearer" } },
+  freebuff: { id: "freebuff", alias: "fb", name: "Freebuff", icon: "terminal", color: "#06B6D4", textIcon: "FB", website: "https://www.codebuff.com", notice: { text: "Auth via freebuff CLI. Import detected credentials from ~/.config/manicode/credentials.json or paste the full JSON." }, hasProviderSpecificData: true, serviceKinds: ["llm"] },
 };
 
 // Thinking config definitions
@@ -114,7 +115,6 @@ export const MORPH_MANAGED_PROVIDER = {
 export const APIKEY_PROVIDERS = {
   [MORPH_MANAGED_PROVIDER_ID]: MORPH_MANAGED_PROVIDER,
   commandcode: { id: "commandcode", alias: "ccmd", name: "Command Code", icon: "terminal", color: "#6366F1", textIcon: "CC", website: "https://commandcode.ai", passthroughModels: true, serviceKinds: ["llm"], apiKeyCompatible: true },
-  freebuff: { id: "freebuff", alias: "fb", name: "Freebuff", icon: "terminal", color: "#06B6D4", textIcon: "FB", website: "https://www.codebuff.com", authHint: "Uses the installed Freebuff login flow and imports credentials from ~/.config/manicode/credentials.json.", hasProviderSpecificData: true, serviceKinds: ["llm"] },
   glm: { id: "glm", alias: "glm", name: "GLM Coding", icon: "code", color: "#2563EB", textIcon: "GL", website: "https://open.bigmodel.cn", apiKeyCompatible: true },
   "glm-cn": { id: "glm-cn", alias: "glm-cn", name: "GLM (China)", icon: "code", color: "#DC2626", textIcon: "GC", website: "https://open.bigmodel.cn", apiKeyCompatible: true },
   kimi: { id: "kimi", alias: "kimi", name: "Kimi", icon: "psychology", color: "#1E3A8A", textIcon: "KM", website: "https://kimi.moonshot.cn", serviceKinds: ["llm", "webSearch"], apiKeyCompatible: true },

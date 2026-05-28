@@ -29,9 +29,9 @@ describe("Freebuff provider wiring", () => {
   });
 
   it("registers Freebuff as an API-key provider with metadata support", async () => {
-    const { APIKEY_PROVIDERS, resolveProviderId } = await import("../../src/shared/constants/providers.ts");
+    const { FREE_TIER_PROVIDERS, resolveProviderId } = await import("../../src/shared/constants/providers.ts");
 
-    expect(APIKEY_PROVIDERS.freebuff).toMatchObject({
+    expect(FREE_TIER_PROVIDERS.freebuff).toMatchObject({
       id: "freebuff",
       alias: "fb",
       name: "Freebuff",

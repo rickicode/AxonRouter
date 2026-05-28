@@ -1,9 +1,10 @@
-import { getDeps } from "./deps";
+import { getDeps, getDepsSafe } from "./deps";
 import { generateShortId } from "./shortId";
 
 function loadTunnelState() {
-  const { loadSingletonFromSqlite } = getDeps();
-  return loadSingletonFromSqlite("tunnelState") || {};
+  const deps = getDepsSafe();
+  if (!deps) return {};
+  return deps.loadSingletonFromSqlite("tunnelState") || {};
 }
 
 function saveTunnelState(next) {
