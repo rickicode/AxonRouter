@@ -742,6 +742,7 @@ export default function ProvidersPage() {
       </div> */}
 
       {/* API Key Compatible Providers — dynamic (OpenAI/Anthropic compatible) */}
+      {(activeFilter === "all" || activeFilter === "compatible") && (
       <div className="flex flex-col gap-4">
         <div className="flex items-center justify-between">
           <h2 className="flex items-center gap-2 text-xl font-bold tracking-[-0.02em] text-[var(--color-text-main)]">
@@ -809,6 +810,7 @@ export default function ProvidersPage() {
           </div>
         )}
       </div>
+      )}
 
       <AddOpenAICompatibleModal
         isOpen={showAddCompatibleModal}

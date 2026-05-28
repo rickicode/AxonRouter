@@ -11,26 +11,22 @@ const BASE = "https://opencode.ai/zen/go/v1";
 const KIMI_REASONING_PLACEHOLDER = " ";
 
 export class OpenCodeGoExecutor extends BaseExecutor {
-  _lastModel: string | null;
-
   constructor() {
     super("opencode-go", PROVIDERS["opencode-go"]);
-    this._lastModel = null;
   }
 
-  // buildUrl runs before buildHeaders in BaseExecutor.execute, cache model here
+  // buildUrl runs before buildHeaders in BaseExecutor.execute
   buildUrl(model) {
-    this._lastModel = model;
     return CLAUDE_FORMAT_MODELS.has(model)
       ? `${BASE}/messages`
       : `${BASE}/chat/completions`;
   }
 
-  buildHeaders(credentials, stream = true) {
+  buildHeaders(credentials, stream = true, model?: string) {
     const key = credentials?.apiKey || credentials?.accessToken;
     const headers = { "Content-Type": "application/json" };
 
-    if (CLAUDE_FORMAT_MODELS.has(this._lastModel)) {
+    if (model && CLAUDE_FORMAT_MODELS.has(model)) {
       headers["x-api-key"] = key;
       headers["anthropic-version"] = "2023-06-01";
     } else {

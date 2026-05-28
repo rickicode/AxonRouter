@@ -10,25 +10,21 @@ const CLAUDE_FORMAT_MODELS = new Set([
 const BASE = "https://opencode.ai/zen/v1";
 
 export class OpenCodeZenExecutor extends BaseExecutor {
-  _lastModel: string | null;
-
   constructor() {
     super("opencode-zen", PROVIDERS["opencode-zen"]);
-    this._lastModel = null;
   }
 
   buildUrl(model) {
-    this._lastModel = model;
     return CLAUDE_FORMAT_MODELS.has(model)
       ? `${BASE}/messages`
       : `${BASE}/chat/completions`;
   }
 
-  buildHeaders(credentials, stream = true) {
+  buildHeaders(credentials, stream = true, model?: string) {
     const key = credentials?.apiKey || credentials?.accessToken;
     const headers: Record<string, string> = { "Content-Type": "application/json" };
 
-    if (CLAUDE_FORMAT_MODELS.has(this._lastModel!)) {
+    if (model && CLAUDE_FORMAT_MODELS.has(model)) {
       headers["x-api-key"] = key;
       headers["anthropic-version"] = "2023-06-01";
     } else {
