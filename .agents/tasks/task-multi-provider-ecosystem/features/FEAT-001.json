@@ -2,7 +2,7 @@
   "id": "FEAT-001",
   "type": "feat",
   "description": "Add provider categorization system with category badges, filter UI, and API-key-compatible priority ordering to the providers page. Implement a ProviderCategoryBadge component showing category labels (Free, OAuth, API Key, Free Tier, Local, Search, Audio, etc.) and a filter bar enabling category-based filtering. Providers marked as API Key Compatible must be deterministically ordered at the top of the API Key section.",
-  "status": "in_progress",
+  "status": "completed",
   "steps": [
     "1. Create src/app/(dashboard)/dashboard/providers/components/ProviderCategoryBadge.tsx - a small badge component that takes a providerId, calls getProviderCategory() from src/shared/constants/providers.ts, and renders a colored badge with the category label. Use shadcn Badge component with appropriate color mapping (Free=green, OAuth=blue, API Key=purple, etc.).",
     "2. Create src/app/(dashboard)/dashboard/providers/components/ProviderFilterBar.tsx - a filter bar component with category filter chips (All, Free, OAuth, API Key, Free Tier, Local, Compatible) that filters the displayed providers. Use shadcn ToggleGroup or custom chip-style buttons. Accept a value/onChange pattern for the active filter.",
@@ -25,5 +25,5 @@
     "export PATH=/root/.nvm/versions/node/v22.22.3/bin:$PATH && npm run test"
   ],
   "blocked_reason": null,
-  "findings": ""
+  "findings": "All implementations completed successfully. Typecheck and all 192 test files (1110 tests) pass with zero errors. The apiKeyCompatible field was added to 30 providers total (28 in APIKEY_PROVIDERS + openrouter and nvidia in FREE_TIER_PROVIDERS). The sort in page.tsx uses localeCompare for deterministic alphabetical ordering within compatible/non-compatible groups."
 }
