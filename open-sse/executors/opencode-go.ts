@@ -2,7 +2,7 @@ import { BaseExecutor } from "./base";
 import { PROVIDERS } from "../config/providers";
 
 // Models that use /zen/go/v1/messages (Anthropic/Claude format + x-api-key auth)
-const CLAUDE_FORMAT_MODELS = new Set(["minimax-m2.5", "minimax-m2.7"]);
+const CLAUDE_FORMAT_MODELS = new Set(["minimax-m2.5", "minimax-m2.7", "qwen3.6-plus", "qwen3.5-plus"]);
 
 const BASE = "https://opencode.ai/zen/go/v1";
 
