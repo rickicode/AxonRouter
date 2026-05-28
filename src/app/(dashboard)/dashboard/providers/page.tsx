@@ -1,7 +1,7 @@
 "use client";
 
 import AppIcon from "@/shared/components/AppIcon";
-import { DownloadIcon, LoaderCircle, PlusIcon, UploadIcon } from "lucide-react";
+import { DownloadIcon, LoaderCircle, PlusIcon, UploadIcon, Zap } from "lucide-react";
 import { useState, useEffect, useRef } from "react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge as ShadcnBadge } from "@/components/ui/badge";
@@ -20,6 +20,7 @@ import {
   ANTHROPIC_COMPATIBLE_PREFIX,
   getProviderCategory,
 } from "@/shared/constants/providers";
+import { cn } from "@/lib/utils";
 import { getRelativeTime } from "@/shared/utils";
 import { useMutation } from "@tanstack/react-query";
 import { useInvalidate } from "@/shared/query";
@@ -511,6 +512,19 @@ export default function ProvidersPage() {
 
   return (
     <div className="flex flex-col gap-6">
+      <div className="flex items-center justify-between">
+        <h1 className="text-2xl font-bold tracking-tight">Providers</h1>
+        <Button
+          onClick={() => handleBatchTest("all")}
+          disabled={!!testingMode}
+          variant={testingMode === "all" ? "secondary" : "default"}
+          size="sm"
+        >
+          <Zap className={cn("size-4", testingMode === "all" && "animate-pulse")} />
+          {testingMode === "all" ? "Testing All..." : "Test All Providers"}
+        </Button>
+      </div>
+
       <Card>
         <CardContent>
           <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
@@ -587,6 +601,8 @@ export default function ProvidersPage() {
               stats={getProviderStats(key, "oauth")}
               authType="oauth"
               onToggle={(active) => handleToggleProvider(key, "oauth", active)}
+              onTest={() => handleBatchTest("provider", key)}
+              testing={testingMode === key}
             />
           ))}
         </div>
@@ -620,6 +636,8 @@ export default function ProvidersPage() {
               stats={getProviderStats(key, "oauth")}
               authType="free"
               onToggle={(active) => handleToggleProvider(key, "oauth", active)}
+              onTest={() => handleBatchTest("provider", key)}
+              testing={testingMode === key}
             />
           ))}
           {filteredFreeTierProviders.map(([key, info]) => (
@@ -630,6 +648,8 @@ export default function ProvidersPage() {
               stats={getProviderStats(key, "apikey")}
               authType="apikey"
               onToggle={(active) => handleToggleProvider(key, "apikey", active)}
+              onTest={() => handleBatchTest("provider", key)}
+              testing={testingMode === key}
             />
           ))}
         </div>
@@ -657,6 +677,8 @@ export default function ProvidersPage() {
                 stats={getProviderStats(key, "apikey")}
                 authType="apikey"
                 onToggle={(active) => handleToggleProvider(key, "apikey", active)}
+                onTest={() => handleBatchTest("provider", key)}
+                testing={testingMode === key}
               />
             ))}
           </div>
@@ -691,6 +713,8 @@ export default function ProvidersPage() {
                 stats={getProviderStats(key, "apikey")}
                 authType="apikey"
                 onToggle={(active) => handleToggleProvider(key, "apikey", active)}
+                onTest={() => handleBatchTest("provider", key)}
+                testing={testingMode === key}
               />
             ))}
         </div>
@@ -777,6 +801,8 @@ export default function ProvidersPage() {
                   onToggle={(active) =>
                     handleToggleProvider(info.id, "apikey", active)
                   }
+                  onTest={() => handleBatchTest("provider", info.id)}
+                  testing={testingMode === info.id}
                 />
               ),
             )}

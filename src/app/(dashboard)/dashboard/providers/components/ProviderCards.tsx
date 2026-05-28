@@ -1,8 +1,9 @@
 "use client";
 
-import { PauseCircle } from "lucide-react";
+import { PauseCircle, Zap } from "lucide-react";
 import PropTypes from "prop-types";
 import { Badge as ShadcnBadge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Switch } from "@/components/ui/switch";
 import ProviderIcon from "@/shared/components/ProviderIcon";
@@ -11,6 +12,7 @@ import {
   ANTHROPIC_COMPATIBLE_PREFIX,
   getProviderSupportedModes,
 } from "@/shared/constants/providers";
+import { cn } from "@/lib/utils";
 import Link from "next/link";
 import { getStatusDisplayItems } from "../statusDisplay";
 import { ProviderCategoryBadge } from "./ProviderCategoryBadge";
@@ -35,7 +37,7 @@ function ProviderStatusBadge({ children, tone = "default", showDot = false }) {
   );
 }
 
-export function ProviderCard({ providerId, provider, stats, authType, onToggle }) {
+export function ProviderCard({ providerId, provider, stats, authType, onToggle, onTest, testing }) {
   const { connected, error, errorCode, errorTime, allDisabled } = stats;
   const isNoAuth = !!provider.noAuth;
 
@@ -113,6 +115,18 @@ export function ProviderCard({ providerId, provider, stats, authType, onToggle }
               </div>
             </div>
             <div className="flex items-center gap-2">
+              {onTest && (
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="size-7"
+                  onClick={(e) => { e.preventDefault(); e.stopPropagation(); onTest(); }}
+                  disabled={testing}
+                  title="Test provider connections"
+                >
+                  <Zap className={cn("size-3.5", testing && "animate-pulse text-amber-500")} />
+                </Button>
+              )}
               {stats.total > 0 && (
                 <div
                   className="opacity-0 group-hover:opacity-100 transition-opacity"
@@ -154,6 +168,8 @@ ProviderCard.propTypes = {
   }).isRequired,
   authType: PropTypes.string,
   onToggle: PropTypes.func,
+  onTest: PropTypes.func,
+  testing: PropTypes.bool,
 };
 
 export function ApiKeyProviderCard({
@@ -162,6 +178,8 @@ export function ApiKeyProviderCard({
   stats,
   authType,
   onToggle,
+  onTest,
+  testing,
 }) {
   const isSystemManaged = provider.systemManaged === true;
   const { connected, error, errorCode, errorTime, allDisabled } = stats;
@@ -259,6 +277,18 @@ export function ApiKeyProviderCard({
               </div>
             </div>
             <div className="flex items-center gap-2">
+              {onTest && (
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="size-7"
+                  onClick={(e) => { e.preventDefault(); e.stopPropagation(); onTest(); }}
+                  disabled={testing}
+                  title="Test provider connections"
+                >
+                  <Zap className={cn("size-3.5", testing && "animate-pulse text-amber-500")} />
+                </Button>
+              )}
               {stats.total > 0 && !isSystemManaged && (
                 <div
                   className="opacity-0 group-hover:opacity-100 transition-opacity"
@@ -301,4 +331,6 @@ ApiKeyProviderCard.propTypes = {
   }).isRequired,
   authType: PropTypes.string,
   onToggle: PropTypes.func,
+  onTest: PropTypes.func,
+  testing: PropTypes.bool,
 };
