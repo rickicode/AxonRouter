@@ -2,7 +2,7 @@
   "id": "FEAT-001",
   "type": "fix",
   "description": "Fix antigravity model routing bug where MITM-mapped model prefixes fall through to commandcode. The MITM handler maps antigravity models to strings like 'kimi/model-name' or 'moonshotai/Kimi-K2.6'. When these reach the SSE chat handler directly, parseModel splits them into provider='moonshotai' + model='Kimi-K2.6'. Since 'moonshotai' is not in KNOWN_PROVIDER_IDS, it incorrectly falls back to commandcode. The fix: expand KNOWN_PROVIDER_IDS to include all provider aliases (from ALIAS_TO_ID), add the OAUTH_PROVIDERS keys explicitly, and also check if the parsed.providerAlias resolves to a known provider via resolveProviderAlias before falling back to commandcode.",
-  "status": "in_progress",
+  "status": "completed",
   "steps": [
     "Read src/sse/services/model.ts to understand the current KNOWN_PROVIDER_IDS construction and the fallback logic at lines 74-77.",
     "Read open-sse/services/model.ts to understand the ALIAS_TO_PROVIDER_ID map that resolveProviderAlias uses - this already maps ALL provider aliases to their IDs.",
@@ -22,5 +22,5 @@
     "npm run test"
   ],
   "blocked_reason": null,
-  "findings": ""
+  "findings": "The existing test file model-service-prefix-resolution.test.ts mocks @/shared/constants/providers without ALIAS_TO_ID. Had to add ALIAS_TO_ID to that mock. The open-sse/services/model.ts parseModel function already resolves aliases via resolveProviderAlias, so most known alias prefixes already get resolved to the provider ID before reaching KNOWN_PROVIDER_IDS check. The alias fallback check is primarily useful for aliases that resolveProviderAlias in open-sse misses (e.g., when providerAlias differs from parsed.provider)."
 }
