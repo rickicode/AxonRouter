@@ -533,3 +533,25 @@ export function isDeprecatedProvider(providerId: string): boolean {
 export function getProviderCount(): number {
   return Object.keys(AI_PROVIDERS).length;
 }
+
+/** Provider test contract: which test phases apply to a provider */
+export interface ProviderTestContract {
+  connectivity: boolean;
+  authValidation: boolean;
+  modelListing: boolean;
+  chatCompletion: boolean;
+}
+
+/** Get which test phases are applicable for a given provider */
+export function getProviderTestCapabilities(providerId: string): ProviderTestContract {
+  const provider = AI_PROVIDERS[providerId];
+  const isNoAuth = !!provider?.noAuth;
+  const isCookie = !!WEB_COOKIE_PROVIDERS[providerId];
+
+  return {
+    connectivity: true,
+    authValidation: !isNoAuth && !isCookie,
+    modelListing: true,
+    chatCompletion: !isNoAuth,
+  };
+}
