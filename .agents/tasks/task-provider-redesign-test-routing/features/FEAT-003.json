@@ -1,0 +1,28 @@
+{
+  "id": "FEAT-003",
+  "type": "fix",
+  "description": "Audit the provider test system to ensure ALL provider types can be tested. The batch test at src/app/api/providers/test-batch/route.ts iterates through connections from getCurrentActiveProviderConnections() and calls testSingleConnection for each. The issue: providers with no connections (unconfigured) cannot be tested, and some provider types (OAuth, Free, Web Cookie) may have test limitations. The getProviderTestCapabilities function in providers.ts defines what each provider supports. Ensure: (1) the test-batch API correctly groups and tests all provider types including web cookie, (2) the frontend always shows the test button regardless of provider type, (3) the getProviderTestCapabilities function handles all edge cases (deprecated providers, compatible providers, providers with no serviceKinds).",
+  "status": "pending",
+  "steps": [
+    "Read src/app/api/providers/test-batch/route.ts to understand how connections are grouped and tested. Verify all auth type groups (free, oauth, apikey, compatible, web-cookie) are handled.",
+    "Add 'webcookie' mode support to the test-batch route handler - currently it only handles: provider, oauth, free, apikey, compatible, all. Add 'webcookie' group filter for WEB_COOKIE_PROVIDERS.",
+    "Read the getProviderTestCapabilities function in src/shared/constants/providers.ts. Ensure it correctly handles: compatible providers (prefix-based IDs), deprecated providers, providers without serviceKinds, local providers (ollama-local, sdwebui, comfyui).",
+    "Update getProviderTestCapabilities to handle compatible provider IDs (those starting with 'openai-compatible-' or 'anthropic-compatible-') by treating them as API key providers with standard test capabilities.",
+    "In ProviderCards.tsx (and the redesigned page), ensure onTest prop is always passed to every provider card regardless of whether connections exist. The test button should appear for all providers - the backend will return empty results if no connections exist (which is informative).",
+    "Update the existing provider-test-workflows.test.ts test file to add tests for: compatible provider IDs, deprecated providers, local providers, web cookie providers - ensuring getProviderTestCapabilities returns sensible values for all.",
+    "Add test that ALL keys in AI_PROVIDERS have valid getProviderTestCapabilities output (the existing test does this, verify it still passes with new edge cases)."
+  ],
+  "acceptance_criteria": [
+    "test-batch route supports 'webcookie' mode",
+    "getProviderTestCapabilities handles compatible provider IDs (openai-compatible-*, anthropic-compatible-*)",
+    "All provider cards show test button in the UI regardless of connection count",
+    "Existing test suite passes: npm run test",
+    "npm run typecheck passes"
+  ],
+  "verification": [
+    "npm run typecheck",
+    "npm run test"
+  ],
+  "blocked_reason": null,
+  "findings": ""
+}
