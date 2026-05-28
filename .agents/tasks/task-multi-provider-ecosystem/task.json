@@ -1,0 +1,7 @@
+{
+  "task_id": "task-multi-provider-ecosystem",
+  "task_description": "Expand AxonRouter to support a broad multi-provider ecosystem with provider categorization, filtering UI, category badges, explicit OpenCode Provider variants (Free, Go, Zen, Provider), provider test workflows, and stronger API routing/translation coverage.",
+  "status": "in_progress",
+  "feature_order": ["FEAT-001", "FEAT-002", "FEAT-003", "FEAT-004", "FEAT-005"],
+  "blocked_reason": null
+}

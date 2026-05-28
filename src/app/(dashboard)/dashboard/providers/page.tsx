@@ -18,6 +18,7 @@ import {
   WEB_COOKIE_PROVIDERS,
   OPENAI_COMPATIBLE_PREFIX,
   ANTHROPIC_COMPATIBLE_PREFIX,
+  getProviderCategory,
 } from "@/shared/constants/providers";
 import { getRelativeTime } from "@/shared/utils";
 import { useMutation } from "@tanstack/react-query";
@@ -30,6 +31,7 @@ import { getDashboardConnectionStatus, getStatusDisplayItems } from "./statusDis
 import { ProviderCard, ApiKeyProviderCard } from "./components/ProviderCards";
 import { AddOpenAICompatibleModal, AddAnthropicCompatibleModal } from "./components/AddCompatibleModals";
 import { ProviderTestResultsView } from "./components/ProviderTestResults";
+import { ProviderFilterBar } from "./components/ProviderFilterBar";
 
 function extractCredentialImportRecords(payload: any) {
   if (Array.isArray(payload)) return payload;
@@ -64,6 +66,7 @@ export default function ProvidersPage() {
   const [connections, setConnections] = useState([]);
   const [providerNodes, setProviderNodes] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [activeFilter, setActiveFilter] = useState("all");
   const [showCredentialImportModal, setShowCredentialImportModal] =
     useState(false);
   const [credentialImportText, setCredentialImportText] = useState("");
@@ -304,15 +307,36 @@ export default function ProvidersPage() {
     return [providerId, info?.name, info?.alias, info?.website, info?.textIcon].some((value) => String(value || "").toLowerCase().includes(normalizedHeaderSearch));
   };
 
-  const filteredOauthProviders = Object.entries(OAUTH_PROVIDERS).filter(([key, info]) => matchesHeaderSearch(key, info));
-  const filteredFreeProviders = Object.entries(FREE_PROVIDERS).filter(([key, info]) => matchesHeaderSearch(key, info));
-  const filteredFreeTierProviders = Object.entries(FREE_TIER_PROVIDERS).filter(([key, info]) => matchesHeaderSearch(key, info));
+  const categoryFilterFn = (providerId: string) => {
+    if (activeFilter === "all") return true;
+    const category = getProviderCategory(providerId);
+    switch (activeFilter) {
+      case "free": return category === "Free";
+      case "oauth": return category === "OAuth";
+      case "apikey": return category === "API Key";
+      case "freetier": return category === "Free Tier";
+      case "local": return category === "Local";
+      case "compatible": return category === "OpenAI Compatible" || category === "Anthropic Compatible";
+      default: return true;
+    }
+  };
+
+  const filteredOauthProviders = Object.entries(OAUTH_PROVIDERS).filter(([key, info]) => matchesHeaderSearch(key, info) && categoryFilterFn(key));
+  const filteredFreeProviders = Object.entries(FREE_PROVIDERS).filter(([key, info]) => matchesHeaderSearch(key, info) && categoryFilterFn(key));
+  const filteredFreeTierProviders = Object.entries(FREE_TIER_PROVIDERS).filter(([key, info]) => matchesHeaderSearch(key, info) && categoryFilterFn(key));
   const filteredApiKeyProviders = Object.entries(APIKEY_PROVIDERS)
     .filter(([, rawInfo]) => ((rawInfo as any).serviceKinds ?? ["llm"]).includes("llm"))
-    .filter(([key, info]) => matchesHeaderSearch(key, info));
+    .filter(([key, info]) => matchesHeaderSearch(key, info) && categoryFilterFn(key));
 
   const filteredManagedApiKeyProviders = filteredApiKeyProviders.filter(([, rawInfo]) => (rawInfo as any).systemManaged === true);
-  const filteredRegularApiKeyProviders = filteredApiKeyProviders.filter(([, rawInfo]) => (rawInfo as any).systemManaged !== true);
+  const filteredRegularApiKeyProviders = filteredApiKeyProviders
+    .filter(([, rawInfo]) => (rawInfo as any).systemManaged !== true)
+    .sort(([keyA, infoA], [keyB, infoB]) => {
+      const aCompat = (infoA as any).apiKeyCompatible === true ? 0 : 1;
+      const bCompat = (infoB as any).apiKeyCompatible === true ? 0 : 1;
+      if (aCompat !== bCompat) return aCompat - bCompat;
+      return keyA.localeCompare(keyB);
+    });
 
   const getProviderStats = (providerId, authType) => {
     const providerConnections = connections.filter(
@@ -528,6 +552,9 @@ export default function ProvidersPage() {
           </div>
         </CardContent>
       </Card>
+
+      {/* Category Filter */}
+      <ProviderFilterBar value={activeFilter} onChange={setActiveFilter} />
 
       {/* OAuth Providers */}
       <div className="flex flex-col gap-4">

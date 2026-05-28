@@ -13,6 +13,7 @@ import {
 } from "@/shared/constants/providers";
 import Link from "next/link";
 import { getStatusDisplayItems } from "../statusDisplay";
+import { ProviderCategoryBadge } from "./ProviderCategoryBadge";
 
 function getProviderBadgeVariant(tone) {
   if (tone === "error") return "destructive";
@@ -74,7 +75,10 @@ export function ProviderCard({ providerId, provider, stats, authType, onToggle }
                 />
               </div>
               <div>
-                <h3 className="font-semibold">{provider.name}</h3>
+                <div className="flex items-center gap-2">
+                  <h3 className="font-semibold">{provider.name}</h3>
+                  <ProviderCategoryBadge providerId={providerId} />
+                </div>
                 <div className="flex items-center gap-2 text-xs flex-wrap">
                   {allDisabled ? (
                     <ProviderStatusBadge tone="secondary">
@@ -207,7 +211,10 @@ export function ApiKeyProviderCard({
                 />
               </div>
               <div>
-                <h3 className="font-semibold">{provider.name}</h3>
+                <div className="flex items-center gap-2">
+                  <h3 className="font-semibold">{provider.name}</h3>
+                  <ProviderCategoryBadge providerId={providerId} />
+                </div>
                 <div className="flex items-center gap-2 text-xs flex-wrap">
                   {allDisabled ? (
                     <ProviderStatusBadge tone="secondary">

@@ -1,0 +1,28 @@
+{
+  "id": "FEAT-004",
+  "type": "fix",
+  "description": "Strengthen API routing/translation layer for completeness and fix existing inconsistencies: add opencode-zen to open-sse/config/providers.ts so it is properly routed instead of falling through to DefaultExecutor, ensure targetFormat annotations on providerModels entries are respected during translation selection, and add missing provider entries in the routing config for providers that currently rely on DefaultExecutor but need specific headers or URL construction.",
+  "status": "pending",
+  "steps": [
+    "1. Add 'opencode-zen' entry in open-sse/config/providers.ts: baseUrl 'https://opencode.ai', format 'openai', headers with x-opencode-client. This ensures opencode-zen no longer silently falls through to DefaultExecutor with generic behavior.",
+    "2. Add 'opencode-provider' entry in open-sse/config/providers.ts: baseUrl 'https://opencode.ai', format 'openai', headers with x-opencode-client.",
+    "3. Add 'commandcode' entry in open-sse/config/providers.ts if not already present (verify it exists - it does exist already at line 'commandcode' in the providers map). Verify format='commandcode' and headers match what the CommandCode executor expects.",
+    "4. Verify the targetFormat field on providerModels entries (e.g., 'minimax-m2.7' in opencode-go has targetFormat: 'claude') is respected by the executor. Check that OpenCodeGoExecutor.buildUrl switches to /messages endpoint for those models, and the executor sets claude-format headers. Trace the flow in open-sse/handlers/chatCore.ts to confirm targetFormat override is applied.",
+    "5. Add tests/unit/opencode-routing-translation.test.ts validating: (a) opencode-zen has an entry in PROVIDERS config, (b) opencode-provider has an entry in PROVIDERS config, (c) targetFormat models route to messages endpoint for claude-format, (d) opencode-zen executor builds correct URLs and headers, (e) opencode-provider executor builds correct URLs and headers.",
+    "6. Run full test suite to confirm no regressions from the routing changes."
+  ],
+  "acceptance_criteria": [
+    "open-sse/config/providers.ts has entries for opencode-zen and opencode-provider",
+    "opencode-zen no longer falls through to DefaultExecutor",
+    "targetFormat: 'claude' models on opencode-go/opencode-zen correctly route to /messages endpoints",
+    "New test passes: npm run test -- opencode-routing-translation",
+    "Full test suite (npm run test) passes with zero failures",
+    "npm run typecheck passes"
+  ],
+  "verification": [
+    "export PATH=/root/.nvm/versions/node/v22.22.3/bin:$PATH && npm run typecheck",
+    "export PATH=/root/.nvm/versions/node/v22.22.3/bin:$PATH && npm run test"
+  ],
+  "blocked_reason": null,
+  "findings": ""
+}
