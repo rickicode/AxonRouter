@@ -1,184 +1,20 @@
-// Provider alias to ID mapping
-const ALIAS_TO_PROVIDER_ID = {
-  cc: "claude",
-  cx: "codex",
-  gc: "gemini-cli",
-  qw: "qwen",
-  if: "iflow",
-  ag: "antigravity",
-  gh: "github",
-  kr: "kiro",
-  cu: "cursor",
-  kc: "kilocode",
-  kmc: "kimi-coding",
-  cl: "cline",
-  oc: "opencode",
-  ocg: "opencode-go",
-  // TTS providers
-  el: "elevenlabs",
-  // API Key providers
-  openai: "openai",
-  anthropic: "anthropic",
-  gemini: "gemini",
-  openrouter: "openrouter",
-  commandcode: "commandcode",
-  ccmd: "commandcode",
-  glm: "glm",
-  kimi: "kimi",
-  minimax: "minimax",
-  "minimax-cn": "minimax-cn",
-  ds: "deepseek",
-  deepseek: "deepseek",
-  groq: "groq",
-  xai: "xai",
-  mistral: "mistral",
-  pplx: "perplexity",
-  perplexity: "perplexity",
-  together: "together",
-  fireworks: "fireworks",
-  cerebras: "cerebras",
-  cohere: "cohere",
-  nvidia: "nvidia",
-  nebius: "nebius",
-  siliconflow: "siliconflow",
-  hyp: "hyperbolic",
-  hyperbolic: "hyperbolic",
-  dg: "deepgram",
-  deepgram: "deepgram",
-  aai: "assemblyai",
-  assemblyai: "assemblyai",
-  nb: "nanobanana",
-  nanobanana: "nanobanana",
-  ch: "chutes",
-  chutes: "chutes",
-  ark: "volcengine-ark",
-  "volcengine-ark": "volcengine-ark",
-  cursor: "cursor",
-  vx: "vertex",
-  vertex: "vertex",
-  vxp: "vertex-partner",
-  "vertex-partner": "vertex-partner",
-  // Freebuff provider
-  fb: "freebuff",
-  freebuff: "freebuff",
-  // OpenCode variants
-  ocz: "opencode-zen",
-  "opencode-zen": "opencode-zen",
-  ocp: "opencode-provider",
-  "opencode-provider": "opencode-provider",
-  // Extended providers
-  // Amazon Q
-  aq: "amazon-q",
-  "amazon-q": "amazon-q",
-  // Azure
-  azure: "azure",
-  // Alibaba
-  alicode: "alicode",
-  "alicode-intl": "alicode-intl",
-  // GLM China
-  "glm-cn": "glm-cn",
-  // Ollama
-  ollama: "ollama",
-  "ollama-local": "ollama-local",
-  // MiMo
-  mimo: "mimo",
-  // Blackbox
-  bb: "blackbox",
-  blackbox: "blackbox",
-  // Huggingface
-  hf: "huggingface",
-  huggingface: "huggingface",
-  // Morph
-  morph: "morph-fast",
-  "morph-fast": "morph-fast",
-  // OmniRoute-sourced providers
-  ai21: "ai21",
-  aimlapi: "aimlapi",
-  anyscale: "anyscale",
-  arcee: "arcee",
-  avian: "avian",
-  baichuan: "baichuan",
-  baseten: "baseten",
-  bedrock: "bedrock",
-  bfl: "black-forest-labs",
-  "black-forest-labs": "black-forest-labs",
-  brave: "brave-search",
-  "brave-search": "brave-search",
-  cartesia: "cartesia",
-  centml: "centml",
-  cfai: "cloudflare-ai",
-  "cloudflare-ai": "cloudflare-ai",
-  comfyui: "comfyui",
-  constellate: "constellate",
-  crusoe: "crusoe",
-  databricks: "databricks",
-  deepinfra: "deepinfra",
-  "edge-tts": "edge-tts",
-  exa: "exa",
-  featherless: "featherless",
-  firecrawl: "firecrawl",
-  friendliai: "friendliai",
-  glhf: "glhf",
-  "google-tts": "google-tts",
-  ideogram: "ideogram",
-  infini: "infini",
-  infnet: "inference-net",
-  "inference-net": "inference-net",
-  kling: "kling",
-  kluster: "kluster",
-  lambda: "lambda",
-  lepton: "lepton",
-  lightning: "lightning-ai",
-  "lightning-ai": "lightning-ai",
-  lingyi: "lingyiwanwu",
-  lingyiwanwu: "lingyiwanwu",
-  "local-device": "local-device",
-  luma: "luma",
-  martian: "martian",
-  massed: "massed-compute",
-  "massed-compute": "massed-compute",
-  modal: "modal",
-  monsterapi: "monsterapi",
-  moonshot: "moonshot",
-  ncompass: "ncompass",
-  nineteen: "nineteen-ai",
-  "nineteen-ai": "nineteen-ai",
-  novita: "novita",
-  octoai: "octoai",
-  parasail: "parasail",
-  pioneer: "pioneer",
-  playht: "playht",
-  predguard: "predictionguard",
-  predictionguard: "predictionguard",
-  predibase: "predibase",
-  replicate: "replicate",
-  runpod: "runpod",
-  runway: "runway",
-  sambanova: "sambanova",
-  scaleway: "scaleway",
-  sdwebui: "sdwebui",
-  searxng: "searxng",
-  sensenova: "sensenova",
-  serper: "serper",
-  stability: "stability",
-  stepfun: "stepfun",
-  suno: "suno",
-  targon: "targon",
-  tavily: "tavily",
-  tensoropera: "tensoropera",
-  udio: "udio",
-  unify: "unify",
-  venice: "venice",
-  voyage: "voyage",
-  writer: "writer",
-  yi: "yi",
-  zhipu: "zhipu",
-  // Web cookie providers
-  gw: "grok-web",
-  "grok-web": "grok-web",
-  pw: "perplexity-web",
-  "perplexity-web": "perplexity-web",
-};
+import { AI_PROVIDERS } from "../../src/shared/constants/providers";
+
+// Auto-generate alias → provider ID mapping from AI_PROVIDERS
+// This ensures routing aliases never go out of sync with provider definitions.
+// For each provider, we register:
+//   1. provider.id → provider.id (e.g. "freebuff" → "freebuff")
+//   2. provider.alias → provider.id (e.g. "fb" → "freebuff")
+const ALIAS_TO_PROVIDER_ID: Record<string, string> = {};
+for (const [id, provider] of Object.entries(AI_PROVIDERS)) {
+  const p = provider as { id: string; alias?: string };
+  ALIAS_TO_PROVIDER_ID[id] = id;
+  if (p.alias && p.alias !== id) {
+    ALIAS_TO_PROVIDER_ID[p.alias] = id;
+  }
+}
+// Additional legacy aliases that don't match the standard alias field
+ALIAS_TO_PROVIDER_ID["kmc"] = "kimi-coding";
 
 /**
  * Resolve provider alias to provider ID
