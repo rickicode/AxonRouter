@@ -2,44 +2,54 @@ import { OAUTH_PROVIDERS, APIKEY_PROVIDERS } from "./config";
 import { MEDIA_PROVIDER_KINDS, AI_PROVIDERS } from "./providers";
 
 export const DASHBOARD_PRIMARY_NAV_ITEMS = [
-  { href: "/dashboard/endpoint", label: "Endpoint", icon: "app_window" },
-  { href: "/dashboard/providers", label: "Providers", icon: "network" },
-  { href: "/dashboard/combos", label: "Combos", icon: "layers" },
-  { href: "/dashboard/quota", label: "Quota Tracker", icon: "gauge" },
-  { href: "/dashboard/usage", label: "Usage", icon: "chart_column" },
-  { href: "/dashboard/analytics", label: "Analytics", icon: "data_object" },
-  { href: "/dashboard/mitm", label: "MITM", icon: "shield" },
-  { href: "/dashboard/cli-tools", label: "CLI Tools", icon: "terminal" },
-  { href: "/dashboard/morph", label: "Morph", icon: "route" },
-  { href: "/dashboard/caveman", label: "Caveman", icon: "swords" },
-  { href: "/dashboard/skills", label: "Skills", icon: "sparkles" },
-  { href: "/dashboard/mcp", label: "MCP", icon: "route" },
+  { href: "/app/home", label: "Home", icon: "home" },
+  { href: "/app/endpoint", label: "Endpoint", icon: "app_window" },
+  { href: "/app/providers", label: "Providers", icon: "network" },
+  { href: "/app/combos", label: "Combos", icon: "layers" },
+  { href: "/app/quota", label: "Quota Tracker", icon: "gauge" },
+  { href: "/app/usage", label: "Usage", icon: "chart_column" },
+  { href: "/app/analytics", label: "Analytics", icon: "data_object" },
+  { href: "/app/mitm", label: "MITM", icon: "shield" },
+  { href: "/app/cli-tools", label: "CLI Tools", icon: "terminal" },
+  { href: "/app/morph", label: "Morph", icon: "route" },
+  { href: "/app/caveman", label: "Caveman", icon: "swords" },
+  { href: "/app/skills", label: "Skills", icon: "sparkles" },
+  { href: "/app/mcp", label: "MCP", icon: "route" },
 ];
 
 export const DASHBOARD_SYSTEM_NAV_ITEMS = [
-  { href: "/dashboard/proxy-pools", label: "Proxy Pools", icon: "folder_cog" },
+  { href: "/app/proxy-pools", label: "Proxy Pools", icon: "folder_cog" },
 ];
 
 export const DASHBOARD_DEBUG_NAV_ITEMS = [
-  { href: "/dashboard/console-log", label: "Console Log", icon: "scroll_text" },
-  { href: "/dashboard/translator", label: "Translator", icon: "languages" },
+  { href: "/app/console-log", label: "Console Log", icon: "scroll_text" },
+  { href: "/app/translator", label: "Translator", icon: "languages" },
 ];
 
 export const DASHBOARD_SETTINGS_NAV_ITEM = {
-  href: "/dashboard/settings",
+  href: "/app/settings",
   label: "Settings",
   icon: "settings",
 };
 
 export const DASHBOARD_MEDIA_PROVIDERS_NAV_ITEM = {
-  href: "/dashboard/media-providers",
+  href: "/app/media-providers",
   label: "Media Providers",
   icon: "image",
 };
 
 export const DASHBOARD_STATIC_PAGE_INFO = [
   {
-    match: (pathname) => pathname === "/dashboard" || pathname === "/dashboard/endpoint",
+    match: (pathname) => pathname === "/app/home",
+    info: {
+      title: "Home",
+      description: "Provider topology overview",
+      icon: "home",
+      breadcrumbs: [],
+    },
+  },
+  {
+    match: (pathname) => pathname === "/app" || pathname === "/app/endpoint",
     info: {
       title: "Endpoint",
       description: "API endpoint and protocol configuration",
@@ -48,7 +58,7 @@ export const DASHBOARD_STATIC_PAGE_INFO = [
     },
   },
   {
-    match: (pathname) => pathname === "/dashboard/providers",
+    match: (pathname) => pathname === "/app/providers",
     info: {
       title: "Providers",
       description: "Manage your AI provider connections",
@@ -57,19 +67,19 @@ export const DASHBOARD_STATIC_PAGE_INFO = [
     },
   },
   {
-    match: (pathname) => pathname === "/dashboard/providers/new",
+    match: (pathname) => pathname === "/app/providers/new",
     info: {
       title: "Add Provider",
       description: "Create a new provider connection",
       icon: "add_circle",
       breadcrumbs: [
-        { label: "Providers", href: "/dashboard/providers" },
+        { label: "Providers", href: "/app/providers" },
         { label: "Add Provider" },
       ],
     },
   },
   {
-    match: (pathname) => pathname === "/dashboard/combos",
+    match: (pathname) => pathname === "/app/combos",
     info: {
       title: "Combos",
       description: "Model combos with fallback",
@@ -78,7 +88,7 @@ export const DASHBOARD_STATIC_PAGE_INFO = [
     },
   },
   {
-    match: (pathname) => pathname === "/dashboard/usage",
+    match: (pathname) => pathname === "/app/usage",
     info: {
       title: "Usage",
       description: "Monitor live provider activity, token consumption, and request logs",
@@ -87,7 +97,7 @@ export const DASHBOARD_STATIC_PAGE_INFO = [
     },
   },
   {
-    match: (pathname) => pathname === "/dashboard/analytics",
+    match: (pathname) => pathname === "/app/analytics",
     info: {
       title: "Analytics",
       description: "Explore historical usage, token trends, and backend-calculated spend",
@@ -96,7 +106,7 @@ export const DASHBOARD_STATIC_PAGE_INFO = [
     },
   },
   {
-    match: (pathname) => pathname === "/dashboard/quota",
+    match: (pathname) => pathname === "/app/quota",
     info: {
       title: "Quota Tracker",
       description: "Track and manage your API quota limits",
@@ -105,7 +115,7 @@ export const DASHBOARD_STATIC_PAGE_INFO = [
     },
   },
   {
-    match: (pathname) => pathname === "/dashboard/mitm",
+    match: (pathname) => pathname === "/app/mitm",
     info: {
       title: "MITM Proxy",
       description: "Intercept CLI tool traffic and route through AxonRouter",
@@ -114,7 +124,7 @@ export const DASHBOARD_STATIC_PAGE_INFO = [
     },
   },
   {
-    match: (pathname) => pathname === "/dashboard/cli-tools",
+    match: (pathname) => pathname === "/app/cli-tools",
     info: {
       title: "CLI Tools",
       description: "Configure CLI tools",
@@ -123,7 +133,7 @@ export const DASHBOARD_STATIC_PAGE_INFO = [
     },
   },
   {
-    match: (pathname) => pathname === "/dashboard/morph",
+    match: (pathname) => pathname === "/app/morph",
     info: {
       title: "Morph",
       description: "Monitor Morph routing usage and request activity",
@@ -132,7 +142,7 @@ export const DASHBOARD_STATIC_PAGE_INFO = [
     },
   },
   {
-    match: (pathname) => pathname === "/dashboard/caveman",
+    match: (pathname) => pathname === "/app/caveman",
     info: {
       title: "Caveman",
       description: "Configure caveman prompt compression and routing behavior",
@@ -141,7 +151,7 @@ export const DASHBOARD_STATIC_PAGE_INFO = [
     },
   },
   {
-    match: (pathname) => pathname === "/dashboard/skills",
+    match: (pathname) => pathname === "/app/skills",
     info: {
       title: "Skills",
       description: "Copy capability-specific skill prompts for AxonRouter workflows",
@@ -150,7 +160,7 @@ export const DASHBOARD_STATIC_PAGE_INFO = [
     },
   },
   {
-    match: (pathname) => pathname === "/dashboard/mcp",
+    match: (pathname) => pathname === "/app/mcp",
     info: {
       title: "MCP",
       description: "Monitor the MCP runtime, transports, tool inventory, and audit activity",
@@ -159,7 +169,7 @@ export const DASHBOARD_STATIC_PAGE_INFO = [
     },
   },
   {
-    match: (pathname) => pathname === "/dashboard/proxy-pools",
+    match: (pathname) => pathname === "/app/proxy-pools",
     info: {
       title: "Proxy Pools",
       description: "Manage your proxy pool configurations",
@@ -168,7 +178,7 @@ export const DASHBOARD_STATIC_PAGE_INFO = [
     },
   },
   {
-    match: (pathname) => pathname === "/dashboard/settings" || pathname === "/dashboard/profile",
+    match: (pathname) => pathname === "/app/settings" || pathname === "/app/profile",
     info: {
       title: "Settings",
       description: "Manage your preferences",
@@ -177,7 +187,7 @@ export const DASHBOARD_STATIC_PAGE_INFO = [
     },
   },
   {
-    match: (pathname) => pathname === "/dashboard/settings/pricing",
+    match: (pathname) => pathname === "/app/settings/pricing",
     info: {
       title: "Settings",
       description: "Manage your preferences",
@@ -186,7 +196,7 @@ export const DASHBOARD_STATIC_PAGE_INFO = [
     },
   },
   {
-    match: (pathname) => pathname === "/dashboard/translator",
+    match: (pathname) => pathname === "/app/translator",
     info: {
       title: "Translator",
       description: "Debug translation flow between formats",
@@ -195,7 +205,7 @@ export const DASHBOARD_STATIC_PAGE_INFO = [
     },
   },
   {
-    match: (pathname) => pathname === "/dashboard/console-log",
+    match: (pathname) => pathname === "/app/console-log",
     info: {
       title: "Console Log",
       description: "Live server console output",
@@ -204,7 +214,7 @@ export const DASHBOARD_STATIC_PAGE_INFO = [
     },
   },
   {
-    match: (pathname) => pathname === "/dashboard/basic-chat",
+    match: (pathname) => pathname === "/app/basic-chat",
     info: {
       title: "Basic Chat",
       description: "Test chat flows directly from the dashboard",
@@ -218,11 +228,14 @@ export const EMPTY_DASHBOARD_PAGE_INFO = { title: "", description: "", breadcrum
 
 export function isDashboardNavItemActive(pathname, href) {
   if (!pathname || !href) return false;
-  if (href === "/dashboard/endpoint") {
-    return pathname === "/dashboard" || pathname.startsWith("/dashboard/endpoint");
+  if (href === "/app/home") {
+    return pathname === "/app/home";
+  }
+  if (href === "/app/endpoint") {
+    return pathname === "/app" || pathname.startsWith("/app/endpoint");
   }
   if (href === DASHBOARD_SETTINGS_NAV_ITEM.href) {
-    return pathname === "/dashboard/profile" || pathname.startsWith("/dashboard/settings");
+    return pathname === "/app/profile" || pathname.startsWith("/app/settings");
   }
   if (href === DASHBOARD_MEDIA_PROVIDERS_NAV_ITEM.href) {
     return pathname.startsWith(DASHBOARD_MEDIA_PROVIDERS_NAV_ITEM.href);
@@ -238,7 +251,7 @@ export function isDashboardMediaKindActive(pathname, kindId) {
 export function getDashboardPageInfo(pathname) {
   if (!pathname) return EMPTY_DASHBOARD_PAGE_INFO;
 
-  const mediaDetailMatch = pathname.match(/^\/dashboard\/media-providers\/([^/]+)\/([^/]+)$/);
+  const mediaDetailMatch = pathname.match(/^\/app\/media-providers\/([^/]+)\/([^/]+)$/);
   if (mediaDetailMatch) {
     const kindId = mediaDetailMatch[1];
     const providerId = mediaDetailMatch[2];
@@ -248,14 +261,14 @@ export function getDashboardPageInfo(pathname) {
       title: provider?.name || providerId,
       description: "",
       breadcrumbs: [
-        { label: DASHBOARD_MEDIA_PROVIDERS_NAV_ITEM.label, href: `/dashboard/media-providers/${kindId}` },
-        { label: kindConfig?.label || kindId, href: `/dashboard/media-providers/${kindId}` },
+        { label: DASHBOARD_MEDIA_PROVIDERS_NAV_ITEM.label, href: `/app/media-providers/${kindId}` },
+        { label: kindConfig?.label || kindId, href: `/app/media-providers/${kindId}` },
         { label: provider?.name || providerId, image: `/providers/${providerId}.png` },
       ],
     };
   }
 
-  const mediaKindMatch = pathname.match(/^\/dashboard\/media-providers\/([^/]+)$/);
+  const mediaKindMatch = pathname.match(/^\/app\/media-providers\/([^/]+)$/);
   if (mediaKindMatch) {
     const kindId = mediaKindMatch[1];
     const kindConfig = MEDIA_PROVIDER_KINDS.find((kind) => kind.id === kindId);
@@ -267,7 +280,7 @@ export function getDashboardPageInfo(pathname) {
     };
   }
 
-  const providerMatch = pathname.match(/^\/dashboard\/providers\/([^/]+)$/);
+  const providerMatch = pathname.match(/^\/app\/providers\/([^/]+)$/);
   if (providerMatch) {
     const providerId = providerMatch[1];
     const provider = OAUTH_PROVIDERS[providerId] || APIKEY_PROVIDERS[providerId];
@@ -276,7 +289,7 @@ export function getDashboardPageInfo(pathname) {
         title: provider.name,
         description: "",
         breadcrumbs: [
-          { label: "Providers", href: "/dashboard/providers" },
+          { label: "Providers", href: "/app/providers" },
           { label: provider.name, image: `/providers/${provider.id}.png` },
         ],
       };

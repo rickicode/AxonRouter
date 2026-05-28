@@ -63,7 +63,7 @@ export default function LoginPage() {
 				} catch {
 					// Ignore settings refresh failures; dashboard redirect still succeeds after login.
 				}
-				router.replace("/dashboard");
+				router.replace("/app");
 			} else {
 				const data = await res.json();
 				setError(data.error || translate("Invalid password"));

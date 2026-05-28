@@ -9,7 +9,7 @@ export default function SidebarBrand() {
     <SidebarMenu>
       <SidebarMenuItem>
         <div className="flex h-16 items-center gap-3 rounded-xl border border-sidebar-border/80 bg-sidebar-accent/55 px-2.5 text-sidebar-foreground shadow-[0_14px_34px_rgba(0,0,0,0.22)] group-data-[collapsible=icon]:h-11 group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:px-1.5">
-          <Link href="/dashboard" aria-label="AxonRouter dashboard" className="grid size-10 shrink-0 place-items-center group-data-[collapsible=icon]:size-8">
+          <Link href="/app" aria-label="AxonRouter dashboard" className="grid size-10 shrink-0 place-items-center group-data-[collapsible=icon]:size-8">
             <ProviderIcon src="/axonrouter-logo.svg" alt="AxonRouter" size={32} className="size-8 object-contain group-data-[collapsible=icon]:size-7" fallbackText="RR" fallbackColor="#ffffff" />
           </Link>
           <div className="grid min-w-0 flex-1 text-left leading-tight group-data-[collapsible=icon]:hidden">

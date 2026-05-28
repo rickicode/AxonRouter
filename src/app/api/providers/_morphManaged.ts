@@ -35,7 +35,7 @@ export async function buildMorphManagedConnection() {
       prefix: "morph",
       nodeName: MORPH_MANAGED_PROVIDER.name,
       baseUrl: morphSettings?.baseUrl || "https://api.morphllm.com",
-      managedIn: "/dashboard/morph",
+      managedIn: "/app/morph",
       providerSurface: MORPH_MANAGED_PROVIDER.providerSurface,
       roundRobinEnabled: (morphSettings as any)?.roundRobinEnabled === true,
       totalKeys,

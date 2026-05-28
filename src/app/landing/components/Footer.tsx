@@ -30,7 +30,7 @@ export default function Footer() {
           <div className="flex flex-col gap-4">
             <h4 className="font-semibold text-[var(--color-text-main)]">{translate("Product")}</h4>
             <a className="text-[var(--color-text-muted)] hover:text-[var(--color-accent)] text-sm transition-colors" href="#features">{translate("Features")}</a>
-            <a className="text-[var(--color-text-muted)] hover:text-[var(--color-accent)] text-sm transition-colors" href="/dashboard">{translate("Dashboard")}</a>
+            <a className="text-[var(--color-text-muted)] hover:text-[var(--color-accent)] text-sm transition-colors" href="/app">{translate("Dashboard")}</a>
             <a className="text-[var(--color-text-muted)] hover:text-[var(--color-accent)] text-sm transition-colors" href="https://github.com/rickicode/axonrouter/releases" target="_blank" rel="noopener noreferrer">{translate("Changelog")}</a>
           </div>
           

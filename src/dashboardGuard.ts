@@ -169,7 +169,7 @@ export async function proxy(request) {
 	}
 
 	// Protect all dashboard routes
-	if (pathname.startsWith("/dashboard")) {
+	if (pathname.startsWith("/app")) {
 		let tunnelDashboardAccess = true;
 
 		try {
@@ -231,9 +231,9 @@ export async function proxy(request) {
 		return NextResponse.redirect(new URL("/login", request.url));
 	}
 
-	// Redirect / to /dashboard
+	// Redirect / to /app
 	if (pathname === "/") {
-		return NextResponse.redirect(new URL("/dashboard", request.url));
+		return NextResponse.redirect(new URL("/app", request.url));
 	}
 
 	return NextResponse.next();

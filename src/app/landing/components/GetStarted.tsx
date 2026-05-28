@@ -63,7 +63,7 @@ export default function GetStarted() {
                 <div className="text-[var(--color-text-muted)] mb-5 space-y-1">
                   <div><span className="text-[var(--color-accent)]">&gt;</span> {translate("Starting AxonRouter...")}</div>
                   <div><span className="text-[var(--color-accent)]">&gt;</span> {translate("Server running on")} <span className="text-sky-400">{DEFAULT_AXONROUTER_BASE_URL}</span></div>
-                  <div><span className="text-[var(--color-accent)]">&gt;</span> {translate("Dashboard:")} <span className="text-sky-400">{DEFAULT_AXONROUTER_BASE_URL}/dashboard</span></div>
+                  <div><span className="text-[var(--color-accent)]">&gt;</span> {translate("Dashboard:")} <span className="text-sky-400">{DEFAULT_AXONROUTER_BASE_URL}/app</span></div>
                   <div><span className="text-[var(--color-success)]">&gt;</span> {translate("Ready to route!")}</div>
                 </div>
                 

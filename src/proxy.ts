@@ -3,7 +3,7 @@ export { proxy } from "./dashboardGuard";
 export const config = {
   matcher: [
     "/",
-    "/dashboard/:path*",
+    "/app/:path*",
     "/api/shutdown",
     "/api/version/update",
     "/api/settings/:path*",

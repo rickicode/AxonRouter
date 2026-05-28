@@ -54,7 +54,7 @@ export default function Navigation() {
 
         <div className="flex items-center gap-2">
           <Button
-            onClick={() => router.push("/dashboard")}
+            onClick={() => router.push("/app")}
             className="hidden rounded-full bg-[#f97815] px-5 font-bold text-[#181411] transition-all duration-700 ease-[cubic-bezier(0.32,0.72,0,1)] hover:bg-[#ff8d38] sm:flex"
           >
             Get Started
@@ -84,7 +84,7 @@ export default function Navigation() {
                   </a>
                 ))}
                 <Button
-                  onClick={() => router.push("/dashboard")}
+                  onClick={() => router.push("/app")}
                   className="mt-2 rounded-full bg-[#f97815] font-bold text-[#181411] hover:bg-[#ff8d38]"
                 >
                   Get Started

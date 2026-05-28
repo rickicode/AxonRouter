@@ -47,7 +47,7 @@ export default function SidebarMediaSection(props: SidebarMediaSectionProps) {
           <SidebarMenuSub>
             <SidebarNavLink href={DASHBOARD_MEDIA_PROVIDERS_NAV_ITEM.href} icon={DASHBOARD_MEDIA_PROVIDERS_NAV_ITEM.icon} label="All media" active={active && pathname === DASHBOARD_MEDIA_PROVIDERS_NAV_ITEM.href} onClose={onClose} dense />
             {mediaKinds.map((kind) => (
-              <SidebarNavLink key={kind.id} href={`/dashboard/media-providers/${kind.id}`} icon={kind.icon} label={kind.label} active={isDashboardMediaKindActive(pathname, kind.id)} onClose={onClose} dense />
+              <SidebarNavLink key={kind.id} href={`/app/media-providers/${kind.id}`} icon={kind.icon} label={kind.label} active={isDashboardMediaKindActive(pathname, kind.id)} onClose={onClose} dense />
             ))}
           </SidebarMenuSub>
         </CollapsibleContent>

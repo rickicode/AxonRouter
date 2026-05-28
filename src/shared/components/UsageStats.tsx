@@ -11,10 +11,10 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { DataState, DataToolbar } from "@/shared/components/data";
-import OverviewCards from "@/app/(dashboard)/dashboard/usage/components/OverviewCards";
-import UsageTable, { fmt, fmtTime } from "@/app/(dashboard)/dashboard/usage/components/UsageTable";
-import ProviderTopology from "@/app/(dashboard)/dashboard/usage/components/ProviderTopology";
-import UsageChart from "@/app/(dashboard)/dashboard/usage/components/UsageChart";
+import OverviewCards from "@/app/(dashboard)/app/usage/components/OverviewCards";
+import UsageTable, { fmt, fmtTime } from "@/app/(dashboard)/app/usage/components/UsageTable";
+import ProviderTopology from "@/app/(dashboard)/app/usage/components/ProviderTopology";
+import UsageChart from "@/app/(dashboard)/app/usage/components/UsageChart";
 import { useUrlQueryControls } from "@/shared/hooks";
 import { fetchJson, queryKeys } from "@/shared/query";
 
@@ -204,7 +204,7 @@ const PERIODS = [
 
 export default function UsageStats() {
   const { getQueryValue, updateQueryParams } = useUrlQueryControls({
-    fallbackPath: "/dashboard/usage",
+    fallbackPath: "/app/usage",
   });
   const sortBy = getQueryValue("sortBy", "rawModel") || "rawModel";
   const sortOrder = getQueryValue("sortOrder", "asc") || "asc";

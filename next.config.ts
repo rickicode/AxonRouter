@@ -20,6 +20,16 @@ const nextConfig = {
         destination: "/v1",
         permanent: false,
       },
+      {
+        source: "/dashboard/:path*",
+        destination: "/app/:path*",
+        permanent: false,
+      },
+      {
+        source: "/dashboard",
+        destination: "/app",
+        permanent: false,
+      },
     ];
   },
   async headers() {
