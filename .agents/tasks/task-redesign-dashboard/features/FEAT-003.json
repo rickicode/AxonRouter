@@ -2,7 +2,7 @@
   "id": "FEAT-003",
   "type": "feat",
   "description": "Replace the existing broken tunnel system with OmniRoute's proven 3-tunnel logic (Cloudflared, Tailscale, Ngrok) and create unified API routes",
-  "status": "in_progress",
+  "status": "completed",
   "steps": [
     "Step 1: Study the OmniRoute reference implementations at /projects/sandbox/OmniRoute/src/lib/cloudflaredTunnel.ts, /projects/sandbox/OmniRoute/src/lib/tailscaleTunnel.ts, and /projects/sandbox/OmniRoute/src/lib/ngrokTunnel.ts to understand the architecture.",
     "Step 2: Replace packages/tunnel/src/cloudflared.ts with a new implementation based on OmniRoute's cloudflaredTunnel.ts. Key adaptations: use @axonrouter/data-dir's getDataDir() for resolveDataDir(), use the existing port resolution from open-sse/config/runtimeConfig.ts or a simple DEFAULT_PORT constant. Implement: managed binary install to $DATA_DIR/cloudflared/bin/, binary resolution order (managed -> PATH -> env), state persistence via JSON files, process management with spawn, URL extraction from trycloudflare.com output, SHA256 verification of downloads.",
@@ -34,5 +34,5 @@
     "npm run build"
   ],
   "blocked_reason": null,
-  "findings": ""
+  "findings": "All 3 tunnel modules implemented. Typecheck and lint pass cleanly. Build has 1 pre-existing error (providerHotState.ts in edge instrumentation chunk - node:fs incompatible with edge runtime). This error existed before this feature (verified by stashing changes and building base). Test suite has 28 pre-existing failures from FEAT-002 path rename - no new failures introduced. The @ngrok/ngrok dynamic import uses webpackIgnore comment to prevent Turbopack from bundling the native module at build time."
 }
