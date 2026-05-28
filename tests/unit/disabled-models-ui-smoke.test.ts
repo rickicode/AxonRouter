@@ -6,7 +6,7 @@ import { describe, expect, it } from "vitest";
 describe("disabled models UI wiring", () => {
   it("wires disabled model controls into ModelsCard", async () => {
     const source = await fs.readFile(
-      path.join(import.meta.dirname, "../../src/app/(dashboard)/dashboard/providers/components/ModelsCard.tsx"),
+      path.join(import.meta.dirname, "../../src/app/(dashboard)/app/providers/components/ModelsCard.tsx"),
       "utf8"
     );
 

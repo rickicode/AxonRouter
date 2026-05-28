@@ -7,7 +7,7 @@ const sidebarPath = path.resolve(import.meta.dirname, "../../src/shared/componen
 const sidebarMediaPath = path.resolve(import.meta.dirname, "../../src/shared/components/sidebar/SidebarMediaSection.tsx");
 const morphPagePath = path.resolve(
   import.meta.dirname,
-  "../../src/app/(dashboard)/dashboard/morph/MorphPageClient.tsx"
+  "../../src/app/(dashboard)/app/morph/MorphPageClient.tsx"
 );
 const dashboardNavigationPath = path.resolve(
   import.meta.dirname,
@@ -18,14 +18,14 @@ describe("Morph dashboard nav shell", () => {
   it("adds Morph as a top-level sidebar destination", async () => {
     const source = await fs.readFile(dashboardNavigationPath, "utf8");
 
-    expect(source).toContain('{ href: "/dashboard/morph", label: "Morph", icon: "route" }');
+    expect(source).toContain('{ href: "/app/morph", label: "Morph", icon: "route" }');
   });
 
   it("keeps the shared pathname-based active-state logic intact", async () => {
     const source = await fs.readFile(dashboardNavigationPath, "utf8");
 
     expect(source).toContain("return pathname.startsWith(href);");
-    expect(source).toContain('if (href === "/dashboard/endpoint")');
+    expect(source).toContain('if (href === "/app/endpoint")');
     expect(source).toContain('if (href === DASHBOARD_SETTINGS_NAV_ITEM.href)');
   });
 

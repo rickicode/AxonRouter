@@ -5,7 +5,7 @@ import path from "node:path";
 describe("MitmPageClient provider-models wiring", () => {
   it("fetches aggregate provider models and uses them when checking active providers", () => {
     const file = fs.readFileSync(
-      path.resolve(import.meta.dirname, "../../src/app/(dashboard)/dashboard/mitm/MitmPageClient.tsx"),
+      path.resolve(import.meta.dirname, "../../src/app/(dashboard)/app/mitm/MitmPageClient.tsx"),
       "utf8"
     );
 

@@ -5,7 +5,7 @@ import { describe, expect, it } from "vitest";
 
 const pagePath = path.resolve(
   import.meta.dirname,
-  "../../src/app/(dashboard)/dashboard/basic-chat/BasicChatPageClient.tsx"
+  "../../src/app/(dashboard)/app/basic-chat/BasicChatPageClient.tsx"
 );
 
 describe("basic chat think guard", () => {

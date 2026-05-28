@@ -2,9 +2,9 @@ import { describe, expect, it } from "vitest";
 import fs from "node:fs";
 import path from "node:path";
 
-const combosPagePath = path.resolve(import.meta.dirname, "../../src/app/(dashboard)/dashboard/combos/page.tsx");
-const intelligentPanelPath = path.resolve(import.meta.dirname, "../../src/app/(dashboard)/dashboard/combos/IntelligentComboPanel.tsx");
-const intelligentBuilderPath = path.resolve(import.meta.dirname, "../../src/app/(dashboard)/dashboard/combos/BuilderIntelligentStep.tsx");
+const combosPagePath = path.resolve(import.meta.dirname, "../../src/app/(dashboard)/app/combos/page.tsx");
+const intelligentPanelPath = path.resolve(import.meta.dirname, "../../src/app/(dashboard)/app/combos/IntelligentComboPanel.tsx");
+const intelligentBuilderPath = path.resolve(import.meta.dirname, "../../src/app/(dashboard)/app/combos/BuilderIntelligentStep.tsx");
 
 describe("combo builder UI parity smoke", () => {
   it("uses staged builder flow with intelligent/review stages", () => {

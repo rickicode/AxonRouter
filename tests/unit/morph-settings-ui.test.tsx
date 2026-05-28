@@ -6,7 +6,7 @@ describe("Morph settings UI source", () => {
   async function readMorphPageClientSource() {
     const pagePath = path.resolve(
       import.meta.dirname,
-      "../../src/app/(dashboard)/dashboard/morph/MorphPageClient.tsx"
+      "../../src/app/(dashboard)/app/morph/MorphPageClient.tsx"
     );
 
     return fs.readFile(pagePath, "utf8");
@@ -15,7 +15,7 @@ describe("Morph settings UI source", () => {
   async function readMorphInstructionsCardSource() {
     const pagePath = path.resolve(
       import.meta.dirname,
-      "../../src/app/(dashboard)/dashboard/morph/MorphInstructionsCard.tsx"
+      "../../src/app/(dashboard)/app/morph/MorphInstructionsCard.tsx"
     );
 
     return fs.readFile(pagePath, "utf8");

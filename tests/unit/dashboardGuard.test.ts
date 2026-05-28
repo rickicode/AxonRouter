@@ -161,7 +161,7 @@ describe("Dashboard Guard - Integration Tests", () => {
     });
 
     const mockRequest = {
-      nextUrl: { pathname: "/dashboard" },
+      nextUrl: { pathname: "/app" },
       url: "http://localhost:12711/dashboard",
       headers: { get: () => "localhost" },
       cookies: { get: () => null }
@@ -179,7 +179,7 @@ describe("Dashboard Guard - Integration Tests", () => {
     });
 
     const mockRequest = {
-      nextUrl: { pathname: "/dashboard" },
+      nextUrl: { pathname: "/app" },
       url: "http://example.com/dashboard",
       headers: { get: () => "example.com" },
       cookies: { get: () => null }
@@ -199,7 +199,7 @@ describe("Dashboard Guard - Integration Tests", () => {
     });
 
     const mockRequest = {
-      nextUrl: { pathname: "/dashboard" },
+      nextUrl: { pathname: "/app" },
       url: "https://tunnel.example.com/dashboard",
       headers: { get: (name) => name === "host" ? "tunnel.example.com" : null },
       cookies: { get: () => null }

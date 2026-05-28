@@ -5,7 +5,7 @@ import {
   getStoredQuotaPresentation,
   parseQuotaData,
   parseStoredUsageSnapshot,
-} from "../../src/app/(dashboard)/dashboard/usage/components/ProviderLimits/utils.tsx";
+} from "../../src/app/(dashboard)/app/usage/components/ProviderLimits/utils.tsx";
 import { isTransientUpstreamTimeoutError } from "../../src/lib/usageStatus.ts";
 
 describe("parseQuotaData for codex", () => {

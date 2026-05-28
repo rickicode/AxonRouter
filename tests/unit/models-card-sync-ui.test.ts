@@ -5,7 +5,7 @@ import path from "node:path";
 describe("ModelsCard sync UI wiring", () => {
   it("renders sync action and source badge hooks in source", () => {
     const file = fs.readFileSync(
-      path.resolve(import.meta.dirname, "../../src/app/(dashboard)/dashboard/providers/components/ModelsCard.tsx"),
+      path.resolve(import.meta.dirname, "../../src/app/(dashboard)/app/providers/components/ModelsCard.tsx"),
       "utf8"
     );
 

@@ -6,11 +6,11 @@ import { describe, expect, it } from "vitest";
 describe("caveman page wiring", () => {
   it("adds page source and dashboard navigation entry", async () => {
     const pageSource = await fs.readFile(
-      path.join(import.meta.dirname, "../../src/app/(dashboard)/dashboard/caveman/CavemanPageClient.tsx"),
+      path.join(import.meta.dirname, "../../src/app/(dashboard)/app/caveman/CavemanPageClient.tsx"),
       "utf8"
     );
     const routeSource = await fs.readFile(
-      path.join(import.meta.dirname, "../../src/app/(dashboard)/dashboard/caveman/page.tsx"),
+      path.join(import.meta.dirname, "../../src/app/(dashboard)/app/caveman/page.tsx"),
       "utf8"
     );
     const navSource = await fs.readFile(
@@ -33,7 +33,7 @@ describe("caveman page wiring", () => {
     expect(pageSource).toContain("CAVEMAN_PROMPTS[effectiveDraft.level]");
     expect(pageSource).toContain("Caveman lite preview");
     expect(pageSource).toContain("Caveman ultra preview");
-    expect(navSource).toContain('href: "/dashboard/caveman"');
+    expect(navSource).toContain('href: "/app/caveman"');
     expect(navSource).toContain('title: "Caveman"');
   });
 });
