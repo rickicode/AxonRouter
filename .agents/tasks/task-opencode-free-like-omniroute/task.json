@@ -1,0 +1,7 @@
+{
+  "task_id": "task-opencode-free-like-omniroute",
+  "task_description": "Make OpenCode Free work correctly like OmniRoute: refactor executors to use dynamic targetFormat lookup instead of hardcoded model Sets, fix providerModels annotations",
+  "status": "in_progress",
+  "feature_order": ["FEAT-001"],
+  "blocked_reason": null
+}

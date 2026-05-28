@@ -1,8 +1,8 @@
 import { BaseExecutor } from "./base";
 import { PROVIDERS } from "../config/providers";
+import { getModelTargetFormat } from "../config/providerModels";
 
-// Models that use /zen/v1/messages (claude format)
-const MESSAGES_MODELS = new Set(["minimax-m2.5-free"]);
+const BASE = "https://opencode.ai/zen/v1";
 
 export class OpenCodeExecutor extends BaseExecutor {
   constructor() {
@@ -10,10 +10,10 @@ export class OpenCodeExecutor extends BaseExecutor {
   }
 
   buildUrl(model) {
-    const base = "https://opencode.ai";
-    return MESSAGES_MODELS.has(model)
-      ? `${base}/zen/v1/messages`
-      : `${base}/zen/v1/chat/completions`;
+    const targetFormat = getModelTargetFormat("oc", model);
+    return targetFormat === "claude"
+      ? `${BASE}/messages`
+      : `${BASE}/chat/completions`;
   }
 
   buildHeaders() {
