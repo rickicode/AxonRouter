@@ -66,8 +66,13 @@ export class FreebuffExecutor extends BaseExecutor {
     }
 
     // Step 2: Inject codebuff_metadata and provider into body
+    // Strip "freebuff/" prefix from model - Freebuff API expects format like "deepseek/deepseek-v4-flash"
+    const rawModel = typeof body.model === "string" && body.model.startsWith("freebuff/")
+      ? body.model.slice("freebuff/".length)
+      : (body.model || args.model);
     const enhancedBody = {
       ...body,
+      model: rawModel,
       codebuff_metadata: {
         run_id: runId,
         client_id: FREEBUFF_DEFAULT_CLIENT_ID,
