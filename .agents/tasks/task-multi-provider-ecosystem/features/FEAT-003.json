@@ -2,7 +2,7 @@
   "id": "FEAT-003",
   "type": "feat",
   "description": "Implement provider test workflows: 'Test Single Provider' button on individual provider cards, 'Test All Providers' button in the page header, and provider test contracts that validate executor connectivity, model listing, and basic request/response format compliance.",
-  "status": "pending",
+  "status": "completed",
   "steps": [
     "1. Update src/app/(dashboard)/dashboard/providers/components/ProviderCards.tsx to add a 'Test' button (small icon button with a play/zap icon) on each ProviderCard and ApiKeyProviderCard. On click, it should call handleBatchTest('provider', providerId) which is already wired in the page.",
     "2. Add a 'Test All' button in the providers page header (src/app/(dashboard)/dashboard/providers/page.tsx) above all sections. This button calls handleBatchTest('all') and uses mode='all' in the test-batch API.",
@@ -27,5 +27,5 @@
     "export PATH=/root/.nvm/versions/node/v22.22.3/bin:$PATH && npm run test"
   ],
   "blocked_reason": null,
-  "findings": ""
+  "findings": "All implementations completed successfully. Typecheck passes, all 194 test files (1123 tests) pass. Added ProviderTestContract interface and getProviderTestCapabilities helper to providers.ts. Added per-card Zap test buttons to ProviderCard and ApiKeyProviderCard. Added Test All Providers button in page header with mode=all. Enhanced ProviderTestResultsView with phase badges and diagnostic details. The test-batch route already handled mode=all so no route changes were needed. Created 7 unit tests for provider test capabilities."
 }
