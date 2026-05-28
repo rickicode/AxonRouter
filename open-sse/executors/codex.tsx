@@ -9,6 +9,55 @@ import { getConsistentMachineId } from "../../src/shared/utils/machineId";
 import { getChatRuntimeSettings } from "../utils/abort";
 import { MAX_RATE_LIMIT_COOLDOWN_MS } from "../config/errorConfig";
 
+/**
+ * Codex model migration map.
+ * Mirrors the [notice.model_migrations] section from Codex CLI config (~/.codex/config.toml).
+ * When Codex CLI deprecates a model name, it automatically migrates to the new one.
+ * We must do the same to avoid 400 errors from the Codex API.
+ * 
+ * Note: Migrations are transitive - gpt-5.3-codex → gpt-5.4 → gpt-5.5
+ * But we only store direct mappings and resolve them in order.
+ */
+const CODEX_MODEL_MIGRATIONS: Record<string, string> = {
+  "gpt-5.3-codex": "gpt-5.4",
+  "gpt-5.2": "gpt-5.4",
+  "gpt-5.4": "gpt-5.5",
+  // Effort variants also need migration
+  "gpt-5.3-codex-high": "gpt-5.4-high",
+  "gpt-5.3-codex-low": "gpt-5.4-low",
+  "gpt-5.3-codex-none": "gpt-5.4-none",
+  "gpt-5.3-codex-xhigh": "gpt-5.4-xhigh",
+  "gpt-5.4-high": "gpt-5.5-high",
+  "gpt-5.4-low": "gpt-5.5-low",
+  "gpt-5.4-none": "gpt-5.5-none",
+  "gpt-5.4-xhigh": "gpt-5.5-xhigh",
+  "gpt-5.4-mini": "gpt-5.5-mini",
+  "gpt-5.4-pro": "gpt-5.5-pro",
+  "gpt-5.4-nano": "gpt-5.5-nano",
+};
+
+/**
+ * Apply Codex model migrations to translate deprecated model names to their current equivalents.
+ * This mirrors the behavior of Codex CLI's model migration system.
+ * 
+ * @param model The original model name from the request
+ * @returns The migrated model name, or the original if no migration is needed
+ */
+export function migrateCodexModel(model: string): string {
+  if (!model || typeof model !== "string") return model;
+  
+  // Strip "codex/" prefix if present for migration lookup
+  const stripped = model.replace(/^codex\//i, "");
+  const migrated = CODEX_MODEL_MIGRATIONS[stripped];
+  
+  if (migrated) {
+    // Preserve the "codex/" prefix if it was there
+    return model.startsWith("codex/") ? `codex/${migrated}` : migrated;
+  }
+  
+  return model;
+}
+
 // In-memory map: hash(machineId + first assistant content) → { sessionId, lastUsed }
 const SESSION_TTL_MS = 60 * 60 * 1000; // 1 hour
 const MAX_SESSION_MAP_SIZE = 10_000;
@@ -426,6 +475,17 @@ export class CodexExecutor extends BaseExecutor {
    */
   transformRequest(model, body, stream, credentials) {
     const isCompact = !!body._compact;
+    
+    // Apply model migrations to translate deprecated model names
+    // This must happen before any model name processing
+    if (model) {
+      const originalModel = model;
+      model = migrateCodexModel(model);
+      // Update body.model if it was set to the original model
+      if (body.model === originalModel) {
+        body.model = model;
+      }
+    }
     delete body._compact;
     // Resolve conversation-stable session_id from input history + machineId
     // Pass via credentials so buildHeaders can read it without shared state

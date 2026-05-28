@@ -34,6 +34,8 @@ import { MAX_RATE_LIMIT_COOLDOWN_MS } from "../../open-sse/config/errorConfig";
 
 const TRANSIENT_USAGE_RETRY_DELAY_MS = 750;
 const TRANSIENT_USAGE_MAX_ATTEMPTS = 3;
+const BACKOFF_MAX_LEVEL = 6;
+const BACKOFF_STEP_MINUTES = [1, 5, 15, 30, 60, 120, 240]; // level 0..6
 const TRANSIENT_CONNECTIVITY_ERROR_PATTERNS = [
 	"unable to connect",
 	"is the computer able to access the url",
@@ -181,6 +183,45 @@ function assertUsageHasQuota(connection: any = {}, usage: any = {}) {
 	if (!strategy.requiresQuota) return;
 	if (hasUsableUsageQuota(usage)) return;
 	throw createMissingUsageQuotaError(connection, usage);
+}
+
+function getNextBackoffDelayMs(backoffLevel: number = 0): number {
+	const level = Math.min(Math.max(0, Math.round(backoffLevel)), BACKOFF_MAX_LEVEL);
+	return BACKOFF_STEP_MINUTES[level] * 60 * 1000;
+}
+
+async function persistBackoffStatus(connection: any) {
+	const currentLevel = connection?.backoffLevel || 0;
+	const newLevel = Math.min(currentLevel + 1, BACKOFF_MAX_LEVEL);
+	const delayMs = getNextBackoffDelayMs(newLevel);
+	const nextRetryAt = new Date(Date.now() + delayMs).toISOString();
+	const checkedAt = new Date().toISOString();
+
+	await syncUsageStatus(connection, {
+		routingStatus: "blocked",
+		healthStatus: "degraded",
+		quotaState: "ok",
+		authState: "ok",
+		reasonCode: "usage_quota_unavailable",
+		reasonDetail: `Quota unavailable after ${newLevel} consecutive failures. Next retry: ${new Date(nextRetryAt).toLocaleTimeString()}.`,
+		backoffLevel: newLevel,
+		nextRetryAt,
+		lastCheckedAt: checkedAt,
+		usageSnapshot: JSON.stringify({
+			provider: connection?.provider || null,
+			checkedAt,
+			quotas: {},
+			usageUnavailable: true,
+		}),
+	});
+}
+
+async function resetBackoffStatus(connection: any, usage: any) {
+	if (!connection?.backoffLevel && !connection?.nextRetryAt) return;
+	await syncUsageStatus(connection, {
+		backoffLevel: 0,
+		lastCheckedAt: new Date().toISOString(),
+	});
 }
 
 function getUsageRetryLogLabel(connection: any = {}) {
@@ -440,8 +481,10 @@ async function fetchUsageWithTransientRetry(connection: any) {
 				shouldSkipTransientUsageError(usageError) ||
 				shouldRetryQuotaUnavailable(connection, usageError);
 			const logLabel = `${connection?.provider || "provider"}:${getUsageRetryLogLabel(connection)}`;
+			const logFn = attempt === 1 ? console.warn : console.debug;
+			const isQuotaMissing = strategy.requiresQuota && isQuotaUnavailableError(usageError);
 
-			if (strategy.requiresQuota && isQuotaUnavailableError(usageError)) {
+			if (isQuotaMissing && attempt === 1) {
 				console.warn(
 					`[UsageRefresh] ${connection?.provider} quota details missing on attempt ${attempt}/${TRANSIENT_USAGE_MAX_ATTEMPTS} for ${logLabel}: ${usageError.message}`,
 				);
@@ -449,14 +492,14 @@ async function fetchUsageWithTransientRetry(connection: any) {
 
 			if (!isRetryable || attempt >= TRANSIENT_USAGE_MAX_ATTEMPTS) {
 				if (isRetryable) {
-					console.warn(
+					logFn(
 						`[UsageRefresh] transient usage fetch failed after ${attempt}/${TRANSIENT_USAGE_MAX_ATTEMPTS} attempts for ${logLabel}: ${usageError.message}`,
 					);
 				}
 				throw usageError;
 			}
 
-			console.warn(
+			logFn(
 				`[UsageRefresh] transient usage fetch failed on attempt ${attempt}/${TRANSIENT_USAGE_MAX_ATTEMPTS} for ${logLabel}; retrying in ${TRANSIENT_USAGE_RETRY_DELAY_MS * attempt}ms: ${usageError.message}`,
 			);
 			await sleep(TRANSIENT_USAGE_RETRY_DELAY_MS * attempt);
@@ -532,7 +575,11 @@ export async function refreshConnectionUsage(
 					return { connection, usage: loaded.usage, testResult, skipped: true };
 				}
 
-				if (runConnectionTest) {
+				// Blocked/exhausted/disabled accounts wajib test connection dulu sebelum cek usage
+				const connectionStatus = connection?.routingStatus || "eligible";
+				const needsPreTest = connectionStatus === "blocked" || connectionStatus === "exhausted" || connectionStatus === "disabled";
+
+				if (runConnectionTest || needsPreTest) {
 					testResult = await runConnectionTestOrThrow(connectionId);
 					connection = await getCurrentProviderConnectionById(connectionId);
 					if (!connection) {
@@ -746,6 +793,9 @@ export async function refreshConnectionUsage(
 						: {}),
 				});
 
+				// Sukses → reset backoff counter (after applyCanonicalUsageRefresh to avoid inconsistency)
+				await resetBackoffStatus(connection, usage);
+
 				await applyPreemptiveCodexCooldown(connection, usage);
 
 				return { connection, usage, testResult, skipped: false };
@@ -807,42 +857,17 @@ export async function refreshConnectionUsage(
 				if (error?.code === "USAGE_QUOTA_UNAVAILABLE") {
 					const errorStrategy = getProviderStrategy(connection?.provider);
 					if (errorStrategy.skipOnQuotaUnavailable) {
-						console.warn(
-							`[UsageRefresh] ${connection?.provider} quota details unavailable after ${TRANSIENT_USAGE_MAX_ATTEMPTS} attempts for ${getUsageRetryLogLabel(connection)}; preserving previous usage snapshot`,
-						);
-						// Persist minimal snapshot so UI knows the worker tried
-						if (!connection?.usageSnapshot) {
-							const checkedAt = new Date().toISOString();
-							const preservedStatus = connection?.routingStatus || "eligible";
-							if (preservedStatus === "eligible") {
-								await syncUsageStatus(connection, {
-									routingStatus: "eligible",
-									lastCheckedAt: checkedAt,
-									usageSnapshot: JSON.stringify({
-										provider: connection?.provider || null,
-										checkedAt,
-										quotas: {},
-										usageUnavailable: true,
-									}),
-								});
-							} else {
-								await syncUsageStatus(connection, {
-									routingStatus: preservedStatus,
-									healthStatus: "degraded",
-									quotaState: connection?.quotaState || "ok",
-									authState: connection?.authState || "ok",
-									reasonCode: "usage_quota_unavailable",
-									reasonDetail: "Quota details unavailable",
-									lastCheckedAt: checkedAt,
-									usageSnapshot: JSON.stringify({
-										provider: connection?.provider || null,
-										checkedAt,
-										quotas: {},
-										usageUnavailable: true,
-									}),
-								});
-							}
+						const backoffLevel = connection?.backoffLevel || 0;
+						if (backoffLevel > 0) {
+							console.debug(
+								`[UsageRefresh] ${connection?.provider} quota still unavailable after ${backoffLevel} backoffs for ${getUsageRetryLogLabel(connection)}; escalating backoff`,
+							);
+						} else {
+							console.warn(
+								`[UsageRefresh] ${connection?.provider} quota details unavailable after ${TRANSIENT_USAGE_MAX_ATTEMPTS} attempts for ${getUsageRetryLogLabel(connection)}; entering backoff`,
+							);
 						}
+						await persistBackoffStatus(connection);
 						return {
 							connection,
 							usage: null,

@@ -14,7 +14,9 @@ describe("provider model catalog", () => {
 
   it("includes current OpenCode Free public models as static fallbacks", () => {
     expect(PROVIDER_MODELS.oc.map((model) => model.id)).toEqual(expect.arrayContaining([
+      "big-pickle",
       "deepseek-v4-flash-free",
+      "mimo-v2.5-free",
       "qwen3.6-plus-free",
       "minimax-m2.5-free",
       "nemotron-3-super-free",

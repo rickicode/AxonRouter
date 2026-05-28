@@ -508,6 +508,22 @@ async function testApiKeyConnection(connection, effectiveProxy = null) {
         const valid = res.status !== 401 && res.status !== 403;
         return { valid, error: valid ? null : "Invalid API key" };
       }
+      case "freebuff": {
+        const res = await fetchWithConnectionProxy("https://www.codebuff.com/api/v1/freebuff/session", {
+          method: "GET",
+          headers: {
+            Authorization: `Bearer ${connection.apiKey}`,
+            "Content-Type": "application/json",
+            "User-Agent": "ai-sdk/openai-compatible/0.0.96/codebuff-freebuff",
+          },
+        }, effectiveProxy);
+        const payload = await res.json().catch(() => null);
+        const valid = res.ok || res.status === 429;
+        return {
+          valid,
+          error: valid ? null : payload?.message || payload?.error || "Invalid Freebuff token",
+        };
+      }
       case "deepseek": {
         const res = await fetchWithConnectionProxy("https://api.deepseek.com/models", { headers: { Authorization: `Bearer ${connection.apiKey}` } }, effectiveProxy);
         return { valid: res.ok, error: res.ok ? null : "Invalid API key" };
@@ -670,6 +686,34 @@ async function testApiKeyConnection(connection, effectiveProxy = null) {
         const data = await res.json().catch(() => null);
         const valid = !!(data && data.user);
         return { valid, error: valid ? null : "Session expired — re-paste cookie" };
+      }
+      case "opencode-go": {
+        const res = await fetchWithConnectionProxy("https://opencode.ai/zen/go/v1/chat/completions", {
+          method: "POST",
+          headers: { "Content-Type": "application/json", Authorization: `Bearer ${connection.apiKey}`, "x-opencode-client": "desktop" },
+          body: JSON.stringify({
+            model: getDefaultModel("opencode-go"),
+            messages: [{ role: "user", content: "ping" }],
+            max_tokens: 1,
+            stream: false,
+          }),
+        }, effectiveProxy);
+        const valid = res.status !== 401 && res.status !== 403;
+        return { valid, error: valid ? null : "Invalid API key" };
+      }
+      case "opencode-zen": {
+        const res = await fetchWithConnectionProxy("https://opencode.ai/zen/v1/chat/completions", {
+          method: "POST",
+          headers: { "Content-Type": "application/json", Authorization: `Bearer ${connection.apiKey}`, "x-opencode-client": "desktop" },
+          body: JSON.stringify({
+            model: getDefaultModel("opencode-zen"),
+            messages: [{ role: "user", content: "ping" }],
+            max_tokens: 1,
+            stream: false,
+          }),
+        }, effectiveProxy);
+        const valid = res.status !== 401 && res.status !== 403;
+        return { valid, error: valid ? null : "Invalid API key" };
       }
       default:
         return { valid: false, error: "Provider test not supported" };

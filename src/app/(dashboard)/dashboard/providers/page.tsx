@@ -1,7 +1,7 @@
 "use client";
 
 import AppIcon from "@/shared/components/AppIcon";
-import { DownloadIcon, LoaderCircle, PlusIcon, UploadIcon } from "lucide-react";
+import { DownloadIcon, LoaderCircle, PlusIcon, UploadIcon, Zap } from "lucide-react";
 import { useState, useEffect, useRef } from "react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge as ShadcnBadge } from "@/components/ui/badge";
@@ -18,7 +18,9 @@ import {
   WEB_COOKIE_PROVIDERS,
   OPENAI_COMPATIBLE_PREFIX,
   ANTHROPIC_COMPATIBLE_PREFIX,
+  getProviderCategory,
 } from "@/shared/constants/providers";
+import { cn } from "@/lib/utils";
 import { getRelativeTime } from "@/shared/utils";
 import { useMutation } from "@tanstack/react-query";
 import { useInvalidate } from "@/shared/query";
@@ -30,6 +32,7 @@ import { getDashboardConnectionStatus, getStatusDisplayItems } from "./statusDis
 import { ProviderCard, ApiKeyProviderCard } from "./components/ProviderCards";
 import { AddOpenAICompatibleModal, AddAnthropicCompatibleModal } from "./components/AddCompatibleModals";
 import { ProviderTestResultsView } from "./components/ProviderTestResults";
+import { ProviderFilterBar } from "./components/ProviderFilterBar";
 
 function extractCredentialImportRecords(payload: any) {
   if (Array.isArray(payload)) return payload;
@@ -64,6 +67,7 @@ export default function ProvidersPage() {
   const [connections, setConnections] = useState([]);
   const [providerNodes, setProviderNodes] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [activeFilter, setActiveFilter] = useState("all");
   const [showCredentialImportModal, setShowCredentialImportModal] =
     useState(false);
   const [credentialImportText, setCredentialImportText] = useState("");
@@ -304,15 +308,36 @@ export default function ProvidersPage() {
     return [providerId, info?.name, info?.alias, info?.website, info?.textIcon].some((value) => String(value || "").toLowerCase().includes(normalizedHeaderSearch));
   };
 
-  const filteredOauthProviders = Object.entries(OAUTH_PROVIDERS).filter(([key, info]) => matchesHeaderSearch(key, info));
-  const filteredFreeProviders = Object.entries(FREE_PROVIDERS).filter(([key, info]) => matchesHeaderSearch(key, info));
-  const filteredFreeTierProviders = Object.entries(FREE_TIER_PROVIDERS).filter(([key, info]) => matchesHeaderSearch(key, info));
+  const categoryFilterFn = (providerId: string) => {
+    if (activeFilter === "all") return true;
+    const category = getProviderCategory(providerId);
+    switch (activeFilter) {
+      case "free": return category === "Free";
+      case "oauth": return category === "OAuth";
+      case "apikey": return category === "API Key";
+      case "freetier": return category === "Free Tier";
+      case "local": return category === "Local";
+      case "compatible": return category === "OpenAI Compatible" || category === "Anthropic Compatible";
+      default: return true;
+    }
+  };
+
+  const filteredOauthProviders = Object.entries(OAUTH_PROVIDERS).filter(([key, info]) => matchesHeaderSearch(key, info) && categoryFilterFn(key));
+  const filteredFreeProviders = Object.entries(FREE_PROVIDERS).filter(([key, info]) => matchesHeaderSearch(key, info) && categoryFilterFn(key));
+  const filteredFreeTierProviders = Object.entries(FREE_TIER_PROVIDERS).filter(([key, info]) => matchesHeaderSearch(key, info) && categoryFilterFn(key));
   const filteredApiKeyProviders = Object.entries(APIKEY_PROVIDERS)
     .filter(([, rawInfo]) => ((rawInfo as any).serviceKinds ?? ["llm"]).includes("llm"))
-    .filter(([key, info]) => matchesHeaderSearch(key, info));
+    .filter(([key, info]) => matchesHeaderSearch(key, info) && categoryFilterFn(key));
 
   const filteredManagedApiKeyProviders = filteredApiKeyProviders.filter(([, rawInfo]) => (rawInfo as any).systemManaged === true);
-  const filteredRegularApiKeyProviders = filteredApiKeyProviders.filter(([, rawInfo]) => (rawInfo as any).systemManaged !== true);
+  const filteredRegularApiKeyProviders = filteredApiKeyProviders
+    .filter(([, rawInfo]) => (rawInfo as any).systemManaged !== true)
+    .sort(([keyA, infoA], [keyB, infoB]) => {
+      const aCompat = (infoA as any).apiKeyCompatible === true ? 0 : 1;
+      const bCompat = (infoB as any).apiKeyCompatible === true ? 0 : 1;
+      if (aCompat !== bCompat) return aCompat - bCompat;
+      return keyA.localeCompare(keyB);
+    });
 
   const getProviderStats = (providerId, authType) => {
     const providerConnections = connections.filter(
@@ -487,6 +512,19 @@ export default function ProvidersPage() {
 
   return (
     <div className="flex flex-col gap-6">
+      <div className="flex items-center justify-between">
+        <h1 className="text-2xl font-bold tracking-tight">Providers</h1>
+        <Button
+          onClick={() => handleBatchTest("all")}
+          disabled={!!testingMode}
+          variant={testingMode === "all" ? "secondary" : "default"}
+          size="sm"
+        >
+          <Zap className={cn("size-4", testingMode === "all" && "animate-pulse")} />
+          {testingMode === "all" ? "Testing All..." : "Test All Providers"}
+        </Button>
+      </div>
+
       <Card>
         <CardContent>
           <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
@@ -529,6 +567,9 @@ export default function ProvidersPage() {
         </CardContent>
       </Card>
 
+      {/* Category Filter */}
+      <ProviderFilterBar value={activeFilter} onChange={setActiveFilter} />
+
       {/* OAuth Providers */}
       <div className="flex flex-col gap-4">
         <div className="flex items-center justify-between">
@@ -560,6 +601,8 @@ export default function ProvidersPage() {
               stats={getProviderStats(key, "oauth")}
               authType="oauth"
               onToggle={(active) => handleToggleProvider(key, "oauth", active)}
+              onTest={() => handleBatchTest("provider", key)}
+              testing={testingMode === key}
             />
           ))}
         </div>
@@ -593,6 +636,8 @@ export default function ProvidersPage() {
               stats={getProviderStats(key, "oauth")}
               authType="free"
               onToggle={(active) => handleToggleProvider(key, "oauth", active)}
+              onTest={() => handleBatchTest("provider", key)}
+              testing={testingMode === key}
             />
           ))}
           {filteredFreeTierProviders.map(([key, info]) => (
@@ -603,6 +648,8 @@ export default function ProvidersPage() {
               stats={getProviderStats(key, "apikey")}
               authType="apikey"
               onToggle={(active) => handleToggleProvider(key, "apikey", active)}
+              onTest={() => handleBatchTest("provider", key)}
+              testing={testingMode === key}
             />
           ))}
         </div>
@@ -630,6 +677,8 @@ export default function ProvidersPage() {
                 stats={getProviderStats(key, "apikey")}
                 authType="apikey"
                 onToggle={(active) => handleToggleProvider(key, "apikey", active)}
+                onTest={() => handleBatchTest("provider", key)}
+                testing={testingMode === key}
               />
             ))}
           </div>
@@ -664,6 +713,8 @@ export default function ProvidersPage() {
                 stats={getProviderStats(key, "apikey")}
                 authType="apikey"
                 onToggle={(active) => handleToggleProvider(key, "apikey", active)}
+                onTest={() => handleBatchTest("provider", key)}
+                testing={testingMode === key}
               />
             ))}
         </div>
@@ -691,6 +742,7 @@ export default function ProvidersPage() {
       </div> */}
 
       {/* API Key Compatible Providers — dynamic (OpenAI/Anthropic compatible) */}
+      {(activeFilter === "all" || activeFilter === "compatible") && (
       <div className="flex flex-col gap-4">
         <div className="flex items-center justify-between">
           <h2 className="flex items-center gap-2 text-xl font-bold tracking-[-0.02em] text-[var(--color-text-main)]">
@@ -750,12 +802,15 @@ export default function ProvidersPage() {
                   onToggle={(active) =>
                     handleToggleProvider(info.id, "apikey", active)
                   }
+                  onTest={() => handleBatchTest("provider", info.id)}
+                  testing={testingMode === info.id}
                 />
               ),
             )}
           </div>
         )}
       </div>
+      )}
 
       <AddOpenAICompatibleModal
         isOpen={showAddCompatibleModal}

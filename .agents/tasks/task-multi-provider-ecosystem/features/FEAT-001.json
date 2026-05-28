@@ -1,0 +1,29 @@
+{
+  "id": "FEAT-001",
+  "type": "feat",
+  "description": "Add provider categorization system with category badges, filter UI, and API-key-compatible priority ordering to the providers page. Implement a ProviderCategoryBadge component showing category labels (Free, OAuth, API Key, Free Tier, Local, Search, Audio, etc.) and a filter bar enabling category-based filtering. Providers marked as API Key Compatible must be deterministically ordered at the top of the API Key section.",
+  "status": "completed",
+  "steps": [
+    "1. Create src/app/(dashboard)/dashboard/providers/components/ProviderCategoryBadge.tsx - a small badge component that takes a providerId, calls getProviderCategory() from src/shared/constants/providers.ts, and renders a colored badge with the category label. Use shadcn Badge component with appropriate color mapping (Free=green, OAuth=blue, API Key=purple, etc.).",
+    "2. Create src/app/(dashboard)/dashboard/providers/components/ProviderFilterBar.tsx - a filter bar component with category filter chips (All, Free, OAuth, API Key, Free Tier, Local, Compatible) that filters the displayed providers. Use shadcn ToggleGroup or custom chip-style buttons. Accept a value/onChange pattern for the active filter.",
+    "3. Add 'apiKeyCompatible' boolean field to relevant providers in src/shared/constants/providers.ts. Providers that accept standard OpenAI-format API keys without special auth flows should be flagged: openai, anthropic, openrouter, deepseek, groq, xai, mistral, perplexity, together, fireworks, cerebras, cohere, nebius, siliconflow, hyperbolic, opencode-go, opencode-zen, commandcode, nvidia, glm, glm-cn, kimi, minimax, minimax-cn, alicode, alicode-intl, volcengine-ark, chutes, nanobanana, blackbox. Also add 'apiKeyCompatible' to the ProviderDefinition interface.",
+    "4. Update src/app/(dashboard)/dashboard/providers/page.tsx to: (a) import and render ProviderFilterBar above the provider sections, (b) add state for active filter, (c) sort API Key providers section so that apiKeyCompatible=true providers appear first (deterministic alphabetical within the compatible group), (d) apply the category filter to all sections, (e) integrate ProviderCategoryBadge into ProviderCard to show category inline.",
+    "5. Update src/app/(dashboard)/dashboard/providers/components/ProviderCards.tsx to accept and render a category badge next to the provider name or below it, using ProviderCategoryBadge.",
+    "6. Add tests/unit/provider-category-filter.test.ts testing: (a) getProviderCategory returns correct category for each provider type, (b) apiKeyCompatible providers sort to top, (c) filter logic correctly filters by category."
+  ],
+  "acceptance_criteria": [
+    "ProviderCategoryBadge renders correct category text and color for Free, OAuth, API Key, Free Tier, Local, Search, Audio providers",
+    "ProviderFilterBar renders filter options and filtering state changes work",
+    "API Key Compatible providers appear at the top of the API Key section deterministically",
+    "The apiKeyCompatible field is present on ~30+ providers in the APIKEY_PROVIDERS constant",
+    "New test file passes: npm run test -- provider-category-filter",
+    "npm run typecheck passes with zero errors",
+    "npm run lint passes with zero errors"
+  ],
+  "verification": [
+    "export PATH=/root/.nvm/versions/node/v22.22.3/bin:$PATH && npm run typecheck",
+    "export PATH=/root/.nvm/versions/node/v22.22.3/bin:$PATH && npm run test"
+  ],
+  "blocked_reason": null,
+  "findings": "All implementations completed successfully. Typecheck and all 192 test files (1110 tests) pass with zero errors. The apiKeyCompatible field was added to 30 providers total (28 in APIKEY_PROVIDERS + openrouter and nvidia in FREE_TIER_PROVIDERS). The sort in page.tsx uses localeCompare for deterministic alphabetical ordering within compatible/non-compatible groups."
+}

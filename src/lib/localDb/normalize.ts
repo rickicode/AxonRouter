@@ -166,7 +166,7 @@ const DEFAULT_SETTINGS = {
   outboundNoProxy: "",
   mitmRouterBaseUrl: DEFAULT_AXONROUTER_BASE_URL,
   modelSync: DEFAULT_MODEL_SYNC_SETTINGS,
-  usageCheck: { enabled: true, intervalMinutes: 5 },
+  usageCheck: { enabled: true, intervalMinutes: 60 },
   quotaExhaustedThresholdPercent: 10,
   governance: {
     enabled: false,
@@ -511,7 +511,7 @@ export function normalizeMorphSettings(morph: any = {}) {
 
 export const DEFAULT_USAGE_CHECK_SETTINGS = Object.freeze({
   enabled: true,
-  intervalMinutes: 5,
+  intervalMinutes: 60,
 });
 
 export function normalizeUsageCheckSettings(input: unknown = {}) {
@@ -520,7 +520,7 @@ export function normalizeUsageCheckSettings(input: unknown = {}) {
   return {
     enabled: record.enabled !== false,
     intervalMinutes: Number.isFinite(intervalMinutes) && intervalMinutes > 0
-      ? Math.max(1, Math.round(intervalMinutes))
+      ? Math.max(60, Math.round(intervalMinutes))
       : DEFAULT_USAGE_CHECK_SETTINGS.intervalMinutes,
   };
 }

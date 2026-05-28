@@ -1,4 +1,4 @@
-import { getDeps } from "./deps";
+import { getDeps, getDepsSafe } from "./deps";
 import { osHostname, cryptoCreateHash, cryptoRandomUUID } from "@axonrouter/data-dir";
 import { loadTunnelStateSnapshot, resolveTunnelShortId, saveTunnelConnectionState } from "./tunnelStateAccess";
 import * as cloudflared from "./cloudflared";
@@ -161,7 +161,11 @@ export async function disableTunnelRuntime() {
 }
 
 export async function getTunnelStatusRuntime() {
-  const { getCurrentSettings } = getDeps();
+  const deps = getDepsSafe();
+  if (!deps) {
+    return { enabled: false, tunnelUrl: "", shortId: "", publicUrl: "", running: false };
+  }
+  const { getCurrentSettings } = deps;
   const state = loadTunnelStateSnapshot();
   const cloudflaredModule = cloudflared;
   const running = cloudflaredModule.isCloudflaredRunning();

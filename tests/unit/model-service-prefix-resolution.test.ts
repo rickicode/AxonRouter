@@ -13,8 +13,8 @@ vi.mock("@/lib/localDb", () => ({
 
 vi.mock("@/shared/constants/providers", () => ({
   AI_PROVIDERS: {
-    "volcengine-ark": { id: "volcengine-ark" },
-    commandcode: { id: "commandcode" },
+    "volcengine-ark": { id: "volcengine-ark", alias: "ark" },
+    commandcode: { id: "commandcode", alias: "ccmd" },
   },
   APIKEY_PROVIDERS: {
     openai: { id: "openai" },

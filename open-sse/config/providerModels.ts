@@ -169,11 +169,13 @@ export const PROVIDER_MODELS = {
     { id: "deepseek-v4-pro", name: "DeepSeek V4 Pro" },
     { id: "deepseek-v4-flash", name: "DeepSeek V4 Flash" },
   ],
-  oc: [  // OpenCode Free (public no-auth endpoint)
-    { id: "deepseek-v4-flash-free", name: "DeepSeek V4 Flash" },
-    { id: "qwen3.6-plus-free", name: "Qwen 3.6 Plus" },
-    { id: "minimax-m2.5-free", name: "MiniMax M2.5", targetFormat: "claude" },
-    { id: "nemotron-3-super-free", name: "Nemotron 3 Super" },
+  oc: [  // OpenCode Free (public no-auth endpoint) - auto-synced from https://opencode.ai/zen/v1/models
+    { id: "big-pickle", name: "Big Pickle" },
+    { id: "deepseek-v4-flash-free", name: "DeepSeek V4 Flash Free" },
+    { id: "mimo-v2.5-free", name: "MiMo V2.5 Free" },
+    { id: "qwen3.6-plus-free", name: "Qwen 3.6 Plus Free", targetFormat: "claude" },
+    { id: "minimax-m2.5-free", name: "MiniMax M2.5 Free", targetFormat: "claude" },
+    { id: "nemotron-3-super-free", name: "Nemotron 3 Super Free" },
   ],
   "opencode-zen": [  // OpenCode Zen - full access (API key, passthroughModels)
     // Claude
@@ -229,6 +231,7 @@ export const PROVIDER_MODELS = {
     { id: "minimax-m2.5-free", name: "MiniMax M2.5 Free", targetFormat: "claude" },
     { id: "nemotron-3-super-free", name: "Nemotron 3 Super Free" },
   ],
+
 
   cl: [  // Cline
     { id: "anthropic/claude-opus-4.7", name: "Claude Opus 4.7" },
@@ -567,6 +570,9 @@ export const PROVIDER_MODELS = {
     { id: "gpt-5.5", name: "GPT-5.5" },
     { id: "gpt-5.3-codex", name: "GPT-5.3 Codex" },
   ],
+  freebuff: [
+    { id: "deepseek/deepseek-v4-flash", name: "DeepSeek V4 Flash (Free)" },
+  ],
 
   // TTS entries are loaded from ttsModels.js via buildTtsProviderModels()
   ...buildTtsProviderModels(),
@@ -650,6 +656,7 @@ const OAUTH_ALIASES = {
   opencode: "oc",
   "opencode-go": "opencode-go",
   "opencode-zen": "opencode-zen",
+
   vertex: "vertex",
   "vertex-partner": "vertex-partner",
 };

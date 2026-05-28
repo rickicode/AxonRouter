@@ -1,69 +1,20 @@
-// Provider alias to ID mapping
-const ALIAS_TO_PROVIDER_ID = {
-  cc: "claude",
-  cx: "codex",
-  gc: "gemini-cli",
-  qw: "qwen",
-  if: "iflow",
-  ag: "antigravity",
-  gh: "github",
-  kr: "kiro",
-  cu: "cursor",
-  kc: "kilocode",
-  kmc: "kimi-coding",
-  cl: "cline",
-  oc: "opencode",
-  ocg: "opencode-go",
-  // TTS providers
-  el: "elevenlabs",
-  // API Key providers
-  openai: "openai",
-  anthropic: "anthropic",
-  gemini: "gemini",
-  openrouter: "openrouter",
-  commandcode: "commandcode",
-  ccmd: "commandcode",
-  glm: "glm",
-  kimi: "kimi",
-  minimax: "minimax",
-  "minimax-cn": "minimax-cn",
-  ds: "deepseek",
-  deepseek: "deepseek",
-  groq: "groq",
-  xai: "xai",
-  mistral: "mistral",
-  pplx: "perplexity",
-  perplexity: "perplexity",
-  together: "together",
-  fireworks: "fireworks",
-  cerebras: "cerebras",
-  cohere: "cohere",
-  nvidia: "nvidia",
-  nebius: "nebius",
-  siliconflow: "siliconflow",
-  hyp: "hyperbolic",
-  hyperbolic: "hyperbolic",
-  dg: "deepgram",
-  deepgram: "deepgram",
-  aai: "assemblyai",
-  assemblyai: "assemblyai",
-  nb: "nanobanana",
-  nanobanana: "nanobanana",
-  ch: "chutes",
-  chutes: "chutes",
-  ark: "volcengine-ark",
-  "volcengine-ark": "volcengine-ark",
-  cursor: "cursor",
-  vx: "vertex",
-  vertex: "vertex",
-  vxp: "vertex-partner",
-  "vertex-partner": "vertex-partner",
-  // Web cookie providers
-  gw: "grok-web",
-  "grok-web": "grok-web",
-  pw: "perplexity-web",
-  "perplexity-web": "perplexity-web",
-};
+import { AI_PROVIDERS } from "../../src/shared/constants/providers";
+
+// Auto-generate alias → provider ID mapping from AI_PROVIDERS
+// This ensures routing aliases never go out of sync with provider definitions.
+// For each provider, we register:
+//   1. provider.id → provider.id (e.g. "freebuff" → "freebuff")
+//   2. provider.alias → provider.id (e.g. "fb" → "freebuff")
+const ALIAS_TO_PROVIDER_ID: Record<string, string> = {};
+for (const [id, provider] of Object.entries(AI_PROVIDERS)) {
+  const p = provider as { id: string; alias?: string };
+  ALIAS_TO_PROVIDER_ID[id] = id;
+  if (p.alias && p.alias !== id) {
+    ALIAS_TO_PROVIDER_ID[p.alias] = id;
+  }
+}
+// Additional legacy aliases that don't match the standard alias field
+ALIAS_TO_PROVIDER_ID["kmc"] = "kimi-coding";
 
 /**
  * Resolve provider alias to provider ID

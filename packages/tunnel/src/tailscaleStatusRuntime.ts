@@ -1,7 +1,11 @@
-import { getDeps } from "./deps";
+import { getDepsSafe } from "./deps";
 
 export async function getTailscaleStatusRuntime() {
-  const { getCurrentSettings } = getDeps();
+  const deps = getDepsSafe();
+  if (!deps) {
+    return { enabled: false, tunnelUrl: "", running: false };
+  }
+  const { getCurrentSettings } = deps;
   const [{ isTailscaleRunning }, settings] = await Promise.all([
     import("./tailscaleStatus"),
     getCurrentSettings(),

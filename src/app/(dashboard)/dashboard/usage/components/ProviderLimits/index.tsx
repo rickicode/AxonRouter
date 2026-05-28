@@ -271,8 +271,7 @@ export default function ProviderLimits() {
   });
   const [connections, setConnections] = useState([]);
   const [connectionsLoading, setConnectionsLoading] = useState(true);
-  const [refreshActionError, setRefreshActionError] = useState("");
-  const [refreshingAll, setRefreshingAll] = useState(false);
+
   const [refreshingConnectionIds, setRefreshingConnectionIds] = useState({});
   const [connectionRefreshErrors, setConnectionRefreshErrors] = useState({});
   const [latestTestResults, setLatestTestResults] = useState({});
@@ -425,8 +424,9 @@ export default function ProviderLimits() {
     [selectedConnection, updateConnectionMutation],
   );
 
-  const refreshConnectionUsage = useCallback(async (connectionId) => {
+  const refreshConnectionUsage = useCallback(async (connectionId, opts: { force?: boolean } = {}) => {
     if (!connectionId) return;
+    const { force = false } = opts;
 
     setRefreshingConnectionIds((prev) => ({
       ...prev,
@@ -441,7 +441,8 @@ export default function ProviderLimits() {
     });
 
     try {
-      const response = await fetch(`/api/usage/${encodeURIComponent(connectionId)}?test=1`, {
+      const qs = force ? "?force=1" : "?test=1";
+      const response = await fetch(`/api/usage/${encodeURIComponent(connectionId)}${qs}`, {
         cache: "no-store",
       });
       const data = await response.json().catch(() => ({}));
@@ -520,26 +521,7 @@ export default function ProviderLimits() {
     }
   }, [refreshSharedState]);
 
-  const refreshAll = useCallback(async () => {
-    setRefreshingAll(true);
-    setRefreshActionError("");
 
-    try {
-      const eligible = getSupportedOAuthConnections(connections);
-      if (eligible.length === 0) return;
-
-      await Promise.allSettled(
-        eligible.map((conn) => refreshConnectionUsage(conn.id)),
-      );
-
-      await refreshSharedState();
-    } catch (error) {
-      console.error("Error refreshing all connections:", error);
-      setRefreshActionError(error.message || "Failed to refresh all connections");
-    } finally {
-      setRefreshingAll(false);
-    }
-  }, [connections, refreshConnectionUsage, refreshSharedState]);
 
   const supportedConnections = useMemo(
     () => getSupportedOAuthConnections(connections),
@@ -610,7 +592,7 @@ export default function ProviderLimits() {
     [supportedConnections],
   );
 
-  const refreshButtonLabel = "Refresh All";
+
 
   if (!connectionsLoading && supportedConnections.length === 0) {
     return (
@@ -731,25 +713,10 @@ export default function ProviderLimits() {
               </div>
             )}
 
-            <ShadcnButton
-              type="button"
-              size="sm"
-              variant="secondary"
-              onClick={refreshAll}
-              disabled={refreshingAll}
-              className="w-full lg:w-auto"
-              title="Refresh usage for all connections"
-            >
-              <AppIcon name="refresh" data-icon="inline-start" className={refreshingAll ? "animate-spin" : undefined} />
-              {refreshButtonLabel}
-            </ShadcnButton>
+
           </div>
 
-          {refreshActionError && (
-            <Alert variant="destructive" className="flex items-center gap-2">
-              <AlertDescription>{refreshActionError}</AlertDescription>
-            </Alert>
-          )}
+
         </CardContent>
       </ShadcnCard>
 
@@ -837,6 +804,20 @@ export default function ProviderLimits() {
                       >
                         {isRefreshingConnection ? <Spinner className="size-4" /> : <AppIcon name="refresh" data-icon="inline-start" />}
                       </ShadcnButton>
+                      {(connectionStatus === "blocked" || connectionStatus === "exhausted" || connectionStatus === "unknown") && (
+                        <ShadcnButton
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => refreshConnectionUsage(conn.id, { force: true })}
+                          disabled={rowBusy || isRefreshingConnection}
+                          title="Force re-check (reset backoff)"
+                          aria-label="Force re-check"
+                          className="size-8 text-amber-400 hover:text-amber-300 hover:bg-amber-500/10"
+                        >
+                          <AppIcon name="refresh" data-icon="inline-start" className="animate-pulse" />
+                        </ShadcnButton>
+                      )}
                       <ShadcnButton
                         type="button"
                         variant="ghost"

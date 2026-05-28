@@ -21,6 +21,7 @@ import {
 	OAuthModal,
 	KiroOAuthWrapper,
 	CursorAuthModal,
+	FreebuffAuthModal,
 	IFlowCookieModal,
 	GitLabAuthModal,
 	EditConnectionModal,
@@ -329,7 +330,7 @@ export default function ProviderDetailPage() {
 			FREE_PROVIDERS[providerId] ||
 			FREE_TIER_PROVIDERS[providerId] ||
 			WEB_COOKIE_PROVIDERS[providerId];
-	const isOAuth = !!OAUTH_PROVIDERS[providerId] || !!FREE_PROVIDERS[providerId];
+	const isOAuth = !!OAUTH_PROVIDERS[providerId] || !!FREE_PROVIDERS[providerId] || providerId === "freebuff";
 	const isFreeNoAuth = !!FREE_PROVIDERS[providerId]?.noAuth;
 	const isMorphManaged = isMorphManagedProvider(providerId);
 	const models =
@@ -2255,7 +2256,7 @@ export default function ProviderDetailPage() {
 										)}
 										<Button
 											onClick={() =>
-												isOAuth
+												isOAuth || providerId === "freebuff"
 													? setShowOAuthModal(true)
 													: setShowAddApiKeyModal(true)
 											}
@@ -2287,7 +2288,7 @@ export default function ProviderDetailPage() {
 										<Button
 											size="sm"
 											onClick={() =>
-												isOAuth
+												isOAuth || providerId === "freebuff"
 													? setShowOAuthModal(true)
 													: setShowAddApiKeyModal(true)
 											}
@@ -2420,6 +2421,13 @@ export default function ProviderDetailPage() {
 				<KiroOAuthWrapper
 					isOpen={showOAuthModal}
 					providerInfo={{ ...providerInfo, id: providerId }}
+					onSuccess={handleOAuthSuccess}
+					onClose={() => setShowOAuthModal(false)}
+				/>
+			) : providerId === "freebuff" ? (
+				<FreebuffAuthModal
+					key={showOAuthModal ? "open" : "closed"}
+					isOpen={showOAuthModal}
 					onSuccess={handleOAuthSuccess}
 					onClose={() => setShowOAuthModal(false)}
 				/>

@@ -19,6 +19,7 @@ vi.mock("@axonrouter/tunnel/deps", () => {
       if (!_deps) throw new Error("Tunnel dependencies not configured");
       return _deps;
     },
+    getDepsSafe: () => _deps,
   };
 });
 

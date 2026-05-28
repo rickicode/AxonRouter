@@ -42,6 +42,16 @@ async function fetchProviderModels(fetcher: ModelsFetcher): Promise<unknown[]> {
   }
 }
 
+const OPENCODE_FREE_ALLOWLIST = new Set(["big-pickle"]);
+
+function filterFreeModels(models: unknown[], fetcherType: string): unknown[] {
+  if (fetcherType !== "opencode-free") return models;
+  return models.filter((m: any) => {
+    const id = typeof m?.id === "string" ? m.id : "";
+    return id.endsWith("-free") || OPENCODE_FREE_ALLOWLIST.has(id);
+  });
+}
+
 export type NoAuthSyncResult = {
   providerId: string;
   ok: boolean;
@@ -64,7 +74,12 @@ export async function syncNoAuthProviderModels(providerId?: string): Promise<NoA
         results.push({ providerId: provider.id, ok: false, count: 0, error: "No models returned" });
         continue;
       }
-      const normalized = normalizeDiscoveredModels(rawModels);
+      const filteredModels = filterFreeModels(rawModels, provider.modelsFetcher.type);
+      if (filteredModels.length === 0) {
+        results.push({ providerId: provider.id, ok: false, count: 0, error: "No free models found after filtering" });
+        continue;
+      }
+      const normalized = normalizeDiscoveredModels(filteredModels);
       await replaceCurrentSyncedAvailableModelsForConnection(
         provider.id,
         NOAUTH_CONNECTION_ID,

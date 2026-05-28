@@ -368,6 +368,23 @@ export async function POST(request: Request) {
           break;
         }
 
+        case "freebuff": {
+          const sessionRes = await fetch("https://www.codebuff.com/api/v1/freebuff/session", {
+            method: "GET",
+            headers: {
+              Authorization: `Bearer ${apiKey}`,
+              "Content-Type": "application/json",
+              "User-Agent": "ai-sdk/openai-compatible/0.0.96/codebuff-freebuff",
+            },
+          });
+          const payload = await sessionRes.json().catch(() => null);
+          isValid = sessionRes.ok || sessionRes.status === 429;
+          if (!isValid) {
+            error = payload?.message || payload?.error || "Invalid Freebuff token";
+          }
+          break;
+        }
+
         case "deepseek":
         case "groq":
         case "xai":
@@ -421,6 +438,21 @@ export async function POST(request: Request) {
             headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
             body: JSON.stringify({
               model: getDefaultModel("opencode-go"),
+              messages: [{ role: "user", content: "ping" }],
+              max_tokens: 1,
+              stream: false,
+            }),
+          });
+          isValid = res.status !== 401 && res.status !== 403;
+          break;
+        }
+
+        case "opencode-zen": {
+          const res = await fetch("https://opencode.ai/zen/v1/chat/completions", {
+            method: "POST",
+            headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}`, "x-opencode-client": "desktop" },
+            body: JSON.stringify({
+              model: getDefaultModel("opencode-zen"),
               messages: [{ role: "user", content: "ping" }],
               max_tokens: 1,
               stream: false,

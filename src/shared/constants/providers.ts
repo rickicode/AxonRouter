@@ -57,16 +57,17 @@ export const FREE_PROVIDERS = {
   qwen: { id: "qwen", alias: "qw", name: "Qwen Code", icon: "psychology", color: "#10B981", deprecated: true, deprecationNotice: "Qwen OAuth free tier was discontinued by Alibaba on 2026-04-15. New connections will not work." },
   "gemini-cli": { id: "gemini-cli", alias: "gc", name: "Gemini CLI", icon: "terminal", color: "#4285F4", deprecated: true, deprecationNotice: "Gemini CLI is designed exclusively for Gemini CLI. Using it with other tools (OpenClaw, Claude, Codex...) may result in account restrictions or bans." },
   iflow: { id: "iflow", alias: "if", name: "iFlow AI", icon: "water_drop", color: "#6366F1" },
-  opencode: { id: "opencode", alias: "oc", name: "OpenCode Free", icon: "terminal", color: "#E87040", textIcon: "OC", noAuth: true },
+  opencode: { id: "opencode", alias: "oc", name: "OpenCode Free", icon: "terminal", color: "#E87040", textIcon: "OC", noAuth: true, modelsFetcher: { url: "https://opencode.ai/zen/v1/models", type: "opencode-free" } },
 };
 
 // Free Tier Providers (has free access but may require account/API key)
 export const FREE_TIER_PROVIDERS = {
-  openrouter: { id: "openrouter", alias: "openrouter", name: "OpenRouter", icon: "router", color: "#F97316", textIcon: "OR", website: "https://openrouter.ai", notice: { text: "Free tier: 27+ free models, no credit card needed, 200 req/day. After 0 credit: 1,000 req/day.", apiKeyUrl: "https://openrouter.ai/settings/keys" }, passthroughModels: true, serviceKinds: ["llm", "embedding", "tts", "imageToText"] },
-  nvidia: { id: "nvidia", alias: "nvidia", name: "NVIDIA NIM", icon: "developer_board", color: "#76B900", textIcon: "NV", website: "https://developer.nvidia.com/nim", notice: { text: "Free access for NVIDIA Developer Program members (prototyping & testing).", apiKeyUrl: "https://build.nvidia.com/settings/api-keys" }, serviceKinds: ["llm", "stt"], sttConfig: { format: "nvidia-asr", authType: "apiKey", baseUrl: "https://integrate.api.nvidia.com/v1/audio/transcriptions", authHeader: "bearer" } },
+  openrouter: { id: "openrouter", alias: "openrouter", name: "OpenRouter", icon: "router", color: "#F97316", textIcon: "OR", website: "https://openrouter.ai", notice: { text: "Free tier: 27+ free models, no credit card needed, 200 req/day. After 0 credit: 1,000 req/day.", apiKeyUrl: "https://openrouter.ai/settings/keys" }, passthroughModels: true, serviceKinds: ["llm", "embedding", "tts", "imageToText"], apiKeyCompatible: true },
+  nvidia: { id: "nvidia", alias: "nvidia", name: "NVIDIA NIM", icon: "developer_board", color: "#76B900", textIcon: "NV", website: "https://developer.nvidia.com/nim", notice: { text: "Free access for NVIDIA Developer Program members (prototyping & testing).", apiKeyUrl: "https://build.nvidia.com/settings/api-keys" }, serviceKinds: ["llm", "stt"], sttConfig: { format: "nvidia-asr", authType: "apiKey", baseUrl: "https://integrate.api.nvidia.com/v1/audio/transcriptions", authHeader: "bearer" }, apiKeyCompatible: true },
   ollama: { id: "ollama", alias: "ollama", name: "Ollama Cloud", icon: "cloud", color: "#ffffffff", textIcon: "OL", website: "https://ollama.com", notice: { text: "Free tier: light usage, 1 cloud model at a time (limits reset every 5h & 7d). Pro 0/mo. Max 00/mo.", apiKeyUrl: "https://ollama.com/settings/keys" } },
   vertex: { id: "vertex", alias: "vx", name: "Vertex AI", icon: "cloud", color: "#4285F4", textIcon: "VX", website: "https://cloud.google.com/vertex-ai", notice: { text: "New Google Cloud accounts get 00 free credits. Requires GCP project + Service Account with Vertex AI API enabled.", apiKeyUrl: "https://console.cloud.google.com/iam-admin/serviceaccounts" } },
   gemini: { id: "gemini", alias: "gemini", name: "Gemini", icon: "diamond", color: "#4285F4", textIcon: "GE", website: "https://ai.google.dev", serviceKinds: ["llm", "embedding", "image", "imageToText", "webSearch", "stt", "tts"], sttConfig: { format: "gemini-stt", authType: "apiKey", baseUrl: "https://generativelanguage.googleapis.com/v1beta/models", authHeader: "bearer" } },
+  freebuff: { id: "freebuff", alias: "fb", name: "Freebuff", icon: "terminal", color: "#06B6D4", textIcon: "FB", website: "https://www.codebuff.com", notice: { text: "Auth via freebuff CLI. Import detected credentials from ~/.config/manicode/credentials.json or paste the full JSON." }, hasProviderSpecificData: true, serviceKinds: ["llm"] },
 };
 
 // Thinking config definitions
@@ -113,36 +114,37 @@ export const MORPH_MANAGED_PROVIDER = {
 
 export const APIKEY_PROVIDERS = {
   [MORPH_MANAGED_PROVIDER_ID]: MORPH_MANAGED_PROVIDER,
-  commandcode: { id: "commandcode", alias: "ccmd", name: "Command Code", icon: "terminal", color: "#6366F1", textIcon: "CC", website: "https://commandcode.ai", passthroughModels: true, serviceKinds: ["llm"] },
-  glm: { id: "glm", alias: "glm", name: "GLM Coding", icon: "code", color: "#2563EB", textIcon: "GL", website: "https://open.bigmodel.cn" },
-  "glm-cn": { id: "glm-cn", alias: "glm-cn", name: "GLM (China)", icon: "code", color: "#DC2626", textIcon: "GC", website: "https://open.bigmodel.cn" },
-  kimi: { id: "kimi", alias: "kimi", name: "Kimi", icon: "psychology", color: "#1E3A8A", textIcon: "KM", website: "https://kimi.moonshot.cn", serviceKinds: ["llm", "webSearch"] },
-  minimax: { id: "minimax", alias: "minimax", name: "Minimax Coding", icon: "memory", color: "#7C3AED", textIcon: "MM", website: "https://www.minimaxi.com", serviceKinds: ["llm", "image", "imageToText", "webSearch"] },
-  "minimax-cn": { id: "minimax-cn", alias: "minimax-cn", name: "Minimax (China)", icon: "memory", color: "#DC2626", textIcon: "MC", website: "https://www.minimaxi.com" },
-  alicode: { id: "alicode", alias: "alicode", name: "Alibaba", icon: "cloud", color: "#FF6A00", textIcon: "ALi" },
-  "alicode-intl": { id: "alicode-intl", alias: "alicode-intl", name: "Alibaba Intl", icon: "cloud", color: "#FF6A00", textIcon: "ALi" },
-  "volcengine-ark": { id: "volcengine-ark", alias: "ark", name: "Volcengine Ark", icon: "cloud", color: "#1677FF", textIcon: "ARK", website: "https://ark.cn-beijing.volces.com" },
-  openai: { id: "openai", alias: "openai", name: "OpenAI", icon: "auto_awesome", color: "#10A37F", textIcon: "OA", website: "https://platform.openai.com", serviceKinds: ["llm", "embedding", "tts", "image", "imageToText", "webSearch", "stt"], thinkingConfig: THINKING_CONFIG.effort, sttConfig: { format: "openai", authType: "apiKey", baseUrl: "https://api.openai.com/v1/audio/transcriptions", authHeader: "bearer" } },
-  anthropic: { id: "anthropic", alias: "anthropic", name: "Anthropic", icon: "smart_toy", color: "#D97757", textIcon: "AN", website: "https://console.anthropic.com", serviceKinds: ["llm", "imageToText"] },
+  commandcode: { id: "commandcode", alias: "ccmd", name: "Command Code", icon: "terminal", color: "#6366F1", textIcon: "CC", website: "https://commandcode.ai", passthroughModels: true, serviceKinds: ["llm"], apiKeyCompatible: true },
+  glm: { id: "glm", alias: "glm", name: "GLM Coding", icon: "code", color: "#2563EB", textIcon: "GL", website: "https://open.bigmodel.cn", apiKeyCompatible: true },
+  "glm-cn": { id: "glm-cn", alias: "glm-cn", name: "GLM (China)", icon: "code", color: "#DC2626", textIcon: "GC", website: "https://open.bigmodel.cn", apiKeyCompatible: true },
+  kimi: { id: "kimi", alias: "kimi", name: "Kimi", icon: "psychology", color: "#1E3A8A", textIcon: "KM", website: "https://kimi.moonshot.cn", serviceKinds: ["llm", "webSearch"], apiKeyCompatible: true },
+  minimax: { id: "minimax", alias: "minimax", name: "Minimax Coding", icon: "memory", color: "#7C3AED", textIcon: "MM", website: "https://www.minimaxi.com", serviceKinds: ["llm", "image", "imageToText", "webSearch"], apiKeyCompatible: true },
+  "minimax-cn": { id: "minimax-cn", alias: "minimax-cn", name: "Minimax (China)", icon: "memory", color: "#DC2626", textIcon: "MC", website: "https://www.minimaxi.com", apiKeyCompatible: true },
+  alicode: { id: "alicode", alias: "alicode", name: "Alibaba", icon: "cloud", color: "#FF6A00", textIcon: "ALi", apiKeyCompatible: true },
+  "alicode-intl": { id: "alicode-intl", alias: "alicode-intl", name: "Alibaba Intl", icon: "cloud", color: "#FF6A00", textIcon: "ALi", apiKeyCompatible: true },
+  "volcengine-ark": { id: "volcengine-ark", alias: "ark", name: "Volcengine Ark", icon: "cloud", color: "#1677FF", textIcon: "ARK", website: "https://ark.cn-beijing.volces.com", apiKeyCompatible: true },
+  openai: { id: "openai", alias: "openai", name: "OpenAI", icon: "auto_awesome", color: "#10A37F", textIcon: "OA", website: "https://platform.openai.com", serviceKinds: ["llm", "embedding", "tts", "image", "imageToText", "webSearch", "stt"], thinkingConfig: THINKING_CONFIG.effort, sttConfig: { format: "openai", authType: "apiKey", baseUrl: "https://api.openai.com/v1/audio/transcriptions", authHeader: "bearer" }, apiKeyCompatible: true },
+  anthropic: { id: "anthropic", alias: "anthropic", name: "Anthropic", icon: "smart_toy", color: "#D97757", textIcon: "AN", website: "https://console.anthropic.com", serviceKinds: ["llm", "imageToText"], apiKeyCompatible: true },
   azure: { id: "azure", alias: "azure", name: "Azure OpenAI", icon: "cloud", color: "#0078D4", textIcon: "AZ", website: "https://azure.microsoft.com/en-us/products/ai-services/openai-service", hasProviderSpecificData: true },
-  "opencode-go": { id: "opencode-go", alias: "ocg", name: "OpenCode Go", icon: "terminal", color: "#E87040", textIcon: "OC", website: "https://opencode.ai/auth", notice: { text: "OpenCode Go subscription: /mo (then 0/mo). Access to Kimi, GLM, Qwen, MiMo, MiniMax models.", apiKeyUrl: "https://opencode.ai/auth" } },
-  "opencode-zen": { id: "opencode-zen", alias: "ocz", name: "OpenCode Zen", icon: "terminal", color: "#E87040", textIcon: "OC", website: "https://opencode.ai/auth", passthroughModels: true, modelsFetcher: { url: "https://opencode.ai/zen/v1/models", type: "opencode-zen" }, notice: { text: "OpenCode Zen: full access to all 43+ models (Claude, GPT, Gemini, etc.) with API key.", apiKeyUrl: "https://opencode.ai/auth" } },
-  deepseek: { id: "deepseek", alias: "ds", name: "DeepSeek", icon: "bolt", color: "#4D6BFE", textIcon: "DS", website: "https://deepseek.com" },
-  groq: { id: "groq", alias: "groq", name: "Groq", icon: "speed", color: "#F55036", textIcon: "GQ", website: "https://groq.com", serviceKinds: ["llm", "imageToText", "stt"], sttConfig: { format: "openai", authType: "apiKey", baseUrl: "https://api.groq.com/openai/v1/audio/transcriptions", authHeader: "bearer" } },
-  xai: { id: "xai", alias: "xai", name: "xAI (Grok)", icon: "auto_awesome", color: "#1DA1F2", textIcon: "XA", website: "https://x.ai", serviceKinds: ["llm", "imageToText", "webSearch"] },
-  mistral: { id: "mistral", alias: "mistral", name: "Mistral", icon: "air", color: "#FF7000", textIcon: "MI", website: "https://mistral.ai", serviceKinds: ["llm", "imageToText"] },
-  perplexity: { id: "perplexity", alias: "pplx", name: "Perplexity", icon: "search", color: "#20808D", textIcon: "PP", website: "https://www.perplexity.ai", serviceKinds: ["llm", "webSearch"] },
-  together: { id: "together", alias: "together", name: "Together AI", icon: "group_work", color: "#0F6FFF", textIcon: "TG", website: "https://www.together.ai" },
-  fireworks: { id: "fireworks", alias: "fireworks", name: "Fireworks AI", icon: "local_fire_department", color: "#7B2EF2", textIcon: "FW", website: "https://fireworks.ai" },
-  cerebras: { id: "cerebras", alias: "cerebras", name: "Cerebras", icon: "memory", color: "#FF4F00", textIcon: "CB", website: "https://www.cerebras.ai" },
-  cohere: { id: "cohere", alias: "cohere", name: "Cohere", icon: "hub", color: "#39594D", textIcon: "CO", website: "https://cohere.com" },
-  nebius: { id: "nebius", alias: "nebius", name: "Nebius AI", icon: "cloud", color: "#6C5CE7", textIcon: "NB", website: "https://nebius.com" },
-  siliconflow: { id: "siliconflow", alias: "siliconflow", name: "SiliconFlow", icon: "cloud_queue", color: "#5B6EF5", textIcon: "SF", website: "https://cloud.siliconflow.com" },
-  hyperbolic: { id: "hyperbolic", alias: "hyp", name: "Hyperbolic", icon: "bolt", color: "#00D4FF", textIcon: "HY", website: "https://hyperbolic.xyz" },
+  "opencode-go": { id: "opencode-go", alias: "ocg", name: "OpenCode Go", icon: "terminal", color: "#E87040", textIcon: "OC", website: "https://opencode.ai/auth", apiKeyCompatible: true, notice: { text: "OpenCode Go subscription: /mo (then 0/mo). Access to Kimi, GLM, Qwen, MiMo, MiniMax models.", apiKeyUrl: "https://opencode.ai/auth" } },
+  "opencode-zen": { id: "opencode-zen", alias: "ocz", name: "OpenCode Zen", icon: "terminal", color: "#E87040", textIcon: "OC", website: "https://opencode.ai/auth", passthroughModels: true, apiKeyCompatible: true, modelsFetcher: { url: "https://opencode.ai/zen/v1/models", type: "opencode-zen" }, notice: { text: "OpenCode Zen: full access to all 43+ models (Claude, GPT, Gemini, etc.) with API key.", apiKeyUrl: "https://opencode.ai/auth" } },
+
+  deepseek: { id: "deepseek", alias: "ds", name: "DeepSeek", icon: "bolt", color: "#4D6BFE", textIcon: "DS", website: "https://deepseek.com", apiKeyCompatible: true },
+  groq: { id: "groq", alias: "groq", name: "Groq", icon: "speed", color: "#F55036", textIcon: "GQ", website: "https://groq.com", serviceKinds: ["llm", "imageToText", "stt"], sttConfig: { format: "openai", authType: "apiKey", baseUrl: "https://api.groq.com/openai/v1/audio/transcriptions", authHeader: "bearer" }, apiKeyCompatible: true },
+  xai: { id: "xai", alias: "xai", name: "xAI (Grok)", icon: "auto_awesome", color: "#1DA1F2", textIcon: "XA", website: "https://x.ai", serviceKinds: ["llm", "imageToText", "webSearch"], apiKeyCompatible: true },
+  mistral: { id: "mistral", alias: "mistral", name: "Mistral", icon: "air", color: "#FF7000", textIcon: "MI", website: "https://mistral.ai", serviceKinds: ["llm", "imageToText"], apiKeyCompatible: true },
+  perplexity: { id: "perplexity", alias: "pplx", name: "Perplexity", icon: "search", color: "#20808D", textIcon: "PP", website: "https://www.perplexity.ai", serviceKinds: ["llm", "webSearch"], apiKeyCompatible: true },
+  together: { id: "together", alias: "together", name: "Together AI", icon: "group_work", color: "#0F6FFF", textIcon: "TG", website: "https://www.together.ai", apiKeyCompatible: true },
+  fireworks: { id: "fireworks", alias: "fireworks", name: "Fireworks AI", icon: "local_fire_department", color: "#7B2EF2", textIcon: "FW", website: "https://fireworks.ai", apiKeyCompatible: true },
+  cerebras: { id: "cerebras", alias: "cerebras", name: "Cerebras", icon: "memory", color: "#FF4F00", textIcon: "CB", website: "https://www.cerebras.ai", apiKeyCompatible: true },
+  cohere: { id: "cohere", alias: "cohere", name: "Cohere", icon: "hub", color: "#39594D", textIcon: "CO", website: "https://cohere.com", apiKeyCompatible: true },
+  nebius: { id: "nebius", alias: "nebius", name: "Nebius AI", icon: "cloud", color: "#6C5CE7", textIcon: "NB", website: "https://nebius.com", apiKeyCompatible: true },
+  siliconflow: { id: "siliconflow", alias: "siliconflow", name: "SiliconFlow", icon: "cloud_queue", color: "#5B6EF5", textIcon: "SF", website: "https://cloud.siliconflow.com", apiKeyCompatible: true },
+  hyperbolic: { id: "hyperbolic", alias: "hyp", name: "Hyperbolic", icon: "bolt", color: "#00D4FF", textIcon: "HY", website: "https://hyperbolic.xyz", apiKeyCompatible: true },
   mimo: { id: "mimo", alias: "mimo", name: "Xiaomi MiMo", icon: "memory", color: "#FF6900", textIcon: "XM", website: "https://platform.mioffice.cn" },
   deepgram: { id: "deepgram", alias: "dg", name: "Deepgram", icon: "mic", color: "#13EF93", textIcon: "DG", website: "https://deepgram.com", serviceKinds: ["stt", "imageToText"], sttConfig: { format: "deepgram", authType: "apiKey", baseUrl: "https://api.deepgram.com/v1/listen", authHeader: "token" } },
   assemblyai: { id: "assemblyai", alias: "aai", name: "AssemblyAI", icon: "record_voice_over", color: "#0062FF", textIcon: "AA", website: "https://assemblyai.com", serviceKinds: ["stt"], sttConfig: { format: "assemblyai", authType: "apiKey", baseUrl: "https://api.assemblyai.com/v2/transcript", authHeader: "Authorization" } },
-  nanobanana: { id: "nanobanana", alias: "nb", name: "NanoBanana", icon: "image", color: "#FFD700", textIcon: "NB", website: "https://nanobananaapi.ai", serviceKinds: ["image"] },
+  nanobanana: { id: "nanobanana", alias: "nb", name: "NanoBanana", icon: "image", color: "#FFD700", textIcon: "NB", website: "https://nanobananaapi.ai", serviceKinds: ["image"], apiKeyCompatible: true },
   elevenlabs: { id: "elevenlabs", alias: "el", name: "ElevenLabs", icon: "record_voice_over", color: "#6C47FF", textIcon: "EL", website: "https://elevenlabs.io", serviceKinds: ["tts"] },
   cartesia: { id: "cartesia", alias: "cartesia", name: "Cartesia", icon: "spatial_audio", color: "#FF4F8B", textIcon: "CA", website: "https://cartesia.ai", serviceKinds: ["tts"], hidden: true },
   playht: { id: "playht", alias: "playht", name: "PlayHT", icon: "play_circle", color: "#00B4D8", textIcon: "PH", website: "https://play.ht", serviceKinds: ["tts"], hidden: true },
@@ -152,8 +154,8 @@ export const APIKEY_PROVIDERS = {
   sdwebui: { id: "sdwebui", alias: "sdwebui", name: "SD WebUI", icon: "brush", color: "#FF7043", textIcon: "SD", website: "https://github.com/AUTOMATIC1111/stable-diffusion-webui", serviceKinds: ["image"] },
   comfyui: { id: "comfyui", alias: "comfyui", name: "ComfyUI", icon: "account_tree", color: "#4CAF50", textIcon: "CF", website: "https://github.com/comfyanonymous/ComfyUI", serviceKinds: ["image"] },
   huggingface: { id: "huggingface", alias: "hf", name: "HuggingFace", icon: "huggingface", color: "#FFD21E", textIcon: "HF", website: "https://huggingface.co", serviceKinds: ["image", "imageToText", "tts", "stt"], hiddenKinds: ["tts"], sttConfig: { format: "huggingface-asr", authType: "apiKey", baseUrl: "https://api-inference.huggingface.co/models", authHeader: "bearer" } },
-  blackbox: { id: "blackbox", alias: "bb", name: "Blackbox AI", icon: "smart_toy", color: "#5B5FEF", textIcon: "BB", website: "https://blackbox.ai", serviceKinds: ["llm"] },
-  chutes: { id: "chutes", alias: "ch", name: "Chutes AI", icon: "water_drop", color: "#ffffffff", textIcon: "CH", website: "https://chutes.ai" },
+  blackbox: { id: "blackbox", alias: "bb", name: "Blackbox AI", icon: "smart_toy", color: "#5B5FEF", textIcon: "BB", website: "https://blackbox.ai", serviceKinds: ["llm"], apiKeyCompatible: true },
+  chutes: { id: "chutes", alias: "ch", name: "Chutes AI", icon: "water_drop", color: "#ffffffff", textIcon: "CH", website: "https://chutes.ai", apiKeyCompatible: true },
   "ollama-local": { id: "ollama-local", alias: "ollama-local", name: "Ollama Local", icon: "cloud", color: "#ffffffff", textIcon: "OL", website: "https://ollama.com" },
   "vertex-partner": { id: "vertex-partner", alias: "vxp", name: "Vertex Partner", icon: "cloud", color: "#34A853", textIcon: "VP", website: "https://cloud.google.com/vertex-ai/generative-ai/docs/partner-models/use-partner-models" },
   tavily: { id: "tavily", alias: "tavily", name: "Tavily", icon: "search", color: "#5B21B6", textIcon: "TV", website: "https://tavily.com", serviceKinds: ["webSearch"] },
@@ -530,4 +532,26 @@ export function isDeprecatedProvider(providerId: string): boolean {
 /** Get the total number of registered providers */
 export function getProviderCount(): number {
   return Object.keys(AI_PROVIDERS).length;
+}
+
+/** Provider test contract: which test phases apply to a provider */
+export interface ProviderTestContract {
+  connectivity: boolean;
+  authValidation: boolean;
+  modelListing: boolean;
+  chatCompletion: boolean;
+}
+
+/** Get which test phases are applicable for a given provider */
+export function getProviderTestCapabilities(providerId: string): ProviderTestContract {
+  const provider = AI_PROVIDERS[providerId];
+  const isNoAuth = !!provider?.noAuth;
+  const isCookie = !!WEB_COOKIE_PROVIDERS[providerId];
+
+  return {
+    connectivity: true,
+    authValidation: !isNoAuth && !isCookie,
+    modelListing: true,
+    chatCompletion: !isNoAuth,
+  };
 }

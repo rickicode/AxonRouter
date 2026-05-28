@@ -104,7 +104,7 @@ export class BaseExecutor {
     return baseUrls[urlIndex] || baseUrls[0] || this.config.baseUrl;
   }
 
-  buildHeaders(credentials, stream = true) {
+  buildHeaders(credentials, stream = true, _model?: string) {
     const headers = {
       "Content-Type": "application/json",
       ...this.config.headers
@@ -178,7 +178,7 @@ export class BaseExecutor {
     for (let urlIndex = 0; urlIndex < fallbackCount; urlIndex++) {
       const url = this.buildUrl(model, stream, urlIndex, credentials);
       const transformedBody = this.transformRequest(model, body, stream, credentials);
-      const headers = this.buildHeaders(credentials, stream);
+      const headers = this.buildHeaders(credentials, stream, model);
 
       // DEBUG: Log Command Code payload
       if (this.provider === "commandcode" && process.env.DEBUG_COMMANDCODE === "true") {

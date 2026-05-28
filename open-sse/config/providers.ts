@@ -364,6 +364,12 @@ export const PROVIDERS = {
     format: "openai",
     headers: {}
   },
+  "opencode-zen": {
+    baseUrl: "https://opencode.ai",
+    format: "openai",
+    headers: { "x-opencode-client": "desktop" }
+  },
+
   "grok-web": {
     baseUrl: "https://grok.com/rest/app-chat/conversations/new",
     format: "grok-web",
@@ -379,6 +385,13 @@ export const PROVIDERS = {
     format: "commandcode",
     headers: {
       "x-command-code-version": "0.25.0"
+    }
+  },
+  freebuff: {
+    baseUrl: "https://www.codebuff.com/api/v1/chat/completions",
+    format: "openai",
+    headers: {
+      "User-Agent": "ai-sdk/openai-compatible/0.0.96/codebuff-freebuff"
     }
   },
 };
