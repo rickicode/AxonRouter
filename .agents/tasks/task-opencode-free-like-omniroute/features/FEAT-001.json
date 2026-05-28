@@ -2,7 +2,7 @@
   "id": "FEAT-001",
   "type": "fix",
   "description": "Refactor OpenCode executors to use getModelTargetFormat() dynamically (like OmniRoute) instead of hardcoded MESSAGES_MODELS/CLAUDE_FORMAT_MODELS Sets, and fix providerModels targetFormat annotations so model routing works correctly for all OpenCode Free models.",
-  "status": "in_progress",
+  "status": "completed",
   "steps": [
     "1. In open-sse/executors/opencode.ts: Remove the hardcoded MESSAGES_MODELS Set. Import getModelTargetFormat from ../config/providerModels. Refactor buildUrl(model) to call getModelTargetFormat('oc', model) and route to /zen/v1/messages when targetFormat is 'claude', otherwise /zen/v1/chat/completions. This matches exactly how OmniRoute's OpencodeExecutor works.",
     "2. In open-sse/executors/opencode-zen.ts: Remove the hardcoded CLAUDE_FORMAT_MODELS Set. Import getModelTargetFormat from ../config/providerModels. Refactor buildUrl(model) to call getModelTargetFormat('opencode-zen', model) and route to /zen/v1/messages when targetFormat is 'claude', otherwise /zen/v1/chat/completions. Also update buildHeaders to use the same dynamic check.",
@@ -22,5 +22,5 @@
     "export PATH=/root/.nvm/versions/node/v22.22.3/bin:$PATH && npm run test"
   ],
   "blocked_reason": null,
-  "findings": ""
+  "findings": "All changes verified: typecheck passes, all 1154 tests pass. The getModelTargetFormat function was already available in providerModels.ts, so the refactoring was clean. Both executors now dynamically look up targetFormat from the PROVIDER_MODELS registry instead of maintaining separate hardcoded Sets."
 }
