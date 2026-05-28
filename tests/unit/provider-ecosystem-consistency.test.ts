@@ -24,11 +24,11 @@ describe("provider ecosystem consistency", () => {
     const aliases = ocVariants.map(id => (AI_PROVIDERS[id] as any).alias);
     const unique = new Set(aliases);
     expect(unique.size).toBe(ocVariants.length);
-    expect(ocVariants.length).toBe(4); // opencode, opencode-go, opencode-zen, opencode-provider
+    expect(ocVariants.length).toBe(3); // opencode, opencode-go, opencode-zen
   });
 
   it("all OpenCode variants have specialized executors", () => {
-    const ocVariants = ["opencode", "opencode-go", "opencode-zen", "opencode-provider"];
+    const ocVariants = ["opencode", "opencode-go", "opencode-zen"];
     for (const id of ocVariants) {
       expect(hasSpecializedExecutor(id), `${id} should have specialized executor`).toBe(true);
     }
@@ -48,7 +48,7 @@ describe("provider ecosystem consistency", () => {
   it("providers with specialized executors have entries in PROVIDERS routing config", () => {
     // Providers that have specialized executors should also exist in the PROVIDERS config
     const specializedProviders = [
-      "opencode", "opencode-go", "opencode-zen", "opencode-provider",
+      "opencode", "opencode-go", "opencode-zen",
       "codex", "kiro", "cursor", "github", "antigravity", "azure",
       "gemini-cli", "iflow", "qoder", "qwen", "grok-web", "perplexity-web",
       "vertex", "vertex-partner"

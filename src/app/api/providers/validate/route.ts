@@ -462,21 +462,6 @@ export async function POST(request: Request) {
           break;
         }
 
-        case "opencode-provider": {
-          const res = await fetch("https://opencode.ai/zen/provider/v1/chat/completions", {
-            method: "POST",
-            headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}`, "x-opencode-client": "desktop" },
-            body: JSON.stringify({
-              model: getDefaultModel("opencode-provider"),
-              messages: [{ role: "user", content: "ping" }],
-              max_tokens: 1,
-              stream: false,
-            }),
-          });
-          isValid = res.status !== 401 && res.status !== 403;
-          break;
-        }
-
         case "deepgram": {
           const res = await fetch("https://api.deepgram.com/v1/projects", {
             headers: { Authorization: `Token ${apiKey}` },

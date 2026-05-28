@@ -715,20 +715,6 @@ async function testApiKeyConnection(connection, effectiveProxy = null) {
         const valid = res.status !== 401 && res.status !== 403;
         return { valid, error: valid ? null : "Invalid API key" };
       }
-      case "opencode-provider": {
-        const res = await fetchWithConnectionProxy("https://opencode.ai/zen/provider/v1/chat/completions", {
-          method: "POST",
-          headers: { "Content-Type": "application/json", Authorization: `Bearer ${connection.apiKey}`, "x-opencode-client": "desktop" },
-          body: JSON.stringify({
-            model: getDefaultModel("opencode-provider"),
-            messages: [{ role: "user", content: "ping" }],
-            max_tokens: 1,
-            stream: false,
-          }),
-        }, effectiveProxy);
-        const valid = res.status !== 401 && res.status !== 403;
-        return { valid, error: valid ? null : "Invalid API key" };
-      }
       default:
         return { valid: false, error: "Provider test not supported" };
     }

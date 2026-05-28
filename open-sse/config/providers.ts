@@ -369,11 +369,7 @@ export const PROVIDERS = {
     format: "openai",
     headers: { "x-opencode-client": "desktop" }
   },
-  "opencode-provider": {
-    baseUrl: "https://opencode.ai",
-    format: "openai",
-    headers: { "x-opencode-client": "desktop" }
-  },
+
   "grok-web": {
     baseUrl: "https://grok.com/rest/app-chat/conversations/new",
     format: "grok-web",

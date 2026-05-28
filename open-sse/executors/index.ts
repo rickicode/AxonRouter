@@ -12,7 +12,6 @@ import { QwenExecutor } from "./qwen";
 import { OpenCodeExecutor } from "./opencode";
 import { OpenCodeGoExecutor } from "./opencode-go";
 import { OpenCodeZenExecutor } from "./opencode-zen";
-import { OpenCodeProviderExecutor } from "./opencode-provider";
 import { GrokWebExecutor } from "./grok-web";
 import { PerplexityWebExecutor } from "./perplexity-web";
 import { FreebuffExecutor } from "./freebuff";
@@ -36,7 +35,6 @@ const executors = {
   opencode: new OpenCodeExecutor(),
   "opencode-go": new OpenCodeGoExecutor(),
   "opencode-zen": new OpenCodeZenExecutor(),
-  "opencode-provider": new OpenCodeProviderExecutor(),
   "grok-web": new GrokWebExecutor(),
   "perplexity-web": new PerplexityWebExecutor(),
   freebuff: new FreebuffExecutor(),
@@ -70,7 +68,6 @@ export { QwenExecutor } from "./qwen";
 export { OpenCodeExecutor } from "./opencode";
 export { OpenCodeGoExecutor } from "./opencode-go";
 export { OpenCodeZenExecutor } from "./opencode-zen";
-export { OpenCodeProviderExecutor } from "./opencode-provider";
 export { GrokWebExecutor } from "./grok-web";
 export { PerplexityWebExecutor } from "./perplexity-web";
 export { FreebuffExecutor } from "./freebuff";
