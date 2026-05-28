@@ -368,6 +368,23 @@ export async function POST(request: Request) {
           break;
         }
 
+        case "freebuff": {
+          const sessionRes = await fetch("https://www.codebuff.com/api/v1/freebuff/session", {
+            method: "GET",
+            headers: {
+              Authorization: `Bearer ${apiKey}`,
+              "Content-Type": "application/json",
+              "User-Agent": "ai-sdk/openai-compatible/0.0.96/codebuff-freebuff",
+            },
+          });
+          const payload = await sessionRes.json().catch(() => null);
+          isValid = sessionRes.ok || sessionRes.status === 429;
+          if (!isValid) {
+            error = payload?.message || payload?.error || "Invalid Freebuff token";
+          }
+          break;
+        }
+
         case "deepseek":
         case "groq":
         case "xai":

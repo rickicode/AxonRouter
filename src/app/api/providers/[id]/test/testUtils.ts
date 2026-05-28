@@ -508,6 +508,22 @@ async function testApiKeyConnection(connection, effectiveProxy = null) {
         const valid = res.status !== 401 && res.status !== 403;
         return { valid, error: valid ? null : "Invalid API key" };
       }
+      case "freebuff": {
+        const res = await fetchWithConnectionProxy("https://www.codebuff.com/api/v1/freebuff/session", {
+          method: "GET",
+          headers: {
+            Authorization: `Bearer ${connection.apiKey}`,
+            "Content-Type": "application/json",
+            "User-Agent": "ai-sdk/openai-compatible/0.0.96/codebuff-freebuff",
+          },
+        }, effectiveProxy);
+        const payload = await res.json().catch(() => null);
+        const valid = res.ok || res.status === 429;
+        return {
+          valid,
+          error: valid ? null : payload?.message || payload?.error || "Invalid Freebuff token",
+        };
+      }
       case "deepseek": {
         const res = await fetchWithConnectionProxy("https://api.deepseek.com/models", { headers: { Authorization: `Bearer ${connection.apiKey}` } }, effectiveProxy);
         return { valid: res.ok, error: res.ok ? null : "Invalid API key" };

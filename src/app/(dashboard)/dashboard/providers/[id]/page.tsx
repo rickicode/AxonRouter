@@ -21,6 +21,7 @@ import {
 	OAuthModal,
 	KiroOAuthWrapper,
 	CursorAuthModal,
+	FreebuffAuthModal,
 	IFlowCookieModal,
 	GitLabAuthModal,
 	EditConnectionModal,
@@ -2255,7 +2256,7 @@ export default function ProviderDetailPage() {
 										)}
 										<Button
 											onClick={() =>
-												isOAuth
+												isOAuth || providerId === "freebuff"
 													? setShowOAuthModal(true)
 													: setShowAddApiKeyModal(true)
 											}
@@ -2287,7 +2288,7 @@ export default function ProviderDetailPage() {
 										<Button
 											size="sm"
 											onClick={() =>
-												isOAuth
+												isOAuth || providerId === "freebuff"
 													? setShowOAuthModal(true)
 													: setShowAddApiKeyModal(true)
 											}
@@ -2420,6 +2421,12 @@ export default function ProviderDetailPage() {
 				<KiroOAuthWrapper
 					isOpen={showOAuthModal}
 					providerInfo={{ ...providerInfo, id: providerId }}
+					onSuccess={handleOAuthSuccess}
+					onClose={() => setShowOAuthModal(false)}
+				/>
+			) : providerId === "freebuff" ? (
+				<FreebuffAuthModal
+					isOpen={showOAuthModal}
 					onSuccess={handleOAuthSuccess}
 					onClose={() => setShowOAuthModal(false)}
 				/>
