@@ -229,6 +229,14 @@ export const PROVIDER_MODELS = {
     { id: "minimax-m2.5-free", name: "MiniMax M2.5 Free", targetFormat: "claude" },
     { id: "nemotron-3-super-free", name: "Nemotron 3 Super Free" },
   ],
+  "opencode-provider": [  // OpenCode Provider (base paid tier)
+    { id: "glm-5", name: "GLM 5" },
+    { id: "kimi-k2.5", name: "Kimi K2.5" },
+    { id: "qwen3.6-plus", name: "Qwen 3.6 Plus", targetFormat: "claude" },
+    { id: "mimo-v2-pro", name: "MiMo V2 Pro" },
+    { id: "minimax-m2.5", name: "MiniMax M2.5", targetFormat: "claude" },
+    { id: "deepseek-v4-flash", name: "DeepSeek V4 Flash" },
+  ],
 
   cl: [  // Cline
     { id: "anthropic/claude-opus-4.7", name: "Claude Opus 4.7" },
@@ -650,6 +658,7 @@ const OAUTH_ALIASES = {
   opencode: "oc",
   "opencode-go": "opencode-go",
   "opencode-zen": "opencode-zen",
+  "opencode-provider": "opencode-provider",
   vertex: "vertex",
   "vertex-partner": "vertex-partner",
 };
