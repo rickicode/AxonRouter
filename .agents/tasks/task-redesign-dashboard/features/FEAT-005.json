@@ -2,7 +2,7 @@
   "id": "FEAT-005",
   "type": "fix",
   "description": "Fix service installers: scripts/service.js always installs user-level systemd, installer.sh supports root=system-level and non-root=user-level+linger",
-  "status": "in_progress",
+  "status": "completed",
   "steps": [
     "Step 1: Rewrite the installService() function in scripts/service.js. Remove the isRoot() branch that installs to /etc/systemd/system/. ALL code paths must install to user-level systemd only. When running as root, detect SUDO_USER (or fall back to the real user) and install to that user's ~/.config/systemd/user/axonrouter.service. Use generateSystemdUnit() with userMode: true always. After writing the unit file, enable linger with: execSync('loginctl enable-linger <user>'). Use the appropriate systemctl --user commands, running them as the target user (via sudo -u <user> with proper XDG_RUNTIME_DIR if currently root). Keep init.d fallback for non-systemd systems only (unchanged behavior).",
     "Step 2: Update the uninstallService() function to match - when running as root, it should detect and remove user-level services. Remove the system-level uninstall path since we no longer install system-level services from this script.",
@@ -29,5 +29,5 @@
     "npm run build"
   ],
   "blocked_reason": null,
-  "findings": ""
+  "findings": "All 41 pre-existing test failures are ENOENT errors for missing files from other unimplemented features (MorphPageClient.tsx, skills/page.tsx, providers/page.tsx, etc). Verified by stashing changes and confirming identical test results. Lint, typecheck, and build all pass cleanly."
 }
