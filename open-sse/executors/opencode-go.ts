@@ -1,8 +1,6 @@
 import { BaseExecutor } from "./base";
 import { PROVIDERS } from "../config/providers";
-
-// Models that use /zen/go/v1/messages (Anthropic/Claude format + x-api-key auth)
-const CLAUDE_FORMAT_MODELS = new Set(["minimax-m2.5", "minimax-m2.7", "qwen3.6-plus", "qwen3.5-plus"]);
+import { getModelTargetFormat } from "../config/providerModels";
 
 const BASE = "https://opencode.ai/zen/go/v1";
 
@@ -15,18 +13,19 @@ export class OpenCodeGoExecutor extends BaseExecutor {
     super("opencode-go", PROVIDERS["opencode-go"]);
   }
 
-  // buildUrl runs before buildHeaders in BaseExecutor.execute
   buildUrl(model) {
-    return CLAUDE_FORMAT_MODELS.has(model)
+    const targetFormat = getModelTargetFormat("opencode-go", model);
+    return targetFormat === "claude"
       ? `${BASE}/messages`
       : `${BASE}/chat/completions`;
   }
 
   buildHeaders(credentials, stream = true, model?: string) {
     const key = credentials?.apiKey || credentials?.accessToken;
-    const headers = { "Content-Type": "application/json" };
+    const headers: Record<string, string> = { "Content-Type": "application/json" };
 
-    if (model && CLAUDE_FORMAT_MODELS.has(model)) {
+    const targetFormat = model ? getModelTargetFormat("opencode-go", model) : null;
+    if (targetFormat === "claude") {
       headers["x-api-key"] = key;
       headers["anthropic-version"] = "2023-06-01";
     } else {
