@@ -1,5 +1,7 @@
 import { BaseExecutor } from "./base";
 import { PROVIDERS } from "../config/providers";
+import { createDeadlineSignal, mergeAbortSignals } from "../utils/abort";
+import { proxyAwareFetch } from "../utils/proxyFetch";
 import {
   buildFreebuffHeaders,
   buildFreebuffAgentRunsUrl,
@@ -7,6 +9,8 @@ import {
   FREEBUFF_DEFAULT_AGENT_ID,
   FREEBUFF_DEFAULT_CLIENT_ID,
 } from "../../src/lib/freebuff/probe";
+
+const RUN_START_TIMEOUT_MS = 15_000;
 
 export class FreebuffExecutor extends BaseExecutor {
   constructor() {
@@ -27,18 +31,30 @@ export class FreebuffExecutor extends BaseExecutor {
   }
 
   async execute(args: any) {
-    const { credentials, body, log } = args;
+    const { credentials, body, signal, log, proxyOptions = null } = args;
     const token = credentials.apiKey || credentials.accessToken;
 
-    // Step 1: Start a run
+    // Step 1: Start a run with proxy support, abort signal, and timeout
     let runId: string;
     try {
-      const runResponse = await fetch(buildFreebuffAgentRunsUrl(), {
+      const deadline = createDeadlineSignal(RUN_START_TIMEOUT_MS, "freebuff run-start");
+      const requestSignal = signal
+        ? mergeAbortSignals([signal, deadline.signal])
+        : deadline.signal;
+
+      const runResponse = await proxyAwareFetch(buildFreebuffAgentRunsUrl(), {
         method: "POST",
         headers: buildFreebuffHeaders(token),
         body: JSON.stringify(buildFreebuffRunStartRequest(FREEBUFF_DEFAULT_AGENT_ID)),
-      });
-      const runData = await runResponse.json();
+        signal: requestSignal,
+      }, proxyOptions);
+
+      deadline.clear();
+
+      const runData = await runResponse.json().catch(() => null);
+      if (!runData) {
+        throw new Error(`Failed to start freebuff run: non-JSON response (status ${runResponse.status})`);
+      }
       runId = runData.runId || runData.run_id || runData.id;
       if (!runId) {
         throw new Error(`Failed to start freebuff run: ${JSON.stringify(runData)}`);
