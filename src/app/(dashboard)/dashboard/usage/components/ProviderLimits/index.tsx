@@ -425,8 +425,9 @@ export default function ProviderLimits() {
     [selectedConnection, updateConnectionMutation],
   );
 
-  const refreshConnectionUsage = useCallback(async (connectionId) => {
+  const refreshConnectionUsage = useCallback(async (connectionId, opts: { force?: boolean } = {}) => {
     if (!connectionId) return;
+    const { force = false } = opts;
 
     setRefreshingConnectionIds((prev) => ({
       ...prev,
@@ -441,7 +442,8 @@ export default function ProviderLimits() {
     });
 
     try {
-      const response = await fetch(`/api/usage/${encodeURIComponent(connectionId)}?test=1`, {
+      const qs = force ? "?force=1" : "?test=1";
+      const response = await fetch(`/api/usage/${encodeURIComponent(connectionId)}${qs}`, {
         cache: "no-store",
       });
       const data = await response.json().catch(() => ({}));
@@ -837,6 +839,20 @@ export default function ProviderLimits() {
                       >
                         {isRefreshingConnection ? <Spinner className="size-4" /> : <AppIcon name="refresh" data-icon="inline-start" />}
                       </ShadcnButton>
+                      {(connectionStatus === "blocked" || connectionStatus === "exhausted" || connectionStatus === "unknown") && (
+                        <ShadcnButton
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => refreshConnectionUsage(conn.id, { force: true })}
+                          disabled={rowBusy || isRefreshingConnection}
+                          title="Force re-check (reset backoff)"
+                          aria-label="Force re-check"
+                          className="size-8 text-amber-400 hover:text-amber-300 hover:bg-amber-500/10"
+                        >
+                          <AppIcon name="refresh" data-icon="inline-start" className="animate-pulse" />
+                        </ShadcnButton>
+                      )}
                       <ShadcnButton
                         type="button"
                         variant="ghost"

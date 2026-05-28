@@ -129,12 +129,21 @@ export class UsageCheckScheduler {
           USAGE_SUPPORTED_PROVIDERS.includes(conn.provider),
       );
 
-      // Skip connections with future nextRetryAt (in backoff)
+      // Skip connections in backoff (future nextRetryAt) or disabled/invalid
       const now = Date.now();
       const activeConnections = oauthConnections.filter((conn: any) => {
-        if (!conn?.nextRetryAt) return true;
-        const retryAt = new Date(conn.nextRetryAt).getTime();
-        return !Number.isFinite(retryAt) || retryAt <= now;
+        // Skip disabled connections (auth invalid, deauthorized, etc.)
+        if (conn?.routingStatus === "disabled" || conn?.authState === "invalid") {
+          return false;
+        }
+        // Skip connections with future nextRetryAt (in backoff)
+        if (conn?.nextRetryAt) {
+          const retryAt = new Date(conn.nextRetryAt).getTime();
+          if (Number.isFinite(retryAt) && retryAt > now) {
+            return false;
+          }
+        }
+        return true;
       });
       const skippedCount = oauthConnections.length - activeConnections.length;
       const originalTotal = oauthConnections.length;
