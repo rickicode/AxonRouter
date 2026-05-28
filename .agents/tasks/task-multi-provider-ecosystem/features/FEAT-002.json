@@ -2,7 +2,7 @@
   "id": "FEAT-002",
   "type": "feat",
   "description": "Add explicit OpenCode Provider variant to the provider catalog as a fourth OpenCode tier, add an opencode-zen executor for proper routing, and ensure all four OpenCode variants (OpenCode Free, OpenCode Go, OpenCode Zen, and the new OpenCode Provider base tier) are clearly separated with distinct identities in the routing layer and provider config.",
-  "status": "pending",
+  "status": "completed",
   "steps": [
     "1. Add 'opencode-provider' entry in src/shared/constants/providers.ts under APIKEY_PROVIDERS with: id='opencode-provider', alias='ocp', name='OpenCode Provider', icon='terminal', color='#E87040', textIcon='OP', website='https://opencode.ai', notice describing it as the base paid OpenCode tier with access to core models. Make it distinct from opencode (free/oc), opencode-go (ocg), opencode-zen (ocz).",
     "2. Add 'opencode-provider' entry in open-sse/config/providers.ts with baseUrl 'https://opencode.ai', format 'openai', headers including x-opencode-client. This is distinct from the free opencode entry which uses noAuth:true with Bearer 'public'.",
@@ -28,5 +28,5 @@
     "export PATH=/root/.nvm/versions/node/v22.22.3/bin:$PATH && npm run test"
   ],
   "blocked_reason": null,
-  "findings": ""
+  "findings": "All implementations completed successfully. Typecheck passes, all 193 test files (1116 tests) pass. Created dedicated OpenCodeZenExecutor and OpenCodeProviderExecutor with proper claude-format model routing. Added opencode-provider to APIKEY_PROVIDERS, providers config, providerModels, OAUTH_ALIASES, and executor registry."
 }
