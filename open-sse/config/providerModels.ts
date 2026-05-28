@@ -224,10 +224,9 @@ export const PROVIDER_MODELS = {
     { id: "qwen3.5-plus", name: "Qwen 3.5 Plus", targetFormat: "claude" },
     // Free tier models (also available in zen)
     { id: "big-pickle", name: "Big Pickle" },
-    { id: "deepseek-v4-flash-free", name: "DeepSeek V4 Flash Free" },
-    { id: "mimo-v2.5-free", name: "MiMo V2.5 Free" },
-    { id: "qwen3.6-plus-free", name: "Qwen 3.6 Plus Free", targetFormat: "claude" },
     { id: "minimax-m2.5-free", name: "MiniMax M2.5 Free", targetFormat: "claude" },
+    { id: "ling-2.6-1t-free", name: "Ling 2.6 Free" },
+    { id: "trinity-large-preview-free", name: "Trinity Large Preview Free" },
     { id: "nemotron-3-super-free", name: "Nemotron 3 Super Free" },
   ],
 

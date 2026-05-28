@@ -96,11 +96,15 @@ export async function getAggregateProviderModelsByProvider() {
     ...Object.keys(groupedSynced),
   ]));
 
+  const providerDefById = new Map(
+    providerMaps.flatMap(m => Object.values(m)).map((p: any) => [p.id, p])
+  );
+
   return Object.fromEntries(
     allProviderIds.map((providerId) => {
       // For providers without modelsFetcher/passthroughModels, always use system models
       // This prevents stale synced data from overriding the correct hardcoded model list
-      const providerDef = providerMaps.flatMap(m => Object.values(m)).find((p: any) => p.id === providerId) as any;
+      const providerDef = providerDefById.get(providerId);
       const canSyncModels = providerDef?.passthroughModels || providerDef?.modelsFetcher;
       const base = (canSyncModels && groupedSynced[providerId]?.length)
         ? groupedSynced[providerId]
