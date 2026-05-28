@@ -5,6 +5,8 @@ import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { useUrlQueryControls } from "@/shared/hooks";
 import MainTab from "./components/MainTab";
 import ProtocolsTab from "./components/ProtocolsTab";
+import TunnelsSection from "./components/TunnelsSection";
+import AvailableEndpoints from "./components/AvailableEndpoints";
 
 export default function EndpointPageClient({ machineId }) {
   const { getQueryValue, updateQueryParams } = useUrlQueryControls({
@@ -12,7 +14,7 @@ export default function EndpointPageClient({ machineId }) {
   });
 
   const tabFromUrl = getQueryValue("tab", "");
-  const activeTab = ["protocols"].includes(tabFromUrl) ? tabFromUrl : "main";
+  const activeTab = ["protocols", "tunnels"].includes(tabFromUrl) ? tabFromUrl : "main";
 
   const handleTabChange = (value) => {
     if (value === activeTab) return;
@@ -32,6 +34,7 @@ export default function EndpointPageClient({ machineId }) {
         <ToggleGroup type="single" value={activeTab} onValueChange={(next) => next && handleTabChange(next)} aria-label="Endpoint sections">
           {[
             { value: "main", label: "Main" },
+            { value: "tunnels", label: "Tunnels" },
             { value: "protocols", label: "Protocols" },
           ].map((item) => (
             <ToggleGroupItem key={item.value} value={item.value} className="min-w-20">
@@ -42,7 +45,10 @@ export default function EndpointPageClient({ machineId }) {
       </div>
 
       {activeTab === "main" && <MainTab machineId={machineId} />}
+      {activeTab === "tunnels" && <TunnelsSection />}
       {activeTab === "protocols" && <ProtocolsTab />}
+
+      <AvailableEndpoints />
     </div>
   );
 }
