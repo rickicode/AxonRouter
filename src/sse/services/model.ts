@@ -1,6 +1,6 @@
 // Re-export from open-sse with localDb integration
 import { parseModel, resolveModelAliasFromMap, getModelInfoCore } from "../../../open-sse/services/model";
-import { AI_PROVIDERS, APIKEY_PROVIDERS, resolveProviderId } from "@/shared/constants/providers";
+import { AI_PROVIDERS, APIKEY_PROVIDERS, ALIAS_TO_ID, resolveProviderId } from "@/shared/constants/providers";
 import { getVirtualSystemModelDefinition, isVirtualSystemModel } from "@/lib/routing/virtualModelResolver";
 
 type LocalDbModule = typeof import("@/lib/localDb");
@@ -15,6 +15,7 @@ export { parseModel };
 const KNOWN_PROVIDER_IDS = new Set([
   ...Object.keys(AI_PROVIDERS || {}),
   ...Object.keys(APIKEY_PROVIDERS || {}),
+  ...Object.keys(ALIAS_TO_ID || {}),
   "openai", "anthropic", "gemini", "openrouter", "commandcode",
   "glm", "glm-cn", "kimi", "minimax", "minimax-cn",
   "volcengine-ark", "alicode", "alicode-intl",
@@ -70,9 +71,12 @@ export async function getModelInfo(modelStr) {
       };
     }
 
-    // Provider not recognized — likely a Command Code model prefix (e.g. moonshotai, deepseek, glm, qwen)
-    // Keep model as-is (e.g. "moonshotai/Kimi-K2.6") — Command Code API expects full provider/model string
+    // Provider not recognized — check if alias resolves to a known provider before falling to Command Code
     if (!KNOWN_PROVIDER_IDS.has(parsed.provider)) {
+      const resolvedFromAlias = resolveProviderId(parsed.providerAlias || parsed.provider);
+      if (resolvedFromAlias !== parsed.provider && KNOWN_PROVIDER_IDS.has(resolvedFromAlias)) {
+        return { provider: resolvedFromAlias, model: parsed.model };
+      }
       const commandcodeId = resolveProviderId("commandcode") || "commandcode";
       return { provider: commandcodeId, model: modelStr, isCommandCode: true };
     }

@@ -545,13 +545,28 @@ export interface ProviderTestContract {
 /** Get which test phases are applicable for a given provider */
 export function getProviderTestCapabilities(providerId: string): ProviderTestContract {
   const provider = AI_PROVIDERS[providerId];
-  const isNoAuth = !!provider?.noAuth;
+
+  // Compatible providers (dynamic, not in AI_PROVIDERS)
+  const isCompatible = providerId.startsWith(OPENAI_COMPATIBLE_PREFIX) || providerId.startsWith(ANTHROPIC_COMPATIBLE_PREFIX);
+  if (isCompatible) {
+    return { connectivity: true, authValidation: true, modelListing: true, chatCompletion: true };
+  }
+
+  // Unknown provider (not in any registry) - return safe defaults
+  if (!provider) {
+    return { connectivity: true, authValidation: true, modelListing: false, chatCompletion: true };
+  }
+
+  const isNoAuth = !!provider.noAuth;
   const isCookie = !!WEB_COOKIE_PROVIDERS[providerId];
+  const isLocal = LOCAL_PROVIDERS.has(providerId);
+  const serviceKinds: string[] = (provider as any).serviceKinds ?? ["llm"];
+  const hasLlm = serviceKinds.includes("llm");
 
   return {
     connectivity: true,
-    authValidation: !isNoAuth && !isCookie,
+    authValidation: !isNoAuth && !isCookie && !isLocal,
     modelListing: true,
-    chatCompletion: !isNoAuth,
+    chatCompletion: !isNoAuth && hasLlm,
   };
 }

@@ -1,14 +1,16 @@
 "use client";
 
 import AppIcon from "@/shared/components/AppIcon";
-import { DownloadIcon, LoaderCircle, PlusIcon, UploadIcon, Zap } from "lucide-react";
+import { ChevronDown, DownloadIcon, LoaderCircle, PlusIcon, Search, UploadIcon, Zap } from "lucide-react";
 import { useState, useEffect, useRef } from "react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge as ShadcnBadge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@/components/ui/empty";
+import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Textarea } from "@/components/ui/textarea";
 import { OAUTH_PROVIDERS, APIKEY_PROVIDERS } from "@/shared/constants/config";
@@ -28,11 +30,12 @@ import { useNotificationStore } from "@/store/notificationStore";
 import { useHeaderSearchStore } from "@/store/headerSearchStore";
 import ModelAvailabilityBadge from "./components/ModelAvailabilityBadge";
 import { getConnectionErrorTag } from "./errorTag";
-import { getDashboardConnectionStatus, getStatusDisplayItems } from "./statusDisplay";
+import { getDashboardConnectionStatus } from "./statusDisplay";
 import { ProviderCard, ApiKeyProviderCard } from "./components/ProviderCards";
 import { AddOpenAICompatibleModal, AddAnthropicCompatibleModal } from "./components/AddCompatibleModals";
 import { ProviderTestResultsView } from "./components/ProviderTestResults";
 import { ProviderFilterBar } from "./components/ProviderFilterBar";
+import type { FilterOption } from "./components/ProviderFilterBar";
 
 function extractCredentialImportRecords(payload: any) {
   if (Array.isArray(payload)) return payload;
@@ -63,13 +66,56 @@ function getCredentialImportAccountLabel(record: any, index: number) {
   );
 }
 
+interface CollapsibleSectionProps {
+  title: string;
+  count: number;
+  testMode: string;
+  testingMode: string | null;
+  onTest: () => void;
+  children: React.ReactNode;
+  extra?: React.ReactNode;
+}
+
+function CollapsibleSection({ title, count, testMode, testingMode, onTest, children, extra }: CollapsibleSectionProps) {
+  const [open, setOpen] = useState(true);
+  return (
+    <Collapsible open={open} onOpenChange={setOpen} className="flex flex-col gap-3">
+      <div className="flex items-center justify-between">
+        <CollapsibleTrigger asChild>
+          <button className="flex items-center gap-2 text-xl font-bold tracking-[-0.02em] text-foreground hover:opacity-80 transition-opacity">
+            <ChevronDown className={cn("size-4 transition-transform", !open && "-rotate-90")} />
+            {title}
+            <ShadcnBadge variant="secondary" className="text-xs">{count}</ShadcnBadge>
+          </button>
+        </CollapsibleTrigger>
+        <div className="flex items-center gap-2">
+          {extra}
+          <Button
+            onClick={onTest}
+            disabled={!!testingMode}
+            variant={testingMode === testMode ? "secondary" : "outline"}
+            size="sm"
+            title={`Test all ${title} connections`}
+          >
+            <LoaderCircle data-icon="inline-start" className={testingMode === testMode ? "animate-spin" : undefined} />
+            {testingMode === testMode ? "Testing..." : "Test"}
+          </Button>
+        </div>
+      </div>
+      <CollapsibleContent>
+        {children}
+      </CollapsibleContent>
+    </Collapsible>
+  );
+}
+
 export default function ProvidersPage() {
   const [connections, setConnections] = useState([]);
   const [providerNodes, setProviderNodes] = useState([]);
   const [loading, setLoading] = useState(true);
   const [activeFilter, setActiveFilter] = useState("all");
-  const [showCredentialImportModal, setShowCredentialImportModal] =
-    useState(false);
+  const [localSearch, setLocalSearch] = useState("");
+  const [showCredentialImportModal, setShowCredentialImportModal] = useState(false);
   const [credentialImportText, setCredentialImportText] = useState("");
   const [credentialImportFileName, setCredentialImportFileName] = useState("");
   const [importingCredentials, setImportingCredentials] = useState(false);
@@ -85,8 +131,7 @@ export default function ProvidersPage() {
   });
   const [exportingCredentials, setExportingCredentials] = useState(false);
   const [showAddCompatibleModal, setShowAddCompatibleModal] = useState(false);
-  const [showAddAnthropicCompatibleModal, setShowAddAnthropicCompatibleModal] =
-    useState(false);
+  const [showAddAnthropicCompatibleModal, setShowAddAnthropicCompatibleModal] = useState(false);
   const [testingMode, setTestingMode] = useState(null);
   const [testResults, setTestResults] = useState(null);
   const [providerSummaries, setProviderSummaries] = useState<any>({});
@@ -95,6 +140,7 @@ export default function ProvidersPage() {
   const inv = useInvalidate();
   const headerSearchQuery: any = useHeaderSearchStore((state: any) => state.query);
   const normalizedHeaderSearch = (headerSearchQuery || "").trim().toLowerCase();
+  const normalizedLocalSearch = localSearch.trim().toLowerCase();
 
   const refreshConnections = async () => {
     const res = await fetch("/api/providers");
@@ -186,7 +232,6 @@ export default function ProvidersPage() {
       });
       notify.error("Failed to read backup file");
     } finally {
-      // Allow selecting the same file again.
       event.target.value = "";
     }
   };
@@ -303,9 +348,10 @@ export default function ProvidersPage() {
     }
   };
 
-  const matchesHeaderSearch = (providerId, info) => {
-    if (!normalizedHeaderSearch) return true;
-    return [providerId, info?.name, info?.alias, info?.website, info?.textIcon].some((value) => String(value || "").toLowerCase().includes(normalizedHeaderSearch));
+  const matchesSearch = (providerId, info) => {
+    const headerMatch = !normalizedHeaderSearch || [providerId, info?.name, info?.alias, info?.website, info?.textIcon].some((value) => String(value || "").toLowerCase().includes(normalizedHeaderSearch));
+    const localMatch = !normalizedLocalSearch || [providerId, info?.name, info?.alias, info?.website, info?.textIcon].some((value) => String(value || "").toLowerCase().includes(normalizedLocalSearch));
+    return headerMatch && localMatch;
   };
 
   const categoryFilterFn = (providerId: string) => {
@@ -318,16 +364,18 @@ export default function ProvidersPage() {
       case "freetier": return category === "Free Tier";
       case "local": return category === "Local";
       case "compatible": return category === "OpenAI Compatible" || category === "Anthropic Compatible";
+      case "webcookie": return category === "Web Cookie";
       default: return true;
     }
   };
 
-  const filteredOauthProviders = Object.entries(OAUTH_PROVIDERS).filter(([key, info]) => matchesHeaderSearch(key, info) && categoryFilterFn(key));
-  const filteredFreeProviders = Object.entries(FREE_PROVIDERS).filter(([key, info]) => matchesHeaderSearch(key, info) && categoryFilterFn(key));
-  const filteredFreeTierProviders = Object.entries(FREE_TIER_PROVIDERS).filter(([key, info]) => matchesHeaderSearch(key, info) && categoryFilterFn(key));
+  const filteredOauthProviders = Object.entries(OAUTH_PROVIDERS).filter(([key, info]) => matchesSearch(key, info) && categoryFilterFn(key));
+  const filteredFreeProviders = Object.entries(FREE_PROVIDERS).filter(([key, info]) => matchesSearch(key, info) && categoryFilterFn(key));
+  const filteredFreeTierProviders = Object.entries(FREE_TIER_PROVIDERS).filter(([key, info]) => matchesSearch(key, info) && categoryFilterFn(key));
+  const filteredWebCookieProviders = Object.entries(WEB_COOKIE_PROVIDERS).filter(([key, info]) => matchesSearch(key, info) && categoryFilterFn(key));
   const filteredApiKeyProviders = Object.entries(APIKEY_PROVIDERS)
     .filter(([, rawInfo]) => ((rawInfo as any).serviceKinds ?? ["llm"]).includes("llm"))
-    .filter(([key, info]) => matchesHeaderSearch(key, info) && categoryFilterFn(key));
+    .filter(([key, info]) => matchesSearch(key, info) && categoryFilterFn(key));
 
   const filteredManagedApiKeyProviders = filteredApiKeyProviders.filter(([, rawInfo]) => (rawInfo as any).systemManaged === true);
   const filteredRegularApiKeyProviders = filteredApiKeyProviders
@@ -338,6 +386,8 @@ export default function ProvidersPage() {
       if (aCompat !== bCompat) return aCompat - bCompat;
       return keyA.localeCompare(keyB);
     });
+
+
 
   const getProviderStats = (providerId, authType) => {
     const providerConnections = connections.filter(
@@ -430,7 +480,6 @@ export default function ProvidersPage() {
     onSuccess: () => { inv.providers(); },
   });
 
-  // Toggle all connections for a provider on/off
   const handleToggleProvider = (providerId, authType, newActive) => {
     const providerConns = connections.filter(
       (c) => c.provider === providerId && c.authType === authType,
@@ -489,6 +538,24 @@ export default function ProvidersPage() {
       textIcon: "AC",
     }));
 
+  // Category counts for filter pills
+  const allProviderIds = [
+    ...Object.keys(FREE_PROVIDERS),
+    ...Object.keys(FREE_TIER_PROVIDERS),
+    ...Object.keys(OAUTH_PROVIDERS),
+    ...Object.keys(APIKEY_PROVIDERS),
+    ...Object.keys(WEB_COOKIE_PROVIDERS),
+  ];
+  const filterOptions: FilterOption[] = [
+    { value: "all", label: "All", category: "All", count: allProviderIds.length },
+    { value: "free", label: "Free", category: "Free", count: Object.keys(FREE_PROVIDERS).length },
+    { value: "oauth", label: "OAuth", category: "OAuth", count: Object.keys(OAUTH_PROVIDERS).length },
+    { value: "apikey", label: "API Key", category: "API Key", count: Object.keys(APIKEY_PROVIDERS).length },
+    { value: "freetier", label: "Free Tier", category: "Free Tier", count: Object.keys(FREE_TIER_PROVIDERS).length },
+    { value: "webcookie", label: "Web Cookie", category: "Web Cookie", count: Object.keys(WEB_COOKIE_PROVIDERS).length },
+    { value: "compatible", label: "Compatible", category: "OpenAI Compatible", count: compatibleProviders.length + anthropicCompatibleProviders.length },
+  ];
+
   if (loading) {
     return (
       <div className="flex flex-col gap-8">
@@ -512,162 +579,127 @@ export default function ProvidersPage() {
 
   return (
     <div className="flex flex-col gap-6">
+      {/* Compact Header */}
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold tracking-tight">Providers</h1>
-        <Button
-          onClick={() => handleBatchTest("all")}
-          disabled={!!testingMode}
-          variant={testingMode === "all" ? "secondary" : "default"}
-          size="sm"
-        >
-          <Zap className={cn("size-4", testingMode === "all" && "animate-pulse")} />
-          {testingMode === "all" ? "Testing All..." : "Test All Providers"}
-        </Button>
-      </div>
-
-      <Card>
-        <CardContent>
-          <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-            <div className="min-w-0">
-              <ShadcnBadge variant="secondary" className="uppercase tracking-[0.16em]">
-                <AppIcon name="backup" size={14} />
-                Credentials
-              </ShadcnBadge>
-              <h2 className="mt-3 text-xl font-bold tracking-[-0.02em] text-foreground">
-                Backup and restore credentials
-              </h2>
-              <p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">
-                Export and restore access tokens, refresh tokens, API keys, and
-                provider-specific auth data. This keeps OAuth sessions like Codex
-                usable after moving devices.
-              </p>
-            </div>
-            <div className="flex items-center gap-2 rounded-[4px] border border-border bg-card/60 p-2">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={handleExportCredentials}
-                loading={exportingCredentials}
-                className="min-w-[96px]"
-              >
-                <UploadIcon data-icon className="size-4" />
-                Export
-              </Button>
-              <Button
-                variant="secondary"
-                size="sm"
-                onClick={() => setShowCredentialImportModal(true)}
-                className="min-w-[96px]"
-              >
-                <DownloadIcon data-icon className="size-4" />
-                Import
-              </Button>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Category Filter */}
-      <ProviderFilterBar value={activeFilter} onChange={setActiveFilter} />
-
-      {/* OAuth Providers */}
-      <div className="flex flex-col gap-4">
-        <div className="flex items-center justify-between">
-          <h2 className="flex items-center gap-2 text-xl font-bold tracking-[-0.02em] text-[var(--color-text-main)]">
-            OAuth Providers
-          </h2>
-          <div className="flex items-center gap-2">
-            <ModelAvailabilityBadge />
-            <Button
-              onClick={() => handleBatchTest("oauth")}
-              disabled={!!testingMode}
-              variant={testingMode === "oauth" ? "secondary" : "outline"}
-              size="sm"
-              className="rounded-[4px]"
-              title="Test all OAuth connections"
-              aria-label="Test all OAuth connections"
-            >
-              <LoaderCircle data-icon="inline-start" className={testingMode === "oauth" ? "animate-spin" : undefined} />
-              {testingMode === "oauth" ? "Testing..." : "Test All"}
-            </Button>
-          </div>
-        </div>
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-          {filteredOauthProviders.map(([key, info]) => (
-            <ProviderCard
-              key={key}
-              providerId={key}
-              provider={info}
-              stats={getProviderStats(key, "oauth")}
-              authType="oauth"
-              onToggle={(active) => handleToggleProvider(key, "oauth", active)}
-              onTest={() => handleBatchTest("provider", key)}
-              testing={testingMode === key}
-            />
-          ))}
-        </div>
-      </div>
-
-      {/* Free & Free Tier Providers */}
-      <div className="flex flex-col gap-4">
-        <div className="flex items-center justify-between">
-          <h2 className="flex items-center gap-2 text-xl font-bold tracking-[-0.02em] text-[var(--color-text-main)]">
-            Free &amp; Free Tier Providers
-          </h2>
+        <div className="flex items-center gap-2">
           <Button
-            onClick={() => handleBatchTest("free")}
-            disabled={!!testingMode}
-            variant={testingMode === "free" ? "secondary" : "outline"}
+            variant="ghost"
             size="sm"
-            className="rounded-[4px]"
-            title="Test all Free connections"
-            aria-label="Test all Free provider connections"
+            onClick={handleExportCredentials}
+            loading={exportingCredentials}
+            title="Export credentials backup"
           >
-            <LoaderCircle data-icon="inline-start" className={testingMode === "free" ? "animate-spin" : undefined} />
-            {testingMode === "free" ? "Testing..." : "Test All"}
+            <UploadIcon className="size-4" />
+          </Button>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => setShowCredentialImportModal(true)}
+            title="Import credentials backup"
+          >
+            <DownloadIcon className="size-4" />
+          </Button>
+          <Button
+            onClick={() => handleBatchTest("all")}
+            disabled={!!testingMode}
+            variant={testingMode === "all" ? "secondary" : "default"}
+            size="sm"
+          >
+            <Zap className={cn("size-4", testingMode === "all" && "animate-pulse")} />
+            {testingMode === "all" ? "Testing..." : "Test All"}
           </Button>
         </div>
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-          {filteredFreeProviders.map(([key, info]) => (
-            <ProviderCard
-              key={key}
-              providerId={key}
-              provider={info}
-              stats={getProviderStats(key, "oauth")}
-              authType="free"
-              onToggle={(active) => handleToggleProvider(key, "oauth", active)}
-              onTest={() => handleBatchTest("provider", key)}
-              testing={testingMode === key}
-            />
-          ))}
-          {filteredFreeTierProviders.map(([key, info]) => (
-            <ApiKeyProviderCard
-              key={key}
-              providerId={key}
-              provider={info}
-              stats={getProviderStats(key, "apikey")}
-              authType="apikey"
-              onToggle={(active) => handleToggleProvider(key, "apikey", active)}
-              onTest={() => handleBatchTest("provider", key)}
-              testing={testingMode === key}
-            />
-          ))}
-        </div>
       </div>
+
+      {/* Search + Filter Pills */}
+      <div className="flex flex-col gap-3">
+        <div className="relative max-w-sm">
+          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
+          <Input
+            value={localSearch}
+            onChange={(e) => setLocalSearch(e.target.value)}
+            placeholder="Search providers..."
+            className="pl-8"
+          />
+        </div>
+        <ProviderFilterBar value={activeFilter} onChange={setActiveFilter} options={filterOptions} />
+      </div>
+
+      {/* OAuth Providers */}
+      {filteredOauthProviders.length > 0 && (
+        <CollapsibleSection
+          title="OAuth Providers"
+          count={filteredOauthProviders.length}
+          testMode="oauth"
+          testingMode={testingMode}
+          onTest={() => handleBatchTest("oauth")}
+          extra={<ModelAvailabilityBadge />}
+        >
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+            {filteredOauthProviders.map(([key, info]) => (
+              <ProviderCard
+                key={key}
+                providerId={key}
+                provider={info}
+                stats={getProviderStats(key, "oauth")}
+                authType="oauth"
+                onToggle={(active) => handleToggleProvider(key, "oauth", active)}
+                onTest={() => handleBatchTest("provider", key)}
+                testing={testingMode === key}
+              />
+            ))}
+          </div>
+        </CollapsibleSection>
+      )}
+
+      {/* Free & Free Tier Providers */}
+      {(filteredFreeProviders.length > 0 || filteredFreeTierProviders.length > 0) && (
+        <CollapsibleSection
+          title="Free & Free Tier Providers"
+          count={filteredFreeProviders.length + filteredFreeTierProviders.length}
+          testMode="free"
+          testingMode={testingMode}
+          onTest={() => handleBatchTest("free")}
+        >
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+            {filteredFreeProviders.map(([key, info]) => (
+              <ProviderCard
+                key={key}
+                providerId={key}
+                provider={info}
+                stats={getProviderStats(key, "oauth")}
+                authType="free"
+                onToggle={(active) => handleToggleProvider(key, "oauth", active)}
+                onTest={() => handleBatchTest("provider", key)}
+                testing={testingMode === key}
+              />
+            ))}
+            {filteredFreeTierProviders.map(([key, info]) => (
+              <ApiKeyProviderCard
+                key={key}
+                providerId={key}
+                provider={info}
+                stats={getProviderStats(key, "apikey")}
+                authType="apikey"
+                onToggle={(active) => handleToggleProvider(key, "apikey", active)}
+                onTest={() => handleBatchTest("provider", key)}
+                testing={testingMode === key}
+              />
+            ))}
+          </div>
+        </CollapsibleSection>
+      )}
 
       {/* Managed Providers */}
       {filteredManagedApiKeyProviders.length > 0 && (
-        <div className="flex flex-col gap-4">
-          <div className="flex items-center justify-between">
-            <div>
-              <h2 className="flex items-center gap-2 text-xl font-bold tracking-[-0.02em] text-[var(--color-text-main)]">
-                Managed Providers
-              </h2>
-              <p className="mt-1 text-sm leading-6 text-[var(--color-text-muted)]">
-                Visible in routing and usage, but configured from their dedicated pages.
-              </p>
-            </div>
-          </div>
+        <CollapsibleSection
+          title="Managed Providers"
+          count={filteredManagedApiKeyProviders.length}
+          testMode="managed"
+          testingMode={testingMode}
+          onTest={() => handleBatchTest("apikey")}
+        >
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
             {filteredManagedApiKeyProviders.map(([key, info]) => (
               <ApiKeyProviderCard
@@ -682,30 +714,20 @@ export default function ProvidersPage() {
               />
             ))}
           </div>
-        </div>
+        </CollapsibleSection>
       )}
 
-      {/* API Key Providers — fixed list */}
-      <div className="flex flex-col gap-4">
-        <div className="flex items-center justify-between">
-          <h2 className="flex items-center gap-2 text-xl font-bold tracking-[-0.02em] text-[var(--color-text-main)]">
-            API Key Providers{" "}
-          </h2>
-          <Button
-            onClick={() => handleBatchTest("apikey")}
-            disabled={!!testingMode}
-            variant={testingMode === "apikey" ? "secondary" : "outline"}
-            size="sm"
-            className="rounded-[4px]"
-            title="Test all API Key connections"
-            aria-label="Test all API Key connections"
-          >
-            <LoaderCircle data-icon="inline-start" className={testingMode === "apikey" ? "animate-spin" : undefined} />
-            {testingMode === "apikey" ? "Testing..." : "Test All"}
-          </Button>
-        </div>
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-          {filteredRegularApiKeyProviders.map(([key, info]) => (
+      {/* API Key Providers */}
+      {filteredRegularApiKeyProviders.length > 0 && (
+        <CollapsibleSection
+          title="API Key Providers"
+          count={filteredRegularApiKeyProviders.length}
+          testMode="apikey"
+          testingMode={testingMode}
+          onTest={() => handleBatchTest("apikey")}
+        >
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+            {filteredRegularApiKeyProviders.map(([key, info]) => (
               <ApiKeyProviderCard
                 key={key}
                 providerId={key}
@@ -717,58 +739,52 @@ export default function ProvidersPage() {
                 testing={testingMode === key}
               />
             ))}
-        </div>
-      </div>
+          </div>
+        </CollapsibleSection>
+      )}
 
-      {/* Web Cookie Providers — use browser subscription cookie instead of API key */}
-      {/* <div className="flex flex-col gap-4">
-        <div className="flex items-center justify-between">
-          <h2 className="text-xl font-semibold flex items-center gap-2">
-            Web Cookie Providers{" "}
-          </h2>
-        </div>
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-          {Object.entries(WEB_COOKIE_PROVIDERS).map(([key, info]) => (
-            <ApiKeyProviderCard
-              key={key}
-              providerId={key}
-              provider={info}
-              stats={getProviderStats(key, "apikey")}
-              authType="apikey"
-              onToggle={(active) => handleToggleProvider(key, "apikey", active)}
-            />
-          ))}
-        </div>
-      </div> */}
+      {/* Web Cookie Providers */}
+      {filteredWebCookieProviders.length > 0 && (
+        <CollapsibleSection
+          title="Web Cookie Providers"
+          count={filteredWebCookieProviders.length}
+          testMode="webcookie"
+          testingMode={testingMode}
+          onTest={() => handleBatchTest("webcookie")}
+        >
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+            {filteredWebCookieProviders.map(([key, info]) => (
+              <ApiKeyProviderCard
+                key={key}
+                providerId={key}
+                provider={info}
+                stats={getProviderStats(key, "apikey")}
+                authType="apikey"
+                onToggle={(active) => handleToggleProvider(key, "apikey", active)}
+                onTest={() => handleBatchTest("provider", key)}
+                testing={testingMode === key}
+              />
+            ))}
+          </div>
+        </CollapsibleSection>
+      )}
 
-      {/* API Key Compatible Providers — dynamic (OpenAI/Anthropic compatible) */}
+      {/* API Key Compatible Providers */}
       {(activeFilter === "all" || activeFilter === "compatible") && (
-      <div className="flex flex-col gap-4">
-        <div className="flex items-center justify-between">
-          <h2 className="flex items-center gap-2 text-xl font-bold tracking-[-0.02em] text-[var(--color-text-main)]">
-            API Key Compatible Providers{" "}
-          </h2>
+      <CollapsibleSection
+        title="Compatible Providers"
+        count={compatibleProviders.length + anthropicCompatibleProviders.length}
+        testMode="compatible"
+        testingMode={testingMode}
+        onTest={() => handleBatchTest("compatible")}
+        extra={
           <div className="flex gap-2">
-            {/* {(compatibleProviders.length > 0 || anthropicCompatibleProviders.length > 0) && (
-              <button
-                onClick={() => handleBatchTest("compatible")}
-                disabled={!!testingMode}
-                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-[4px] text-xs font-medium border transition-colors ${testingMode === "compatible"
-                  ? "bg-primary/20 border-primary/40 text-primary animate-pulse"
-                  : "bg-bg border-border text-text-muted hover:text-text-main hover:border-primary/40"
-                  }`}
-                title="Test all Compatible connections"
-              >
-                <LoaderCircle className={`h-[14px] w-[14px]${testingMode === "compatible" ? " animate-spin" : ""}`} strokeWidth={2} />
-                {testingMode === "compatible" ? "Testing..." : "Test All"}
-              </button>
-            )} */}
             <Button
               size="sm"
               onClick={() => setShowAddAnthropicCompatibleModal(true)}
             >
               <PlusIcon data-icon className="size-4" />
-              Add Anthropic Compatible
+              Anthropic
             </Button>
             <Button
               size="sm"
@@ -776,10 +792,11 @@ export default function ProvidersPage() {
               onClick={() => setShowAddCompatibleModal(true)}
             >
               <PlusIcon data-icon className="size-4" />
-              Add OpenAI Compatible
+              OpenAI
             </Button>
           </div>
-        </div>
+        }
+      >
         {compatibleProviders.length === 0 &&
         anthropicCompatibleProviders.length === 0 ? (
           <Empty className="border-border bg-card/60 py-10">
@@ -809,7 +826,7 @@ export default function ProvidersPage() {
             )}
           </div>
         )}
-      </div>
+      </CollapsibleSection>
       )}
 
       <AddOpenAICompatibleModal
@@ -959,4 +976,3 @@ export default function ProvidersPage() {
     </div>
   );
 }
-

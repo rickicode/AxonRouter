@@ -1,0 +1,7 @@
+{
+  "task_id": "task-provider-redesign-test-routing",
+  "task_description": "Three-part task: (1) Fix antigravity model routing bug where unrecognized model prefixes from MITM mappings incorrectly fall to commandcode. (2) Redesign the provider page to match OmniRoute's category-pill + collapsible-section layout while keeping AxonRouter's minimalist shadcn/ui style. (3) Audit the provider test system so all provider types can be tested.",
+  "status": "in_progress",
+  "feature_order": ["FEAT-001", "FEAT-002", "FEAT-003"],
+  "blocked_reason": null
+}

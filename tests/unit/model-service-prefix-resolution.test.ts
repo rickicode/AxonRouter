@@ -20,6 +20,10 @@ vi.mock("@/shared/constants/providers", () => ({
     openai: { id: "openai" },
     anthropic: { id: "anthropic" },
   },
+  ALIAS_TO_ID: {
+    ark: "volcengine-ark",
+    ccmd: "commandcode",
+  },
   resolveProviderId,
 }));
 
