@@ -208,6 +208,16 @@ export class UsageCheckScheduler {
     }
   }
 
+  async reloadSettings() {
+    await this.loadSettings();
+    if (this.settings.enabled) {
+      this.scheduleNext();
+    } else {
+      this.stop();
+    }
+    return this.getStatus();
+  }
+
   stop() {
     if (this.timerId) {
       clearTimeout(this.timerId);

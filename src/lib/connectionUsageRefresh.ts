@@ -781,9 +781,6 @@ export async function refreshConnectionUsage(
 
 				assertUsageHasQuota(connection, usage);
 
-				// Sukses → reset backoff counter
-				await resetBackoffStatus(connection, usage);
-
 				const resolvedGlobalExhaustedThreshold =
 					await resolveGlobalExhaustedThreshold(globalExhaustedThreshold);
 				await persistPlanTypeFromUsage(connection, usage);
@@ -795,6 +792,9 @@ export async function refreshConnectionUsage(
 						? { globalExhaustedThreshold: resolvedGlobalExhaustedThreshold }
 						: {}),
 				});
+
+				// Sukses → reset backoff counter (after applyCanonicalUsageRefresh to avoid inconsistency)
+				await resetBackoffStatus(connection, usage);
 
 				await applyPreemptiveCodexCooldown(connection, usage);
 
