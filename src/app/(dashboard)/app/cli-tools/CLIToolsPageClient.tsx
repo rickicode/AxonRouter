@@ -40,7 +40,7 @@ export default function CLIToolsPageClient({ machineId }) {
       const [providersData, settingsData, tunnelData, keysData, providerModelsData, statusEntries] = await Promise.all([
         fetchJson<{ connections?: any[] }>("/api/providers", { signal }).catch(() => ({})),
         fetchJson<any>("/api/settings", { signal }).catch(() => ({})),
-        fetchJson<any>("/api/tunnel/status", { signal }).catch(() => ({})),
+        fetchJson<any>("/api/tunnels/status", { signal }).catch(() => ({})),
         fetchJson<{ keys?: any[] }>("/api/keys", { signal }).catch(() => ({})),
         fetchJson<any>("/api/provider-models", { signal }).catch(() => ({})),
         Promise.all(

@@ -1,0 +1,38 @@
+{
+  "id": "FEAT-003",
+  "type": "feat",
+  "description": "Replace the existing broken tunnel system with OmniRoute's proven 3-tunnel logic (Cloudflared, Tailscale, Ngrok) and create unified API routes",
+  "status": "in_progress",
+  "steps": [
+    "Step 1: Study the OmniRoute reference implementations at /projects/sandbox/OmniRoute/src/lib/cloudflaredTunnel.ts, /projects/sandbox/OmniRoute/src/lib/tailscaleTunnel.ts, and /projects/sandbox/OmniRoute/src/lib/ngrokTunnel.ts to understand the architecture.",
+    "Step 2: Replace packages/tunnel/src/cloudflared.ts with a new implementation based on OmniRoute's cloudflaredTunnel.ts. Key adaptations: use @axonrouter/data-dir's getDataDir() for resolveDataDir(), use the existing port resolution from open-sse/config/runtimeConfig.ts or a simple DEFAULT_PORT constant. Implement: managed binary install to $DATA_DIR/cloudflared/bin/, binary resolution order (managed -> PATH -> env), state persistence via JSON files, process management with spawn, URL extraction from trycloudflare.com output, SHA256 verification of downloads.",
+    "Step 3: Create packages/tunnel/src/tailscale.ts based on OmniRoute's tailscaleTunnel.ts. Adapt imports to use @axonrouter/data-dir. Key features: binary resolution, managed install to $DATA_DIR/tailscale/bin/, daemon management with socket, login flow with auth URL extraction, funnel enable/disable. Remove OmniRoute-specific deps (getSettings/updateSettings, getCachedPassword, getConsistentMachineId). Instead persist state in $DATA_DIR/tailscale/state.json and use simple hostname generation.",
+    "Step 4: Create packages/tunnel/src/ngrok.ts based on OmniRoute's ngrokTunnel.ts. Uses @ngrok/ngrok npm package with dynamic import. Implement: getNgrokTunnelStatus(), startNgrokTunnel(inputAuthToken?), stopNgrokTunnel(). Auth token from input or process.env.NGROK_AUTHTOKEN.",
+    "Step 5: Add @ngrok/ngrok as an optional dependency in the root package.json (add to dependencies).",
+    "Step 6: Update packages/tunnel/src/index.ts to export the new 3-tunnel system: getCloudflaredTunnelStatus/startCloudflaredTunnel/stopCloudflaredTunnel, getTailscaleTunnelStatus/enableTailscaleTunnel/disableTailscaleTunnel/startTailscaleLogin/startTailscaleDaemon, getNgrokTunnelStatus/startNgrokTunnel/stopNgrokTunnel. Remove old exports that no longer exist.",
+    "Step 7: Remove old tunnel files that are no longer needed: packages/tunnel/src/tunnelConnectionRuntime.ts, packages/tunnel/src/tailscaleTunnelRuntime.ts, packages/tunnel/src/tailscaleStatusRuntime.ts, packages/tunnel/src/tailscaleCheckAccess.ts, packages/tunnel/src/tailscaleInstallAccess.ts, packages/tunnel/src/tailscaleInstallRuntime.ts, packages/tunnel/src/tailscaleLogin.ts, packages/tunnel/src/tailscaleStatus.ts, packages/tunnel/src/tailscaleDaemonRuntime.ts, packages/tunnel/src/tailscaleDaemonStart.ts, packages/tunnel/src/tailscaleFunnelRuntime.ts, packages/tunnel/src/tailscaleInstall.ts, packages/tunnel/src/sudoRuntime.ts, packages/tunnel/src/shortId.ts, packages/tunnel/src/cloudflaredDownloadState.ts, packages/tunnel/src/tunnelManager.ts, packages/tunnel/src/tunnelStateAccess.ts (if they exist). Keep deps.ts and state.ts only if still needed by the new code, otherwise remove.",
+    "Step 8: Delete the old API route directory src/app/api/tunnel/ entirely (all 9 route files).",
+    "Step 9: Create new unified API routes: src/app/api/tunnels/status/route.ts (GET - returns status of all 3 tunnels), src/app/api/tunnels/cloudflared/start/route.ts (POST - start cloudflared), src/app/api/tunnels/cloudflared/stop/route.ts (POST - stop cloudflared), src/app/api/tunnels/tailscale/start/route.ts (POST - start tailscale daemon + login), src/app/api/tunnels/tailscale/stop/route.ts (POST - stop tailscale), src/app/api/tunnels/tailscale/login/route.ts (POST - trigger login flow, returns authUrl), src/app/api/tunnels/ngrok/start/route.ts (POST - start ngrok, accepts {authToken?}), src/app/api/tunnels/ngrok/stop/route.ts (POST - stop ngrok).",
+    "Step 10: Fix any imports of old @axonrouter/tunnel exports throughout src/ and open-sse/ to use the new API. Search for all imports from '@axonrouter/tunnel' and update them.",
+    "Step 11: Ensure npm run typecheck and npm run build pass with the new tunnel system."
+  ],
+  "acceptance_criteria": [
+    "packages/tunnel/src/cloudflared.ts implements the OmniRoute-style cloudflared tunnel with managed binary install to DATA_DIR/cloudflared/bin/",
+    "packages/tunnel/src/tailscale.ts implements tailscale tunnel with managed binary install to DATA_DIR/tailscale/bin/",
+    "packages/tunnel/src/ngrok.ts implements ngrok tunnel using @ngrok/ngrok dynamic import",
+    "@ngrok/ngrok is in root package.json dependencies",
+    "New API routes exist at src/app/api/tunnels/ with proper GET/POST handlers",
+    "Old src/app/api/tunnel/ directory is removed",
+    "Old tunnel files in packages/tunnel/src/ are removed",
+    "No references to old tunnel exports remain in the codebase",
+    "npm run typecheck exits 0",
+    "npm run build exits 0"
+  ],
+  "verification": [
+    "npm run typecheck",
+    "npm run lint",
+    "npm run build"
+  ],
+  "blocked_reason": null,
+  "findings": ""
+}
