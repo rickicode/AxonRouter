@@ -2,7 +2,7 @@
   "id": "FEAT-002",
   "type": "feat",
   "description": "Redesign the AxonRouter provider page to follow OmniRoute's layout patterns (category pills with counts, search bar, test-all button, collapsible sections, inline test per card) while maintaining AxonRouter's minimalist shadcn/ui style. Also simplify ProviderCategoryBadge to a colored dot instead of a full badge. The current page at src/app/(dashboard)/dashboard/providers/page.tsx is 962 lines with flat sections. The redesign adds: (1) a header row with search input + test-all button, (2) category filter pills with provider counts per category, (3) collapsible sections grouped by category with section-level test buttons, (4) cleaner card layout with category dot, service kind chips, and inline test. Remove verbose labels and redundant text.",
-  "status": "pending",
+  "status": "in_progress",
   "steps": [
     "Read the current ProviderFilterBar.tsx and redesign it to show category pills with counts. Each pill should show a colored dot + category label + count badge (e.g. 'OAuth 7'). Use shadcn/ui Button variant='outline' for inactive and variant='default' for active. Categories: All, Free, OAuth, API Key, Free Tier, Web Cookie, Compatible, Local.",
     "Replace ProviderCategoryBadge.tsx with a simple CategoryDot component: a small colored circle (size-2 rounded-full) that indicates the provider's category via color. Follow the pattern in OmniRoute's CategoryDot.tsx but use Tailwind classes. Remove the full text Badge.",

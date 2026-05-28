@@ -11,11 +11,35 @@ import {
   OPENAI_COMPATIBLE_PREFIX,
   ANTHROPIC_COMPATIBLE_PREFIX,
   getProviderSupportedModes,
+  getProviderCategory,
 } from "@/shared/constants/providers";
 import { cn } from "@/lib/utils";
 import Link from "next/link";
 import { getStatusDisplayItems } from "../statusDisplay";
-import { ProviderCategoryBadge } from "./ProviderCategoryBadge";
+import { CategoryDot } from "./CategoryDot";
+
+const SERVICE_KIND_LABELS: Record<string, string> = {
+  llm: "Chat",
+  embedding: "Embed",
+  image: "Image",
+  imageToText: "Vision",
+  tts: "TTS",
+  stt: "STT",
+  webSearch: "Search",
+  webFetch: "Fetch",
+  video: "Video",
+  music: "Music",
+};
+
+function getServiceKindChips(provider: any): string[] {
+  const kinds: string[] | undefined = provider.serviceKinds;
+  if (!kinds || kinds.length === 0) return [];
+  // Only show chips if the provider has more than just "llm"
+  if (kinds.length === 1 && kinds[0] === "llm") return [];
+  return kinds
+    .map((k) => SERVICE_KIND_LABELS[k])
+    .filter(Boolean) as string[];
+}
 
 function getProviderBadgeVariant(tone) {
   if (tone === "error") return "destructive";
@@ -40,6 +64,8 @@ function ProviderStatusBadge({ children, tone = "default", showDot = false }) {
 export function ProviderCard({ providerId, provider, stats, authType, onToggle, onTest, testing }) {
   const { connected, error, errorCode, errorTime, allDisabled } = stats;
   const isNoAuth = !!provider.noAuth;
+  const category = getProviderCategory(providerId);
+  const serviceKindChips = getServiceKindChips(provider);
 
   const getIconPath = () => {
     if (provider.id === "commandcode" || provider.id === "mimo") {
@@ -79,7 +105,7 @@ export function ProviderCard({ providerId, provider, stats, authType, onToggle, 
               <div>
                 <div className="flex items-center gap-2">
                   <h3 className="font-semibold">{provider.name}</h3>
-                  <ProviderCategoryBadge providerId={providerId} />
+                  <CategoryDot category={category} />
                 </div>
                 <div className="flex items-center gap-2 text-xs flex-wrap">
                   {allDisabled ? (
@@ -111,22 +137,25 @@ export function ProviderCard({ providerId, provider, stats, authType, onToggle, 
                       )}
                     </>
                   )}
+                  {serviceKindChips.map((chip) => (
+                    <ShadcnBadge key={chip} variant="secondary" className="text-[10px] px-1.5 py-0">
+                      {chip}
+                    </ShadcnBadge>
+                  ))}
                 </div>
               </div>
             </div>
             <div className="flex items-center gap-2">
-              {onTest && (
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="size-7"
-                  onClick={(e) => { e.preventDefault(); e.stopPropagation(); onTest(); }}
-                  disabled={testing}
-                  title="Test provider connections"
-                >
-                  <Zap className={cn("size-3.5", testing && "animate-pulse text-amber-500")} />
-                </Button>
-              )}
+              <Button
+                variant="ghost"
+                size="icon"
+                className="size-7"
+                onClick={(e) => { e.preventDefault(); e.stopPropagation(); onTest?.(); }}
+                disabled={testing || !onTest}
+                title="Test provider connections"
+              >
+                <Zap className={cn("size-3.5", testing && "animate-pulse text-amber-500")} />
+              </Button>
               {stats.total > 0 && (
                 <div
                   className="opacity-0 group-hover:opacity-100 transition-opacity"
@@ -187,6 +216,8 @@ export function ApiKeyProviderCard({
   const isAnthropicCompatible = providerId.startsWith(
     ANTHROPIC_COMPATIBLE_PREFIX,
   );
+  const category = getProviderCategory(providerId);
+  const serviceKindChips = getServiceKindChips(provider);
 
   const getIconPath = () => {
     if (isCompatible)
@@ -231,7 +262,7 @@ export function ApiKeyProviderCard({
               <div>
                 <div className="flex items-center gap-2">
                   <h3 className="font-semibold">{provider.name}</h3>
-                  <ProviderCategoryBadge providerId={providerId} />
+                  <CategoryDot category={category} />
                 </div>
                 <div className="flex items-center gap-2 text-xs flex-wrap">
                   {allDisabled ? (
@@ -273,22 +304,25 @@ export function ApiKeyProviderCard({
                       )}
                     </>
                   )}
+                  {serviceKindChips.map((chip) => (
+                    <ShadcnBadge key={chip} variant="secondary" className="text-[10px] px-1.5 py-0">
+                      {chip}
+                    </ShadcnBadge>
+                  ))}
                 </div>
               </div>
             </div>
             <div className="flex items-center gap-2">
-              {onTest && (
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="size-7"
-                  onClick={(e) => { e.preventDefault(); e.stopPropagation(); onTest(); }}
-                  disabled={testing}
-                  title="Test provider connections"
-                >
-                  <Zap className={cn("size-3.5", testing && "animate-pulse text-amber-500")} />
-                </Button>
-              )}
+              <Button
+                variant="ghost"
+                size="icon"
+                className="size-7"
+                onClick={(e) => { e.preventDefault(); e.stopPropagation(); onTest?.(); }}
+                disabled={testing || !onTest}
+                title="Test provider connections"
+              >
+                <Zap className={cn("size-3.5", testing && "animate-pulse text-amber-500")} />
+              </Button>
               {stats.total > 0 && !isSystemManaged && (
                 <div
                   className="opacity-0 group-hover:opacity-100 transition-opacity"
