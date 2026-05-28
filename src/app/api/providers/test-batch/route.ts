@@ -64,7 +64,10 @@ export async function POST(request: Request) {
     } else if (mode === "oauth") {
       connectionsToTest = allConnections.filter((c) => getAuthGroup(c.provider, c) === "oauth");
     } else if (mode === "free") {
-      connectionsToTest = allConnections.filter((c) => getAuthGroup(c.provider, c) === "free");
+      connectionsToTest = allConnections.filter((c) => {
+        const group = getAuthGroup(c.provider, c);
+        return group === "free" || group === "freetier";
+      });
     } else if (mode === "apikey") {
       connectionsToTest = allConnections.filter((c) => getAuthGroup(c.provider, c) === "apikey");
     } else if (mode === "compatible") {
