@@ -1,5 +1,6 @@
 import { AntigravityExecutor } from "./antigravity";
 import { AzureExecutor } from "./azure";
+import { CommandCodeExecutor } from "./commandcode";
 import { GeminiCLIExecutor } from "./gemini-cli";
 import { GithubExecutor } from "./github";
 import { IFlowExecutor } from "./iflow";
@@ -20,6 +21,7 @@ import { DefaultExecutor } from "./default";
 const executors = {
   antigravity: new AntigravityExecutor(),
   azure: new AzureExecutor(),
+  commandcode: new CommandCodeExecutor(),
   "gemini-cli": new GeminiCLIExecutor(),
   github: new GithubExecutor(),
   iflow: new IFlowExecutor(),
@@ -55,6 +57,7 @@ export function hasSpecializedExecutor(provider) {
 export { BaseExecutor } from "./base";
 export { AntigravityExecutor } from "./antigravity";
 export { AzureExecutor } from "./azure";
+export { CommandCodeExecutor } from "./commandcode";
 export { GeminiCLIExecutor } from "./gemini-cli";
 export { GithubExecutor } from "./github";
 export { IFlowExecutor } from "./iflow";

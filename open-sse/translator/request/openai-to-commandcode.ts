@@ -1,81 +1,68 @@
-import { execSync } from "node:child_process";
-
+/**
+ * OpenAI -> CommandCode request translator
+ *
+ * Upstream `/alpha/generate` schema:
+ *  - params.system: STRING at top level (system messages NOT allowed in messages[])
+ *  - params.messages[*].role in {"user","assistant","tool"}
+ *  - params.messages[*].content: Array of content blocks (NEVER a string)
+ *  - tool_use blocks (assistant): {type:"tool-call", toolCallId, toolName, input}
+ *  - tool_result blocks (role=tool): {type:"tool-result", toolCallId, toolName, output}
+ *  - tools[*]: {name, description, input_schema}
+ */
 import { register } from "../index";
 import { FORMATS } from "../formats";
+import { randomUUID } from "crypto";
 import { resolveCommandCodeInstructionsForRequest } from "../../config/commandcodeInstructionsResolver";
 
-function normalizeToolChoice(toolChoice) {
-  if (!toolChoice || toolChoice === "auto") return { type: "auto" };
-  if (toolChoice === "none") return { type: "none" };
-  if (toolChoice === "required") return { type: "any" };
-  if (typeof toolChoice === "string") return { type: "tool", name: toolChoice };
-  if (toolChoice?.type === "function") {
-    return {
-      type: "tool",
-      name: toolChoice.function?.name || toolChoice.name || "",
-    };
-  }
-  return toolChoice;
-}
-
-function normalizeCommandCodeTools(tools) {
-  if (!Array.isArray(tools) || tools.length === 0) return undefined;
-
-  return tools.map((tool) => {
-    if (tool?.name && tool?.input_schema) {
-      return {
-        name: tool.name,
-        description: tool.description || "",
-        input_schema: tool.input_schema || { type: "object", properties: {} },
-      };
+function flattenText(content) {
+  if (content == null) return "";
+  if (typeof content === "string") return content;
+  if (Array.isArray(content)) {
+    const parts: string[] = [];
+    for (const p of content) {
+      if (typeof p === "string") parts.push(p);
+      else if (p && typeof p === "object" && typeof p.text === "string") parts.push(p.text);
     }
-
-    const toolType = tool?.type;
-    if (toolType && toolType !== "function") return tool;
-
-    const toolData = toolType === "function" && tool.function ? tool.function : tool;
-    return {
-      name: toolData?.name || "",
-      description: toolData?.description || "",
-      input_schema: toolData?.parameters || toolData?.input_schema || { type: "object", properties: {} },
-    };
-  }).filter((tool) => tool?.name || tool?.type);
-}
-
-function getMessageTextContent(content) {
-  if (typeof content === "string") return content.trim();
-  if (!Array.isArray(content)) return "";
-  return content
-    .filter((part) => part?.type === "text" && typeof part.text === "string")
-    .map((part) => part.text)
-    .join("\n")
-    .trim();
-}
-
-function hasExplicitInstructionMessages(messages) {
-  if (!Array.isArray(messages)) return false;
-  return messages.some((msg) => {
-    if (!msg || (msg.role !== "system" && msg.role !== "developer")) return false;
-    return Boolean(getMessageTextContent(msg.content));
-  });
-}
-
-function collectInstructionText(messages, injectedInstructionText = "") {
-  const blocks = [];
-
-  if (typeof injectedInstructionText === "string" && injectedInstructionText.trim()) {
-    blocks.push(injectedInstructionText.trim());
+    return parts.join("\n");
   }
+  return String(content);
+}
 
-  if (Array.isArray(messages)) {
-    for (const msg of messages) {
-      if (!msg || (msg.role !== "system" && msg.role !== "developer")) continue;
-      const text = getMessageTextContent(msg.content);
-      if (text) blocks.push(text);
+function toContentBlocks(content) {
+  if (content == null) return [{ type: "text", text: "" }];
+  if (typeof content === "string") return [{ type: "text", text: content }];
+  if (Array.isArray(content)) {
+    const blocks: any[] = [];
+    for (const part of content) {
+      if (typeof part === "string") {
+        blocks.push({ type: "text", text: part });
+      } else if (part && typeof part === "object") {
+        if (part.type === "text" && typeof part.text === "string") {
+          blocks.push({ type: "text", text: part.text });
+        } else if (part.type === "image_url" || part.type === "image") {
+          blocks.push({ type: "text", text: "[image omitted]" });
+        } else if (part.type === "tool_result") {
+          blocks.push({
+            type: "tool-result",
+            toolCallId: part.tool_use_id || part.toolCallId || part.id || "",
+            toolName: part.toolName || part.name || "tool",
+            output: normalizeToolResultOutput(part.content),
+            ...(part.is_error ? { isError: true } : {}),
+          });
+        } else if (typeof part.text === "string") {
+          blocks.push({ type: "text", text: part.text });
+        }
+      }
     }
+    return blocks.length ? blocks : [{ type: "text", text: "" }];
   }
+  return [{ type: "text", text: String(content) }];
+}
 
-  return blocks.join("\n\n").trim();
+function safeParseJson(s) {
+  if (s == null) return {};
+  if (typeof s !== "string") return s;
+  try { return JSON.parse(s); } catch { return {}; }
 }
 
 function normalizeToolResultOutput(content) {
@@ -94,8 +81,8 @@ function normalizeToolResultOutput(content) {
     return { type: "text", value: "" };
   }
 
-  const textParts = [];
-  const imageParts = [];
+  const textParts: string[] = [];
+  const imageParts: any[] = [];
 
   for (const part of content) {
     if (!part || typeof part !== "object") continue;
@@ -120,98 +107,6 @@ function normalizeToolResultOutput(content) {
   }
 
   return { type: "text", value: textParts.join("\n\n") };
-}
-
-function normalizeUserContent(content) {
-  if (typeof content === "string") {
-    return content ? [{ type: "text", text: content }] : [];
-  }
-  if (!Array.isArray(content)) return [];
-
-  const blocks = [];
-  for (const part of content) {
-    if (!part || typeof part !== "object") continue;
-
-    if (part.type === "text" && typeof part.text === "string") {
-      blocks.push({ type: "text", text: part.text });
-      continue;
-    }
-
-    if (part.type === "tool_result") {
-      blocks.push({
-        type: "tool-result",
-        toolCallId: part.tool_use_id || part.toolCallId || part.id || "",
-        toolName: part.toolName || part.name || "tool",
-        output: normalizeToolResultOutput(part.content),
-        ...(part.is_error ? { isError: true } : {}),
-      });
-      continue;
-    }
-
-    if (part.type === "image" && part.source) {
-      blocks.push({ type: "image", source: part.source });
-      continue;
-    }
-
-    if (part.type === "image_url" && part.image_url?.url) {
-      blocks.push({ type: "image", image: part.image_url.url });
-    }
-  }
-
-  return blocks;
-}
-
-function normalizeAssistantContent(msg) {
-  const blocks = [];
-
-  if (typeof msg.content === "string" && msg.content) {
-    blocks.push({ type: "text", text: msg.content });
-  }
-
-  if (Array.isArray(msg.content)) {
-    for (const part of msg.content) {
-      if (!part || typeof part !== "object") continue;
-
-      if (part.type === "text" && typeof part.text === "string") {
-        blocks.push({ type: "text", text: part.text });
-        continue;
-      }
-
-      if (part.type === "tool_use") {
-        blocks.push({
-          type: "tool-call",
-          toolCallId: part.id || part.toolCallId || "",
-          toolName: part.name || part.toolName || "tool",
-          input: part.input || {},
-        });
-      }
-    }
-  }
-
-  if (Array.isArray(msg.tool_calls)) {
-    for (const toolCall of msg.tool_calls) {
-      const input = typeof toolCall?.function?.arguments === "string"
-        ? safeJsonParse(toolCall.function.arguments)
-        : (toolCall?.function?.arguments || {});
-      blocks.push({
-        type: "tool-call",
-        toolCallId: toolCall?.id || "",
-        toolName: toolCall?.function?.name || toolCall?.name || "tool",
-        input,
-      });
-    }
-  }
-
-  return blocks;
-}
-
-function safeJsonParse(value) {
-  if (typeof value !== "string") return value || {};
-  try {
-    return JSON.parse(value);
-  } catch {
-    return {};
-  }
 }
 
 function findAssistantToolCall(messages, toolCallId) {
@@ -245,51 +140,69 @@ function findAssistantToolCall(messages, toolCallId) {
   return null;
 }
 
-function normalizeCommandCodeMessages(messages) {
-  if (!Array.isArray(messages)) return [];
+function convertMessages(messages: any[] = [], allMessages: any[] = []) {
+  const out: any[] = [];
+  const systemTexts: string[] = [];
 
-  const normalized = [];
+  for (const m of messages) {
+    if (!m) continue;
+    const role = m.role;
 
-  for (const msg of messages) {
-    if (!msg || typeof msg !== "object") continue;
-    if (msg.role === "system" || msg.role === "developer") continue;
-
-    if (msg.role === "user") {
-      const content = normalizeUserContent(msg.content);
-      if (content.length > 0) normalized.push({ role: "user", content });
+    if (role === "system" || role === "developer") {
+      const t = flattenText(m.content);
+      if (t) systemTexts.push(t);
       continue;
     }
 
-    if (msg.role === "assistant") {
-      const content = normalizeAssistantContent(msg);
-      if (content.length > 0) normalized.push({ role: "assistant", content });
-      continue;
-    }
-
-    if (msg.role === "tool") {
-      const toolCallId = msg.tool_call_id || msg.toolCallId || msg.id || "";
-      const toolRef = findAssistantToolCall(messages, toolCallId);
-      normalized.push({
+    if (role === "tool") {
+      const toolCallId = m.tool_call_id || m.toolCallId || m.id || "";
+      const toolRef = findAssistantToolCall(allMessages, toolCallId);
+      out.push({
         role: "tool",
         content: [{
           type: "tool-result",
           toolCallId,
-          toolName: msg.tool_name || msg.toolName || msg.name || toolRef?.toolName || "tool",
-          output: normalizeToolResultOutput(msg.content),
-          ...(msg.is_error ? { isError: true } : {}),
+          toolName: m.tool_name || m.toolName || m.name || toolRef?.toolName || "tool",
+          output: normalizeToolResultOutput(m.content),
+          ...(m.is_error ? { isError: true } : {}),
         }],
       });
+      continue;
     }
+
+    if (role === "assistant") {
+      const blocks: any[] = [];
+      const text = flattenText(m.content);
+      if (text) blocks.push({ type: "text", text });
+      if (Array.isArray(m.tool_calls)) {
+        for (const tc of m.tool_calls) {
+          const fn = tc.function || {};
+          blocks.push({
+            type: "tool-call",
+            toolCallId: tc.id || "",
+            toolName: fn.name || "",
+            input: safeParseJson(fn.arguments),
+          });
+        }
+      }
+      out.push({ role: "assistant", content: blocks.length ? blocks : [{ type: "text", text: "" }] });
+      continue;
+    }
+
+    // user role
+    out.push({ role: "user", content: toContentBlocks(m.content) });
   }
 
-  return normalized.filter((message, index, all) => {
+  // Filter duplicate empty tool results: if multiple tool messages share the same toolCallId,
+  // keep only the one with non-empty output (handles fixMissingToolResponses inserting blanks)
+  const filtered = out.filter((message, index) => {
     if (message?.role !== "tool") return true;
     const item = message.content?.[0];
     if (item?.type !== "tool-result") return true;
     const value = item.output?.value || "";
     if (value) return true;
 
-    return !all.some((other, otherIndex) => {
+    return !out.some((other, otherIndex) => {
       if (otherIndex === index || other?.role !== "tool") return false;
       const otherItem = other.content?.[0];
       return otherItem?.type === "tool-result"
@@ -297,88 +210,70 @@ function normalizeCommandCodeMessages(messages) {
         && (otherItem.output?.value || "") !== "";
     });
   });
+
+  return { messages: filtered, system: systemTexts.join("\n\n") };
 }
 
-function getProjectSlug() {
-  const cwd = process.cwd();
-  return cwd
-    .replace(/^\/+/, "")
-    .replace(/[^a-zA-Z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "")
-    .toLowerCase() || "workspace";
-}
-
-function getGitOutput(command) {
-  try {
-    return execSync(command, {
-      cwd: process.cwd(),
-      encoding: "utf8",
-      stdio: ["ignore", "pipe", "ignore"],
-    }).trim();
-  } catch {
-    return "";
+function convertTools(tools) {
+  if (!Array.isArray(tools) || tools.length === 0) return undefined;
+  const result: any[] = [];
+  for (const t of tools) {
+    if (!t) continue;
+    if (t.type === "function" && t.function) {
+      result.push({
+        name: t.function.name,
+        description: t.function.description,
+        input_schema: t.function.parameters || { type: "object" },
+      });
+    } else if (t.name && (t.input_schema || t.parameters)) {
+      result.push({
+        name: t.name,
+        description: t.description,
+        input_schema: t.input_schema || t.parameters,
+      });
+    }
   }
+  return result.length ? result : undefined;
 }
 
-function getWorkspaceStructure() {
-  try {
-    return execSync("find . -maxdepth 1 -mindepth 1 -type d | sed 's#^./##' | sort", {
-      cwd: process.cwd(),
-      encoding: "utf8",
-      stdio: ["ignore", "pipe", "ignore"],
-    })
-      .split("\n")
-      .map((line) => line.trim())
-      .filter(Boolean);
-  } catch {
-    return [];
+function normalizeToolChoice(toolChoice) {
+  if (!toolChoice || toolChoice === "auto") return { type: "auto" };
+  if (toolChoice === "none") return { type: "none" };
+  if (toolChoice === "required") return { type: "any" };
+  if (typeof toolChoice === "string") return { type: "tool", name: toolChoice };
+  if (toolChoice?.type === "function") {
+    return {
+      type: "tool",
+      name: toolChoice.function?.name || toolChoice.name || "",
+    };
   }
+  return toolChoice;
 }
 
-function getCommandCodeRepoContext() {
-  const workingDir = process.cwd();
-  const gitRoot = getGitOutput("git rev-parse --show-toplevel");
-  const isGitRepo = Boolean(gitRoot);
-  const currentBranch = isGitRepo ? getGitOutput("git branch --show-current") : "";
-  const mainBranch = isGitRepo
-    ? (getGitOutput("git symbolic-ref --short refs/remotes/origin/HEAD").split("/").pop() || "main")
-    : "";
-  const gitStatus = isGitRepo
-    ? (() => {
-        const modified = getGitOutput("git status --short | wc -l | tr -d ' '");
-        const deleted = getGitOutput("git status --short | awk '$1 ~ /D/ || $2 ~ /D/ {count++} END {print count+0}'");
-        const untracked = getGitOutput("git status --short | awk '$1 ~ /\?\?/ {count++} END {print count+0}'");
-        return `M ${modified || 0}, D ${deleted || 0}, ?? ${untracked || 0}`;
-      })()
-    : "";
-  const recentCommits = isGitRepo
-    ? getGitOutput("git log --oneline -3").split("\n").filter(Boolean)
-    : [];
-
-  return {
-    workingDir,
-    structure: getWorkspaceStructure(),
-    isGitRepo,
-    currentBranch,
-    mainBranch,
-    gitStatus,
-    recentCommits,
-  };
+function hasExplicitInstructionMessages(messages) {
+  if (!Array.isArray(messages)) return false;
+  return messages.some((msg) => {
+    if (!msg || (msg.role !== "system" && msg.role !== "developer")) return false;
+    return Boolean(flattenText(msg.content));
+  });
 }
 
-function buildCommandCodeConfig() {
-  const repoContext = getCommandCodeRepoContext();
-  return {
-    workingDir: repoContext.workingDir,
-    date: new Date().toISOString().split("T")[0],
-    environment: `${process.platform}-${process.arch}, Node.js ${process.version}`,
-    structure: repoContext.structure,
-    isGitRepo: repoContext.isGitRepo,
-    currentBranch: repoContext.currentBranch,
-    mainBranch: repoContext.mainBranch,
-    gitStatus: repoContext.gitStatus,
-    recentCommits: repoContext.recentCommits,
-  };
+function collectInstructionText(messages, injectedInstructionText = "") {
+  const blocks: string[] = [];
+
+  if (typeof injectedInstructionText === "string" && injectedInstructionText.trim()) {
+    blocks.push(injectedInstructionText.trim());
+  }
+
+  if (Array.isArray(messages)) {
+    for (const msg of messages) {
+      if (!msg || (msg.role !== "system" && msg.role !== "developer")) continue;
+      const text = flattenText(msg.content);
+      if (text) blocks.push(text);
+    }
+  }
+
+  return blocks.join("\n\n").trim();
 }
 
 async function openaiToCommandCode(model, body, stream) {
@@ -389,55 +284,41 @@ async function openaiToCommandCode(model, body, stream) {
     : "";
 
   const systemPrompt = collectInstructionText(sourceMessages, defaultInstructions);
-  const messages = normalizeCommandCodeMessages(sourceMessages);
-  const normalizedTools = normalizeCommandCodeTools(body.tools);
+  const { messages } = convertMessages(sourceMessages, sourceMessages);
+  const tools = convertTools(body.tools);
+
   const params: any = {
-    stream,
+    model,
     messages,
-    ...(systemPrompt ? { system: systemPrompt } : {}),
-    ...(typeof body.temperature === "number" ? { temperature: body.temperature } : {}),
-    ...(typeof body.top_p === "number" ? { top_p: body.top_p } : {}),
-    ...(typeof body.max_tokens === "number" ? { max_tokens: body.max_tokens } : {}),
-    ...(normalizedTools?.length ? { tools: normalizedTools } : {}),
-    toolChoice: normalizeToolChoice(body.tool_choice),
-    model,
+    stream: stream !== false,
+    max_tokens: body.max_tokens ?? body.max_output_tokens ?? 64000,
+    temperature: body.temperature ?? 0.3,
   };
 
-  if (typeof body.presence_penalty === "number") params.presence_penalty = body.presence_penalty;
-  if (typeof body.frequency_penalty === "number") params.frequency_penalty = body.frequency_penalty;
-  if (body.response_format !== undefined) params.response_format = body.response_format;
-  if (typeof body.parallel_tool_calls === "boolean") params.parallel_tool_calls = body.parallel_tool_calls;
-  if (body.stop !== undefined) params.stop = body.stop;
+  if (systemPrompt) params.system = systemPrompt;
+  if (tools) params.tools = tools;
+  if (body.top_p != null) params.top_p = body.top_p;
+  if (body.tool_choice !== undefined) params.toolChoice = normalizeToolChoice(body.tool_choice);
 
-  const config = buildCommandCodeConfig();
+  const today = new Date().toISOString().slice(0, 10);
 
-  const result = {
+  return {
     model,
-    config,
-    memory: typeof body.memory === "string" ? body.memory : null,
+    threadId: randomUUID(),
+    memory: "",
+    config: {
+      workingDir: process.cwd(),
+      date: today,
+      environment: process.platform,
+      structure: [],
+      isGitRepo: false,
+      currentBranch: "",
+      mainBranch: "",
+      gitStatus: "",
+      recentCommits: [],
+    },
     params,
-    ...(body.threadId ? { threadId: body.threadId } : {}),
-    ...(body.mode ? { mode: body.mode } : {}),
-    ...(body.taste ? { taste: body.taste } : {}),
-    ...(body.skills ? { skills: body.skills } : {}),
-    ...(body.permissionMode ? { permissionMode: body.permissionMode } : {}),
   };
-
-  if (!result.mode && normalizedTools?.length) {
-    result.mode = "custom-agent";
-  }
-
-  if (!result.threadId) {
-    result.threadId = body.thread_id || body.conversation_id || undefined;
-  }
-
-  if (process.env.DEBUG_COMMANDCODE === "true") {
-    console.log("\n=== COMMANDCODE REQUEST DEBUG ===");
-    console.log(JSON.stringify(result, null, 2));
-    console.log("================================\n");
-  }
-
-  return result;
 }
 
 register(FORMATS.OPENAI, FORMATS.COMMANDCODE, openaiToCommandCode, null);

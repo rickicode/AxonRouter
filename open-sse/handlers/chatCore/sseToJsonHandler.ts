@@ -7,7 +7,6 @@ import { convertResponsesStreamToJson } from "../../transformer/streamToJsonConv
 import { FORMATS } from "../../translator/formats";
 import { initState, needsTranslation, translateResponse } from "../../translator/index";
 import { ollamaBodyToOpenAI } from "../../translator/response/ollama-to-openai";
-import { tryParsePseudoToolCalls } from "../../translator/response/commandcode-to-openai";
 import { decloakToolNames } from "../../utils/claudeCloaking";
 import { createErrorResult } from "../../utils/error";
 import { createTimeoutError, getChatRuntimeSettings, getStreamIdleTimeoutMs, getStreamReadinessTimeoutMs } from "../../utils/abort";
@@ -193,6 +192,56 @@ export function parseResponsesSSEToOpenAIResponse(rawSSE, fallbackModel) {
 			total_tokens: jsonResponse.usage?.total_tokens || 0,
 		},
 	};
+}
+
+function tryParsePseudoToolCalls(text) {
+	if (typeof text !== "string") return [];
+
+	const calls: any[] = [];
+	const patterns = [
+		/<tool_call\s+name="([^"]+)">([\s\S]*?)<\/tool_call>/g,
+		/<function\s+name="([^"]+)">([\s\S]*?)<\/function>/g,
+		/<invoke\s+name="([^"]+)">([\s\S]*?)<\/invoke>/g,
+		/<([a-zA-Z0-9:_-]+tool_call)\s+name="([^"]+)">([\s\S]*?)<\/\1>/g,
+	];
+
+	for (const pattern of patterns) {
+		let match;
+		while ((match = pattern.exec(text))) {
+			const groups = match.slice(1);
+			const name = groups.length === 3 ? groups[1] : groups[0];
+			const body = groups.length === 3 ? groups[2] : groups[1];
+			if (!name) continue;
+
+			const params = {};
+			const paramRegex = /<parameter\s+name="([^"]+)">([\s\S]*?)<\/parameter>/g;
+			let paramMatch;
+			while ((paramMatch = paramRegex.exec(body))) {
+				const [, key, rawValue] = paramMatch;
+				const trimmed = rawValue.trim();
+				if (!trimmed) {
+					params[key] = "";
+					continue;
+				}
+				try {
+					params[key] = JSON.parse(trimmed);
+				} catch {
+					params[key] = trimmed;
+				}
+			}
+
+			calls.push({
+				id: `call_${Date.now()}_${calls.length}`,
+				type: "function",
+				function: {
+					name,
+					arguments: JSON.stringify(params),
+				},
+			});
+		}
+	}
+
+	return calls;
 }
 
 /**
