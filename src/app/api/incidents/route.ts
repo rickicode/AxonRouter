@@ -102,8 +102,8 @@ function buildConnectionIncidents(connections: Connection[] = []): Incident[] {
         blastRadius: { provider: connection?.provider || null, connectionId: connection?.id || null },
         actionHints: ["Review routing guardrails", "Update allowlist or budget cap", "Inspect recent spend"],
         links: {
-          provider: connection?.provider ? `/dashboard/providers/${connection.provider}` : null,
-          usage: `/dashboard/usage`,
+          provider: connection?.provider ? `/app/providers/${connection.provider}` : null,
+          usage: `/app/usage`,
         },
         timestamp: connection?.lastCheckedAt || connection?.updatedAt || connection?.createdAt || new Date().toISOString(),
       });
@@ -125,8 +125,8 @@ function buildConnectionIncidents(connections: Connection[] = []): Incident[] {
         },
         actionHints: ["Inspect trace details", "Disable affected route", "Re-authenticate or retry provider"],
         links: {
-          provider: connection?.provider ? `/dashboard/providers/${connection.provider}` : null,
-          usage: connection?.provider ? `/dashboard/usage` : null,
+          provider: connection?.provider ? `/app/providers/${connection.provider}` : null,
+          usage: connection?.provider ? `/app/usage` : null,
         },
         timestamp: connection?.lastCheckedAt || connection?.updatedAt || connection?.createdAt || new Date().toISOString(),
       });
@@ -148,8 +148,8 @@ function buildConnectionIncidents(connections: Connection[] = []): Incident[] {
         },
         actionHints: ["Reroute traffic", "Top up quota", "Temporarily disable exhausted connection"],
         links: {
-          provider: connection?.provider ? `/dashboard/providers/${connection.provider}` : null,
-          usage: `/dashboard/usage`,
+          provider: connection?.provider ? `/app/providers/${connection.provider}` : null,
+          usage: `/app/usage`,
         },
         timestamp: connection?.lastCheckedAt || connection?.updatedAt || connection?.createdAt || new Date().toISOString(),
       });
@@ -174,8 +174,8 @@ function buildLatencyIncidents(summary?: RoutingLatencySummary | null): Incident
       blastRadius: { windowMs: summary.windowMs, sampleCount: summary.count },
       actionHints: ["Inspect recent traces", "Rollback recent routing changes", "Reduce retry depth"],
       links: {
-        usage: `/dashboard/usage`,
-        analytics: `/dashboard/analytics`,
+        usage: `/app/usage`,
+        analytics: `/app/analytics`,
       },
       timestamp: new Date(summary.lastAt || Date.now()).toISOString(),
     });
@@ -205,7 +205,7 @@ function buildTraceIncidents(details: RequestDetail[] = []): Incident[] {
         },
         actionHints: ["Open trace detail", "Inspect fallback chain", "Tune retry/fallback policy"],
         links: {
-          usage: `/dashboard/usage?tab=details`,
+          usage: `/app/usage?tab=details`,
         },
         timestamp: detail?.timestamp || new Date().toISOString(),
       });

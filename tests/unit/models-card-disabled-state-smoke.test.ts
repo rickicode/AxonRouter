@@ -6,7 +6,7 @@ import { describe, expect, it } from "vitest";
 describe("models card disabled state polish", () => {
   it("surfaces disabled model summary and helper copy", async () => {
     const source = await fs.readFile(
-      path.join(import.meta.dirname, "../../src/app/(dashboard)/dashboard/providers/components/ModelsCard.tsx"),
+      path.join(import.meta.dirname, "../../src/app/(dashboard)/app/providers/components/ModelsCard.tsx"),
       "utf8"
     );
 

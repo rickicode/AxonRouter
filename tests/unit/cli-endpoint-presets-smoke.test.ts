@@ -8,10 +8,10 @@ const __dirname = fileURLToPath(new URL(".", import.meta.url));
 const projectRoot = path.resolve(__dirname, "../..");
 
 const FILES = [
-  "src/app/(dashboard)/dashboard/cli-tools/components/CodexToolCard.tsx",
-  "src/app/(dashboard)/dashboard/cli-tools/components/ClaudeToolCard.tsx",
-  "src/app/(dashboard)/dashboard/cli-tools/components/OpenCodeToolCard.tsx",
-  "src/app/(dashboard)/dashboard/cli-tools/components/HermesToolCard.tsx",
+  "src/app/(dashboard)/app/cli-tools/components/CodexToolCard.tsx",
+  "src/app/(dashboard)/app/cli-tools/components/ClaudeToolCard.tsx",
+  "src/app/(dashboard)/app/cli-tools/components/OpenCodeToolCard.tsx",
+  "src/app/(dashboard)/app/cli-tools/components/HermesToolCard.tsx",
 ];
 
 describe("CLI endpoint presets wiring", () => {

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { getConnectionErrorTag } from "../../src/app/(dashboard)/dashboard/providers/errorTag.ts";
+import { getConnectionErrorTag } from "../../src/app/(dashboard)/app/providers/errorTag.ts";
 
 describe("getConnectionErrorTag", () => {
   it("prefers canonical reasonCode mappings", () => {

@@ -5,7 +5,7 @@ import path from "node:path";
 describe("BasicChatPageClient provider-models wiring", () => {
   it("fetches aggregate provider models and uses them when building provider groups", () => {
     const file = fs.readFileSync(
-      path.resolve(import.meta.dirname, "../../src/app/(dashboard)/dashboard/basic-chat/BasicChatPageClient.tsx"),
+      path.resolve(import.meta.dirname, "../../src/app/(dashboard)/app/basic-chat/BasicChatPageClient.tsx"),
       "utf8"
     );
 

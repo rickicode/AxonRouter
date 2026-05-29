@@ -5,7 +5,7 @@ import path from "node:path";
 describe("CompatibleModelsSection source/import wiring", () => {
   it("uses sync-models import path and renders source badges", () => {
     const file = fs.readFileSync(
-      path.resolve(import.meta.dirname, "../../src/app/(dashboard)/dashboard/providers/[id]/CompatibleModelsSection.tsx"),
+      path.resolve(import.meta.dirname, "../../src/app/(dashboard)/app/providers/[id]/CompatibleModelsSection.tsx"),
       "utf8"
     );
 

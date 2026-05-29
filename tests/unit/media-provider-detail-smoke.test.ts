@@ -6,7 +6,7 @@ import { describe, expect, it } from "vitest";
 describe("media provider detail polish", () => {
   it("renders provider notes, website, and API key link wiring", async () => {
     const source = await fs.readFile(
-      path.join(import.meta.dirname, "../../src/app/(dashboard)/dashboard/media-providers/[kind]/[id]/page.tsx"),
+      path.join(import.meta.dirname, "../../src/app/(dashboard)/app/media-providers/[kind]/[id]/page.tsx"),
       "utf8"
     );
 

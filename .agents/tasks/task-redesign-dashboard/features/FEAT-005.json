@@ -1,0 +1,33 @@
+{
+  "id": "FEAT-005",
+  "type": "fix",
+  "description": "Fix service installers: scripts/service.js always installs user-level systemd, installer.sh supports root=system-level and non-root=user-level+linger",
+  "status": "completed",
+  "steps": [
+    "Step 1: Rewrite the installService() function in scripts/service.js. Remove the isRoot() branch that installs to /etc/systemd/system/. ALL code paths must install to user-level systemd only. When running as root, detect SUDO_USER (or fall back to the real user) and install to that user's ~/.config/systemd/user/axonrouter.service. Use generateSystemdUnit() with userMode: true always. After writing the unit file, enable linger with: execSync('loginctl enable-linger <user>'). Use the appropriate systemctl --user commands, running them as the target user (via sudo -u <user> with proper XDG_RUNTIME_DIR if currently root). Keep init.d fallback for non-systemd systems only (unchanged behavior).",
+    "Step 2: Update the uninstallService() function to match - when running as root, it should detect and remove user-level services. Remove the system-level uninstall path since we no longer install system-level services from this script.",
+    "Step 3: Update startService(), stopService(), restartService() similarly - always operate on user-level unit.",
+    "Step 4: Update checkService() - only check user-level unit path (and still report system-level if found from old installs, but primary is user-level).",
+    "Step 5: Update showHelp() text to reflect that install-service always creates a user-level service.",
+    "Step 6: Rewrite the service installation section in installer.sh. The logic should be: if running as root (id -u == 0), install system-level service to /etc/systemd/system/axonrouter.service with proper User/Group directives and systemctl enable/start. If running as non-root, install user-level service to ~/.config/systemd/user/axonrouter.service, systemctl --user daemon-reload/enable/start, and run 'sudo loginctl enable-linger $(whoami)'. The installer.sh is the ONLY path that supports system-level install.",
+    "Step 7: Update the dashboard URL in installer.sh success message from /dashboard to /app.",
+    "Step 8: Run npm run typecheck and npm run lint to validate."
+  ],
+  "acceptance_criteria": [
+    "scripts/service.js installService() always produces user-level systemd unit at ~/.config/systemd/user/axonrouter.service",
+    "scripts/service.js never writes to /etc/systemd/system/ even when running as root",
+    "scripts/service.js auto-enables linger when installing",
+    "installer.sh when run as root installs system-level service to /etc/systemd/system/",
+    "installer.sh when run as non-root installs user-level service + enables linger",
+    "installer.sh success message shows /app instead of /dashboard",
+    "npm run lint exits 0",
+    "npm run typecheck exits 0"
+  ],
+  "verification": [
+    "npm run lint",
+    "npm run typecheck",
+    "npm run build"
+  ],
+  "blocked_reason": null,
+  "findings": "All 41 pre-existing test failures are ENOENT errors for missing files from other unimplemented features (MorphPageClient.tsx, skills/page.tsx, providers/page.tsx, etc). Verified by stashing changes and confirming identical test results. Lint, typecheck, and build all pass cleanly."
+}

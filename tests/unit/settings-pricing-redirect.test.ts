@@ -3,7 +3,7 @@ import path from "node:path";
 
 import { describe, expect, it } from "vitest";
 
-const appDir = path.resolve(import.meta.dirname, "../../src/app/(dashboard)/dashboard/settings");
+const appDir = path.resolve(import.meta.dirname, "../../src/app/(dashboard)/app/settings");
 
 describe("unified settings page module", () => {
   it("adds the consolidated settings route entry and legacy pricing redirect shim", async () => {
@@ -15,6 +15,6 @@ describe("unified settings page module", () => {
     expect(settingsPage).toContain('import SettingsPageClient from "./SettingsPageClient"');
     expect(settingsPage).toContain("export default function SettingsPage()");
     expect(pricingShim).toContain('import { redirect } from "next/navigation"');
-    expect(pricingShim).toContain('redirect("/dashboard/settings")');
+    expect(pricingShim).toContain('redirect("/app/settings")');
   });
 });

@@ -6,11 +6,11 @@ import { describe, expect, it } from "vitest";
 describe("broader header search parity", () => {
   it("wires shared header search into providers and cli tools pages", async () => {
     const providersSource = await fs.readFile(
-      path.join(import.meta.dirname, "../../src/app/(dashboard)/dashboard/providers/page.tsx"),
+      path.join(import.meta.dirname, "../../src/app/(dashboard)/app/providers/page.tsx"),
       "utf8"
     );
     const cliToolsSource = await fs.readFile(
-      path.join(import.meta.dirname, "../../src/app/(dashboard)/dashboard/cli-tools/CLIToolsPageClient.tsx"),
+      path.join(import.meta.dirname, "../../src/app/(dashboard)/app/cli-tools/CLIToolsPageClient.tsx"),
       "utf8"
     );
 

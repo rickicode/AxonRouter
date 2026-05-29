@@ -5,7 +5,7 @@ import path from "node:path";
 describe("combos page provider-models wiring", () => {
   it("fetches aggregate provider models and passes them into grouped selectable models", () => {
     const file = fs.readFileSync(
-      path.resolve(import.meta.dirname, "../../src/app/(dashboard)/dashboard/combos/page.tsx"),
+      path.resolve(import.meta.dirname, "../../src/app/(dashboard)/app/combos/page.tsx"),
       "utf8"
     );
 

@@ -168,7 +168,7 @@ describe("Amazon Q integration follow-ups", () => {
 
 	it("includes Amazon Q in provider limit normalization", async () => {
 		const { parseQuotaData } = await import(
-			"../../src/app/(dashboard)/dashboard/usage/components/ProviderLimits/utils.tsx"
+			"../../src/app/(dashboard)/app/usage/components/ProviderLimits/utils.tsx"
 		);
 
 		const result = parseQuotaData("amazon-q", {

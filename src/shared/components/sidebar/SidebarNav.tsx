@@ -35,7 +35,7 @@ export default function SidebarNav({ onClose }: { onClose?: () => void }) {
   const mediaExpanded = hasSearch || mediaOpen;
   const primary = DASHBOARD_PRIMARY_NAV_ITEMS.filter((item) => matchesHeaderSearch(searchQuery, item.label, item.href));
   const system = DASHBOARD_SYSTEM_NAV_ITEMS.filter((item) => matchesHeaderSearch(searchQuery, item.label, item.href));
-  const debug = DASHBOARD_DEBUG_NAV_ITEMS.filter((item) => item.href !== "/dashboard/translator" && matchesHeaderSearch(searchQuery, item.label, item.href));
+  const debug = DASHBOARD_DEBUG_NAV_ITEMS.filter((item) => item.href !== "/app/translator" && matchesHeaderSearch(searchQuery, item.label, item.href));
   const mediaKinds = MEDIA_PROVIDER_KINDS.filter((kind) => VISIBLE_MEDIA_KINDS.includes(kind.id) && matchesHeaderSearch(searchQuery, kind.label, kind.id));
   const showMedia = mediaKinds.length > 0 || matchesHeaderSearch(searchQuery, DASHBOARD_MEDIA_PROVIDERS_NAV_ITEM.label);
 

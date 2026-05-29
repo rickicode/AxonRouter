@@ -5,11 +5,11 @@ import path from "node:path";
 describe("model sync scheduler UI wiring", () => {
   it("surfaces scheduler status in settings and provider detail", () => {
     const settingsFile = fs.readFileSync(
-      path.resolve(import.meta.dirname, "../../src/app/(dashboard)/dashboard/settings/SettingsPageClient.tsx"),
+      path.resolve(import.meta.dirname, "../../src/app/(dashboard)/app/settings/SettingsPageClient.tsx"),
       "utf8"
     );
     const providerFile = fs.readFileSync(
-      path.resolve(import.meta.dirname, "../../src/app/(dashboard)/dashboard/providers/[id]/page.tsx"),
+      path.resolve(import.meta.dirname, "../../src/app/(dashboard)/app/providers/[id]/page.tsx"),
       "utf8"
     );
 

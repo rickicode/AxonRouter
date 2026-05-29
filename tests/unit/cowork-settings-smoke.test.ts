@@ -10,11 +10,11 @@ describe("cowork settings wiring", () => {
       "utf8"
     );
     const cardSource = await fs.readFile(
-      path.join(import.meta.dirname, "../../src/app/(dashboard)/dashboard/cli-tools/components/CoworkToolCard.tsx"),
+      path.join(import.meta.dirname, "../../src/app/(dashboard)/app/cli-tools/components/CoworkToolCard.tsx"),
       "utf8"
     );
     const pageSource = await fs.readFile(
-      path.join(import.meta.dirname, "../../src/app/(dashboard)/dashboard/cli-tools/CLIToolsPageClient.tsx"),
+      path.join(import.meta.dirname, "../../src/app/(dashboard)/app/cli-tools/CLIToolsPageClient.tsx"),
       "utf8"
     );
 

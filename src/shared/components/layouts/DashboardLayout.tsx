@@ -26,7 +26,7 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
   const notifications = useNotificationStore((state) => state.notifications);
   const removeNotification = useNotificationStore((state) => state.removeNotification);
 
-  const basicChat = pathname === "/dashboard/basic-chat";
+  const basicChat = pathname === "/app/basic-chat";
 
   return (
     <SidebarProvider className="rr-dark-shell" style={{ "--sidebar-width": "18rem" } as React.CSSProperties}>

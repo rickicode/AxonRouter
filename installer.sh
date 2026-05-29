@@ -182,9 +182,86 @@ if [[ "$INSTALL_SERVICE" =~ ^[Nn]$ ]]; then
 else
   echo ""
   echo "Installing service..."
-  # install-service will automatically detect root vs non-root
-  # and install system-level or user-level service accordingly
-  "$NODE_PATH" "$AXONROUTER_PATH" install-service
+
+  if [ "$(id -u)" -eq 0 ]; then
+    # Running as root - install system-level service
+    REAL_USER="${SUDO_USER:-root}"
+    REAL_GROUP="$(id -gn "$REAL_USER" 2>/dev/null || echo "$REAL_USER")"
+    REAL_HOME="$(eval echo "~$REAL_USER")"
+    WORKING_DIR="$("$NPM_PATH" prefix -g)/lib/node_modules/axonrouter"
+
+    cat > /etc/systemd/system/axonrouter.service <<EOF
+[Unit]
+Description=AxonRouter AI Router
+After=network.target
+StartLimitIntervalSec=300
+StartLimitBurst=5
+
+[Service]
+Type=simple
+User=$REAL_USER
+Group=$REAL_GROUP
+WorkingDirectory=$WORKING_DIR
+ExecStart=$NODE_PATH $AXONROUTER_PATH
+Restart=always
+RestartSec=5
+Environment=NODE_ENV=production
+Environment=PORT=12711
+Environment=HOME=$REAL_HOME
+TimeoutStopSec=30
+KillMode=control-group
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
+    systemctl daemon-reload
+    systemctl enable axonrouter
+    systemctl start axonrouter
+    echo ""
+    echo "System-level service installed and started."
+  else
+    # Running as non-root - install user-level service
+    USER_UNIT_DIR="$HOME/.config/systemd/user"
+    WORKING_DIR="$("$NPM_PATH" prefix -g)/lib/node_modules/axonrouter"
+    mkdir -p "$USER_UNIT_DIR"
+
+    cat > "$USER_UNIT_DIR/axonrouter.service" <<EOF
+[Unit]
+Description=AxonRouter AI Router
+After=network.target
+StartLimitIntervalSec=300
+StartLimitBurst=5
+
+[Service]
+Type=simple
+WorkingDirectory=$WORKING_DIR
+ExecStart=$NODE_PATH $AXONROUTER_PATH
+Restart=always
+RestartSec=5
+Environment=NODE_ENV=production
+Environment=PORT=12711
+Environment=HOME=$HOME
+TimeoutStopSec=30
+KillMode=control-group
+
+[Install]
+WantedBy=default.target
+EOF
+
+    systemctl --user daemon-reload
+    systemctl --user enable axonrouter
+    systemctl --user start axonrouter
+
+    # Enable linger for boot persistence
+    echo ""
+    echo "Enabling linger for boot persistence..."
+    sudo loginctl enable-linger "$(whoami)" 2>/dev/null || \
+      echo "  (Run 'sudo loginctl enable-linger $(whoami)' manually for boot persistence)"
+
+    echo ""
+    echo "User-level service installed and started."
+  fi
   echo ""
 fi
 
@@ -197,7 +274,7 @@ echo "==================================="
 echo ""
 echo "AxonRouter is installed and running."
 echo ""
-echo "Dashboard: http://localhost:12711/dashboard"
+echo "Dashboard: http://localhost:12711/app"
 echo "API:       http://localhost:12711/v1"
 echo ""
 echo "If this is a fresh install, the default password is 12345677"

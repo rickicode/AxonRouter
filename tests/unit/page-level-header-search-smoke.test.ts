@@ -6,11 +6,11 @@ import { describe, expect, it } from "vitest";
 describe("page-level header search parity", () => {
   it("wires header search store into skills and media provider pages", async () => {
     const skillsSource = await fs.readFile(
-      path.join(import.meta.dirname, "../../src/app/(dashboard)/dashboard/skills/page.tsx"),
+      path.join(import.meta.dirname, "../../src/app/(dashboard)/app/skills/page.tsx"),
       "utf8"
     );
     const mediaKindSource = await fs.readFile(
-      path.join(import.meta.dirname, "../../src/app/(dashboard)/dashboard/media-providers/[kind]/page.tsx"),
+      path.join(import.meta.dirname, "../../src/app/(dashboard)/app/media-providers/[kind]/page.tsx"),
       "utf8"
     );
 

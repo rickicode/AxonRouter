@@ -6,7 +6,7 @@ import { describe, expect, it } from "vitest";
 describe("media provider kind disabled-model polish", () => {
   it("surfaces disabled model counts on media provider cards", async () => {
     const source = await fs.readFile(
-      path.join(import.meta.dirname, "../../src/app/(dashboard)/dashboard/media-providers/[kind]/page.tsx"),
+      path.join(import.meta.dirname, "../../src/app/(dashboard)/app/media-providers/[kind]/page.tsx"),
       "utf8"
     );
 

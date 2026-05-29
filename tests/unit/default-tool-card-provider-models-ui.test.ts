@@ -5,7 +5,7 @@ import path from "node:path";
 describe("DefaultToolCard provider-models wiring", () => {
   it("fetches aggregate provider models and threads them into ModelSelectModal activeProviders", () => {
     const file = fs.readFileSync(
-      path.resolve(import.meta.dirname, "../../src/app/(dashboard)/dashboard/cli-tools/components/DefaultToolCard.tsx"),
+      path.resolve(import.meta.dirname, "../../src/app/(dashboard)/app/cli-tools/components/DefaultToolCard.tsx"),
       "utf8"
     );
 

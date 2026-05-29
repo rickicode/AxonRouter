@@ -5,7 +5,7 @@ import path from "node:path";
 describe("OpenCodeModelSelectModal provider-models wiring", () => {
   it("fetches provider-models aggregate and passes it into grouped selectable models", () => {
     const file = fs.readFileSync(
-      path.resolve(import.meta.dirname, "../../src/app/(dashboard)/dashboard/opencode/components/OpenCodeModelSelectModal.tsx"),
+      path.resolve(import.meta.dirname, "../../src/app/(dashboard)/app/opencode/components/OpenCodeModelSelectModal.tsx"),
       "utf8"
     );
 

@@ -58,7 +58,7 @@ export default function LandingPage() {
             </p>
             <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
               <Button 
-                onClick={() => router.push("/dashboard")}
+                onClick={() => router.push("/app")}
                 className="h-14 w-full rounded-[4px] bg-[#f97815] px-10 text-lg font-bold text-[#181411] shadow-[0_0_20px_rgba(249,120,21,0.5)] transition-all duration-700 ease-[cubic-bezier(0.32,0.72,0,1)] hover:bg-[#ff8d38] sm:w-auto"
               >
                 Start Free

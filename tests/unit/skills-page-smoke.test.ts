@@ -10,7 +10,7 @@ describe("skills page wiring", () => {
       "utf8"
     );
     const pageSource = await fs.readFile(
-      path.join(import.meta.dirname, "../../src/app/(dashboard)/dashboard/skills/page.tsx"),
+      path.join(import.meta.dirname, "../../src/app/(dashboard)/app/skills/page.tsx"),
       "utf8"
     );
     const navSource = await fs.readFile(
@@ -35,6 +35,6 @@ describe("skills page wiring", () => {
     expect(pageSource).toContain("slug")
     expect(pageSource).toContain("No built-in skills match your search.");
     expect(pageSource).toContain("Read this skill and use it:");
-    expect(navSource).toContain('href: "/dashboard/skills"');
+    expect(navSource).toContain('href: "/app/skills"');
   });
 });
