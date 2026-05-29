@@ -16,8 +16,8 @@ const ANTIGRAVITY_CONFIG = {
   quotaApiUrl: "https://cloudcode-pa.googleapis.com/v1internal:fetchAvailableModels",
   loadProjectApiUrl: "https://cloudcode-pa.googleapis.com/v1internal:loadCodeAssist",
   tokenUrl: "https://oauth2.googleapis.com/token",
-  clientId: process.env.ANTIGRAVITY_OAUTH_CLIENT_ID || "",
-  clientSecret: process.env.ANTIGRAVITY_OAUTH_CLIENT_SECRET || "",
+  clientId: process.env.ANTIGRAVITY_OAUTH_CLIENT_ID || "1071006060591-tmhssin2h21lcre235vtolojh4g403ep.apps.googleusercontent.com",
+  clientSecret: process.env.ANTIGRAVITY_OAUTH_CLIENT_SECRET || "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",
   userAgent: getPlatformUserAgent(),
 };
 
@@ -185,30 +185,77 @@ function formatGitHubQuotaSnapshot(quota) {
 }
 
 /**
- * Gemini CLI Usage (Google Cloud)
+ * Gemini CLI Usage - Fetch quota from retrieveUserQuota API
  */
 async function getGeminiUsage(accessToken) {
   try {
-    // Gemini CLI uses Google Cloud quotas
-    // Try to get quota info from Cloud Resource Manager
-    const response = await fetch(
-      "https://cloudresourcemanager.googleapis.com/v1/projects?filter=lifecycleState:ACTIVE",
-      {
-        headers: {
-          Authorization: `Bearer ${accessToken}`,
-          Accept: "application/json",
-        },
-      }
-    );
-
-    if (!response.ok) {
-      // Quota API may not be accessible, return generic message
-      return { message: "Gemini CLI uses Google Cloud quotas. Check Google Cloud Console for details." };
+    if (!accessToken) {
+      return { plan: "Free", message: "Gemini CLI access token not available." };
     }
 
-    return { message: "Gemini CLI connected. Usage tracked via Google Cloud Console." };
+    // Get subscription info and projectId (reuse antigravity's helper)
+    const subscriptionInfo = await getAntigravitySubscriptionInfo(accessToken);
+    const projectId = subscriptionInfo?.cloudaicompanionProject || null;
+
+    const plan = subscriptionInfo?.currentTier?.name || "Gemini CLI";
+
+    if (!projectId) {
+      return { plan, message: "Gemini CLI project ID not available. Usage tracking requires a project." };
+    }
+
+    // Use retrieveUserQuota endpoint (same as Gemini CLI /stats command)
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 10000);
+
+    let response;
+    try {
+      response = await fetch(
+        "https://cloudcode-pa.googleapis.com/v1internal:retrieveUserQuota",
+        {
+          method: "POST",
+          headers: {
+            "Authorization": `Bearer ${accessToken}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ project: projectId }),
+          signal: controller.signal,
+        }
+      );
+    } finally {
+      clearTimeout(timeoutId);
+    }
+
+    if (!response.ok) {
+      return { plan, message: `Gemini CLI quota error (${response.status}).` };
+    }
+
+    const data = await response.json();
+    const quotas: any = {};
+
+    // Parse buckets array (each has modelId, remainingFraction, resetTime)
+    if (Array.isArray(data.buckets)) {
+      for (const bucket of data.buckets) {
+        if (!bucket.modelId || bucket.remainingFraction == null) continue;
+
+        const remainingFraction = Number(bucket.remainingFraction) || 0;
+        const remainingPercentage = remainingFraction * 100;
+        const total = 1000; // Normalized base
+        const remaining = Math.round(total * remainingFraction);
+        const used = Math.max(0, total - remaining);
+
+        quotas[bucket.modelId] = {
+          used,
+          total,
+          resetAt: parseResetTime(bucket.resetTime),
+          remainingPercentage,
+          unlimited: false,
+        };
+      }
+    }
+
+    return { plan, quotas };
   } catch (error) {
-    return { message: "Unable to fetch Gemini usage. Check Google Cloud Console." };
+    return { plan: "Gemini CLI", message: `Gemini CLI error: ${error.message}` };
   }
 }
 

@@ -1,4 +1,5 @@
 import { platform, arch } from "os";
+import { getGeminiCliCredentials } from "../utils/publicCreds";
 
 // === OS/Arch helpers ===
 function mapStainlessOs() {
@@ -62,8 +63,8 @@ export const PROVIDERS = {
   "gemini-cli": {
     baseUrl: "https://cloudcode-pa.googleapis.com/v1internal",
     format: "gemini-cli",
-    clientId: env("GEMINI_CLI_OAUTH_CLIENT_ID") || env("GEMINI_OAUTH_CLIENT_ID"),
-    clientSecret: env("GEMINI_CLI_OAUTH_CLIENT_SECRET") || env("GEMINI_OAUTH_CLIENT_SECRET")
+    clientId: getGeminiCliCredentials().clientId,
+    clientSecret: getGeminiCliCredentials().clientSecret
   },
   codex: {
     baseUrl: "https://chatgpt.com/backend-api/codex/responses",
@@ -107,8 +108,8 @@ export const PROVIDERS = {
     ],
     format: "antigravity",
     headers: { "User-Agent": `antigravity/1.107.0 ${platform()}/${arch()}` },
-    clientId: env("ANTIGRAVITY_OAUTH_CLIENT_ID"),
-    clientSecret: env("ANTIGRAVITY_OAUTH_CLIENT_SECRET")
+    clientId: env("ANTIGRAVITY_OAUTH_CLIENT_ID") || "1071006060591-tmhssin2h21lcre235vtolojh4g403ep.apps.googleusercontent.com",
+    clientSecret: env("ANTIGRAVITY_OAUTH_CLIENT_SECRET") || "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"
   },
   openrouter: {
     baseUrl: "https://openrouter.ai/api/v1/chat/completions",
