@@ -38,7 +38,7 @@ export default function AvailableEndpoints() {
   const tunnelQuery = useQuery<TunnelsStatusResponse>({
     queryKey: TUNNELS_STATUS_KEY,
     queryFn: async ({ signal }) => {
-      const res = await fetch("/api/tunnels/status", { signal });
+      const res = await fetch("/api/tunnel/status", { signal });
       if (!res.ok) throw new Error("Failed to fetch tunnel status");
       return res.json();
     },

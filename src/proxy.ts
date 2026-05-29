@@ -18,7 +18,7 @@ export const config = {
 		"/api/models/:path*",
 		"/api/oauth/:path*",
 		"/api/opencode/:path*",
-		"/api/tunnels/:path*",
+		"/api/tunnel/:path*",
 		"/api/usage/:path*",
 		"/api/cli-tools/:path*",
 		"/api/skills/:path*",

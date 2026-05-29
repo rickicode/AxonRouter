@@ -69,7 +69,7 @@ export default function MainTab({ machineId }: { machineId: string }) {
     queryFn: async ({ signal }) => {
       const [settings, tunnelStatus] = await Promise.all([
         fetchJson<EndpointMainSettingsData["settings"]>("/api/settings", { signal }),
-        fetchJson<EndpointMainSettingsData["tunnelStatus"]>("/api/tunnels/status", { signal }),
+        fetchJson<EndpointMainSettingsData["tunnelStatus"]>("/api/tunnel/status", { signal }),
       ]);
       return { settings, tunnelStatus };
     },
@@ -228,7 +228,7 @@ export default function MainTab({ machineId }: { machineId: string }) {
   const toggleTunnelMutation = useMutation({
     retry: false,
     mutationFn: async () => {
-      const response = await fetch(tunnelEnabled ? "/api/tunnels/cloudflared/stop" : "/api/tunnels/cloudflared/start", {
+      const response = await fetch(tunnelEnabled ? "/api/tunnel/cloudflared/stop" : "/api/tunnel/cloudflared/start", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
       });
@@ -253,7 +253,7 @@ export default function MainTab({ machineId }: { machineId: string }) {
   const toggleTailscaleMutation = useMutation({
     retry: false,
     mutationFn: async () => {
-      const response = await fetch(tsEnabled ? "/api/tunnels/tailscale/stop" : "/api/tunnels/tailscale/start", {
+      const response = await fetch(tsEnabled ? "/api/tunnel/tailscale/stop" : "/api/tunnel/tailscale/start", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
       });

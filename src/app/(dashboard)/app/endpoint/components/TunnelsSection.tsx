@@ -39,7 +39,7 @@ export default function TunnelsSection() {
   const statusQuery = useQuery<TunnelsStatusResponse>({
     queryKey: TUNNELS_STATUS_KEY,
     queryFn: async ({ signal }) => {
-      const res = await fetch("/api/tunnels/status", { signal });
+      const res = await fetch("/api/tunnel/status", { signal });
       if (!res.ok) throw new Error("Failed to fetch tunnel status");
       return res.json();
     },
@@ -55,7 +55,7 @@ export default function TunnelsSection() {
 
   const cloudflaredStart = useMutation({
     mutationFn: async () => {
-      const res = await fetch("/api/tunnels/cloudflared/start", { method: "POST" });
+      const res = await fetch("/api/tunnel/cloudflared/start", { method: "POST" });
       if (!res.ok) throw new Error("Failed to start cloudflared");
       return res.json();
     },
@@ -64,7 +64,7 @@ export default function TunnelsSection() {
 
   const cloudflaredStop = useMutation({
     mutationFn: async () => {
-      const res = await fetch("/api/tunnels/cloudflared/stop", { method: "POST" });
+      const res = await fetch("/api/tunnel/cloudflared/stop", { method: "POST" });
       if (!res.ok) throw new Error("Failed to stop cloudflared");
       return res.json();
     },
@@ -73,7 +73,7 @@ export default function TunnelsSection() {
 
   const tailscaleStart = useMutation({
     mutationFn: async () => {
-      const res = await fetch("/api/tunnels/tailscale/start", { method: "POST" });
+      const res = await fetch("/api/tunnel/tailscale/start", { method: "POST" });
       if (!res.ok) throw new Error("Failed to start tailscale");
       return res.json();
     },
@@ -82,7 +82,7 @@ export default function TunnelsSection() {
 
   const tailscaleStop = useMutation({
     mutationFn: async () => {
-      const res = await fetch("/api/tunnels/tailscale/stop", { method: "POST" });
+      const res = await fetch("/api/tunnel/tailscale/stop", { method: "POST" });
       if (!res.ok) throw new Error("Failed to stop tailscale");
       return res.json();
     },
@@ -91,7 +91,7 @@ export default function TunnelsSection() {
 
   const tailscaleLogin = useMutation({
     mutationFn: async () => {
-      const res = await fetch("/api/tunnels/tailscale/login", {
+      const res = await fetch("/api/tunnel/tailscale/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({}),
@@ -109,7 +109,7 @@ export default function TunnelsSection() {
 
   const ngrokStart = useMutation({
     mutationFn: async (authToken?: string) => {
-      const res = await fetch("/api/tunnels/ngrok/start", {
+      const res = await fetch("/api/tunnel/ngrok/start", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ authToken: authToken || undefined }),
@@ -122,7 +122,7 @@ export default function TunnelsSection() {
 
   const ngrokStop = useMutation({
     mutationFn: async () => {
-      const res = await fetch("/api/tunnels/ngrok/stop", { method: "POST" });
+      const res = await fetch("/api/tunnel/ngrok/stop", { method: "POST" });
       if (!res.ok) throw new Error("Failed to stop ngrok");
       return res.json();
     },
