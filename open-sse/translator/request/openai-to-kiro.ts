@@ -5,6 +5,12 @@
 import { register } from "../index";
 import { FORMATS } from "../formats";
 import { v5 as uuidv5 } from "uuid";
+import {
+	resolveKiroModel,
+	isThinkingEnabled,
+	buildThinkingSystemPrefix,
+	KIRO_AGENTIC_SYSTEM_PROMPT,
+} from "../../config/kiroConstants";
 
 const DEFAULT_KIRO_MAX_TOOLS = 24;
 const KIRO_PREFERRED_TOOL_NAMES = [
@@ -190,6 +196,7 @@ function convertMessages(messages, tools, model, credentials) {
 	let pendingAssistantContent = [];
 	let pendingToolResults = [];
 	let pendingToolUses = [];
+	let pendingImages: Array<{ format: string; source: { bytes: string } }> = [];
 	let currentRole = null;
 
 	const serializeTools = () => {
@@ -203,14 +210,21 @@ function convertMessages(messages, tools, model, credentials) {
 				description = `Tool: ${name}`;
 			}
 
+			const rawSchema =
+				t.function?.parameters || t.parameters || t.input_schema || {};
+			// Normalize schema: Kiro requires required[] and proper type/properties.
+			// Empty schema => fully-formed object schema. Otherwise just guarantee
+			// required[] exists (Kiro rejects schemas without it).
+			const normalizedSchema =
+				rawSchema && typeof rawSchema === "object" && Object.keys(rawSchema).length === 0
+					? { type: "object", properties: {}, required: [] }
+					: { ...rawSchema, required: rawSchema.required ?? [] };
+
 			return {
 				toolSpecification: {
 					name,
 					description,
-					inputSchema: {
-						json:
-							t.function?.parameters || t.parameters || t.input_schema || {},
-					},
+					inputSchema: { json: normalizedSchema },
 				},
 			};
 		});
@@ -232,6 +246,11 @@ function convertMessages(messages, tools, model, credentials) {
 				},
 			};
 
+			// Attach images collected during this user turn (Kiro accepts an `images` field)
+			if (pendingImages.length > 0) {
+				userMsg.userInputMessage.images = pendingImages;
+			}
+
 			const serializedTools = serializeTools();
 			const ctx: any = {};
 			if (hasToolResults) ctx.toolResults = pendingToolResults;
@@ -245,6 +264,7 @@ function convertMessages(messages, tools, model, credentials) {
 			currentMessage = userMsg;
 			pendingUserContent = [];
 			pendingToolResults = [];
+			pendingImages = [];
 		} else if (currentRole === "assistant") {
 			// Profile-based CodeWhisperer accounts tolerate richer tool history than builder-id accounts.
 			const content = pendingAssistantContent.join("\n\n").trim();
@@ -295,9 +315,36 @@ function convertMessages(messages, tools, model, credentials) {
 			if (typeof msg.content === "string") {
 				content = msg.content;
 			} else if (Array.isArray(msg.content)) {
-				const textParts = msg.content
-					.filter((c) => c.type === "text" || c.text)
-					.map((c) => c.text || "");
+				const textParts: string[] = [];
+				for (const c of msg.content) {
+					if (c?.type === "text" || c?.text) {
+						textParts.push(c.text || "");
+						continue;
+					}
+					// OpenAI image_url: { type: "image_url", image_url: { url } }
+					if (c?.type === "image_url") {
+						const url: string = c.image_url?.url || "";
+						const base64Match = url.match(/^data:([^;]+);base64,(.+)$/);
+						if (base64Match) {
+							const mediaType = base64Match[1];
+							const format = mediaType.split("/")[1] || mediaType;
+							pendingImages.push({ format, source: { bytes: base64Match[2] } });
+						} else if (url.startsWith("http://") || url.startsWith("https://")) {
+							// Kiro only supports inline base64; surface remote URLs as text.
+							textParts.push(`[Image: ${url}]`);
+						}
+						continue;
+					}
+					// Claude image: { type: "image", source: { type: "base64", media_type, data } }
+					if (c?.type === "image") {
+						if (c.source?.type === "base64" && c.source?.data) {
+							const mediaType = c.source.media_type || "image/png";
+							const format = mediaType.split("/")[1] || mediaType;
+							pendingImages.push({ format, source: { bytes: c.source.data } });
+						}
+						continue;
+					}
+				}
 				content = textParts.join("\n");
 
 				const toolResultBlocks = msg.content.filter(
@@ -425,6 +472,40 @@ function convertMessages(messages, tools, model, credentials) {
 		}
 	});
 
+	// Merge consecutive user messages (Kiro requires strictly alternating
+	// user/assistant in history). If a user item is preceded by another user
+	// item we concatenate their content; toolResults/images are also merged.
+	const mergedHistory: any[] = [];
+	for (const current of history) {
+		const last = mergedHistory[mergedHistory.length - 1];
+		if (current.userInputMessage && last?.userInputMessage) {
+			const prev = last.userInputMessage;
+			const curr = current.userInputMessage;
+			prev.content =
+				`${prev.content || ""}\n\n${curr.content || ""}`.trim() || "continue";
+
+			// Merge images
+			if (Array.isArray(curr.images) && curr.images.length > 0) {
+				prev.images = (prev.images || []).concat(curr.images);
+			}
+			// Merge toolResults inside userInputMessageContext
+			const prevCtx = prev.userInputMessageContext || {};
+			const currCtx = curr.userInputMessageContext || {};
+			if (Array.isArray(currCtx.toolResults) && currCtx.toolResults.length > 0) {
+				prevCtx.toolResults = (prevCtx.toolResults || []).concat(
+					currCtx.toolResults,
+				);
+			}
+			if (Object.keys(prevCtx).length > 0) {
+				prev.userInputMessageContext = prevCtx;
+			}
+		} else {
+			mergedHistory.push(current);
+		}
+	}
+	history.length = 0;
+	history.push(...mergedHistory);
+
 	agentContinuationId = null;
 	agentTaskType = null;
 
@@ -448,6 +529,16 @@ export function buildKiroPayload(model, body, stream, credentials) {
 	const temperature = body.temperature;
 	const topP = body.top_p;
 
+	// Resolve `-agentic` / `-thinking` synthetic suffixes BEFORE sending upstream.
+	// `upstreamModel` is the real Kiro model id; the flags drive prompt injection.
+	const {
+		upstream: upstreamModel,
+		agentic,
+		thinking: modelImpliesThinking,
+	} = resolveKiroModel(String(model || ""));
+	const thinkingEnabled =
+		modelImpliesThinking || isThinkingEnabled(body, null, upstreamModel);
+
 	const {
 		history,
 		currentMessage,
@@ -455,7 +546,7 @@ export function buildKiroPayload(model, body, stream, credentials) {
 		agentContinuationId,
 		agentTaskType,
 		allowExtendedToolContext,
-	} = convertMessages(messages, tools, model, credentials);
+	} = convertMessages(messages, tools, upstreamModel, credentials);
 
 	const profileArn = credentials?.providerSpecificData?.profileArn || "";
 
@@ -476,14 +567,26 @@ export function buildKiroPayload(model, body, stream, credentials) {
 	const stableConversationId =
 		conversationId || uuidv5(conversationSeed, NAMESPACE_KIRO);
 
+	// Build the system-prompt prefix that goes ABOVE the user message body.
+	// Order: thinking_mode tag first (so Kiro sees it before any user text),
+	// then optional context/timestamp marker, then optional agentic chunked-write prompt.
+	const prefixParts: string[] = [];
+	if (thinkingEnabled) {
+		prefixParts.push(buildThinkingSystemPrefix());
+	}
 	if (shouldInjectKiroTimestamp()) {
 		const timestamp = new Date().toISOString();
-		// Only prepend timestamp if there's actual content; otherwise use a minimal placeholder
-		if (finalContent.trim()) {
-			finalContent = `[Context: Current time is ${timestamp}]\n\n${finalContent}`;
-		} else {
-			finalContent = `[Context: Current time is ${timestamp}]\n\ncontinue`;
-		}
+		prefixParts.push(`[Context: Current time is ${timestamp}]`);
+	}
+	if (agentic) {
+		prefixParts.push(KIRO_AGENTIC_SYSTEM_PROMPT);
+	}
+
+	if (prefixParts.length > 0) {
+		const prefix = prefixParts.join("\n\n");
+		finalContent = finalContent.trim()
+			? `${prefix}\n\n${finalContent}`
+			: `${prefix}\n\ncontinue`;
 	} else if (!finalContent.trim()) {
 		finalContent = "continue";
 	}
@@ -495,8 +598,12 @@ export function buildKiroPayload(model, body, stream, credentials) {
 			currentMessage: {
 				userInputMessage: {
 					content: finalContent,
-					modelId: model,
+					modelId: upstreamModel,
 					origin: "AI_EDITOR",
+					...(Array.isArray(currentMessage?.userInputMessage?.images) &&
+					currentMessage.userInputMessage.images.length > 0
+						? { images: currentMessage.userInputMessage.images }
+						: {}),
 					...(currentMessage?.userInputMessage?.userInputMessageContext && {
 						userInputMessageContext:
 							currentMessage.userInputMessage.userInputMessageContext,
@@ -548,7 +655,21 @@ export function buildKiroPayload(model, body, stream, credentials) {
 			historyLength: Array.isArray(history) ? history.length : 0,
 			timestampPrefixEnabled: shouldInjectKiroTimestamp(),
 			inferenceConfigEnabled: shouldIncludeKiroInferenceConfig(),
+			thinkingEnabled,
+			agentic,
+			modelRequested: String(model || ""),
+			modelUpstream: upstreamModel,
+			imageCount: Array.isArray(currentMessage?.userInputMessage?.images)
+				? currentMessage.userInputMessage.images.length
+				: 0,
 		},
+		enumerable: false,
+	});
+
+	// Tag payload so downstream executors can route the upstream model id correctly
+	// (the request was made against `model`, but upstream Kiro must see `upstreamModel`).
+	Object.defineProperty(payload, "_kiroUpstreamModel", {
+		value: upstreamModel,
 		enumerable: false,
 	});
 
