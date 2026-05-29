@@ -29,6 +29,23 @@ import { extractCodexIdentityFromJwt } from "./codexAccount";
 
 const BASE64_BLOCK_SIZE = 4;
 
+// Antigravity tier ids/names that are placeholders rather than a real subscription tier.
+const PLACEHOLDER_ANTIGRAVITY_TIERS = new Set(["legacy-tier", "legacy", "unknown", ""]);
+
+/**
+ * Extract a real, displayable subscription tier from the loadCodeAssist `currentTier`.
+ * Returns undefined for placeholder/legacy/unknown tiers so we never persist a fake plan
+ * badge (the UI shows the account-type badge only when a real tier is known).
+ */
+function getRealAntigravityTier(currentTier: any): string | undefined {
+  const raw =
+    (typeof currentTier?.name === "string" && currentTier.name.trim()) ||
+    (typeof currentTier?.id === "string" && currentTier.id.trim()) ||
+    "";
+  if (!raw) return undefined;
+  return PLACEHOLDER_ANTIGRAVITY_TIERS.has(raw.toLowerCase()) ? undefined : raw;
+}
+
 /**
  * Decode JWT access token and extract a stable account identifier for display/upsert.
  * @param {string} accessToken
@@ -337,6 +354,7 @@ const PROVIDERS = {
       // Load Code Assist to get project ID and tier
       let projectId = "";
       let tierId = "legacy-tier";
+      let planTier: string | undefined;
       try {
         const loadRes = await fetch(ANTIGRAVITY_CONFIG.loadCodeAssistEndpoint, {
           method: "POST",
@@ -354,6 +372,9 @@ const PROVIDERS = {
               }
             }
           }
+          // The displayed subscription tier comes from the account's *current* tier,
+          // not the default allowed tier. Only keep it when it's a real (non-legacy) tier.
+          planTier = getRealAntigravityTier(data.currentTier);
         }
       } catch (e) {
         console.log("Failed to load code assist:", e);
@@ -382,7 +403,7 @@ const PROVIDERS = {
         doOnboard().catch(() => {});
       }
 
-      return { userInfo, projectId, tierId };
+      return { userInfo, projectId, tierId, planTier };
     },
     mapTokens: (tokens, extra) => ({
       accessToken: tokens.access_token,
@@ -391,7 +412,7 @@ const PROVIDERS = {
       scope: tokens.scope,
       email: extra?.userInfo?.email,
       projectId: extra?.projectId,
-      providerSpecificData: extra?.tierId ? { planType: extra.tierId } : undefined,
+      providerSpecificData: extra?.planTier ? { planType: extra.planTier } : undefined,
     }),
   },
 

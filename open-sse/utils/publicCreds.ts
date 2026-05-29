@@ -18,3 +18,18 @@ export function getGeminiCliCredentials() {
     clientSecret: process.env.GEMINI_CLI_OAUTH_CLIENT_SECRET || process.env.GEMINI_OAUTH_CLIENT_SECRET || unmaskBytes(GEMINI_CLI_SECRET_BYTES),
   };
 }
+
+
+// Antigravity OAuth credentials (public; shipped in the Antigravity client binary).
+// Hardcoded here as the single source of truth so the quota/usage and chat flows
+// work out-of-the-box without requiring environment variables. Env vars may still
+// override them for self-hosted deployments.
+const ANTIGRAVITY_CLIENT_ID = "1071006060591-tmhssin2h21lcre235vtolojh4g403ep.apps.googleusercontent.com";
+const ANTIGRAVITY_CLIENT_SECRET = "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";
+
+export function getAntigravityCredentials() {
+  return {
+    clientId: process.env.ANTIGRAVITY_OAUTH_CLIENT_ID || ANTIGRAVITY_CLIENT_ID,
+    clientSecret: process.env.ANTIGRAVITY_OAUTH_CLIENT_SECRET || ANTIGRAVITY_CLIENT_SECRET,
+  };
+}

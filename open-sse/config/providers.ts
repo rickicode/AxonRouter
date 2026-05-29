@@ -1,5 +1,5 @@
 import { platform, arch } from "os";
-import { getGeminiCliCredentials } from "../utils/publicCreds";
+import { getGeminiCliCredentials, getAntigravityCredentials } from "../utils/publicCreds";
 
 // === OS/Arch helpers ===
 function mapStainlessOs() {
@@ -108,8 +108,8 @@ export const PROVIDERS = {
     ],
     format: "antigravity",
     headers: { "User-Agent": `antigravity/1.107.0 ${platform()}/${arch()}` },
-    clientId: env("ANTIGRAVITY_OAUTH_CLIENT_ID") || "1071006060591-tmhssin2h21lcre235vtolojh4g403ep.apps.googleusercontent.com",
-    clientSecret: env("ANTIGRAVITY_OAUTH_CLIENT_SECRET") || "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"
+    clientId: getAntigravityCredentials().clientId,
+    clientSecret: getAntigravityCredentials().clientSecret
   },
   openrouter: {
     baseUrl: "https://openrouter.ai/api/v1/chat/completions",

@@ -24,6 +24,7 @@ import { useInvalidate } from "@/shared/query";
 import {
   getConnectionCentralizedStatus,
   getConnectionFilterStatus,
+  getDisplayPlanType,
   normalizeConnectionFilterStatus,
 } from "@/lib/connectionStatus";
 import { cn } from "@/lib/utils";
@@ -727,8 +728,8 @@ export default function ProviderLimits() {
           const rowBusy = deletingId === conn.id || togglingId === conn.id;
           const isRefreshingConnection = Boolean(refreshingConnectionIds[conn.id]);
           const connectionRefreshError = connectionRefreshErrors[conn.id] || "";
-          const codexPlanType = conn.providerSpecificData?.planType || null;
           const codexAccountKind = getCodexAccountKindLabel(conn);
+          const planLabel = getDisplayPlanType(conn);
           const connectionStatus = getConnectionCentralizedStatus(conn);
           const quotaToneClass = quota.quotas?.length > 0
             ? "border-[var(--color-success)]/40 bg-[var(--color-success-soft)] text-[var(--color-success)]"
@@ -741,124 +742,118 @@ export default function ProviderLimits() {
               key={conn.id}
               className={`min-w-0 gap-0 overflow-hidden ${isInactive ? "opacity-60" : ""}`}
             >
-              <CardHeader className="relative border-b border-border px-4 py-3 pr-36">
-                <div className="flex min-w-0 items-center gap-2">
-                    <div className="flex size-8 shrink-0 items-center justify-center overflow-hidden rounded-md">
-                      <ProviderIcon
-                        src={conn.provider}
-                        alt={conn.provider}
-                        size={32}
-                        className="object-contain"
-                        fallbackText={conn.provider?.slice(0, 2).toUpperCase() || "PR"}
-                        fallbackColor="var(--color-primary)"
-                      />
-                    </div>
-                    <div className="min-w-0">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <CardTitle className="truncate text-sm capitalize">
-                          {conn.provider}
-                        </CardTitle>
-                        {codexPlanType && (
-                          <ShadcnBadge
-                            variant="secondary"
-                            className={compactBadgeClass}
-                          >
-                            {codexPlanType}
-                          </ShadcnBadge>
-                        )}
-                        {codexAccountKind && (
-                          <ShadcnBadge
-                            variant="default"
-                            className={compactBadgeClass}
-                          >
-                            {codexAccountKind}
-                          </ShadcnBadge>
-                        )}
-                      </div>
-                      {conn.name && (
-                        <p className="truncate text-xs text-muted-foreground">
-                          {conn.name}
-                        </p>
+              <CardHeader className="flex-col gap-2 border-b border-border px-3 py-3 sm:px-4">
+                {/* Identity row: provider icon, title, account-type badge(s), and status badge */}
+                <div className="flex items-start gap-2">
+                  <div className="flex size-8 shrink-0 items-center justify-center overflow-hidden rounded-md">
+                    <ProviderIcon
+                      src={conn.provider}
+                      alt={conn.provider}
+                      size={32}
+                      className="object-contain"
+                      fallbackText={conn.provider?.slice(0, 2).toUpperCase() || "PR"}
+                      fallbackColor="var(--color-primary)"
+                    />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <div className="flex flex-wrap items-center gap-1.5">
+                      <CardTitle className="truncate text-sm capitalize">
+                        {conn.provider}
+                      </CardTitle>
+                      {planLabel && (
+                        <ShadcnBadge variant="secondary" className={compactBadgeClass}>
+                          {planLabel}
+                        </ShadcnBadge>
+                      )}
+                      {codexAccountKind && (
+                        <ShadcnBadge variant="default" className={compactBadgeClass}>
+                          {codexAccountKind}
+                        </ShadcnBadge>
                       )}
                     </div>
+                    {conn.name && (
+                      <p className="truncate text-xs text-muted-foreground">
+                        {conn.name}
+                      </p>
+                    )}
                   </div>
+                  <ShadcnBadge
+                    variant="outline"
+                    title="Current provider account status"
+                    className={cn(compactBadgeClass, getStatusBadgeClass(connectionStatus), "shrink-0")}
+                  >
+                    {connectionStatus}
+                  </ShadcnBadge>
+                </div>
 
-                  <div className="absolute right-3 top-3 flex items-center gap-1">
-                    <ShadcnBadge
-                      variant="outline"
-                      title="Current provider account status"
-                      className={cn(compactBadgeClass, getStatusBadgeClass(connectionStatus))}
+                {/* Action row: kept on its own line so controls never overlap the badges on mobile */}
+                <div className="flex items-center justify-end gap-0.5">
+                  <ShadcnButton
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => refreshConnectionUsage(conn.id)}
+                    disabled={rowBusy || isRefreshingConnection}
+                    title="Refresh quota"
+                    aria-label="Refresh quota"
+                    className="size-8 text-muted-foreground"
+                  >
+                    {isRefreshingConnection ? <Spinner className="size-4" /> : <AppIcon name="refresh" data-icon="inline-start" />}
+                  </ShadcnButton>
+                  {(connectionStatus === "blocked" || connectionStatus === "exhausted" || connectionStatus === "unknown") && (
+                    <ShadcnButton
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => refreshConnectionUsage(conn.id, { force: true })}
+                      disabled={rowBusy || isRefreshingConnection}
+                      title="Force re-check (reset backoff)"
+                      aria-label="Force re-check"
+                      className="size-8 text-amber-400 hover:text-amber-300 hover:bg-amber-500/10"
                     >
-                      {connectionStatus}
-                    </ShadcnBadge>
-                    <div className="flex items-center gap-0.5">
-                      <ShadcnButton
-                        type="button"
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => refreshConnectionUsage(conn.id)}
-                        disabled={rowBusy || isRefreshingConnection}
-                        title="Refresh quota"
-                        aria-label="Refresh quota"
-                        className="size-8 text-muted-foreground"
-                      >
-                        {isRefreshingConnection ? <Spinner className="size-4" /> : <AppIcon name="refresh" data-icon="inline-start" />}
-                      </ShadcnButton>
-                      {(connectionStatus === "blocked" || connectionStatus === "exhausted" || connectionStatus === "unknown") && (
-                        <ShadcnButton
-                          type="button"
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => refreshConnectionUsage(conn.id, { force: true })}
-                          disabled={rowBusy || isRefreshingConnection}
-                          title="Force re-check (reset backoff)"
-                          aria-label="Force re-check"
-                          className="size-8 text-amber-400 hover:text-amber-300 hover:bg-amber-500/10"
-                        >
-                          <AppIcon name="refresh" data-icon="inline-start" className="animate-pulse" />
-                        </ShadcnButton>
-                      )}
-                      <ShadcnButton
-                        type="button"
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => {
-                          setSelectedConnection(conn);
-                          setShowEditModal(true);
-                        }}
-                        disabled={rowBusy}
-                        title="Edit connection"
-                        aria-label="Edit connection"
-                        className="size-8 text-muted-foreground"
-                      >
-                        <AppIcon name="edit" data-icon="inline-start" />
-                      </ShadcnButton>
-                      <ShadcnButton
-                        type="button"
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => handleDeleteConnection(conn.id)}
-                        disabled={rowBusy}
-                        title="Delete connection"
-                        aria-label="Delete connection"
-                        className="size-8 text-destructive hover:bg-destructive/10"
-                      >
-                        {deletingId === conn.id ? <Spinner className="size-4" /> : <AppIcon name="delete" data-icon="inline-start" />}
-                      </ShadcnButton>
-                    </div>
-                    <div
-                      className="inline-flex h-8 items-center pl-1"
-                      title={(conn.isActive ?? true) ? "Disable connection" : "Enable connection"}
-                    >
-                      <Switch
-                        size="sm"
-                        checked={conn.isActive ?? true}
-                        disabled={rowBusy}
-                        onToggle={(nextActive) => handleToggleConnectionActive(conn.id, nextActive)}
-                        aria-label={(conn.isActive ?? true) ? "Disable connection" : "Enable connection"}
-                      />
-                    </div>
+                      <AppIcon name="refresh" data-icon="inline-start" className="animate-pulse" />
+                    </ShadcnButton>
+                  )}
+                  <ShadcnButton
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => {
+                      setSelectedConnection(conn);
+                      setShowEditModal(true);
+                    }}
+                    disabled={rowBusy}
+                    title="Edit connection"
+                    aria-label="Edit connection"
+                    className="size-8 text-muted-foreground"
+                  >
+                    <AppIcon name="edit" data-icon="inline-start" />
+                  </ShadcnButton>
+                  <ShadcnButton
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => handleDeleteConnection(conn.id)}
+                    disabled={rowBusy}
+                    title="Delete connection"
+                    aria-label="Delete connection"
+                    className="size-8 text-destructive hover:bg-destructive/10"
+                  >
+                    {deletingId === conn.id ? <Spinner className="size-4" /> : <AppIcon name="delete" data-icon="inline-start" />}
+                  </ShadcnButton>
+                  <div
+                    className="inline-flex h-8 items-center pl-1"
+                    title={(conn.isActive ?? true) ? "Disable connection" : "Enable connection"}
+                  >
+                    <Switch
+                      size="sm"
+                      checked={conn.isActive ?? true}
+                      disabled={rowBusy}
+                      onToggle={(nextActive) => handleToggleConnectionActive(conn.id, nextActive)}
+                      aria-label={(conn.isActive ?? true) ? "Disable connection" : "Enable connection"}
+                    />
                   </div>
+                </div>
               </CardHeader>
 
               <CardContent className="px-3 py-3">

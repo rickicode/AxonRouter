@@ -189,6 +189,23 @@ export function getConnectionCentralizedStatus(connection: ConnectionLike = {}) 
   return details.status;
 }
 
+// Plan/tier values that are placeholders rather than a real, API-reported subscription tier.
+const PLACEHOLDER_PLAN_TYPES = new Set(["legacy-tier", "legacy", "unknown", ""]);
+
+/**
+ * Returns the displayable account/subscription tier label, or null when the stored
+ * planType is a placeholder (e.g. Antigravity "legacy-tier") that does not represent a
+ * real, API-reported subscription. Used to hide the account-type badge whenever the
+ * subscription status can't be reliably read from the provider API.
+ */
+export function getDisplayPlanType(connection: ConnectionLike = {}): string | null {
+  const raw = connection?.providerSpecificData?.planType;
+  if (typeof raw !== "string") return null;
+  const trimmed = raw.trim();
+  if (!trimmed) return null;
+  return PLACEHOLDER_PLAN_TYPES.has(trimmed.toLowerCase()) ? null : trimmed;
+}
+
 export function getConnectionFilterStatus(connection: ConnectionLike = {}) {
   const status = getConnectionCentralizedStatus(connection);
 

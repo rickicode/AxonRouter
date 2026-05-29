@@ -2,7 +2,7 @@
  * OAuth Configuration Constants
  */
 import { platform, arch } from "os";
-import { getGeminiCliCredentials } from "../../../../open-sse/utils/publicCreds";
+import { getGeminiCliCredentials, getAntigravityCredentials } from "../../../../open-sse/utils/publicCreds";
 
 const env = (name: string) => process.env[name] || "";
 
@@ -91,9 +91,10 @@ export const IFLOW_CONFIG = {
 };
 
 // Antigravity OAuth Configuration (Standard OAuth2 with Google)
+// clientId/clientSecret are sourced from the centralized hardcoded credentials helper.
 export const ANTIGRAVITY_CONFIG = {
-  clientId: "1071006060591-tmhssin2h21lcre235vtolojh4g403ep.apps.googleusercontent.com",
-  clientSecret: "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",
+  clientId: getAntigravityCredentials().clientId,
+  clientSecret: getAntigravityCredentials().clientSecret,
   authorizeUrl: "https://accounts.google.com/o/oauth2/v2/auth",
   tokenUrl: "https://oauth2.googleapis.com/token",
   userInfoUrl: "https://www.googleapis.com/oauth2/v1/userinfo",

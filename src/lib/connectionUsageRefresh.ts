@@ -34,6 +34,8 @@ import { MAX_RATE_LIMIT_COOLDOWN_MS } from "../../open-sse/config/errorConfig";
 
 const TRANSIENT_USAGE_RETRY_DELAY_MS = 750;
 const TRANSIENT_USAGE_MAX_ATTEMPTS = 3;
+// Antigravity tier values that are placeholders, not a real subscription tier.
+const PLACEHOLDER_PLAN_TYPES = new Set(["legacy-tier", "legacy", "unknown", ""]);
 const BACKOFF_MAX_LEVEL = 6;
 const BACKOFF_STEP_MINUTES = [1, 5, 15, 30, 60, 120, 240]; // level 0..6
 const TRANSIENT_CONNECTIVITY_ERROR_PATTERNS = [
@@ -275,6 +277,9 @@ async function persistPlanTypeFromUsage(connection: any, usage: any) {
 	const currentPlanType = connection?.providerSpecificData?.planType;
 	const newPlanType = String(usage.plan).trim();
 	if (!newPlanType || currentPlanType === newPlanType) return;
+	// Never persist placeholder tiers (e.g. "legacy-tier"/"unknown") for Antigravity —
+	// the subscription badge is only shown when a real, API-reported tier is known.
+	if (provider === "antigravity" && PLACEHOLDER_PLAN_TYPES.has(newPlanType.toLowerCase())) return;
 
 	const updatedSpecificData = {
 		...(connection.providerSpecificData || {}),
