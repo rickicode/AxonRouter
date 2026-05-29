@@ -1,8 +1,9 @@
 import { NextResponse } from "next/server";
-import { startCloudflaredTunnel } from "@axonrouter/tunnel";
 
 export async function POST() {
   try {
+    const tunnelMod = ["@axonrouter", "tunnel"].join("/");
+    const { startCloudflaredTunnel } = await import(tunnelMod);
     const status = await startCloudflaredTunnel();
     return NextResponse.json(status);
   } catch (error: any) {

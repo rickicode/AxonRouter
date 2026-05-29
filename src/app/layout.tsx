@@ -1,12 +1,15 @@
 import "./axonrouter-theme.css";
 import "./dashboard-shell.css";
 import { ThemeProvider } from "@/shared/components/ThemeProvider";
-import "@/lib/initApp"; // Auto-initialize app
 import "@/lib/network/initOutboundProxy"; // Auto-initialize outbound proxy env
 import { initConsoleLogCapture } from "@/lib/consoleLogBuffer";
 import { RuntimeI18nProvider } from "@/i18n/RuntimeI18nProvider";
 import { SITE_NAME } from "@/shared/constants/site";
 import { QueryProvider } from "@/shared/query";
+
+// Auto-initialize app using non-analyzable path to prevent Turbopack NFT tracing
+const initMod = ["@/lib", "initApp"].join("/");
+void import(initMod);
 
 // Hook console immediately at module load time (server-side only, runs once)
 initConsoleLogCapture();

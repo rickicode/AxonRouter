@@ -2,11 +2,6 @@ import { NextResponse } from "next/server";
 import { V4 } from "paseto";
 import { getCurrentSettings } from "@/lib/settingsAccess";
 import { isLocalRequest, getClientIP } from "@/lib/security/ipValidator";
-import { auditLog } from "@/lib/security/auditLog";
-import {
-	getPasetoPrivateKey,
-	getPasetoPublicKey,
-} from "@/lib/security/pasetoKeys";
 import {
 	MANAGEMENT_SESSION_COOKIE_OPTIONS,
 	MANAGEMENT_SESSION_TTL_PASETO,
@@ -56,6 +51,7 @@ async function verifyManagementToken(request) {
 	const token = request.cookies.get("auth_token")?.value;
 	if (!token) return { ok: false, reason: "missing_cookie" };
 	try {
+		const { getPasetoPublicKey } = await import("@/lib/security/pasetoKeys");
 		const payload = await V4.verify(token, getPasetoPublicKey());
 		return { ok: true, token, payload, reason: "valid_paseto" };
 	} catch (error) {
@@ -64,6 +60,7 @@ async function verifyManagementToken(request) {
 }
 
 async function refreshManagementTokenCookie(request, response, payload) {
+	const { getPasetoPrivateKey } = await import("@/lib/security/pasetoKeys");
 	const refreshed = await V4.sign(
 		{ authenticated: payload?.authenticated === true },
 		getPasetoPrivateKey(),
@@ -101,6 +98,11 @@ function getTunnelHostname(tunnelUrl) {
 	}
 }
 
+async function logAudit(event: string, data: Record<string, unknown>) {
+	const { auditLog } = await import("@/lib/security/auditLog");
+	auditLog.log(event, data);
+}
+
 export async function proxy(request) {
 	const { pathname } = request.nextUrl;
 	const settings = await loadSettings();
@@ -113,7 +115,7 @@ export async function proxy(request) {
 		const hasToken = tokenState.ok;
 
 		if (settings?.auditLogEnabled) {
-			auditLog.log("auth_bypass_attempt", {
+			await logAudit("auth_bypass_attempt", {
 				ip: clientIP,
 				path: pathname,
 				allowed: isLocal || hasToken,
@@ -142,7 +144,7 @@ export async function proxy(request) {
 		const isAuth = tokenState.ok;
 
 		if (settings?.auditLogEnabled) {
-			auditLog.log("auth_bypass_attempt", {
+			await logAudit("auth_bypass_attempt", {
 				ip: clientIP,
 				path: pathname,
 				allowed: isLocal || isAuth,
@@ -189,7 +191,7 @@ export async function proxy(request) {
 						(tailscaleHost && host === tailscaleHost)
 					) {
 						if (settings?.auditLogEnabled) {
-							auditLog.log("tunnel_access_attempt", {
+							await logAudit("tunnel_access_attempt", {
 								ip: clientIP,
 								host,
 								allowed: false,
@@ -219,7 +221,7 @@ export async function proxy(request) {
 		}
 
 		if (settings?.auditLogEnabled) {
-			auditLog.log("paseto_validation_failed", {
+			await logAudit("paseto_validation_failed", {
 				ip: clientIP,
 				path: pathname,
 				error: tokenState.reason,
