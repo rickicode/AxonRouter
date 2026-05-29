@@ -41,15 +41,22 @@ const CLAUDE_CONFIG = {
  * @returns {Object} Usage data with quotas
  */
 export async function getUsageForProvider(connection: any) {
-  const { provider, accessToken, providerSpecificData } = connection;
+  const { provider, accessToken, providerSpecificData, projectId } = connection;
+  // The Antigravity/Gemini OAuth flow stores the resolved project id at the connection
+  // top-level (not inside providerSpecificData). Merge it so the quota calls can use the
+  // real, already-resolved project instead of re-deriving it (or falling back to a mock).
+  const providerDataWithProjectId = {
+    ...(providerSpecificData || {}),
+    ...(projectId ? { projectId } : {}),
+  };
 
   switch (provider) {
     case "github":
       return await getGitHubUsage(accessToken, providerSpecificData);
     case "gemini-cli":
-      return await getGeminiUsage(accessToken);
+      return await getGeminiUsage(accessToken, providerDataWithProjectId);
     case "antigravity":
-      return await getAntigravityUsage(accessToken, providerSpecificData);
+      return await getAntigravityUsage(accessToken, providerDataWithProjectId);
     case "claude":
       return await getClaudeUsage(accessToken);
     case "codex":
@@ -188,15 +195,17 @@ function formatGitHubQuotaSnapshot(quota) {
 /**
  * Gemini CLI Usage - Fetch quota from retrieveUserQuota API
  */
-async function getGeminiUsage(accessToken) {
+async function getGeminiUsage(accessToken, providerSpecificData = null) {
   try {
     if (!accessToken) {
       return { plan: "Free", message: "Gemini CLI access token not available." };
     }
 
-    // Get subscription info and projectId (reuse antigravity's helper)
+    // Prefer the connection-stored project id; only call loadCodeAssist if it's missing.
     const subscriptionInfo = await getAntigravitySubscriptionInfo(accessToken);
-    const projectId = normalizeCloudCodeProjectId(subscriptionInfo?.cloudaicompanionProject);
+    const projectId =
+      normalizeCloudCodeProjectId(providerSpecificData?.projectId) ||
+      normalizeCloudCodeProjectId(subscriptionInfo?.cloudaicompanionProject);
 
     const plan = getAntigravityTierName(subscriptionInfo);
 
@@ -313,11 +322,12 @@ async function getAntigravityUsage(accessToken, providerSpecificData) {
     const subscriptionInfo = await getAntigravitySubscriptionInfo(accessToken);
 
     // The quota endpoint (fetchAvailableModels) returns 403 when no project is supplied.
-    // Always provide a project id: prefer the account's real Cloud Code project, then any
-    // stored project id, and finally a generated mock id (matching the Antigravity client).
+    // Always provide a project id: prefer the connection's already-resolved project, then
+    // the live loadCodeAssist project, and finally a generated mock id (matching the real
+    // Antigravity client, which also synthesizes a project id when none is available).
     const projectId =
-      normalizeCloudCodeProjectId(subscriptionInfo?.cloudaicompanionProject) ||
       normalizeCloudCodeProjectId(providerSpecificData?.projectId) ||
+      normalizeCloudCodeProjectId(subscriptionInfo?.cloudaicompanionProject) ||
       generateMockAntigravityProjectId();
 
     // Fetch quota data with timeout
