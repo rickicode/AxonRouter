@@ -140,8 +140,7 @@ export async function getHealth() {
 		},
 		settings: {
 			observabilityEnabled: settings?.observabilityEnabled !== false,
-			routingProfile:
-				settings?.routingProfile || settings?.routing?.profile || null,
+			routingStrategy: settings?.routing?.strategy || "fill-first",
 		},
 		providers: {
 			total: connections.length,
@@ -249,8 +248,6 @@ export async function simulateRoute(input: any = {}) {
 	return {
 		simulated: true,
 		request: input,
-		routingProfile:
-			settings?.routingProfile || settings?.routing?.profile || "balanced",
 		strategy: settings?.routing?.strategy || "fill-first",
 		note: "Simulation currently reflects configured policy and does not execute upstream traffic.",
 	};
@@ -276,16 +273,12 @@ export async function setRoutingStrategy(input: any = {}) {
 	const routing = {
 		...(current?.routing || {}),
 		...(input.strategy ? { strategy: input.strategy } : {}),
-		...(input.profile ? { profile: input.profile } : {}),
 	};
-	const settings = await updateSettings({
-		routing,
-		...(input.profile ? { routingProfile: input.profile } : {}),
-	});
+	delete routing.profile;
+	const settings = await updateSettings({ routing });
 	return {
 		ok: true,
 		routing: settings?.routing || routing,
-		routingProfile: settings?.routingProfile || input.profile || null,
 	};
 }
 

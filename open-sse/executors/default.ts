@@ -21,6 +21,13 @@ export class DefaultExecutor extends BaseExecutor {
       const normalized = baseUrl.replace(/\/$/, "");
       return `${normalized}/messages`;
     }
+    if (this.provider === "mimo") {
+      const baseUrl = credentials?.providerSpecificData?.baseUrl || this.config.baseUrl;
+      const normalized = baseUrl.replace(/\/+$/, "");
+      return normalized.endsWith("/chat/completions")
+        ? normalized
+        : `${normalized}/chat/completions`;
+    }
     switch (this.provider) {
       case "claude":
       case "glm":

@@ -110,6 +110,7 @@ If a feature is only partially edited, continue working without committing. Pref
 ## Code Quality Rules
 
 - Follow the Standard Validation Commands and Definition of Done for implementation work.
+- If lint reports warnings or errors in files touched by the current task, fix those lint issues before handing off whenever practical.
 - Keep commits atomic and descriptive.
 - Do not revert unrelated user changes.
 

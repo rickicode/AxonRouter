@@ -56,8 +56,8 @@ vi.mock("@/lib/connectionUsageRank", () => ({
 	compareConnectionsByUsageAvailability: vi.fn(() => 0),
 }));
 
-vi.mock("@/lib/routing/profilePolicy", () => ({
-	rankConnectionsForPolicy: vi.fn((conns: any) => conns),
+vi.mock("@/lib/routing/connectionPolicy", () => ({
+	rankConnectionsForRouting: vi.fn((conns: any) => conns),
 	resolveRoutingPolicy: vi.fn(() => ({})),
 }));
 

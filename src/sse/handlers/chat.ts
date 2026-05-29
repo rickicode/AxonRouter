@@ -294,7 +294,6 @@ async function handleSingleModelChat(body, modelStr, clientRawRequest = null, re
 
   const routingOverride = requestContext?.executionPolicy
     ? {
-        profile: requestContext.executionPolicy.selectedProfile,
         strategy: requestContext.executionPolicy.providerStrategy,
         stickyLimit: requestContext.executionPolicy.stickyLimit,
       }

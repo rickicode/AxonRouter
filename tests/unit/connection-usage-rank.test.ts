@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { compareConnectionsByUsageAvailability, getConnectionUsageAvailabilityScore, isConnectionRoutingOrderLockActive } from "../../src/lib/connectionUsageRank";
-import { rankConnectionsForPolicy } from "../../src/lib/routing/profilePolicy";
+import { rankConnectionsForRouting } from "../../src/lib/routing/connectionPolicy";
 
 describe("connection usage availability ranking", () => {
   it("ranks quota snapshots by highest remaining quota", () => {
@@ -29,7 +29,7 @@ describe("connection usage availability ranking", () => {
   });
 
   it("feeds routing policy ranking with relative remaining usage availability", () => {
-    const ranked = rankConnectionsForPolicy([
+    const ranked = rankConnectionsForRouting([
       { id: "manual-first", priority: 1, healthStatus: "healthy", usageSnapshot: JSON.stringify({ credits: { remaining: 500 } }) },
       { id: "more-remaining", priority: 2, healthStatus: "healthy", usageSnapshot: JSON.stringify({ credits: { remaining: 100000 } }) },
     ], { objectives: { cost: 0.6, latency: 0.2, quality: 0.2 } });
@@ -82,7 +82,7 @@ describe("connection usage availability ranking", () => {
   });
 
   it("uses active locked routing orders in routing policy ranking", () => {
-    const ranked = rankConnectionsForPolicy([
+    const ranked = rankConnectionsForRouting([
       {
         id: "auto-high",
         isActive: true,

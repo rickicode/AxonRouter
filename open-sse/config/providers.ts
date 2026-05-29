@@ -301,6 +301,10 @@ export const PROVIDERS = {
     baseUrl: "https://api.hyperbolic.xyz/v1/chat/completions",
     format: "openai"
   },
+  mimo: {
+    baseUrl: "https://api.xiaomimimo.com/v1/chat/completions",
+    format: "openai"
+  },
   deepgram: {
     baseUrl: "https://api.deepgram.com/v1/listen",
     format: "openai"

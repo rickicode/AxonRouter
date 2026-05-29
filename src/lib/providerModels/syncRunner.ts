@@ -1,93 +1,102 @@
-import {
-  getCurrentProviderConnections,
-  getCurrentSettings,
-  updateCurrentSettings,
-} from "@/lib/settingsAccess";
+import { getCurrentProviderConnections } from "@/lib/settingsAccess";
 import { syncNoAuthProviderModels } from "@/lib/providerModels/noAuthSync";
-import { getDefaultAxonRouterBaseUrl, DEFAULT_AXONROUTER_PORT } from "@/shared/constants/runtimeDefaults";
+import {
+	getDefaultAxonRouterBaseUrl,
+	DEFAULT_AXONROUTER_PORT,
+} from "@/shared/constants/runtimeDefaults";
 
-function shouldSyncConnection(connection, modelSyncSettings) {
-  if (!connection?.id || !connection?.provider) return false;
-  if (connection.isActive === false) return false;
-
-  const providerCfg = modelSyncSettings?.providers?.[connection.provider];
-  if (providerCfg && providerCfg.enabled === false) return false;
-
-  return true;
+/**
+ * Sync models for a single connection by calling its sync-models endpoint.
+ * Fire-and-forget — does not throw on failure.
+ */
+async function syncSingleConnection(
+	baseUrl: string,
+	connectionId: string,
+	provider: string,
+	fetchImpl: typeof fetch,
+) {
+	try {
+		const response = await fetchImpl(
+			`${baseUrl}/api/providers/${encodeURIComponent(connectionId)}/sync-models`,
+			{
+				method: "POST",
+			},
+		);
+		const payload = await response.json().catch(() => ({}));
+		return { connectionId, provider, ok: response.ok, payload };
+	} catch (error) {
+		return {
+			connectionId,
+			provider,
+			ok: false,
+			payload: {
+				error: error instanceof Error ? error.message : "Failed to sync models",
+			},
+		};
+	}
 }
 
-export async function getEligibleModelSyncConnections() {
-  const [connections, settings] = await Promise.all([
-    getCurrentProviderConnections(),
-    getCurrentSettings(),
-  ]);
-
-  const modelSyncSettings = settings?.modelSync || {};
-  if (modelSyncSettings.enabled !== true) return [];
-
-  return (Array.isArray(connections) ? connections : []).filter((connection) =>
-    shouldSyncConnection(connection, modelSyncSettings)
-  );
+/**
+ * Sync models for a specific connection. Fire-and-forget, returns the result.
+ */
+export async function syncConnectionModels(
+	connectionId: string,
+	provider: string,
+) {
+	const baseUrl =
+		process.env.BASE_URL ||
+		getDefaultAxonRouterBaseUrl(process.env.PORT || DEFAULT_AXONROUTER_PORT);
+	return syncSingleConnection(baseUrl, connectionId, provider, fetch);
 }
 
+/**
+ * Sync models for all active provider connections, plus noAuth providers.
+ * Returns a summary of results.
+ */
 export async function runModelSyncBatch({ fetchImpl = fetch } = {}) {
-  const eligibleConnections = await getEligibleModelSyncConnections();
-  const startedAt = new Date().toISOString();
-  const baseUrl = process.env.BASE_URL || getDefaultAxonRouterBaseUrl(process.env.PORT || DEFAULT_AXONROUTER_PORT);
+	const connections = await getCurrentProviderConnections();
+	const baseUrl =
+		process.env.BASE_URL ||
+		getDefaultAxonRouterBaseUrl(process.env.PORT || DEFAULT_AXONROUTER_PORT);
 
-  const results = [];
-  for (const connection of eligibleConnections) {
-    try {
-      const response = await fetchImpl(`${baseUrl}/api/providers/${encodeURIComponent(connection.id)}/sync-models`, {
-        method: "POST",
-      });
-      const payload = await response.json().catch(() => ({}));
-      results.push({
-        connectionId: connection.id,
-        provider: connection.provider,
-        ok: response.ok,
-        payload,
-      });
-    } catch (error) {
-      results.push({
-        connectionId: connection.id,
-        provider: connection.provider,
-        ok: false,
-        payload: { error: error?.message || "Failed to sync models" },
-      });
-    }
-  }
+	const activeConnections = (
+		Array.isArray(connections) ? connections : []
+	).filter((c) => c?.id && c?.provider && c.isActive !== false);
 
-  // Always sync noAuth providers (they don't need connections or enabled flag)
-  const noAuthResults = await syncNoAuthProviderModels();
-  for (const r of noAuthResults) {
-    results.push({
-      connectionId: "__noauth__",
-      provider: r.providerId,
-      ok: r.ok,
-      payload: { syncedCount: r.count, error: r.error },
-    });
-  }
+	const results = [];
+	for (const connection of activeConnections) {
+		const result = await syncSingleConnection(
+			baseUrl,
+			connection.id,
+			connection.provider,
+			fetchImpl,
+		);
+		results.push(result);
+	}
 
-  const failed = results.filter((result) => !result.ok);
-  const status = failed.length === 0 ? "success" : (results.length > 0 ? "partial" : "idle");
-  const message = failed.length === 0
-    ? `Synced ${results.length} connection${results.length === 1 ? "" : "s"}.`
-    : `Synced ${results.length - failed.length}/${results.length} connections.`;
+	// Always sync noAuth providers (they don't need connections)
+	const noAuthResults = await syncNoAuthProviderModels();
+	for (const r of noAuthResults) {
+		results.push({
+			connectionId: "__noauth__",
+			provider: r.providerId,
+			ok: r.ok,
+			payload: { syncedCount: r.count, error: r.error },
+		});
+	}
 
-  await updateCurrentSettings({
-    modelSync: {
-      ...(await getCurrentSettings()).modelSync,
-      lastRunAt: startedAt,
-      lastRunStatus: status,
-      lastRunMessage: message,
-    },
-  });
+	const failed = results.filter((r) => !r.ok);
+	const status =
+		failed.length === 0 ? "success" : results.length > 0 ? "partial" : "idle";
+	const message =
+		failed.length === 0
+			? `Synced ${results.length} connection${results.length === 1 ? "" : "s"}.`
+			: `Synced ${results.length - failed.length}/${results.length} connections.`;
 
-  return {
-    startedAt,
-    status,
-    message,
-    results,
-  };
+	return {
+		startedAt: new Date().toISOString(),
+		status,
+		message,
+		results,
+	};
 }

@@ -25,7 +25,6 @@ const PROTECTED_API_PATHS = [
 	"/api/combos",
 	"/api/model-combo-mappings",
 	"/api/models",
-	"/api/model-sync",
 	"/api/oauth",
 	"/api/opencode",
 	"/api/tunnel",

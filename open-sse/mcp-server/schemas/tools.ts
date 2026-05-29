@@ -23,7 +23,7 @@ export const MCP_TOOLS = [
   buildTool("axonrouter_web_search", "Searches the web via configured search provider.", 1, { type: "object", properties: { query: { type: "string" }, limit: { type: "number" } }, required: ["query"] }),
   buildTool("axonrouter_simulate_route", "Simulates how a request would route.", 2, { type: "object", properties: { mode: { type: "string" }, model: { type: "string" } } }),
   buildTool("axonrouter_set_budget_guard", "Updates budget guard settings.", 2, { type: "object", properties: { enabled: { type: "boolean" }, monthlyBudgetCapUsd: { type: "number" } } }),
-  buildTool("axonrouter_set_routing_strategy", "Updates routing profile or strategy.", 2, { type: "object", properties: { profile: { type: "string" }, strategy: { type: "string" } } }),
+  buildTool("axonrouter_set_routing_strategy", "Updates routing strategy.", 2, { type: "object", properties: { strategy: { type: "string" } } }),
   buildTool("axonrouter_set_resilience_profile", "Updates resilience profile.", 2, { type: "object", properties: { profile: { type: "string" } } }),
   buildTool("axonrouter_test_combo", "Executes a combo test.", 2, { type: "object", properties: { comboId: { type: "string" }, prompt: { type: "string" } }, required: ["comboId"] }),
   buildTool("axonrouter_get_provider_metrics", "Returns aggregated provider metrics.", 2, { type: "object", properties: { provider: { type: "string" } } }),

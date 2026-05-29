@@ -155,11 +155,7 @@ export default function ProviderDetailPage() {
 	const [syncingProviderModels, setSyncingProviderModels] = useState(false);
 	const [providerModelsSyncNotice, setProviderModelsSyncNotice] = useState("");
 	const [providerModelsSyncError, setProviderModelsSyncError] = useState("");
-	const [modelSyncSettings, setModelSyncSettings] = useState(null);
-	const [modelSyncEligibleConnections, setModelSyncEligibleConnections] =
-		useState([]);
-	const [modelSyncScheduler, setModelSyncScheduler] = useState(null);
-	const [runningModelSyncBatch, setRunningModelSyncBatch] = useState(false);
+
 	const [currentPage, setCurrentPage] = useState(1);
 	const [pageSize, setPageSize] = useState(20);
 	const { copied, copy } = useCopyToClipboard();
@@ -192,7 +188,6 @@ export default function ProviderDetailPage() {
 				nodesData,
 				proxyPoolsData,
 				settingsData,
-				modelSyncData,
 				providerModelsData,
 			] = await Promise.all([
 				fetchJson<{ connections?: any[] }>("/api/providers", {
@@ -208,7 +203,6 @@ export default function ProviderDetailPage() {
 					cache: "no-store",
 				}),
 				fetchJson<any>("/api/settings", { signal, cache: "no-store" }),
-				fetchJson<any>("/api/model-sync", { signal, cache: "no-store" }),
 				fetchJson<any>(
 					`/api/provider-models?provider=${encodeURIComponent(providerId)}`,
 					{ signal, cache: "no-store" },
@@ -219,7 +213,6 @@ export default function ProviderDetailPage() {
 				nodesData,
 				proxyPoolsData,
 				settingsData,
-				modelSyncData,
 				providerModelsData,
 			};
 		},
@@ -255,7 +248,6 @@ export default function ProviderDetailPage() {
 			nodesData,
 			proxyPoolsData,
 			settingsData,
-			modelSyncData,
 			providerModelsData,
 		} = providerDetailQuery.data;
 		queueMicrotask(() => {
@@ -270,13 +262,6 @@ export default function ProviderDetailPage() {
 					? providerModelsData.models
 					: [],
 			);
-			setModelSyncSettings(modelSyncData.settings || null);
-			setModelSyncEligibleConnections(
-				Array.isArray(modelSyncData.eligibleConnections)
-					? modelSyncData.eligibleConnections
-					: [],
-			);
-			setModelSyncScheduler(modelSyncData.scheduler || null);
 			const override =
 				(settingsData.providerStrategies || {})[providerId] || {};
 			setProviderStrategy(
@@ -330,7 +315,10 @@ export default function ProviderDetailPage() {
 			FREE_PROVIDERS[providerId] ||
 			FREE_TIER_PROVIDERS[providerId] ||
 			WEB_COOKIE_PROVIDERS[providerId];
-	const isOAuth = !!OAUTH_PROVIDERS[providerId] || !!FREE_PROVIDERS[providerId] || providerId === "freebuff";
+	const isOAuth =
+		!!OAUTH_PROVIDERS[providerId] ||
+		!!FREE_PROVIDERS[providerId] ||
+		providerId === "freebuff";
 	const isFreeNoAuth = !!FREE_PROVIDERS[providerId]?.noAuth;
 	const isMorphManaged = isMorphManagedProvider(providerId);
 	const models =
@@ -1035,40 +1023,6 @@ export default function ProviderDetailPage() {
 			return;
 		}
 		updateConnectionMutation.mutate(formData);
-	};
-
-	const runModelSyncMutation = useMutation({
-		retry: false,
-		mutationFn: async () => {
-			const res = await fetch("/api/model-sync", { method: "POST" });
-			const data = await res.json().catch(() => ({}));
-			if (!res.ok)
-				throw new Error(data.error || "Failed to run model sync batch");
-			return data;
-		},
-		onSuccess: (data) => {
-			setProviderModelsSyncNotice(
-				data.message || "Model sync batch completed.",
-			);
-			inv.modelSync();
-			inv.providerModels();
-			fetchConnections();
-		},
-		onError: (error) => {
-			setProviderModelsSyncError(
-				error?.message || "Failed to run model sync batch",
-			);
-		},
-		onSettled: () => {
-			setRunningModelSyncBatch(false);
-		},
-	});
-
-	const handleRunModelSyncBatch = () => {
-		setRunningModelSyncBatch(true);
-		setProviderModelsSyncError("");
-		setProviderModelsSyncNotice("");
-		runModelSyncMutation.mutate();
 	};
 
 	const syncModelsMutation = useMutation({
@@ -2332,65 +2286,7 @@ export default function ProviderDetailPage() {
 							{translate("Available Models")}
 						</h2>
 					</div>
-					{modelSyncSettings && !isCompatible && !isMorphManaged ? (
-						<div className="mb-4 rounded-[4px] border border-border bg-card/60 px-4 py-3 text-xs text-muted-foreground">
-							<div className="flex flex-wrap items-center justify-between gap-3">
-								<div className="space-y-1">
-									<p className="font-medium text-foreground">
-										{translate("Auto-sync models")}
-									</p>
-									<p>
-										{modelSyncSettings.enabled
-											? translate(
-													`Enabled every ${modelSyncSettings.intervalMinutes} min · last status ${modelSyncSettings.lastRunStatus || "idle"}`,
-												)
-											: translate("Disabled")}
-									</p>
-									{modelSyncSettings.lastRunAt ? (
-										<p>
-											{translate("Last run")}:{" "}
-											{new Date(modelSyncSettings.lastRunAt).toLocaleString()}
-										</p>
-									) : null}
-									{modelSyncSettings.lastRunMessage ? (
-										<p>{modelSyncSettings.lastRunMessage}</p>
-									) : null}
-									<p>
-										{translate("Scheduler running")}:{" "}
-										{modelSyncScheduler?.running
-											? translate("yes")
-											: translate("no")}
-									</p>
-									<p>
-										{translate("Next scheduled run")}:{" "}
-										{modelSyncScheduler?.nextRunAt
-											? new Date(modelSyncScheduler.nextRunAt).toLocaleString()
-											: translate("Not scheduled")}
-									</p>
-								</div>
-								<div className="flex items-center gap-2">
-									<Badge variant="secondary">
-										{
-											modelSyncEligibleConnections.filter(
-												(connection) => connection.provider === providerId,
-											).length
-										}{" "}
-										{translate("eligible")}
-									</Badge>
-									<Button
-										size="sm"
-										variant="secondary"
-										onClick={handleRunModelSyncBatch}
-										disabled={runningModelSyncBatch}
-									>
-										{runningModelSyncBatch
-											? translate("Running...")
-											: translate("Run sync batch")}
-									</Button>
-								</div>
-							</div>
-						</div>
-					) : null}
+
 					{!!modelsTestError && (
 						<p className="mb-3 break-words text-xs text-red-500">
 							{modelsTestError}

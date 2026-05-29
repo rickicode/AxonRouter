@@ -9,9 +9,9 @@ import {
 import { resolveConnectionProxyConfig } from "@/lib/network/connectionProxy";
 import { compareConnectionsByUsageAvailability } from "@/lib/connectionUsageRank";
 import {
-	rankConnectionsForPolicy,
+	rankConnectionsForRouting,
 	resolveRoutingPolicy,
-} from "@/lib/routing/profilePolicy";
+} from "@/lib/routing/connectionPolicy";
 import { evaluateGovernancePolicy } from "@/lib/governance/policy";
 import {
 	applyLiveQuotaUpdate,
@@ -542,9 +542,6 @@ export async function getProviderCredentials(
 						...settings,
 						routing: {
 							...(settings?.routing || {}),
-							...(routingOverride.profile
-								? { profile: routingOverride.profile }
-								: {}),
 							...(routingOverride.strategy
 								? { strategy: routingOverride.strategy }
 								: {}),
@@ -559,7 +556,7 @@ export async function getProviderCredentials(
 		const strategy = routingOverride?.strategy || routingPolicy.strategy;
 		const stickyLimit =
 			routingOverride?.stickyLimit || routingPolicy.stickyLimit;
-		const rankedPool = rankConnectionsForPolicy(selectionPool, routingPolicy);
+		const rankedPool = rankConnectionsForRouting(selectionPool);
 
 		const connection =
 			strategy === "round-robin"
