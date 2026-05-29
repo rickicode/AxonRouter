@@ -89,9 +89,7 @@ export class DefaultExecutor extends BaseExecutor {
         headers["Authorization"] = `Bearer ${credentials.accessToken}`;
         Object.assign(headers, buildKimiHeaders());
         break;
-      case "commandcode":
-        headers["Authorization"] = `Bearer ${credentials.apiKey || credentials.accessToken}`;
-        break;
+
       default:
         if (this.provider?.startsWith?.("anthropic-compatible-")) {
           if (credentials.apiKey) {

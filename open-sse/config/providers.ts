@@ -385,7 +385,8 @@ export const PROVIDERS = {
     baseUrl: "https://api.commandcode.ai/alpha/generate",
     format: "commandcode",
     headers: {
-      "x-command-code-version": "0.25.0"
+      "x-command-code-version": "0.25.7",
+      "x-cli-environment": "cli"
     }
   },
   freebuff: {

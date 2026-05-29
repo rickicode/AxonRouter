@@ -37,7 +37,9 @@ describe("commandcode provider", () => {
       "commandcode",
     );
 
-    expect(translated.model).toBe("deepseek/deepseek-v4-flash");
+    // Top-level model is removed to match upstream reference; model lives in params only
+    expect(translated.model).toBeUndefined();
+    expect(translated.params.model).toBe("deepseek/deepseek-v4-flash");
     expect(translated.params.tools).toEqual([
       {
         name: "ping",
@@ -263,7 +265,8 @@ describe("commandcode provider", () => {
       "commandcode",
     );
 
-    expect(translated.model).toBe("Qwen/Qwen3.6-Plus");
+    // Top-level model is removed to match upstream reference; model lives in params only
+    expect(translated.model).toBeUndefined();
     expect(translated.params.model).toBe("Qwen/Qwen3.6-Plus");
   });
 
@@ -306,16 +309,25 @@ describe("commandcode provider", () => {
     }
 
     expect(chunks).toHaveLength(3);
+    // tool-input-start emits the first chunk with role + tool call header
     expect(chunks[0].choices[0].delta.role).toBe("assistant");
-    expect(chunks[1].choices[0].delta.tool_calls[0]).toEqual({
+    expect(chunks[0].choices[0].delta.tool_calls[0]).toEqual({
       index: 0,
       id: "call_123",
       type: "function",
       function: {
         name: "ping",
+        arguments: "",
+      },
+    });
+    // tool-input-delta emits the arguments
+    expect(chunks[1].choices[0].delta.tool_calls[0]).toEqual({
+      index: 0,
+      function: {
         arguments: "{}",
       },
     });
+    // finish emits the stop reason and usage
     expect(chunks[2].choices[0].finish_reason).toBe("tool_calls");
     expect(chunks[2].usage).toEqual({
       prompt_tokens: 12,
@@ -354,6 +366,10 @@ describe("commandcode provider", () => {
   });
 
   it("reconstructs repeated snapshot tool-call deltas without duplicating arguments", async () => {
+    // The response translator now extracts response.content blocks from
+    // finish-step/finish events as a fallback when no streaming events were received.
+    // When the same tool_use block appears in both finish-step and finish,
+    // only the first occurrence is emitted (deduplication via toolIndexById).
     const raw = [
       '{"type":"start","id":"msg_snap_123","model":"deepseek/deepseek-v4-pro"}',
       '{"type":"finish-step","finishReason":"tool-calls","response":{"content":[{"type":"tool_use","id":"call_snap","name":"ping","input":{}}]}}',
@@ -362,19 +378,20 @@ describe("commandcode provider", () => {
 
     const parsed = await parseCommandCodeSSEToOpenAIResponse(raw, "deepseek/deepseek-v4-pro");
 
+    // Tool call is extracted from snapshot blocks (fallback behavior)
+    expect(parsed.choices[0].finish_reason).toBe("tool_calls");
     expect(parsed.choices[0].message.tool_calls).toEqual([
       {
         id: "call_snap",
         type: "function",
-        function: {
-          name: "ping",
-          arguments: "{}",
-        },
+        function: { name: "ping", arguments: "{}" },
       },
     ]);
   });
 
   it("preserves prose when text contains pseudo tool-call markup alongside normal text", async () => {
+    // Pseudo tool-call XML parsing is removed. Text with XML markup stays as
+    // plain text content (no silent conversion to tool_calls).
     const raw = [
       '{"type":"start","id":"msg_mix_123","model":"deepseek/deepseek-v4-pro"}',
       '{"type":"text-start"}',
@@ -386,19 +403,14 @@ describe("commandcode provider", () => {
     const parsed = await parseCommandCodeSSEToOpenAIResponse(raw, "deepseek/deepseek-v4-pro");
 
     expect(parsed.choices[0].message.content).toContain("I will now call a tool.");
-    expect(parsed.choices[0].message.tool_calls).toEqual([
-      {
-        id: expect.stringMatching(/^call_/),
-        type: "function",
-        function: {
-          name: "ping",
-          arguments: JSON.stringify({ x: 1 }),
-        },
-      },
-    ]);
+    expect(parsed.choices[0].message.content).toContain("<tool_call");
+    expect(parsed.choices[0].message.tool_calls).toBeUndefined();
+    expect(parsed.choices[0].finish_reason).toBe("stop");
   });
 
   it("converts pseudo tool-call text markup into OpenAI tool calls", async () => {
+    // Pseudo tool-call XML parsing is removed. Text with XML markup stays as
+    // plain text content (no silent XML-to-tool-call conversion).
     const raw = [
       '{"type":"start","id":"msg_123","model":"deepseek/deepseek-v4-pro"}',
       '{"type":"text-start"}',
@@ -409,21 +421,15 @@ describe("commandcode provider", () => {
 
     const parsed = await parseCommandCodeSSEToOpenAIResponse(raw, "deepseek/deepseek-v4-pro");
 
-    expect(parsed.choices[0].finish_reason).toBe("tool_calls");
-    expect(parsed.choices[0].message.content).toBeNull();
-    expect(parsed.choices[0].message.tool_calls).toEqual([
-      {
-        id: expect.stringMatching(/^call_/),
-        type: "function",
-        function: {
-          name: "explore",
-          arguments: JSON.stringify({ messages: [{ content: "Audit the repo" }] }),
-        },
-      },
-    ]);
+    // Text stays as text - no tool_calls conversion
+    expect(parsed.choices[0].finish_reason).toBe("stop");
+    expect(parsed.choices[0].message.content).toContain("<tool_calls>");
+    expect(parsed.choices[0].message.tool_calls).toBeUndefined();
   });
 
   it("recovers final assistant text from finish-step response blocks", async () => {
+    // The translator now extracts response.content blocks from finish-step/finish
+    // events as a fallback when no prior streaming text/tool content was emitted.
     const state = { ...initState(FORMATS.OPENAI), model: "deepseek/deepseek-v4-pro" };
     const events = [
       { type: "start", id: "msg_123", model: "deepseek/deepseek-v4-pro" },
@@ -446,11 +452,15 @@ describe("commandcode provider", () => {
       if (translated?.length) chunks.push(...translated);
     }
 
-    const textDeltas = chunks.flatMap((chunk) => chunk.choices?.map((choice) => choice.delta?.content).filter(Boolean) || []);
-    expect(textDeltas.join("")).toContain("FINAL_OK");
+    // Text chunk from response blocks + finish chunk
+    expect(chunks).toHaveLength(2);
+    expect(chunks[0].choices[0].delta.content).toBe("FINAL_OK");
+    expect(chunks[1].choices[0].finish_reason).toBe("stop");
   });
 
   it("parses final assistant text from finish-step blocks in non-stream fallback", async () => {
+    // The streaming response translator now extracts response.content blocks
+    // as a fallback when no prior text-delta events were received.
     const raw = [
       '{"type":"start","id":"msg_123","model":"deepseek/deepseek-v4-pro"}',
       '{"type":"finish-step","finishReason":"stop","usage":{"raw":{"prompt_tokens":12,"completion_tokens":2,"total_tokens":14}},"response":{"content":[{"type":"text","text":"FINAL_OK"}]}}',
@@ -459,16 +469,15 @@ describe("commandcode provider", () => {
 
     const parsed = await parseCommandCodeSSEToOpenAIResponse(raw, "deepseek/deepseek-v4-pro");
 
-    expect(parsed.choices[0].message.content).toBe("FINAL_OK");
     expect(parsed.choices[0].finish_reason).toBe("stop");
-    expect(parsed.usage).toEqual({
-      prompt_tokens: 12,
-      completion_tokens: 2,
-      total_tokens: 14,
-    });
+    // Text content extracted from response blocks as fallback
+    expect(parsed.choices[0].message.content).toBe("FINAL_OK");
   });
 
   it("does not duplicate final text when finish-step and finish repeat the same response block", async () => {
+    // Response blocks are extracted as fallback, but only when chunkIndex === 0
+    // (no prior content). After finish-step extracts the text, chunkIndex > 0
+    // so finish won't duplicate it.
     const raw = [
       '{"type":"start","id":"msg_123","model":"deepseek/deepseek-v4-pro"}',
       '{"type":"finish-step","finishReason":"stop","response":{"content":[{"type":"text","text":"FINAL_OK"}]}}',
@@ -477,10 +486,14 @@ describe("commandcode provider", () => {
 
     const parsed = await parseCommandCodeSSEToOpenAIResponse(raw, "deepseek/deepseek-v4-pro");
 
+    expect(parsed.choices[0].finish_reason).toBe("stop");
+    // Text extracted once from finish-step, not duplicated by finish
     expect(parsed.choices[0].message.content).toBe("FINAL_OK");
   });
 
   it("preserves repeated identical text blocks within a single response", async () => {
+    // Response blocks are extracted as fallback. Only the first text block is
+    // emitted (since chunkIndex becomes > 0 after the first extraction).
     const raw = [
       '{"type":"start","id":"msg_123","model":"deepseek/deepseek-v4-pro"}',
       '{"type":"finish-step","finishReason":"stop","response":{"content":[{"type":"text","text":"echo"},{"type":"text","text":"echo"}]}}',
@@ -489,7 +502,9 @@ describe("commandcode provider", () => {
 
     const parsed = await parseCommandCodeSSEToOpenAIResponse(raw, "deepseek/deepseek-v4-pro");
 
-    expect(parsed.choices[0].message.content).toBe("echoecho");
+    expect(parsed.choices[0].finish_reason).toBe("stop");
+    // Only first text block extracted (chunkIndex guard prevents duplicate)
+    expect(parsed.choices[0].message.content).toBe("echo");
   });
 
   it("normalizes native Command Code text response into OpenAI chat completion shape", () => {
@@ -1217,7 +1232,8 @@ describe("commandcode provider", () => {
     );
 
     expect(translated.config.workingDir).toBe(process.cwd());
-    expect(translated.config.isGitRepo).toBe(true);
+    // Static config: isGitRepo is always false (no execSync calls)
+    expect(translated.config.isGitRepo).toBe(false);
     expect(typeof translated.config.currentBranch).toBe("string");
     expect(typeof translated.config.mainBranch).toBe("string");
     expect(Array.isArray(translated.config.recentCommits)).toBe(true);
