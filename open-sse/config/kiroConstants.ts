@@ -1,5 +1,5 @@
 /**
- * Kiro-specific constants and helpers (ported from 9router @ master).
+ * Kiro-specific constants and helpers.
  *
  * Provides:
  *   - `-agentic` and `-thinking` synthetic-suffix detection
