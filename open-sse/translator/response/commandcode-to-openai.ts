@@ -43,6 +43,53 @@ function makeChunk(state, delta, finishReason: string | null = null) {
   };
 }
 
+/**
+ * Extract content from response/message snapshot blocks (fallback for upstream
+ * providers that only emit content inside finish-step/finish events rather than
+ * sending text-delta / tool-input-* streaming events).
+ */
+function extractResponseBlocks(event, state): any[] {
+  const contentArray = event.response?.content || event.message?.content;
+  if (!Array.isArray(contentArray) || contentArray.length === 0) return [];
+
+  const out: any[] = [];
+
+  for (const block of contentArray) {
+    if (!block || typeof block !== "object") continue;
+
+    if (block.type === "text" && typeof block.text === "string" && block.text) {
+      // Only emit text if no prior text/tool content was streamed
+      if (state.chunkIndex === 0) {
+        const delta = { role: "assistant", content: block.text };
+        state.chunkIndex++;
+        state.openText = true;
+        out.push(makeChunk(state, delta));
+      }
+    } else if (block.type === "tool_use" || block.type === "tool-call") {
+      const id = block.id || block.toolCallId || `call_${Date.now()}_${state.toolIndex}`;
+      // Skip if already tracked via streaming tool-input-* events
+      if (state.toolIndexById.has(id)) continue;
+      const idx = state.toolIndex++;
+      state.toolIndexById.set(id, idx);
+      const input = block.input ?? {};
+      const argsStr = typeof input === "string" ? input : JSON.stringify(input);
+      const delta: any = {
+        ...(state.chunkIndex === 0 ? { role: "assistant" } : {}),
+        tool_calls: [{
+          index: idx,
+          id,
+          type: "function",
+          function: { name: block.name || block.toolName || "", arguments: argsStr },
+        }],
+      };
+      state.chunkIndex++;
+      out.push(makeChunk(state, delta));
+    }
+  }
+
+  return out;
+}
+
 function mapFinishReason(reason) {
   switch (reason) {
     case "stop": return "stop";
@@ -160,9 +207,16 @@ export function convertCommandCodeToOpenAI(chunk, state) {
     case "finish-step": {
       state.finishReason = mapFinishReason(event.finishReason);
       if (event.usage) state.usage = event.usage;
+      // Fallback: extract content from response/message snapshot blocks
+      const stepBlocks = extractResponseBlocks(event, state);
+      if (stepBlocks.length) out.push(...stepBlocks);
       break;
     }
     case "finish": {
+      // Fallback: extract content from response/message snapshot blocks
+      const finishBlocks = extractResponseBlocks(event, state);
+      if (finishBlocks.length) out.push(...finishBlocks);
+
       const finishReason = state.finishReason || mapFinishReason(event.finishReason || "stop");
       const finalChunk: any = makeChunk(state, {}, finishReason);
       const totalUsage = event.totalUsage || state.usage;

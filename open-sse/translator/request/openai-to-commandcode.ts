@@ -303,7 +303,6 @@ async function openaiToCommandCode(model, body, stream) {
   const today = new Date().toISOString().slice(0, 10);
 
   return {
-    model,
     threadId: randomUUID(),
     memory: "",
     config: {
