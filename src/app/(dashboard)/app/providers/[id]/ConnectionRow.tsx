@@ -6,7 +6,7 @@ import PropTypes from "prop-types";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
-import { getConnectionCooldownUntil } from "@/lib/connectionStatus";
+import { getConnectionCooldownUntil, getDisplayPlanType } from "@/lib/connectionStatus";
 import { getConnectionRoutingOrderLock, isConnectionRoutingOrderLockActive } from "@/lib/connectionUsageRank";
 import { getConnectionStatusPresentation } from "../statusDisplay";
 import CooldownTimer from "./CooldownTimer";
@@ -69,7 +69,7 @@ export default function ConnectionRow({ connection, proxyPools, isOAuth, provide
     : connection.maskedApiKey
       ? connection.maskedApiKey
       : connection.name;
-  const connectionPlanType = connection.providerSpecificData?.planType || null;
+  const connectionPlanType = getDisplayPlanType(connection);
   const { statusDetails, badge: statusBadge, reasonLabel: statusReasonLabel } = getConnectionStatusPresentation(connection);
   const modelLockUntil = statusDetails.activeModelLocks.length > 0 ? statusDetails.activeModelLocks.map((lock) => lock.until).sort()[0] : getConnectionCooldownUntil(connection);
   const [isCooldown, setIsCooldown] = useState(false);

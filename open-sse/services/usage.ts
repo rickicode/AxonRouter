@@ -4,6 +4,7 @@
 
 import { platform, arch } from "node:os";
 import { CLIENT_METADATA, getPlatformUserAgent } from "../config/appConstants";
+import { getAntigravityCredentials } from "../utils/publicCreds";
 
 // GitHub API config
 const GITHUB_CONFIG = {
@@ -16,8 +17,8 @@ const ANTIGRAVITY_CONFIG = {
   quotaApiUrl: "https://cloudcode-pa.googleapis.com/v1internal:fetchAvailableModels",
   loadProjectApiUrl: "https://cloudcode-pa.googleapis.com/v1internal:loadCodeAssist",
   tokenUrl: "https://oauth2.googleapis.com/token",
-  clientId: process.env.ANTIGRAVITY_OAUTH_CLIENT_ID || "1071006060591-tmhssin2h21lcre235vtolojh4g403ep.apps.googleusercontent.com",
-  clientSecret: process.env.ANTIGRAVITY_OAUTH_CLIENT_SECRET || "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",
+  clientId: getAntigravityCredentials().clientId,
+  clientSecret: getAntigravityCredentials().clientSecret,
   userAgent: getPlatformUserAgent(),
 };
 
@@ -40,15 +41,22 @@ const CLAUDE_CONFIG = {
  * @returns {Object} Usage data with quotas
  */
 export async function getUsageForProvider(connection: any) {
-  const { provider, accessToken, providerSpecificData } = connection;
+  const { provider, accessToken, providerSpecificData, projectId } = connection;
+  // The Antigravity/Gemini OAuth flow stores the resolved project id at the connection
+  // top-level (not inside providerSpecificData). Merge it so the quota calls can use the
+  // real, already-resolved project instead of re-deriving it (or falling back to a mock).
+  const providerDataWithProjectId = {
+    ...(providerSpecificData || {}),
+    ...(projectId ? { projectId } : {}),
+  };
 
   switch (provider) {
     case "github":
       return await getGitHubUsage(accessToken, providerSpecificData);
     case "gemini-cli":
-      return await getGeminiUsage(accessToken);
+      return await getGeminiUsage(accessToken, providerDataWithProjectId);
     case "antigravity":
-      return await getAntigravityUsage(accessToken, providerSpecificData);
+      return await getAntigravityUsage(accessToken, providerDataWithProjectId);
     case "claude":
       return await getClaudeUsage(accessToken);
     case "codex":
@@ -187,17 +195,19 @@ function formatGitHubQuotaSnapshot(quota) {
 /**
  * Gemini CLI Usage - Fetch quota from retrieveUserQuota API
  */
-async function getGeminiUsage(accessToken) {
+async function getGeminiUsage(accessToken, providerSpecificData = null) {
   try {
     if (!accessToken) {
       return { plan: "Free", message: "Gemini CLI access token not available." };
     }
 
-    // Get subscription info and projectId (reuse antigravity's helper)
+    // Prefer the connection-stored project id; only call loadCodeAssist if it's missing.
     const subscriptionInfo = await getAntigravitySubscriptionInfo(accessToken);
-    const projectId = subscriptionInfo?.cloudaicompanionProject || null;
+    const projectId =
+      normalizeCloudCodeProjectId(providerSpecificData?.projectId) ||
+      normalizeCloudCodeProjectId(subscriptionInfo?.cloudaicompanionProject);
 
-    const plan = subscriptionInfo?.currentTier?.name || "Gemini CLI";
+    const plan = getAntigravityTierName(subscriptionInfo);
 
     if (!projectId) {
       return { plan, message: "Gemini CLI project ID not available. Usage tracking requires a project." };
@@ -260,13 +270,65 @@ async function getGeminiUsage(accessToken) {
 }
 
 /**
+ * Normalize a Cloud Code project reference (string or { id }) to a plain id string.
+ */
+function normalizeCloudCodeProjectId(project: any) {
+  if (typeof project === "string") return project.trim() || null;
+  if (project && typeof project === "object" && typeof project.id === "string") {
+    return project.id.trim() || null;
+  }
+  return null;
+}
+
+const ANTIGRAVITY_PROJECT_ADJECTIVES = ["useful", "bright", "swift", "calm", "bold"];
+const ANTIGRAVITY_PROJECT_NOUNS = ["fuze", "wave", "spark", "flow", "core"];
+
+/**
+ * Generate a mock project id (adjective-noun-xxxxx) matching the Antigravity client's
+ * fallback format. The fetchAvailableModels quota endpoint returns 403 when no project
+ * is supplied, so a project id must always be present in the request body.
+ */
+function generateMockAntigravityProjectId() {
+  const adjective = ANTIGRAVITY_PROJECT_ADJECTIVES[Math.floor(Math.random() * ANTIGRAVITY_PROJECT_ADJECTIVES.length)];
+  const noun = ANTIGRAVITY_PROJECT_NOUNS[Math.floor(Math.random() * ANTIGRAVITY_PROJECT_NOUNS.length)];
+  let suffix = "";
+  while (suffix.length < 5) suffix += Math.floor(Math.random() * 36).toString(36);
+  return `${adjective}-${noun}-${suffix.slice(0, 5)}`;
+}
+
+// Tier ids/names that are placeholders rather than a real, readable subscription tier.
+const NON_DISPLAY_ANTIGRAVITY_TIERS = new Set(["legacy-tier", "legacy", "unknown", ""]);
+
+/**
+ * Return a human-readable subscription tier name only when the API actually reported
+ * a real tier. Returns null for placeholder/legacy/unknown tiers so the UI can hide the badge.
+ */
+function getAntigravityTierName(subscriptionInfo: any) {
+  const tier = subscriptionInfo?.currentTier;
+  const raw =
+    (typeof tier?.name === "string" && tier.name.trim()) ||
+    (typeof tier?.id === "string" && tier.id.trim()) ||
+    "";
+  if (!raw) return null;
+  return NON_DISPLAY_ANTIGRAVITY_TIERS.has(raw.toLowerCase()) ? null : raw;
+}
+
+/**
  * Antigravity Usage - Fetch quota from Google Cloud Code API
  */
 async function getAntigravityUsage(accessToken, providerSpecificData) {
   try {
     // Fetch subscription info once — reuse for both projectId and plan
     const subscriptionInfo = await getAntigravitySubscriptionInfo(accessToken);
-    const projectId = subscriptionInfo?.cloudaicompanionProject || null;
+
+    // The quota endpoint (fetchAvailableModels) returns 403 when no project is supplied.
+    // Always provide a project id: prefer the connection's already-resolved project, then
+    // the live loadCodeAssist project, and finally a generated mock id (matching the real
+    // Antigravity client, which also synthesizes a project id when none is available).
+    const projectId =
+      normalizeCloudCodeProjectId(providerSpecificData?.projectId) ||
+      normalizeCloudCodeProjectId(subscriptionInfo?.cloudaicompanionProject) ||
+      generateMockAntigravityProjectId();
 
     // Fetch quota data with timeout
     const controller = new AbortController();
@@ -280,13 +342,9 @@ async function getAntigravityUsage(accessToken, providerSpecificData) {
           "Authorization": `Bearer ${accessToken}`,
           "User-Agent": ANTIGRAVITY_CONFIG.userAgent,
           "Content-Type": "application/json",
-          "X-Client-Name": "antigravity",
-          "X-Client-Version": "1.107.0",
           "x-request-source": "local", // MITM bypass
         },
-        body: JSON.stringify({
-          ...(projectId ? { project: projectId } : {})
-        }),
+        body: JSON.stringify({ project: projectId }),
         signal: controller.signal,
       });
     } finally {
@@ -359,7 +417,7 @@ async function getAntigravityUsage(accessToken, providerSpecificData) {
     }
 
     return {
-      plan: subscriptionInfo?.currentTier?.name || "Unknown",
+      plan: getAntigravityTierName(subscriptionInfo),
       quotas,
       subscriptionInfo,
     };
