@@ -1,9 +1,8 @@
 import { NextResponse } from "next/server";
+import { startNgrokTunnel } from "@axonrouter/tunnel";
 
 export async function POST(request: Request) {
   try {
-    const tunnelMod = ["@axonrouter", "tunnel"].join("/");
-    const { startNgrokTunnel } = await import(tunnelMod);
     const body = await request.json().catch(() => ({}));
     const status = await startNgrokTunnel(body?.authToken);
     return NextResponse.json(status);

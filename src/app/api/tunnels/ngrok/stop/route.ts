@@ -1,9 +1,8 @@
 import { NextResponse } from "next/server";
+import { stopNgrokTunnel } from "@axonrouter/tunnel";
 
 export async function POST() {
   try {
-    const tunnelMod = ["@axonrouter", "tunnel"].join("/");
-    const { stopNgrokTunnel } = await import(tunnelMod);
     const status = await stopNgrokTunnel();
     return NextResponse.json(status);
   } catch (error: any) {

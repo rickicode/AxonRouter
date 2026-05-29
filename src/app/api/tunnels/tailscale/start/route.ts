@@ -1,9 +1,8 @@
 import { NextResponse } from "next/server";
+import { enableTailscaleTunnel } from "@axonrouter/tunnel";
 
 export async function POST(request: Request) {
   try {
-    const tunnelMod = ["@axonrouter", "tunnel"].join("/");
-    const { enableTailscaleTunnel } = await import(tunnelMod);
     const body = await request.json().catch(() => ({}));
     const result = await enableTailscaleTunnel(body);
     return NextResponse.json(result);

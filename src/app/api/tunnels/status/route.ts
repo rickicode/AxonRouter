@@ -1,10 +1,8 @@
 import { NextResponse } from "next/server";
+import { getCloudflaredTunnelStatus, getTailscaleTunnelStatus, getNgrokTunnelStatus } from "@axonrouter/tunnel";
 
 export async function GET() {
   try {
-    // Use computed path to prevent Turbopack from statically tracing tunnel package
-    const tunnelMod = ["@axonrouter", "tunnel"].join("/");
-    const { getCloudflaredTunnelStatus, getTailscaleTunnelStatus, getNgrokTunnelStatus } = await import(tunnelMod);
     const [cloudflared, tailscale, ngrok] = await Promise.all([
       getCloudflaredTunnelStatus(),
       getTailscaleTunnelStatus(),
