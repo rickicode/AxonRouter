@@ -5,6 +5,7 @@ import { useEffect, useState, useRef } from "react";
 import { createPortal } from "react-dom";
 import PropTypes from "prop-types";
 import { marked } from "marked";
+import DOMPurify from "dompurify";
 import { GITHUB_CONFIG } from "@/shared/constants/config";
 import { translate } from "@/i18n/runtime";
 
@@ -32,7 +33,9 @@ export default function ChangelogModal({ isOpen, onClose }) {
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const md = await res.text();
         const parsedHtml = await marked.parse(md);
-        if (!cancelled) setHtml(parsedHtml);
+        // AUTOFIX F02: sanitize parsed markdown HTML before rendering to prevent XSS
+        const safeHtml = DOMPurify.sanitize(parsedHtml);
+        if (!cancelled) setHtml(safeHtml);
       } catch (err: any) {
         if (!cancelled) setError(err?.message || "Failed to load");
       } finally {

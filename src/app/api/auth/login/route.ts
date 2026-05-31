@@ -11,6 +11,10 @@ import { MANAGEMENT_SESSION_COOKIE_OPTIONS, MANAGEMENT_SESSION_TTL_PASETO } from
 
 const MAX_ATTEMPTS = 5;
 const WINDOW_MS = 5 * 60 * 1000;
+// AUTOFIX F01: default password is only valid for localhost first-run setup.
+// Tunnel/non-local access is blocked when no password has been configured
+// (see POST handler below). This constant is intentionally weak; users must
+// change it in Settings immediately after first login.
 const DEFAULT_DASHBOARD_PASSWORD = "12345677";
 
 type LoginAttemptRecord = {
@@ -158,6 +162,28 @@ export async function POST(request: Request) {
     }
 
     const storedHash = settings.password;
+
+    // AUTOFIX F01: when no password is configured (storedHash is empty/null) and this
+    // is a non-localhost (tunnel/remote) request, reject login. The default password
+    // must never be accepted over a network-exposed endpoint — the admin must set a
+    // real password via localhost first before enabling remote/tunnel access.
+    const isRemoteRequest = isTunnelRequest(request, settings) ||
+      !["127.0.0.1", "::1"].some(
+        (local) => (getClientIP(request, settings) || "").startsWith(local)
+      );
+    if (!storedHash && isRemoteRequest) {
+      if (settings?.auditLogEnabled) {
+        auditLog.log("login_attempt", {
+          ip: clientIP,
+          success: false,
+          reason: "no_password_configured_remote_blocked",
+        });
+      }
+      return NextResponse.json(
+        { error: "No dashboard password has been configured. Please set a password via localhost access first." },
+        { status: 403 }
+      );
+    }
 
     const isValid = storedHash
       ? await bcrypt.compare(password || "", storedHash)

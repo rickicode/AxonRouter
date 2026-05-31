@@ -7,11 +7,12 @@ async function startServer() {
     await initializeApp();
     console.log("Server initialized");
   } catch (error) {
-    console.log("Error initializing server:", error);
+    // AUTOFIX F03: use console.error for error-level events
+    console.error("Error initializing server:", error);
     process.exit(1);
   }
 }
 
-startServer().catch(console.log);
+startServer().catch(console.error);
 
 export default startServer;
