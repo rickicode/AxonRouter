@@ -99,7 +99,6 @@ import { useNotificationStore } from "@/store/notificationStore";
 import { translate } from "@/i18n/runtime";
 import { fetchJson, queryKeys, useInvalidate } from "@/shared/query";
 import { compareConnectionsByUsageAvailability } from "@/lib/connectionUsageRank";
-import { syncNoAuthProviderModels } from "@/lib/providerModels/noAuthSync";
 
 export default function ProviderDetailPage() {
 	const params: any = useParams();
@@ -1078,8 +1077,17 @@ export default function ProviderDetailPage() {
 		setProviderModelsSyncError("");
 		setProviderModelsSyncNotice("");
 		try {
-			const results = await syncNoAuthProviderModels(providerId);
-			const result = results.find((r) => r.providerId === providerId);
+			const res = await fetch("/api/providers/noauth-sync", {
+				method: "POST",
+				headers: { "Content-Type": "application/json" },
+				body: JSON.stringify({ providerId }),
+			});
+			const data = await res.json().catch(() => ({}));
+			if (!res.ok) {
+				setProviderModelsSyncError(data?.error || "Failed to sync models.");
+				return;
+			}
+			const result = (data?.results || []).find((r: any) => r.providerId === providerId);
 			if (result?.ok) {
 				setProviderModelsSyncNotice(
 					`Synced ${result.count} model${result.count === 1 ? "" : "s"} from live endpoint.`,
