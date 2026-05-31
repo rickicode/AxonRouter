@@ -9,7 +9,7 @@ import { getCircuitBreaker } from "@/shared/utils/circuitBreaker";
 
 /**
  * Track rotation state per combo (for round-robin strategy)
- * Uses a monotonic counter for atomicity across async boundaries.
+ * Uses a monotonic counter; safe within synchronous sections of single-threaded Node.js.
  */
 const comboRotationState = new Map();
 const MAX_COMBO_ROTATION_STATE_ENTRIES = 500;
@@ -92,7 +92,7 @@ function flattenComboSteps(steps: unknown[], resolveCombo: unknown, allCombos: a
 
 /**
  * Get rotated model list based on strategy.
- * Uses atomic counter increment to prevent race conditions across async boundaries.
+ * Counter increment is safe within synchronous code in single-threaded Node.js but not across await boundaries.
  */
 export function getRotatedModels(models: string[], comboName: string, strategy: string, stickyLimit = 1): string[] {
   if (!models || models.length <= 1 || strategy !== "round-robin") {
