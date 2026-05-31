@@ -85,7 +85,7 @@ function AddCustomModelModal({ isOpen, onSave, onClose }) {
   );
 }
 
-export default function ModelsCard({ providerId, kindFilter, providerModels = [], syncingModels = false, onSyncModels = null, syncNotice = "", syncError = "" }) {
+export default function ModelsCard({ providerId, kindFilter, providerModels = [], syncingModels = false, onSyncModels = null, syncNotice = "", syncError = "", isFreeNoAuth = false }) {
   const inv = useInvalidate();
   const { copied, copy } = useCopyToClipboard();
   const [modelAliases, setModelAliases] = useState({});
@@ -211,9 +211,9 @@ export default function ModelsCard({ providerId, kindFilter, providerModels = []
             {displayModels.map((model) => {
               const fullModel = `${providerAlias}/${model.id}`;
               const existingAlias = Object.entries(modelAliases).find(([, m]) => m === fullModel)?.[0];
-              return <ModelRow key={model.id} model={model} fullModel={fullModel} copied={copied} onCopy={copy} onDeleteAlias={() => handleDeleteAlias(existingAlias)} testStatus={modelTestResults[model.id]} onTest={connections.length > 0 ? () => handleTestModel(model.id) : undefined} isTesting={testingModelId === model.id} isFree={model.isFree} isDisabled={disabledModels.includes(model.id)} onToggleDisabled={() => handleToggleDisabledModel(model.id, !disabledModels.includes(model.id))} isCustom={false} />;
+              return <ModelRow key={model.id} model={model} fullModel={fullModel} copied={copied} onCopy={copy} onDeleteAlias={() => handleDeleteAlias(existingAlias)} testStatus={modelTestResults[model.id]} onTest={connections.length > 0 || isFreeNoAuth ? () => handleTestModel(model.id) : undefined} isTesting={testingModelId === model.id} isFree={model.isFree} isDisabled={disabledModels.includes(model.id)} onToggleDisabled={() => handleToggleDisabledModel(model.id, !disabledModels.includes(model.id))} isCustom={false} />;
             })}
-            {myCustomModels.map((model) => <ModelRow key={`${model.id}-${model.type}`} model={{ id: model.id, name: model.name }} fullModel={`${providerAlias}/${model.id}`} copied={copied} onCopy={copy} onDeleteAlias={() => handleDeleteCustomModel(model.id)} testStatus={modelTestResults[model.id]} onTest={connections.length > 0 ? () => handleTestModel(model.id) : undefined} isTesting={testingModelId === model.id} isDisabled={disabledModels.includes(model.id)} onToggleDisabled={() => handleToggleDisabledModel(model.id, !disabledModels.includes(model.id))} isCustom isFree={false} />)}
+            {myCustomModels.map((model) => <ModelRow key={`${model.id}-${model.type}`} model={{ id: model.id, name: model.name }} fullModel={`${providerAlias}/${model.id}`} copied={copied} onCopy={copy} onDeleteAlias={() => handleDeleteCustomModel(model.id)} testStatus={modelTestResults[model.id]} onTest={connections.length > 0 || isFreeNoAuth ? () => handleTestModel(model.id) : undefined} isTesting={testingModelId === model.id} isDisabled={disabledModels.includes(model.id)} onToggleDisabled={() => handleToggleDisabledModel(model.id, !disabledModels.includes(model.id))} isCustom isFree={false} />)}
             {!displayModels.length && !myCustomModels.length ? <Empty className="w-full border-border bg-card/60"><EmptyHeader><EmptyMedia><AppIcon name="package" /></EmptyMedia><EmptyTitle>{translate("No models yet")}</EmptyTitle><EmptyDescription>{translate("Sync models or add a custom model for this provider.")}</EmptyDescription></EmptyHeader></Empty> : null}
             <Button onClick={() => setShowAddCustomModel(true)} variant="outline" size="sm" className="border-dashed"><AppIcon name="add" />Add Model</Button>
           </div>

@@ -99,6 +99,7 @@ import { useNotificationStore } from "@/store/notificationStore";
 import { translate } from "@/i18n/runtime";
 import { fetchJson, queryKeys, useInvalidate } from "@/shared/query";
 import { compareConnectionsByUsageAvailability } from "@/lib/connectionUsageRank";
+import { syncNoAuthProviderModels } from "@/lib/providerModels/noAuthSync";
 
 export default function ProviderDetailPage() {
 	const params: any = useParams();
@@ -1072,6 +1073,29 @@ export default function ProviderDetailPage() {
 		syncModelsMutation.mutate(firstConnection.id);
 	};
 
+	const handleSyncNoAuthProviderModels = async () => {
+		setSyncingProviderModels(true);
+		setProviderModelsSyncError("");
+		setProviderModelsSyncNotice("");
+		try {
+			const results = await syncNoAuthProviderModels(providerId);
+			const result = results.find((r) => r.providerId === providerId);
+			if (result?.ok) {
+				setProviderModelsSyncNotice(
+					`Synced ${result.count} model${result.count === 1 ? "" : "s"} from live endpoint.`,
+				);
+				inv.providerModels();
+				inv.providerDetail(providerId);
+			} else {
+				setProviderModelsSyncError(result?.error || "No models returned from endpoint.");
+			}
+		} catch (error: any) {
+			setProviderModelsSyncError(error?.message || "Failed to sync models.");
+		} finally {
+			setSyncingProviderModels(false);
+		}
+	};
+
 	const updateConnectionStatusMutation = useMutation({
 		retry: false,
 		mutationFn: async ({ id, isActive }: { id: string; isActive: boolean }) => {
@@ -1596,7 +1620,27 @@ export default function ProviderDetailPage() {
 			});
 
 		return (
-			<div className="flex flex-wrap gap-3">
+			<div className="flex flex-col gap-3">
+				{/* Sync controls for noAuth providers (e.g. OpenCode Free) */}
+				{isFreeNoAuth && (
+					<div className="flex flex-wrap items-center gap-3">
+						<button
+							onClick={handleSyncNoAuthProviderModels}
+							disabled={syncingProviderModels}
+							className="flex cursor-pointer items-center gap-1.5 px-3 py-1.5 rounded-[4px] border border-[var(--color-border)] text-xs font-medium text-[var(--color-text-muted)] hover:text-[var(--color-primary)] hover:border-[var(--color-primary)]/40 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+						>
+							<AppIcon name={syncingProviderModels ? "progress_activity" : "sync"} size={13} style={syncingProviderModels ? { animation: "spin 1s linear infinite" } : undefined} />
+							{syncingProviderModels ? "Syncing..." : "Sync Models"}
+						</button>
+						{providerModelsSyncNotice && (
+							<span className="text-xs text-emerald-600 dark:text-emerald-400">{providerModelsSyncNotice}</span>
+						)}
+						{providerModelsSyncError && (
+							<span className="text-xs text-red-500">{providerModelsSyncError}</span>
+						)}
+					</div>
+				)}
+				<div className="flex flex-wrap gap-3">
 				{displayModels.map((model) => {
 					const fullModel = `${providerStorageAlias}/${model.id}`;
 					const oldFormatModel = `${providerId}/${model.id}`;
@@ -1691,6 +1735,7 @@ export default function ProviderDetailPage() {
 							</div>
 						);
 					})()}
+			</div>
 			</div>
 		);
 	};
@@ -2133,17 +2178,19 @@ export default function ProviderDetailPage() {
 			) : isFreeNoAuth ? (
 				<ShadcnCard>
 					<CardContent>
-						<div className="flex items-center gap-3">
-							<div className="inline-flex size-10 items-center justify-center rounded-[4px] bg-green-500/10 text-green-500">
-								<AppIcon name="lock_open" size={20} />
-							</div>
-							<div>
-								<p className="text-sm font-medium">
-									{translate("No authentication required")}
-								</p>
-								<p className="text-xs text-muted-foreground">
-									{translate("This provider is ready to use.")}
-								</p>
+						<div className="flex items-center justify-between gap-4 flex-wrap">
+							<div className="flex items-center gap-3">
+								<div className="inline-flex size-10 items-center justify-center rounded-[4px] bg-green-500/10 text-green-500">
+									<AppIcon name="lock_open" size={20} />
+								</div>
+								<div>
+									<p className="text-sm font-medium">
+										{translate("No authentication required")}
+									</p>
+									<p className="text-xs text-muted-foreground">
+										{translate("This provider is ready to use without any account.")}
+									</p>
+								</div>
 							</div>
 						</div>
 					</CardContent>
@@ -2293,17 +2340,21 @@ export default function ProviderDetailPage() {
 						</p>
 					)}
 					{!isCompatible && !isMorphManaged ? (
-						<ModelsCard
-							providerId={providerId}
-							kindFilter="llm"
-							providerModels={providerModels}
-							syncingModels={syncingProviderModels}
-							onSyncModels={
-								connections.length > 0 ? handleSyncProviderModels : null
-							}
-							syncNotice={providerModelsSyncNotice}
-							syncError={providerModelsSyncError}
-						/>
+						isFreeNoAuth ? (
+							renderModelsSection()
+						) : (
+							<ModelsCard
+								providerId={providerId}
+								kindFilter="llm"
+								providerModels={providerModels}
+								syncingModels={syncingProviderModels}
+								onSyncModels={
+									connections.length > 0 ? handleSyncProviderModels : null
+								}
+								syncNotice={providerModelsSyncNotice}
+								syncError={providerModelsSyncError}
+							/>
+						)
 					) : (
 						renderModelsSection()
 					)}
