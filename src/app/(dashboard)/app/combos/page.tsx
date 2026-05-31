@@ -514,12 +514,14 @@ export default function CombosPage() {
     setDraft(buildInitialDraft());
     setComboEditorError("");
     setStage("basics");
+    setShowEditModal(false);
     setShowComboEditor(true);
   };
 
   const startEdit = (combo) => {
     setEditingCombo(combo);
     setComboEditorError("");
+    setSaving(false);
     setShowEditModal(true);
     setShowComboEditor(false);
   };
@@ -580,6 +582,27 @@ export default function CombosPage() {
       await invalidateCombos();
       setRecentlyCreatedCombo(draft.name);
       setShowComboEditor(false);
+      setShowEditModal(false);
+      resetBuilder();
+    },
+    onError: (error) => setComboEditorError(error?.message || "Failed to save combo"),
+    onSettled: () => setSaving(false),
+  });
+
+  const editComboMutation = useMutation({
+    retry: false,
+    mutationFn: async ({ endpoint, method, body }: { endpoint: string; method: string; body: Record<string, unknown> }) => {
+      const res = await fetch(endpoint, {
+        method,
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      if (!res.ok) throw new Error(await getApiErrorMessage(res, "Failed to save combo"));
+    },
+    onSuccess: async () => {
+      await invalidateCombos();
+      setShowEditModal(false);
+      setComboEditorError('');
       resetBuilder();
     },
     onError: (error) => setComboEditorError(error?.message || "Failed to save combo"),
@@ -778,7 +801,7 @@ export default function CombosPage() {
     if (!editingCombo?.id) return;
     setComboEditorError("");
     setSaving(true);
-    saveComboMutation.mutate({ endpoint: `/api/combos/${editingCombo.id}`, method: "PUT", body });
+    editComboMutation.mutate({ endpoint: `/api/combos/${editingCombo.id}`, method: "PUT", body });
   };
 
   const handleTestCombo = ({ name }) => {

@@ -1,5 +1,6 @@
 import "../../../open-sse/utils/proxyFetch";
 
+import { isVirtualSystemModel, resolveVirtualModelExecution } from "@/lib/routing/virtualModelResolver";
 import { extractApiKey, isValidApiKey, hasApiKeys } from "../services/apiKeyAuth";
 import {
   getProviderCredentials,
@@ -106,6 +107,7 @@ export async function handleChat(request, clientRawRequest = null) {
   const requestContext = {
     settings,
     comboModelsByName: new Map(),
+    virtualResolution: null as any,
   };
   // Auto-require API key when keys are configured in the system
   const keysConfigured = await hasApiKeys();
@@ -143,7 +145,15 @@ export async function handleChat(request, clientRawRequest = null) {
   const bypassResponse = await handleBypassRequest(body, modelStr, userAgent, !!settings.ccFilterNaming);
   if (bypassResponse) return bypassResponse.response || bypassResponse;
 
-  const effectiveModelStr = modelStr;
+  let effectiveModelStr = modelStr;
+
+  if (isVirtualSystemModel(effectiveModelStr)) {
+    const resolution = await resolveVirtualModelExecution({ modelStr: effectiveModelStr, settings });
+    if (resolution) {
+      requestContext.virtualResolution = resolution;
+      effectiveModelStr = resolution.selectedCombo;
+    }
+  }
 
   const comboObject = await getComboModels(effectiveModelStr);
   requestContext.comboModelsByName.set(effectiveModelStr, comboObject);
@@ -151,9 +161,9 @@ export async function handleChat(request, clientRawRequest = null) {
     const routing = settings.routing || {};
     const comboStrategies = routing.comboStrategies || settings.comboStrategies || {};
     const comboConfig = comboStrategies[effectiveModelStr] || {};
-    const comboSpecificStrategy = comboConfig.strategy || comboConfig.fallbackStrategy;
-    const comboStrategy = comboSpecificStrategy || routing.comboStrategy || settings.comboStrategy || comboObject.strategy || "priority";
-    const comboStickyLimit = comboConfig.stickyLimit || comboConfig.stickyRoundRobinLimit || comboObject?.config?.stickyLimit || routing.stickyLimit || settings.stickyRoundRobinLimit || 1;
+    const comboSpecificStrategy = comboConfig.strategy;
+    const comboStrategy = comboSpecificStrategy || routing.comboStrategy || comboObject.strategy || "priority";
+    const comboStickyLimit = comboConfig.stickyLimit || comboObject?.config?.stickyLimit || routing.stickyLimit || 1;
 
     log.info("CHAT", `Combo \"${effectiveModelStr}\" with ${(comboObject.models || []).length} steps (strategy: ${comboStrategy}, stickyLimit: ${comboStickyLimit})`);
     return handleComboChat({
@@ -169,6 +179,7 @@ export async function handleChat(request, clientRawRequest = null) {
       settings,
       allCombos: await getComboListForExecution(),
       isModelAvailable: async (candidateModel, target = null) => {
+        if (!candidateModel || !candidateModel.includes('/')) return false;
         const candidateInfo = await getModelInfo(candidateModel);
         if (!candidateInfo?.provider) return true;
         const forcedConnectionId = typeof target?.connectionId === "string" && target.connectionId.trim().length > 0 ? target.connectionId : null;
@@ -215,9 +226,9 @@ async function handleSingleModelChat(body, modelStr, clientRawRequest = null, re
       const routing = settings.routing || {};
       const comboStrategies = routing.comboStrategies || settings.comboStrategies || {};
       const comboConfig = comboStrategies[modelStr] || {};
-      const comboSpecificStrategy = comboConfig.strategy || comboConfig.fallbackStrategy;
-      const comboStrategy = comboSpecificStrategy || routing.comboStrategy || settings.comboStrategy || comboObject.strategy || "priority";
-      const comboStickyLimit = comboConfig.stickyLimit || comboConfig.stickyRoundRobinLimit || comboObject?.config?.stickyLimit || routing.stickyLimit || settings.stickyRoundRobinLimit || 1;
+      const comboSpecificStrategy = comboConfig.strategy;
+      const comboStrategy = comboSpecificStrategy || routing.comboStrategy || comboObject.strategy || "priority";
+      const comboStickyLimit = comboConfig.stickyLimit || comboObject?.config?.stickyLimit || routing.stickyLimit || 1;
 
       log.info("CHAT", `Combo \"${modelStr}\" with ${(comboObject.models || []).length} steps (strategy: ${comboStrategy}, stickyLimit: ${comboStickyLimit})`);
       return handleComboChat({
@@ -233,6 +244,7 @@ async function handleSingleModelChat(body, modelStr, clientRawRequest = null, re
         allCombos: await getComboListForExecution(),
         settings,
         isModelAvailable: async (candidateModel, target = null) => {
+          if (!candidateModel || !candidateModel.includes('/')) return false;
           const candidateInfo = await getModelInfo(candidateModel);
           if (!candidateInfo?.provider) return true;
           const forcedConnectionId = typeof target?.connectionId === "string" && target.connectionId.trim().length > 0 ? target.connectionId : null;
