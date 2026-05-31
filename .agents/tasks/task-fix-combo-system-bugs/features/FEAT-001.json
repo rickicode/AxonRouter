@@ -2,7 +2,7 @@
   "id": "FEAT-001",
   "type": "fix",
   "description": "Fix all 6 bugs in the AxonRouter combo system: virtual model resolution, edit modal close, comment fix, model validation, create/edit state confusion, and legacy alias removal.",
-  "status": "in_progress",
+  "status": "completed",
   "steps": [
     "Bug 1 (CRITICAL): In src/sse/handlers/chat.ts, import `isVirtualSystemModel` and `resolveVirtualModelExecution` from `@/lib/routing/virtualModelResolver`. Before the `getComboModels(effectiveModelStr)` call (around line 148 where `const comboObject = await getComboModels(effectiveModelStr)` is), add virtual model resolution: check `isVirtualSystemModel(effectiveModelStr)`, if true call `resolveVirtualModelExecution({ modelStr: effectiveModelStr, settings })`, if result is non-null set `requestContext.virtualResolution = resolution` and reassign `effectiveModelStr` to `resolution.selectedCombo`. Change `const effectiveModelStr = modelStr;` to `let effectiveModelStr = modelStr;` to allow reassignment.",
     "Bug 2 (HIGH): In src/app/(dashboard)/app/combos/page.tsx, in `saveComboMutation.onSuccess` (around line 579), add `setShowEditModal(false)` after `setShowComboEditor(false)` so the edit modal closes after saving.",
@@ -24,5 +24,5 @@
     "Run `npx tsc --noEmit` (typecheck) and confirm no type errors"
   ],
   "blocked_reason": null,
-  "findings": ""
+  "findings": "All 6 bugs implemented successfully. Had to add virtualResolution property to requestContext initialization (as `null as any`) to satisfy TypeScript type checking. Typecheck and all 1167 tests pass cleanly."
 }
