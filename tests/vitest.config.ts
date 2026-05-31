@@ -7,62 +7,72 @@ const __dirname = fileURLToPath(new URL(".", import.meta.url));
 const projectRoot = resolve(__dirname, "..");
 
 const remapJsSource = (id: string) => {
-  if (!id.endsWith(".js")) {
-    return null;
-  }
+	if (!id.endsWith(".js")) {
+		return null;
+	}
 
-  const normalized = id.startsWith("/src/")
-    ? resolve(projectRoot, `.${id}`)
-    : id;
-  const base = normalized.slice(0, -3);
-  for (const ext of [".ts", ".tsx"]) {
-    const candidate = `${base}${ext}`;
-    if (existsSync(candidate)) {
-      return candidate;
-    }
-  }
+	const normalized = id.startsWith("/src/")
+		? resolve(projectRoot, `.${id}`)
+		: id;
+	const base = normalized.slice(0, -3);
+	for (const ext of [".ts", ".tsx"]) {
+		const candidate = `${base}${ext}`;
+		if (existsSync(candidate)) {
+			return candidate;
+		}
+	}
 
-  return null;
+	return null;
 };
 
 export default defineConfig({
-  plugins: [
-    {
-      name: "axonrouter-ts-source-resolver",
-      enforce: "pre",
-      resolveId(id) {
-        if (id.startsWith("/") || id.startsWith(projectRoot)) {
-          return remapJsSource(id);
-        }
+	plugins: [
+		{
+			name: "axonrouter-ts-source-resolver",
+			enforce: "pre",
+			resolveId(id) {
+				if (id.startsWith("/") || id.startsWith(projectRoot)) {
+					return remapJsSource(id);
+				}
 
-        return null;
-      },
-    },
-  ],
-  test: {
-    environment: "node",
-    globals: true,
-    setupFiles: [resolve(__dirname, "setup.ts")],
-    include: ["**/*.test.ts", "**/*.test.tsx"],
-    exclude: [
-      "**/node_modules/**",
-      "../.claude/worktrees/**",
-      "../.worktrees/**",
-      ".claude/worktrees/**",
-      ".worktrees/**",
-      "**/.claude/worktrees/**",
-      "**/.worktrees/**",
-    ],
-    silent: false,
-  },
-  resolve: {
-    alias: {
-      "@axonrouter/tunnel/cloudflared": resolve(__dirname, "../packages/tunnel/src/cloudflared.ts"),
-      "@axonrouter/tunnel/tailscale": resolve(__dirname, "../packages/tunnel/src/tailscale.ts"),
-      "@axonrouter/tunnel/ngrok": resolve(__dirname, "../packages/tunnel/src/ngrok.ts"),
-      "@axonrouter/tunnel": resolve(__dirname, "../packages/tunnel/src"),
-      "@": resolve(__dirname, "../src"),
-      "open-sse": resolve(__dirname, "../open-sse"),
-    },
-  },
+				return null;
+			},
+		},
+	],
+	test: {
+		environment: "node",
+		globals: true,
+		setupFiles: [resolve(__dirname, "setup.ts")],
+		include: ["**/*.test.ts", "**/*.test.tsx"],
+		exclude: [
+			"**/node_modules/**",
+			"../.claude/worktrees/**",
+			"../.worktrees/**",
+			".claude/worktrees/**",
+			".worktrees/**",
+			"**/.claude/worktrees/**",
+			"**/.worktrees/**",
+			".next/**",
+		],
+		silent: false,
+	},
+	resolve: {
+		alias: {
+			"@axonrouter/tunnel/cloudflared": resolve(
+				__dirname,
+				"../packages/tunnel/src/cloudflared.ts",
+			),
+			"@axonrouter/tunnel/tailscale": resolve(
+				__dirname,
+				"../packages/tunnel/src/tailscale.ts",
+			),
+			"@axonrouter/tunnel/ngrok": resolve(
+				__dirname,
+				"../packages/tunnel/src/ngrok.ts",
+			),
+			"@axonrouter/tunnel": resolve(__dirname, "../packages/tunnel/src"),
+			"@": resolve(__dirname, "../src"),
+			"open-sse": resolve(__dirname, "../open-sse"),
+		},
+	},
 });

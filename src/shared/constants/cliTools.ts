@@ -11,8 +11,6 @@ export const MITM_TOOLS = {
 		configType: "mitm",
 		mitmDomain: "daily-cloudcode-pa.googleapis.com",
 		modelAliases: [
-			"claude-opus-4-6-thinking",
-			"claude-sonnet-4-6",
 			"gemini-3-flash",
 			"gpt-oss-120b-medium",
 			"gemini-3-pro-high",
@@ -30,16 +28,6 @@ export const MITM_TOOLS = {
 				alias: "gemini-3.1-pro-low",
 			},
 			{ id: "gemini-3-flash", name: "Gemini 3 Flash", alias: "gemini-3-flash" },
-			{
-				id: "claude-sonnet-4-6",
-				name: "Claude Sonnet 4.6",
-				alias: "claude-sonnet-4-6",
-			},
-			{
-				id: "claude-opus-4-6-thinking",
-				name: "Claude Opus 4.6 Thinking",
-				alias: "claude-opus-4-6-thinking",
-			},
 			{
 				id: "gpt-oss-120b-medium",
 				name: "GPT OSS 120B Medium",
