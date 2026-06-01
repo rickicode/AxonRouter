@@ -4,6 +4,16 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { translate } from "@/i18n/runtime";
 
+const filterButtonClass = (active) =>
+  `inline-flex cursor-pointer items-center gap-2 rounded-[4px] border px-3 py-2 text-sm transition-all ${
+    active
+      ? "border-primary bg-primary text-primary-foreground shadow-sm"
+      : "border-transparent text-text-muted hover:bg-black/5 hover:text-text-main dark:hover:bg-white/5"
+  }`;
+
+const filterCountClass = (active) =>
+  `rounded-full px-1.5 py-0.5 text-[11px] ${active ? "bg-white/20" : "bg-black/10 dark:bg-white/10"}`;
+
 export default function CombosHeader({
   combos,
   mappings,
@@ -21,43 +31,53 @@ export default function CombosHeader({
 }) {
   return (
     <div className="flex flex-col gap-4">
-      <div className="flex items-center justify-between gap-4">
-        <div className="flex items-center gap-3">
-          <AppIcon name="account_tree" size={20} className="text-primary" />
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+        <div className="flex items-start gap-3">
+          <div className="flex size-10 items-center justify-center rounded-[4px] border border-primary/20 bg-primary/10 text-primary">
+            <AppIcon name="account_tree" size={20} />
+          </div>
           <div>
-            <h1 className="text-xl font-semibold text-text-main">{translate("Combos")}</h1>
-            <p className="text-xs text-text-muted">{combos.length} {translate("combos")} · {mappings.length} {translate("mappings")}</p>
+            <h1 className="text-2xl font-bold tracking-tight text-text-main">{translate("Combos")}</h1>
+            <p className="mt-1 max-w-2xl text-sm leading-6 text-text-muted">
+              {translate("Build ordered fallback chains, intelligent routing pools, and model mappings in one place.")}
+            </p>
+            <div className="mt-3 flex flex-wrap gap-2 text-xs text-text-muted">
+              <span className="rounded-full border border-[var(--color-border)] bg-[var(--color-bg-alt)] px-2 py-1">{combos.length} {translate("combos")}</span>
+              <span className="rounded-full border border-[var(--color-border)] bg-[var(--color-bg-alt)] px-2 py-1">{mappings.length} {translate("mappings")}</span>
+              {isExpertMode ? (
+                <span className="rounded-full border border-amber-500/30 bg-amber-500/10 px-2 py-1 font-medium uppercase tracking-wider text-amber-600 dark:text-amber-400">{translate("Expert")}</span>
+              ) : null}
+            </div>
           </div>
         </div>
-        <div className="flex items-center gap-3">
-          <div className="relative w-48">
-            <AppIcon name="search" className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-            <Input
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder={translate("Search...")}
-              className="pl-9"
-            />
+        <div className="flex flex-col gap-2 sm:items-end">
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+            <div className="relative w-full sm:w-64">
+              <AppIcon name="search" className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder={translate("Search combos...")}
+                className="pl-9"
+              />
+            </div>
+            <Button onClick={startCreate}>
+              <AppIcon name="add" data-icon="inline-start" />
+              {translate("Create")}
+            </Button>
           </div>
-          <Button onClick={startCreate}>
-            <AppIcon name="add" data-icon="inline-start" />
-            {translate("Create")}
-          </Button>
-          {isExpertMode && (
-            <span className="rounded-full border border-amber-500/30 bg-amber-500/10 px-2 py-1 text-[10px] font-medium uppercase tracking-wider text-amber-600 dark:text-amber-400">{translate("Expert")}</span>
-          )}
           <button
             type="button"
             onClick={() => setIsExpertMode(!isExpertMode)}
-            className={`cursor-pointer rounded-full border px-2 py-1 text-[10px] font-medium uppercase tracking-wider transition-colors ${isExpertMode ? "border-amber-500/30 bg-amber-500/10 text-amber-600 dark:text-amber-400" : "border-[var(--color-border)] text-text-muted hover:border-amber-500/30 hover:text-amber-600"}`}
+            className={`w-fit cursor-pointer rounded-[4px] border px-2.5 py-1.5 text-[10px] font-medium uppercase tracking-wider transition-colors ${isExpertMode ? "border-amber-500/30 bg-amber-500/10 text-amber-600 dark:text-amber-400" : "border-[var(--color-border)] text-text-muted hover:border-amber-500/30 hover:text-amber-600"}`}
           >
-            {translate("Expert")}
+            {isExpertMode ? translate("Expert mode on") : translate("Enable expert mode")}
           </button>
         </div>
       </div>
 
       {recentlyCreatedCombo && (
-        <Card className="rounded-xl border border-pink-500/30 bg-pink-500/5">
+        <Card className="rounded-[4px] border border-primary/30 bg-primary/5">
           <CardContent className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <p className="text-sm font-medium text-text-main">{translate("Combo")} {recentlyCreatedCombo} {translate("created!")}</p>
@@ -74,36 +94,36 @@ export default function CombosHeader({
         </Card>
       )}
 
-      <div className="flex flex-wrap items-center gap-2 rounded-lg border border-[var(--color-border)] bg-[var(--color-bg-alt)] p-1">
+      <div className="flex flex-wrap items-center gap-2 rounded-[4px] border border-[var(--color-border)] bg-[var(--color-bg-alt)] p-1">
         <button
           key="all"
           type="button"
           onClick={() => setStrategyFilter("all")}
-          className={`inline-flex cursor-pointer items-center gap-2 rounded-md px-3 py-1.5 text-sm transition-all ${strategyFilter === "all" ? "border border-pink-500 bg-pink-500 text-white font-medium shadow-sm" : "border border-transparent text-text-muted hover:bg-black/10 dark:hover:bg-white/10 hover:text-text-main"}`}
+          className={filterButtonClass(strategyFilter === "all")}
         >
           <AppIcon name="layers" size={14} />
           {translate("All")}
-          <span className={`rounded-full px-1.5 py-0.5 text-[11px] ${strategyFilter === "all" ? "bg-white/20" : "bg-black/10 dark:bg-white/10"}`}>{combos.length}</span>
+          <span className={filterCountClass(strategyFilter === "all")}>{combos.length}</span>
         </button>
         <button
           key="intelligent"
           type="button"
           onClick={() => setStrategyFilter("intelligent")}
-          className={`inline-flex cursor-pointer items-center gap-2 rounded-md px-3 py-1.5 text-sm transition-all ${strategyFilter === "intelligent" ? "border border-pink-500 bg-pink-500 text-white font-medium shadow-sm" : "border border-transparent text-text-muted hover:bg-black/10 dark:hover:bg-white/10 hover:text-text-main"}`}
+          className={filterButtonClass(strategyFilter === "intelligent")}
         >
           <AppIcon name="auto_awesome" size={14} />
           {translate("Intelligent")}
-          <span className={`rounded-full px-1.5 py-0.5 text-[11px] ${strategyFilter === "intelligent" ? "bg-white/20" : "bg-black/10 dark:bg-white/10"}`}>{combos.filter((c) => isIntelligentStrategy(c?.strategy)).length}</span>
+          <span className={filterCountClass(strategyFilter === "intelligent")}>{combos.filter((c) => isIntelligentStrategy(c?.strategy)).length}</span>
         </button>
         <button
           key="deterministic"
           type="button"
           onClick={() => setStrategyFilter("deterministic")}
-          className={`inline-flex cursor-pointer items-center gap-2 rounded-md px-3 py-1.5 text-sm transition-all ${strategyFilter === "deterministic" ? "border border-pink-500 bg-pink-500 text-white font-medium shadow-sm" : "border border-transparent text-text-muted hover:bg-black/10 dark:hover:bg-white/10 hover:text-text-main"}`}
+          className={filterButtonClass(strategyFilter === "deterministic")}
         >
           <AppIcon name="sort" size={14} />
           {translate("Deterministic")}
-          <span className={`rounded-full px-1.5 py-0.5 text-[11px] ${strategyFilter === "deterministic" ? "bg-white/20" : "bg-black/10 dark:bg-white/10"}`}>{combos.filter((c) => !isIntelligentStrategy(c?.strategy)).length}</span>
+          <span className={filterCountClass(strategyFilter === "deterministic")}>{combos.filter((c) => !isIntelligentStrategy(c?.strategy)).length}</span>
         </button>
       </div>
     </div>

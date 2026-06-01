@@ -20,23 +20,25 @@ export default function ComboCard({
   const strategy = combo.strategy || "priority";
   const isSelected = selectedIntelligentCombo?.id === combo.id;
   const isDisabled = combo.isHidden === true;
+  const statusLabel = isDisabled ? "disabled" : "active";
 
   return (
     <div
       key={combo.id}
-      className={`group rounded-xl border p-3 transition-all ${
-        isSelected ? "border-pink-500/40 bg-pink-500/5" : "border-[var(--color-border)] bg-[var(--color-bg-alt)]"
-      } ${isDisabled ? "opacity-50" : ""}`}
+      className={`group rounded-[4px] border bg-card p-4 transition-all hover:border-primary/30 hover:shadow-sm ${
+        isSelected ? "border-primary/40 bg-primary/5" : "border-[var(--color-border)]"
+      } ${isDisabled ? "opacity-60" : ""}`}
     >
       <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
         <div className="min-w-0 flex-1">
-          <div className="flex items-center gap-2">
-            <div className="flex size-8 items-center justify-center rounded-lg bg-pink-500/10 text-pink-500">
+          <div className="flex flex-wrap items-center gap-2">
+            <div className="flex size-9 items-center justify-center rounded-[4px] border border-primary/20 bg-primary/10 text-primary">
               <AppIcon name="layers" size={16} />
             </div>
-            <code className="truncate text-sm font-medium text-text-main">{combo.name}</code>
-            <span className="rounded-full bg-black/5 px-2 py-0.5 text-[10px] uppercase dark:bg-white/5">{strategy}</span>
-            {isSelected ? <span className="rounded-full bg-pink-500/10 px-2 py-0.5 text-[10px] font-semibold uppercase text-pink-600 dark:text-pink-400">selected</span> : null}
+            <code className="truncate text-sm font-semibold text-text-main">{combo.name}</code>
+            <span className="rounded-full border border-[var(--color-border)] bg-[var(--color-bg-alt)] px-2 py-0.5 text-[10px] font-medium uppercase text-text-muted">{strategy}</span>
+            <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase ${isDisabled ? "bg-amber-500/10 text-amber-600 dark:text-amber-400" : "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"}`}>{statusLabel}</span>
+            {isSelected ? <span className="rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-semibold uppercase text-primary">selected</span> : null}
           </div>
 
           <div className="mt-2 flex flex-wrap gap-1.5">
@@ -46,7 +48,7 @@ export default function ComboCard({
               models.slice(0, 3).map((entry, index) => {
                 const label = formatStepLabel(entry);
                 return (
-                  <code key={`${getStepKey(entry)}-${index}`} className="rounded bg-black/5 px-1.5 py-0.5 text-[10px] text-text-muted dark:bg-white/5">
+                  <code key={`${getStepKey(entry)}-${index}`} className="rounded-[4px] border border-[var(--color-border)] bg-[var(--color-bg-alt)] px-1.5 py-0.5 text-[10px] text-text-muted">
                     {label}
                   </code>
                 );
@@ -55,10 +57,9 @@ export default function ComboCard({
             {models.length > 3 ? <span className="text-[10px] text-text-muted">+{models.length - 3} more</span> : null}
           </div>
 
-          <div className="mt-2 flex flex-wrap items-center gap-3 text-[10px] text-text-muted">
-            <span>{models.length} steps</span>
-            <span>{strategy}</span>
-            {combo.isHidden ? <span className="text-amber-600 dark:text-amber-400">disabled</span> : <span className="text-emerald-600 dark:text-emerald-400">active</span>}
+          <div className="mt-3 flex flex-wrap items-center gap-3 text-[10px] text-text-muted">
+            <span className="inline-flex items-center gap-1"><AppIcon name="route" size={12} />{models.length} steps</span>
+            <span className="inline-flex items-center gap-1"><AppIcon name="alt_route" size={12} />{strategy}</span>
           </div>
         </div>
 
@@ -70,7 +71,7 @@ export default function ComboCard({
             <Button type="button" variant="ghost" size="sm" onClick={() => handleTestCombo({ name: combo.name })} className="rounded p-1.5 text-text-muted hover:text-emerald-500" title="Test combo">
               <AppIcon name={testingCombo === combo.name ? "progress_activity" : "play_arrow"} data-icon="inline-start" />
             </Button>
-            <Button type="button" variant="ghost" size="sm" onClick={() => handleDuplicateCombo(combo)} className="rounded p-1.5 text-text-muted hover:text-pink-500" title="Duplicate combo">
+            <Button type="button" variant="ghost" size="sm" onClick={() => handleDuplicateCombo(combo)} className="rounded p-1.5 text-text-muted hover:text-primary" title="Duplicate combo">
               <AppIcon name="content_copy" data-icon="inline-start" />
             </Button>
             <Button type="button" variant="ghost" size="sm" onClick={() => handleCreateMapping(combo)} className="rounded p-1.5 text-text-muted hover:text-primary" title="Create model mapping">
