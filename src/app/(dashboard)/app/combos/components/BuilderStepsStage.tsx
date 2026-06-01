@@ -4,23 +4,10 @@ import AppIcon from "@/shared/components/AppIcon";
 
 export default function BuilderStepsStage({
   draft,
-  builderProviders,
-  effectiveBuilderProviderId,
-  setBuilderProviderId,
-  setBuilderModelValue,
-  setBuilderConnectionId,
-  selectedBuilderProvider,
-  effectiveBuilderModelValue,
-  selectedBuilderConnections,
-  effectiveBuilderConnectionId,
-  builderComboRefName,
-  setBuilderComboRefName,
-  builderComboRefs,
-  handleAddBuilderStep,
   stepInput,
   setStepInput,
   handleAddManualStep,
-  handleAddComboReference,
+  setShowModelSelect,
   dragOverIndex,
   dragIndex,
   formatStepLabel,
@@ -46,106 +33,20 @@ export default function BuilderStepsStage({
           Steps ({draft.models.length})
         </label>
 
-        {/* Provider / Model / Account Selection Grid */}
-        <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <label className="mb-1.5 block text-[10px] font-medium uppercase tracking-wide text-[var(--color-text-muted)]">1. Provider</label>
-            <select
-              value={effectiveBuilderProviderId}
-              onChange={(e) => {
-                setBuilderProviderId(e.target.value);
-                setBuilderModelValue("");
-                setBuilderConnectionId("__auto__");
-              }}
-              className="w-full cursor-pointer rounded border border-[var(--color-border)] bg-[var(--color-input-bg)] px-3 py-2.5 text-xs text-[var(--color-text-main)] focus:border-[var(--color-primary)] focus:outline-none transition-colors"
-            >
-              <option value="">Select provider</option>
-              {builderProviders.map((provider) => (
-                <option key={provider.providerId} value={provider.providerId}>
-                  {provider.name} ({provider.models?.length || 0} models)
-                </option>
-              ))}
-            </select>
+            <p className="text-sm font-medium text-[var(--color-text-main)]">Add model</p>
+            <p className="mt-1 text-xs text-[var(--color-text-muted)]">Use Pick Models or manual input only.</p>
           </div>
-
-          <div>
-            <label className="mb-1.5 block text-[10px] font-medium uppercase tracking-wide text-[var(--color-text-muted)]">2. Model</label>
-            <select
-              value={effectiveBuilderModelValue}
-              onChange={(e) => setBuilderModelValue(e.target.value)}
-              disabled={!selectedBuilderProvider}
-              className="w-full cursor-pointer rounded border border-[var(--color-border)] bg-[var(--color-input-bg)] px-3 py-2.5 text-xs text-[var(--color-text-main)] focus:border-[var(--color-primary)] focus:outline-none disabled:cursor-not-allowed disabled:opacity-40 transition-colors"
-            >
-              <option value="">{selectedBuilderProvider ? "Select model" : "Choose provider first"}</option>
-              {(selectedBuilderProvider?.models || []).map((model) => (
-                <option key={model.value} value={model.value}>
-                  {model.name}{model.isCustom ? " · custom" : ""}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          <div>
-            <label className="mb-1.5 block text-[10px] font-medium uppercase tracking-wide text-[var(--color-text-muted)]">3. Account</label>
-            <select
-              value={effectiveBuilderConnectionId}
-              onChange={(e) => setBuilderConnectionId(e.target.value)}
-              disabled={!effectiveBuilderModelValue}
-              className="w-full cursor-pointer rounded border border-[var(--color-border)] bg-[var(--color-input-bg)] px-3 py-2.5 text-xs text-[var(--color-text-main)] focus:border-[var(--color-primary)] focus:outline-none disabled:cursor-not-allowed disabled:opacity-40 transition-colors"
-            >
-              <option value="__auto__">Auto-select account at runtime</option>
-              {selectedBuilderConnections.map((connection) => (
-                <option key={connection.id} value={connection.id}>
-                  {connection.label || connection.name || connection.id}
-                  {connection.status && connection.status !== "active" ? ` · ${connection.status}` : ""}
-                </option>
-              ))}
-            </select>
-          </div>
-        </div>
-
-        {/* Current Step Preview */}
-        <div className="mt-3 flex flex-wrap items-center gap-3 rounded border border-[var(--color-border)] px-3 py-2.5 bg-[var(--color-bg-alt)]">
-          <p className="text-[10px] uppercase tracking-wide text-[var(--color-text-muted)]">Preview</p>
-          <p className="text-xs text-[var(--color-text-main)]">
-            {effectiveBuilderModelValue || "Choose provider and model to preview the next step."}
-          </p>
           <button
-            onClick={handleAddBuilderStep}
-            disabled={!effectiveBuilderModelValue}
-            className="ml-auto rounded bg-[var(--color-primary)] px-3 py-1.5 text-xs font-medium text-white transition-colors hover:bg-[var(--color-primary-hover)] disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
+            type="button"
+            onClick={() => setShowModelSelect(true)}
+            className="rounded bg-[var(--color-primary)] px-3 py-2 text-xs font-medium text-white transition-colors hover:bg-[var(--color-primary-hover)] cursor-pointer"
           >
-            Add step
+            Pick Models
           </button>
         </div>
 
-        {/* Combo Reference Section */}
-        <div className="mt-4 border-t border-[var(--color-border)] pt-4">
-          <label className="mb-2 block text-[10px] font-medium uppercase tracking-wide text-[var(--color-text-muted)]">Reference another combo</label>
-          <div className="flex flex-col gap-2 sm:flex-row">
-            <select
-              value={builderComboRefName}
-              onChange={(e) => setBuilderComboRefName(e.target.value)}
-              className="flex-1 cursor-pointer rounded border border-[var(--color-border)] bg-[var(--color-input-bg)] px-3 py-2.5 text-xs text-[var(--color-text-main)] focus:border-[var(--color-primary)] focus:outline-none transition-colors"
-            >
-              <option value="">Select an existing combo to reference</option>
-              {builderComboRefs.map((comboRef) => (
-                <option key={comboRef.id} value={comboRef.name}>
-                  {comboRef.name} · {comboRef.strategy} · {(comboRef.models || []).length} step{(comboRef.models || []).length === 1 ? "" : "s"}
-                </option>
-              ))}
-            </select>
-            <button
-              onClick={handleAddComboReference}
-              disabled={!builderComboRefName}
-              className="rounded border border-[var(--color-border)] px-3 py-2 text-xs font-medium text-[var(--color-text-muted)] transition-colors hover:border-[var(--color-primary)] hover:text-[var(--color-primary)] disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
-            >
-              Add combo ref
-            </button>
-          </div>
-        </div>
-
-        {/* Manual Input Section */}
         <details className="mt-4 rounded border border-[var(--color-border)] bg-[var(--color-bg-alt)] p-3">
           <summary className="cursor-pointer text-[10px] font-medium uppercase tracking-wide text-[var(--color-text-muted)]">Manual input</summary>
           <div className="mt-2 flex gap-2">

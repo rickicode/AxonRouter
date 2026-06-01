@@ -9,6 +9,7 @@ import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@/
 import { Field, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
+import { ModelSelectModal } from "@/shared/components";
 import CombosHeader from "./components/CombosHeader";
 import ComboCard from "./components/ComboCard";
 import ComboTestResultsModal from "./components/ComboTestResultsModal";
@@ -30,7 +31,6 @@ import {
   normalizeIntelligentRoutingConfig,
 } from "@/lib/combos/intelligentRouting";
 import { getPricingForModel } from "@/shared/constants/pricing";
-import { buildGroupedSelectableModels } from "@/lib/opencodeSync/modelSelectOptions";
 
 type ComboRecord = {
   id?: string;
@@ -356,6 +356,7 @@ export default function CombosPage() {
   const [editingCombo, setEditingCombo] = useState(null);
   const [draft, setDraft] = useState(() => buildInitialDraft());
   const [stage, setStage] = useState("basics");
+  const [showModelSelect, setShowModelSelect] = useState(false);
 
   const [stepInput, setStepInput] = useState("");
   const [saving, setSaving] = useState(false);
@@ -373,10 +374,6 @@ export default function CombosPage() {
   const [selectedIntelligentComboId, setSelectedIntelligentComboId] = useState(null);
   const [dragIndex, setDragIndex] = useState(null);
   const [dragOverIndex, setDragOverIndex] = useState(null);
-  const [builderProviderId, setBuilderProviderId] = useState("");
-  const [builderModelValue, setBuilderModelValue] = useState("");
-  const [builderConnectionId, setBuilderConnectionId] = useState("__auto__");
-  const [builderComboRefName, setBuilderComboRefName] = useState("");
   const [showAdvanced, setShowAdvanced] = useState(false);
 
   const normalizedFilter = normalizeIntelligentRoutingFilter(strategyFilter);
@@ -397,13 +394,7 @@ export default function CombosPage() {
     queryFn: ({ signal }) => fetchJson<{ aliases?: Record<string, string> }>("/api/models/alias", { signal }),
   });
 
-  const providerModelsQuery = useQuery({
-    queryKey: queryKeys.providerModels(),
-    queryFn: ({ signal }) => fetchJson<{ models?: Record<string, unknown> }>("/api/provider-models", { signal }),
-  });
-
   const modelAliases = useMemo(() => modelAliasesQuery.data?.aliases || {}, [modelAliasesQuery.data]);
-  const providerModelsByProvider = useMemo(() => providerModelsQuery.data?.models || {}, [providerModelsQuery.data]);
 
   const visibleCombos = useMemo(() => {
     const byCategory = filterCombosByStrategyCategory(combos, normalizedFilter);
@@ -418,32 +409,6 @@ export default function CombosPage() {
 
   const visibleStages = getVisibleStages(draft.strategy);
   const currentGuide = STRATEGY_GUIDE[draft.strategy] || STRATEGY_GUIDE.priority;
-  const groupedSelectableModels = useMemo(
-    () => buildGroupedSelectableModels({ activeProviders, modelAliases, providerModelsByProvider }),
-    [activeProviders, modelAliases, providerModelsByProvider]
-  );
-  const builderProviders = useMemo(
-    () => Object.entries(groupedSelectableModels).map(([providerId, group]) => ({ providerId, ...(group as any) })),
-    [groupedSelectableModels]
-  );
-  const lastStructuredModelStep = useMemo(() => {
-    const step = [...draft.models].reverse().find((entry) => entry && typeof entry === "object" && entry.kind === "model");
-    return step || null;
-  }, [draft.models]);
-
-  const effectiveBuilderProviderId = builderProviderId || lastStructuredModelStep?.providerId || (typeof lastStructuredModelStep?.model === "string" ? lastStructuredModelStep.model.split("/")[0] : "");
-  const effectiveBuilderModelValue = builderModelValue || lastStructuredModelStep?.model || "";
-  const effectiveBuilderConnectionId = builderConnectionId !== "__auto__" ? builderConnectionId : (lastStructuredModelStep?.connectionId || "__auto__");
-
-  const selectedBuilderProvider = builderProviders.find((provider) => provider.providerId === effectiveBuilderProviderId) || null;
-  const selectedBuilderConnections = useMemo(
-    () => activeProviders.filter((connection) => (connection?.provider || connection?.id) === effectiveBuilderProviderId),
-    [activeProviders, effectiveBuilderProviderId]
-  );
-  const builderComboRefs = useMemo(
-    () => combos.filter((combo) => combo?.id !== editingCombo?.id),
-    [combos, editingCombo]
-  );
   const weightTotal = draft.models.length > 0 ? Math.round((100 / draft.models.length) * draft.models.length) : 0;
   const comboRefCount = draft.models.filter((entry) => entry && typeof entry === "object" && entry.kind === "combo-ref").length;
   const pinnedAccountCount = draft.models.filter((entry) => entry && typeof entry === "object" && entry.connectionId).length;
@@ -730,41 +695,17 @@ export default function CombosPage() {
 
   const handleDeleteCombo = handleDelete;
 
+  const handleAddSelectedModel = (model) => {
+    const nextValue = model.value;
+    if (!nextValue || draft.models.some((entry) => getStepKey(entry) === nextValue)) return;
+    setDraft((current) => ({ ...current, models: [...current.models, nextValue] }));
+  };
+
   const handleAddManualStep = () => {
     const nextStep = stepInput.trim();
     if (!nextStep || draft.models.some((entry) => getStepKey(entry) === nextStep)) return;
     setDraft((current) => ({ ...current, models: [...current.models, nextStep] }));
     setStepInput("");
-  };
-
-  const handleAddBuilderStep = () => {
-    if (!effectiveBuilderModelValue || !effectiveBuilderProviderId) return;
-    const selectedConnection =
-      effectiveBuilderConnectionId && effectiveBuilderConnectionId !== "__auto__"
-        ? selectedBuilderConnections.find((connection) => connection.id === effectiveBuilderConnectionId) || null
-        : null;
-
-    const nextStep = {
-      kind: "model",
-      model: effectiveBuilderModelValue,
-      providerId: effectiveBuilderProviderId,
-      connectionId: selectedConnection ? selectedConnection.id : null,
-      label: selectedConnection?.label || selectedConnection?.name || undefined,
-    };
-
-    if (draft.models.some((entry) => getStepKey(entry) === getStepKey(nextStep))) return;
-    setDraft((current) => ({ ...current, models: [...current.models, nextStep] }));
-    setBuilderProviderId("");
-    setBuilderModelValue("");
-    setBuilderConnectionId("__auto__");
-  };
-
-  const handleAddComboReference = () => {
-    if (!builderComboRefName) return;
-    const nextStep = { kind: "combo-ref", comboName: builderComboRefName };
-    if (draft.models.some((entry) => getStepKey(entry) === getStepKey(nextStep))) return;
-    setDraft((current) => ({ ...current, models: [...current.models, nextStep] }));
-    setBuilderComboRefName("");
   };
 
   const handleSave = async () => {
@@ -869,7 +810,6 @@ export default function CombosPage() {
   return (
     <div className="flex flex-col gap-6 pb-10">
       <CombosHeader
-        combos={combos}
         mappings={mappings}
         search={search}
         setSearch={setSearch}
@@ -978,10 +918,8 @@ export default function CombosPage() {
       <ComboEditModal
         key={editingCombo?.id || "combo-edit-modal"}
         combo={editingCombo}
-        combos={combos}
         activeProviders={activeProviders}
         modelAliases={modelAliases}
-        providerModelsByProvider={providerModelsByProvider}
         isOpen={showEditModal}
         onClose={() => { setShowEditModal(false); setComboEditorError(""); }}
         onSave={handleEditSave}
@@ -1081,23 +1019,10 @@ export default function CombosPage() {
                 {stage === "steps" && (
                   <BuilderStepsStage
                     draft={draft}
-                    builderProviders={builderProviders}
-                    effectiveBuilderProviderId={effectiveBuilderProviderId}
-                    setBuilderProviderId={setBuilderProviderId}
-                    setBuilderModelValue={setBuilderModelValue}
-                    setBuilderConnectionId={setBuilderConnectionId}
-                    selectedBuilderProvider={selectedBuilderProvider}
-                    effectiveBuilderModelValue={effectiveBuilderModelValue}
-                    selectedBuilderConnections={selectedBuilderConnections}
-                    effectiveBuilderConnectionId={effectiveBuilderConnectionId}
-                    builderComboRefName={builderComboRefName}
-                    setBuilderComboRefName={setBuilderComboRefName}
-                    builderComboRefs={builderComboRefs}
-                    handleAddBuilderStep={handleAddBuilderStep}
                     stepInput={stepInput}
                     setStepInput={setStepInput}
                     handleAddManualStep={handleAddManualStep}
-                    handleAddComboReference={handleAddComboReference}
+                    setShowModelSelect={setShowModelSelect}
                     dragOverIndex={dragOverIndex}
                     dragIndex={dragIndex}
                     formatStepLabel={formatStepLabel}
@@ -1214,6 +1139,16 @@ export default function CombosPage() {
           </div>
         </div>
       )}
+
+      <ModelSelectModal
+        isOpen={showModelSelect}
+        onClose={() => setShowModelSelect(false)}
+        onSelect={handleAddSelectedModel}
+        activeProviders={activeProviders}
+        modelAliases={modelAliases}
+        title="Pick Models"
+        comboSelectMode="ref"
+      />
     </div>
   );
 }
