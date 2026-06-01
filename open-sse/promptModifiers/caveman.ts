@@ -34,20 +34,30 @@ export function applyCavemanToOpenAIMessages(body: any, rawSettings: unknown) {
   if (!prompt) return body;
 
   if (!Array.isArray(body?.messages)) {
-    body.messages = [{ role: "system", content: prompt }];
+    body.messages = [{ role: "system", content: `[${CAVEMAN_MARKER}]\n${prompt}` }];
     return body;
   }
 
+  // Dedup: check if caveman marker already present in any system/developer message
+  const alreadyInjected = body.messages.some((m: any) => {
+    if (m?.role !== "system" && m?.role !== "developer") return false;
+    const text = normalizeMessageText(m?.content);
+    return text.includes(CAVEMAN_MARKER);
+  });
+  if (alreadyInjected) return body;
+
   const idx = body.messages.findIndex((m: any) => m?.role === "system" || m?.role === "developer");
+  const markedPrompt = `[${CAVEMAN_MARKER}]\n${prompt}`;
+
   if (idx === -1) {
-    body.messages.unshift({ role: "system", content: prompt });
+    body.messages.unshift({ role: "system", content: markedPrompt });
     return body;
   }
 
   const target = body.messages[idx];
   const existingText = normalizeMessageText(target?.content);
   target.role = "system";
-  target.content = existingText ? `${existingText}\n\n${prompt}` : prompt;
+  target.content = existingText ? `${existingText}\n\n${markedPrompt}` : markedPrompt;
   return body;
 }
 
@@ -62,6 +72,18 @@ export function applyCavemanToOpenAIResponsesBody(body: any, rawSettings: unknow
     body.input = [];
   }
 
+  // Dedup: check if caveman marker already present
+  const alreadyInjected = body.input.some(
+    (item: any) =>
+      item?.type === "message" &&
+      (item?.role === "developer" || item?.role === "system") &&
+      Array.isArray(item?.content) &&
+      item.content.some((part: any) => typeof part?.text === "string" && part.text.includes(CAVEMAN_MARKER))
+  );
+  if (alreadyInjected) return body;
+
+  const markedPrompt = `[${CAVEMAN_MARKER}]\n${prompt}`;
+
   const idx = body.input.findIndex(
     (item: any) => item?.type === "message" && (item?.role === "developer" || item?.role === "system")
   );
@@ -72,12 +94,12 @@ export function applyCavemanToOpenAIResponsesBody(body: any, rawSettings: unknow
       ? current.content.filter((part: any) => typeof part?.text === "string").map((part: any) => part.text).join("\n")
       : "";
     current.role = "developer";
-    current.content = [{ type: "input_text", text: currentText ? `${currentText}\n\n${prompt}` : prompt }];
+    current.content = [{ type: "input_text", text: currentText ? `${currentText}\n\n${markedPrompt}` : markedPrompt }];
   } else {
     body.input.unshift({
       type: "message",
       role: "developer",
-      content: [{ type: "input_text", text: prompt }],
+      content: [{ type: "input_text", text: markedPrompt }],
     });
   }
   return body;
@@ -97,17 +119,27 @@ export function applyCavemanToPassthroughBody(body: any, rawSettings: unknown, f
   const prompt = buildPrompt(settings);
   if (!prompt) return body;
 
+  // Kiro/Amazon-Q format uses binary protobuf — cannot inject system message safely
+  if (format === "kiro") return body;
+
   if (format === FORMATS.CLAUDE) {
     const current = body?.system;
+    // Dedup: check if caveman marker already present in system
+    const currentText = typeof current === "string" ? current
+      : Array.isArray(current) ? current.filter((p: any) => typeof p?.text === "string").map((p: any) => p.text).join("\n")
+      : "";
+    if (currentText.includes(CAVEMAN_MARKER)) return body;
+
+    const markedPrompt = `[${CAVEMAN_MARKER}]\n${prompt}`;
     if (typeof current === "string") {
-      body.system = hasText(current) ? `${current}\n\n${prompt}` : prompt;
+      body.system = hasText(current) ? `${current}\n\n${markedPrompt}` : markedPrompt;
       return body;
     }
     if (Array.isArray(current)) {
-      current.push({ type: "text", text: prompt, cache_control: { type: "ephemeral", ttl: "1h" } });
+      current.push({ type: "text", text: markedPrompt, cache_control: { type: "ephemeral", ttl: "1h" } });
       return body;
     }
-    body.system = prompt;
+    body.system = markedPrompt;
     return body;
   }
 
