@@ -516,7 +516,7 @@ async function handleSingleModelChat(body, modelStr, clientRawRequest = null, re
       appendRouteTraceEvent(trace, "fallback", { provider, model, attempt: fallbackAttempts, status: result.status, reason: result.error || "fallback_required" });
       log.warn("AUTH", `Account ${credentials.connectionName} unavailable (${result.status}), trying fallback`);
       excludeConnectionIds.add(credentials.connectionId);
-      lastError = `Account ${credentials.connectionName}: ${result.error}`;
+      lastError = result.error || `Account ${credentials.connectionName} unavailable`;
       lastStatus = result.status;
       continue;
     }
