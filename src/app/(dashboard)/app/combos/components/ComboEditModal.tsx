@@ -4,9 +4,7 @@ import { useMemo, useState } from "react";
 import AppIcon from "@/shared/components/AppIcon";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Field, FieldLabel } from "@/components/ui/field";
 import { Switch } from "@/components/ui/switch";
-import { ModelSelectModal } from "@/shared/components";
 import { ROUTING_STRATEGIES } from "@/shared/constants/routingStrategies";
 import { getPricingForModel } from "@/shared/constants/pricing";
 import { buildGroupedSelectableModels } from "@/lib/opencodeSync/modelSelectOptions";
@@ -229,8 +227,6 @@ export default function ComboEditModal({
   error: string;
 }) {
   const [activeTab, setActiveTab] = useState("overview");
-  const [showModelSelect, setShowModelSelect] = useState(false);
-
   const [draft, setDraft] = useState<ComboDraft>(() => buildInitialDraft(combo));
 
   const [builderProviderId, setBuilderProviderId] = useState("");
@@ -336,12 +332,6 @@ export default function ComboEditModal({
     if (draft.models.some((entry: ComboStep) => getStepKey(entry) === getStepKey(nextStep))) return;
     setDraft((current) => ({ ...current, models: [...current.models, nextStep] }));
     setBuilderComboRefName("");
-  };
-
-  const handleAddSelectedModel = (model: { value: string }) => {
-    const nextValue = model.value;
-    if (draft.models.some((entry: ComboStep) => getStepKey(entry) === nextValue)) return;
-    setDraft((current) => ({ ...current, models: [...current.models, nextValue] }));
   };
 
   const handleRemoveModel = (index: number) => {
@@ -486,8 +476,13 @@ export default function ComboEditModal({
 
                   {/* Add Steps */}
                   <div className="rounded border p-4" style={{ borderColor: "var(--color-border)", backgroundColor: "var(--color-surface)" }}>
-                    <label className="mb-3 block text-[11px] font-semibold uppercase tracking-wide" style={{ color: "var(--color-text-muted)" }}>Add Model Step</label>
-                    <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+                    <div className="mb-3 flex items-start justify-between gap-3">
+                      <div>
+                        <label className="block text-[11px] font-semibold uppercase tracking-wide" style={{ color: "var(--color-text-muted)" }}>Add model step</label>
+                        <p className="mt-1 text-xs" style={{ color: "var(--color-text-muted)" }}>Choose provider, then model. Account stays automatic unless pinned.</p>
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-1 gap-2 sm:grid-cols-[1fr_1.4fr_1fr_auto]">
                       <select
                         value={effectiveBuilderProviderId}
                         onChange={(e) => { setBuilderProviderId(e.target.value); setBuilderModelValue(""); setBuilderConnectionId("__auto__"); }}
@@ -523,22 +518,13 @@ export default function ComboEditModal({
                           <option key={connection.id} value={connection.id}>{connection.label || connection.name || connection.id}</option>
                         ))}
                       </select>
-                    </div>
-                    <div className="mt-2 flex items-center gap-2">
                       <button
                         onClick={handleAddBuilderStep}
                         disabled={!effectiveBuilderModelValue}
-                        className="rounded px-3 py-1.5 text-xs font-medium text-white transition-colors disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
+                        className="rounded px-3 py-2 text-xs font-medium text-white transition-colors disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
                         style={{ backgroundColor: "var(--color-primary)" }}
                       >
-                        Add Step
-                      </button>
-                      <button
-                        onClick={() => setShowModelSelect(true)}
-                        className="rounded border px-3 py-1.5 text-xs font-medium transition-colors cursor-pointer hover:border-[var(--color-primary)] hover:text-[var(--color-primary)]"
-                        style={{ borderColor: "var(--color-border)", color: "var(--color-text-muted)" }}
-                      >
-                        Pick Model
+                        Add
                       </button>
                     </div>
                   </div>
@@ -569,9 +555,9 @@ export default function ComboEditModal({
                         </button>
                       </div>
                     </div>
-                    <div className="rounded border p-3" style={{ borderColor: "var(--color-border)", backgroundColor: "var(--color-bg-alt)" }}>
-                      <label className="mb-1.5 block text-[10px] font-medium uppercase tracking-wide" style={{ color: "var(--color-text-muted)" }}>Manual input</label>
-                      <div className="flex gap-2">
+                    <details className="rounded border p-3" style={{ borderColor: "var(--color-border)", backgroundColor: "var(--color-bg-alt)" }}>
+                      <summary className="cursor-pointer text-[10px] font-medium uppercase tracking-wide" style={{ color: "var(--color-text-muted)" }}>Manual input</summary>
+                      <div className="mt-2 flex gap-2">
                         <input
                           type="text"
                           value={stepInput}
@@ -588,7 +574,7 @@ export default function ComboEditModal({
                           Add
                         </button>
                       </div>
-                    </div>
+                    </details>
                   </div>
 
                   {/* Steps List */}
@@ -931,15 +917,6 @@ export default function ComboEditModal({
           </div>
         </div>
       </div>
-
-      <ModelSelectModal
-        isOpen={showModelSelect}
-        onClose={() => setShowModelSelect(false)}
-        onSelect={handleAddSelectedModel}
-        activeProviders={activeProviders}
-        modelAliases={modelAliases}
-        title="Add Model Step"
-      />
     </div>
   );
 }

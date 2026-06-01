@@ -9,7 +9,6 @@ import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@/
 import { Field, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
-import { ModelSelectModal } from "@/shared/components";
 import CombosHeader from "./components/CombosHeader";
 import ComboCard from "./components/ComboCard";
 import ComboTestResultsModal from "./components/ComboTestResultsModal";
@@ -179,7 +178,6 @@ const I18N_FALLBACK = {
   save: "Save",
   cancel: "Cancel",
   addStep: "Add Step",
-  pickModel: "Pick Model",
   pricingCoverage: "Pricing coverage",
   pricingAvailable: "Pricing available",
   pricingMissing: "No pricing",
@@ -358,7 +356,6 @@ export default function CombosPage() {
   const [editingCombo, setEditingCombo] = useState(null);
   const [draft, setDraft] = useState(() => buildInitialDraft());
   const [stage, setStage] = useState("basics");
-  const [showModelSelect, setShowModelSelect] = useState(false);
 
   const [stepInput, setStepInput] = useState("");
   const [saving, setSaving] = useState(false);
@@ -733,12 +730,6 @@ export default function CombosPage() {
 
   const handleDeleteCombo = handleDelete;
 
-  const handleAddSelectedModel = (model) => {
-    const nextValue = model.value;
-    if (draft.models.some((entry) => getStepKey(entry) === nextValue)) return;
-    setDraft((current) => ({ ...current, models: [...current.models, nextValue] }));
-  };
-
   const handleAddManualStep = () => {
     const nextStep = stepInput.trim();
     if (!nextStep || draft.models.some((entry) => getStepKey(entry) === nextStep)) return;
@@ -1106,7 +1097,6 @@ export default function CombosPage() {
                     stepInput={stepInput}
                     setStepInput={setStepInput}
                     handleAddManualStep={handleAddManualStep}
-                    setShowModelSelect={setShowModelSelect}
                     handleAddComboReference={handleAddComboReference}
                     dragOverIndex={dragOverIndex}
                     dragIndex={dragIndex}
@@ -1224,15 +1214,6 @@ export default function CombosPage() {
           </div>
         </div>
       )}
-
-      <ModelSelectModal
-        isOpen={showModelSelect}
-        onClose={() => setShowModelSelect(false)}
-        onSelect={handleAddSelectedModel}
-        activeProviders={activeProviders}
-        modelAliases={modelAliases}
-        title="Add Model Step"
-      />
     </div>
   );
 }
