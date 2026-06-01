@@ -54,7 +54,7 @@ export type NormalizedUsageSnapshot = {
 
 export type CanonicalUsageWorkerOutput = {
 	connection: unknown;
-	usage: unknown;
+	usage: NormalizedUsageSnapshot;
 	testResult?: unknown;
 	skipped: boolean;
 	skipReason?: string | null;

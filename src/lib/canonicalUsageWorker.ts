@@ -3,6 +3,7 @@ import { syncUsageStatus } from "@/lib/usageStatus";
 import {
 	getUsageQueueConcurrency,
 	runDedupedUsageRefreshJob,
+	runUsageRefreshJob,
 } from "@/lib/usageRefreshQueue";
 import { refreshConnectionUsage } from "@/lib/connectionUsageRefresh";
 import type {
@@ -45,33 +46,55 @@ function normalizeQuotaWindow(key: string, value: any): NormalizedQuotaWindow {
 	};
 }
 
+function readConnectionSnapshot(connection: any) {
+	if (!connection?.usageSnapshot) return null;
+	if (typeof connection.usageSnapshot === "object") return connection.usageSnapshot;
+	try {
+		return JSON.parse(connection.usageSnapshot);
+	} catch {
+		return null;
+	}
+}
+
 export function normalizeUsageSnapshot(
 	usage: any,
 	connection: any,
 	trigger: UsageRefreshTrigger,
 	extra: Partial<NormalizedUsageSnapshot> = {},
 ): NormalizedUsageSnapshot {
-	const rawQuotas = usage?.quotas && typeof usage.quotas === "object" ? usage.quotas : {};
+	const persistedUsage = readConnectionSnapshot(connection);
+	const source = usage || persistedUsage || {};
+	const rawQuotas = source?.quotas && typeof source.quotas === "object" ? source.quotas : {};
 	const quotas = Object.fromEntries(
 		Object.entries(rawQuotas).map(([key, value]) => [
 			key,
 			normalizeQuotaWindow(key, value),
 		]),
 	);
+	const reasonDetail =
+		extra.reasonDetail ??
+		source?.reasonDetail ??
+		source?.message ??
+		connection?.reasonDetail ??
+		null;
 
 	return {
-		provider: connection?.provider || usage?.provider || null,
-		checkedAt: usage?.checkedAt || new Date().toISOString(),
+		provider: connection?.provider || source?.provider || null,
+		checkedAt: source?.checkedAt || connection?.lastCheckedAt || new Date().toISOString(),
 		trigger,
 		quotas,
-		plan: usage?.plan ?? null,
-		account: usage?.account ?? null,
+		plan: source?.plan ?? connection?.providerSpecificData?.planType ?? null,
+		account: source?.account ?? null,
 		...(extra.raw === undefined ? {} : { raw: extra.raw }),
-		stale: extra.stale ?? Boolean(usage?.stale),
+		stale: extra.stale ?? Boolean(source?.stale),
 		errorClass: extra.errorClass,
-		reasonCode: extra.reasonCode ?? usage?.reasonCode ?? null,
-		reasonDetail: extra.reasonDetail ?? usage?.message ?? null,
-		nextRetryAt: extra.nextRetryAt ?? null,
+		reasonCode:
+			extra.reasonCode ??
+			source?.reasonCode ??
+			connection?.reasonCode ??
+			null,
+		reasonDetail,
+		nextRetryAt: extra.nextRetryAt ?? connection?.nextRetryAt ?? null,
 	};
 }
 
@@ -109,9 +132,14 @@ async function executeCanonicalUsageWorker(
 			metadata: input.metadata,
 		});
 		const completedAt = new Date().toISOString();
+		const usage = normalizeUsageSnapshot(result.usage, result.connection, input.trigger, {
+			reasonCode: result.skipReason || undefined,
+			reasonDetail: result.skipReason || undefined,
+			stale: result.skipped === true,
+		});
 		return {
 			connection: result.connection,
-			usage: result.usage,
+			usage,
 			testResult: result.testResult,
 			skipped: result.skipped === true,
 			skipReason: result.skipReason || null,
@@ -120,7 +148,7 @@ async function executeCanonicalUsageWorker(
 				trigger: input.trigger,
 				force: input.force === true,
 				queued,
-				deduped: true,
+				deduped: !input.force,
 				startedAt,
 				completedAt,
 				durationMs: Date.now() - startedMs,
@@ -139,9 +167,11 @@ export async function runCanonicalUsageWorker(
 	const trigger = input.trigger || "manual";
 	if (input.force) await clearForceBackoff(input.connectionId);
 	const normalizedInput = { ...input, trigger };
-	return runDedupedUsageRefreshJob(input.connectionId, () =>
-		executeCanonicalUsageWorker(normalizedInput, true),
-	) as Promise<CanonicalUsageWorkerOutput>;
+	const runWorker = () => executeCanonicalUsageWorker(normalizedInput, true);
+	if (input.force) {
+		return runUsageRefreshJob(input.connectionId, runWorker) as Promise<CanonicalUsageWorkerOutput>;
+	}
+	return runDedupedUsageRefreshJob(input.connectionId, runWorker) as Promise<CanonicalUsageWorkerOutput>;
 }
 
 export { classifyUsageError };
