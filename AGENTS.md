@@ -16,7 +16,6 @@ Use `docs/ARCHITECTURE.md` for architecture direction and `docs/DOCS.md` for use
 
 ## Worktree Rules
 
-- Implement AxonRouter work only in `/workspaces/AxonRouter`.
 - Do not revert unrelated user changes.
 
 ## Product Identity Rules
