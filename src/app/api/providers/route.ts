@@ -306,12 +306,15 @@ export async function POST(request: Request) {
 		})) as ProviderConnectionLike;
 
 		try {
-			const { refreshConnectionUsage } = await import(
-				"@/lib/connectionUsageRefresh"
+			const { runCanonicalUsageWorker } = await import(
+				"@/lib/canonicalUsageWorker"
 			);
-			await refreshConnectionUsage(newConnection.id as string, {
+			await runCanonicalUsageWorker({
+				connectionId: newConnection.id as string,
+				trigger: "preflight",
 				runConnectionTest: true,
 				skipTransientConnectivityErrors: true,
+				metadata: { source: "provider_create_validation" },
 			});
 		} catch (error) {
 			const message = error instanceof Error ? error.message : String(error);

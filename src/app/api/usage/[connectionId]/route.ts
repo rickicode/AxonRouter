@@ -23,7 +23,7 @@ export async function GET(request: Request, { params }: RouteContext): Promise<R
 
     const result = await runCanonicalUsageWorker({
       connectionId,
-      trigger: "manual",
+      trigger: "api",
       force: forceRefresh,
       runConnectionTest,
       skipTransientConnectivityErrors: true,
