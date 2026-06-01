@@ -68,8 +68,10 @@ export default function CLIToolsPageClient({ machineId }) {
     queueMicrotask(() => {
       const { providersData, settingsData, tunnelData, keysData, providerModelsData, statusEntries } = cliBootstrapQuery.data;
       setConnections((providersData as { connections?: any[] }).connections || []);
-      setTunnelEnabled(tunnelData.enabled || false);
-      setTunnelPublicUrl(tunnelData.publicUrl || "");
+      const ngrokUrl = tunnelData.ngrok?.running ? tunnelData.ngrok?.publicUrl : "";
+      const remoteUrl = ngrokUrl || "";
+      setTunnelEnabled(Boolean(remoteUrl));
+      setTunnelPublicUrl(remoteUrl);
       setApiKeys((keysData as { keys?: any[] }).keys || []);
       setProviderModelsByProvider(providerModelsData.models || {});
       setToolStatuses(Object.fromEntries(statusEntries));

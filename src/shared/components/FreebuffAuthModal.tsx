@@ -81,7 +81,9 @@ export default function FreebuffAuthModal({ isOpen, onSuccess, onClose, replaceC
     setDetecting(true);
     setError(null);
     try {
-      const res = await fetch("/api/oauth/freebuff/auto-import");
+      const res = await fetch(`/api/oauth/freebuff/auto-import?t=${Date.now()}`, {
+        cache: "no-store",
+      });
       const data = await res.json();
       if (data.found) {
         setDetected(data);
@@ -127,6 +129,12 @@ export default function FreebuffAuthModal({ isOpen, onSuccess, onClose, replaceC
   const handleMethodSelect = (method: string) => {
     setSelectedMethod(method);
     setError(null);
+  };
+
+  const handleImportMethodSelect = () => {
+    setSelectedMethod("import");
+    setError(null);
+    runDetection();
   };
 
   const handleBack = () => {
@@ -224,7 +232,7 @@ export default function FreebuffAuthModal({ isOpen, onSuccess, onClose, replaceC
         authToken: account.authToken,
         name: account.name,
         email: account.email,
-        accountId: account.email || account.id,
+        accountId: account.id || account.email,
         fingerprintId: account.fingerprintId,
         fingerprintHash: account.fingerprintHash,
         authMethod: "manual-json",
@@ -257,6 +265,7 @@ export default function FreebuffAuthModal({ isOpen, onSuccess, onClose, replaceC
   /* ── Render helpers ────────────────────────────────────────────────── */
   const hasExisting = existing.length > 0;
   const detectedEmail = detected?.email || null;
+  const detectedFingerprint = detected?.fingerprintId || detected?.instanceId || null;
   const detectedMatchesResetTarget =
     selectedMethod === "reset" &&
     resetTarget &&
@@ -285,7 +294,7 @@ export default function FreebuffAuthModal({ isOpen, onSuccess, onClose, replaceC
 
               {/* Option 1: Detect & Import */}
               <button
-                onClick={() => handleMethodSelect("import")}
+                onClick={handleImportMethodSelect}
                 className="w-full p-4 text-left border border-border rounded-lg hover:bg-sidebar transition-colors"
                 disabled={detecting}
               >
@@ -414,6 +423,33 @@ export default function FreebuffAuthModal({ isOpen, onSuccess, onClose, replaceC
                         <p className="text-xs text-green-700 dark:text-green-300 mt-1">
                           {detected.name || detected.email || "Freebuff Account"}
                         </p>
+                        <div className="mt-2 flex flex-col gap-1 text-xs text-green-700 dark:text-green-300">
+                          {detected.email && (
+                            <p className="truncate">
+                              <span className="font-medium">Email:</span> {detected.email}
+                            </p>
+                          )}
+                          {detected.accountId && detected.accountId !== detected.email && (
+                            <p className="truncate">
+                              <span className="font-medium">Account:</span> {detected.accountId}
+                            </p>
+                          )}
+                          {detectedFingerprint && (
+                            <p className="truncate font-mono">
+                              <span className="font-sans font-medium">Fingerprint:</span> {detectedFingerprint}
+                            </p>
+                          )}
+                          {detected.instanceId && detected.instanceId !== detectedFingerprint && (
+                            <p className="truncate font-mono">
+                              <span className="font-sans font-medium">Instance:</span> {detected.instanceId}
+                            </p>
+                          )}
+                          {detected.fingerprintHash && (
+                            <p className="truncate font-mono">
+                              <span className="font-sans font-medium">Hash:</span> {detected.fingerprintHash}
+                            </p>
+                          )}
+                        </div>
                       </div>
                     </div>
                   </div>

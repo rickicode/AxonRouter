@@ -53,19 +53,11 @@ function collectAppPids(): number[] {
       });
     } catch { /* no processes */ }
 
-    try {
-      const cfCmd = `powershell -NonInteractive -WindowStyle Hidden -Command "Get-Process cloudflared -ErrorAction SilentlyContinue | Select-Object -ExpandProperty Id"`;
-      const cfOut = execSync(cfCmd, { encoding: "utf8", windowsHide: true, timeout: KILL_TIMEOUT_MS });
-      cfOut.split("\n").forEach(l => {
-        const pid = l.trim();
-        if (pid && !isNaN(Number(pid))) pids.push(Number(pid));
-      });
-    } catch { /* no cloudflared */ }
   } else {
     try {
       const output = execSync("ps aux 2>/dev/null", { encoding: "utf8", timeout: KILL_TIMEOUT_MS });
       output.split("\n").forEach(line => {
-        const isAppProcess = line.includes("axonrouter") || line.includes("next-server") || line.includes("cloudflared");
+        const isAppProcess = line.includes("axonrouter") || line.includes("next-server");
         if (isAppProcess) {
           const parts = line.trim().split(/\s+/);
           const pid = parts[1];

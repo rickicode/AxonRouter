@@ -189,29 +189,4 @@ describe("Dashboard Guard - Integration Tests", () => {
     expect(response.status).toBe(307); // NextResponse.redirect uses 307
   });
 
-  it("end-to-end: tunnel access blocked when disabled", async () => {
-    isLocalRequest.mockReturnValue(false);
-    getClientIP.mockReturnValue("203.0.113.5");
-    getSettings.mockResolvedValue({ 
-      tunnelDashboardAccess: false,
-      tunnelUrl: "https://tunnel.example.com",
-      auditLogEnabled: true
-    });
-
-    const mockRequest = {
-      nextUrl: { pathname: "/app" },
-      url: "https://tunnel.example.com/dashboard",
-      headers: { get: (name) => name === "host" ? "tunnel.example.com" : null },
-      cookies: { get: () => null }
-    };
-
-    const response = await proxy(mockRequest);
-    expect(response.status).toBe(307); // NextResponse.redirect uses 307
-    expect(auditLog.log).toHaveBeenCalledWith(
-      "tunnel_access_attempt",
-      expect.objectContaining({
-        allowed: false
-      })
-    );
-  });
 });

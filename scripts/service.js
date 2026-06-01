@@ -199,7 +199,7 @@ Environment=PORT=${DEFAULT_PORT}
 Environment=HOME=${home}
 # Graceful shutdown timeout
 TimeoutStopSec=30
-# Kill remaining child processes (cloudflared, tailscaled) on stop
+# Kill remaining child processes on stop
 KillMode=control-group`;
   } else {
     serviceSection = `[Service]
@@ -215,7 +215,7 @@ Environment=PORT=${DEFAULT_PORT}
 Environment=HOME=${home}
 # Graceful shutdown timeout
 TimeoutStopSec=30
-# Kill remaining child processes (cloudflared, tailscaled) on stop
+# Kill remaining child processes on stop
 KillMode=control-group`;
   }
 

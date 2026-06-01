@@ -40,14 +40,6 @@ Use the helper script:
 ./docker/deploy.sh logs app
 ```
 
-During `install`, `start`, and `restart`, the script asks:
-
-```bash
-Enable Cloudflare Tunnel? [y/N]
-```
-
-If you answer `y`, `TUNNEL_TOKEN` becomes required and the script will prompt for it if it is still empty.
-
 ## Scaling
 
 ```bash
@@ -74,26 +66,6 @@ DATA_PATH=./data              # Host path mounted as /home/node/.axonrouter
 JWT_SECRET=your-secret-here    # CHANGE THIS!
 LOG_LEVEL=info                # debug, info, warn, error
 ```
-
-## Cloudflare Tunnel
-
-If your machine does not have a public IP, use Cloudflare Tunnel.
-
-```bash
-./docker/deploy.sh tunnel-setup
-```
-
-Or simply answer `y` when `install`, `start`, or `restart` asks whether to enable Cloudflare Tunnel.
-
-What happens:
-- `deploy.sh` asks whether to enable Cloudflare Tunnel
-- if enabled and `TUNNEL_TOKEN` is empty, the script forces you to input the token
-- the token is saved to `docker/.env.docker`
-- Compose starts the `cloudflared` profile automatically
-
-You can get the token from Cloudflare Zero Trust:
-- `https://one.dash.cloudflare.com`
-- `Networks -> Tunnels -> Create a tunnel`
 
 ## Health Checks
 

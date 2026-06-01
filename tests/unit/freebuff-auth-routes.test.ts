@@ -15,11 +15,15 @@ const getFreebuffSession = vi.fn();
 
 vi.mock("next/server", () => ({
   NextResponse: {
-    json: (body: any, init?: any) => ({
-      status: init?.status || 200,
-      body,
-      json: async () => body,
-    }),
+    json: (body: any, init?: any) => {
+      const headers = new Headers(init?.headers || {});
+      return {
+        status: init?.status || 200,
+        body,
+        headers,
+        json: async () => body,
+      };
+    },
   },
 }));
 
@@ -98,5 +102,12 @@ describe("Freebuff auth routes", () => {
       reasonCode: "quota_exhausted",
       resetAt: "2026-05-28T07:00:00.000Z",
     }));
+  });
+
+  it("marks Freebuff auto-import responses as no-store", async () => {
+    const { GET } = await import("../../src/app/api/oauth/freebuff/auto-import/route.ts");
+    const response = await GET();
+
+    expect(response.headers.get("Cache-Control")).toBe("no-store, max-age=0");
   });
 });

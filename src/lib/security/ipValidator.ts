@@ -8,9 +8,6 @@ export type IpValidatorSettings = {
 type IpLookupSettings = IpValidatorSettings & {
   password?: string;
   auditLogEnabled?: boolean;
-  tunnelDashboardAccess?: boolean;
-  tunnelUrl?: string;
-  tailscaleUrl?: string;
 };
 
 export function getClientIP(request: any, settings: IpLookupSettings | null = {}) {

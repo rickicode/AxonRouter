@@ -1,7 +1,7 @@
 #!/bin/bash
 # =====================================================
 # AxonRouter - Docker Deployment Script
-# Multi-instance with Caddy + Optional Cloudflare Tunnel
+# Multi-instance with Caddy
 # =====================================================
 
 set -e
@@ -80,14 +80,6 @@ NODE_ENV=production
 PORT=12711
 LOG_LEVEL=info
 
-# Cloudflare Tunnel (optional)
-# Get your tunnel token from: https://one.dash.cloudflare.com
-# 1. Create a Cloudflare Zero Trust account
-# 2. Networks → Tunnels → Create a tunnel
-# 3. Select "Cloudflared" as the connector
-# 4. Copy the token below
-TUNNEL_TOKEN=
-DOMAIN=axonrouter.yourdomain.com
 EOF
 		log_success "Created $ENV_FILE"
 		log_warn "Please edit $ENV_FILE and set secure passwords!"
@@ -120,37 +112,6 @@ set_env_value() {
 		sed -i "s|^${key}=.*|${key}=${value}|" "$ENV_FILE"
 	else
 		printf '%s=%s\n' "$key" "$value" >>"$ENV_FILE"
-	fi
-}
-
-ensure_cloudflare_token() {
-	local token
-	token="$(get_env_value TUNNEL_TOKEN)"
-	if [ -n "$token" ]; then
-		return 0
-	fi
-
-	echo ""
-	echo -e "${BLUE}Cloudflare Tunnel token required${NC}"
-	echo "Get it from: https://one.dash.cloudflare.com → Networks → Tunnels"
-	read -r -p "Paste TUNNEL_TOKEN: " token
-
-	if [ -z "$token" ]; then
-		log_error "Cloudflare Tunnel selected but TUNNEL_TOKEN is empty"
-		exit 1
-	fi
-
-	set_env_value "TUNNEL_TOKEN" "$token"
-	log_success "Saved TUNNEL_TOKEN to $ENV_FILE"
-}
-
-ask_cloudflare_profile() {
-	local answer
-	echo ""
-	read -r -p "Enable Cloudflare Tunnel? [y/N] " answer
-	if [[ "$answer" =~ ^[Yy]$ ]]; then
-		ensure_cloudflare_token
-		echo "tunnel"
 	fi
 }
 
@@ -258,44 +219,6 @@ update_image() {
 	restart_services
 }
 
-setup_cloudflare_tunnel() {
-	echo ""
-	echo -e "${BLUE}=== Cloudflare Tunnel Setup ===${NC}"
-	echo ""
-	echo "1. Go to https://one.dash.cloudflare.com"
-	echo "2. Create a Cloudflare Zero Trust account (free)"
-	echo "3. Go to Networks → Tunnels"
-	echo "4. Click 'Create a tunnel'"
-	echo "5. Select 'Cloudflared' as the connector"
-	echo "6. Give it a name (e.g., 'axonrouter-home')"
-	echo "7. Copy the tunnel token"
-	echo ""
-	read -p "Paste the tunnel token here: " token
-
-	if [ -n "$token" ]; then
-		# Update env file
-		sed -i "s/^TUNNEL_TOKEN=.*/TUNNEL_TOKEN=$token/" "$ENV_FILE"
-		log_success "Tunnel token saved to $ENV_FILE"
-		echo ""
-		echo "Optional: Set a custom subdomain"
-		read -p "Domain (e.g., axonrouter.yourdomain.com) or press Enter to skip: " domain
-		if [ -n "$domain" ]; then
-			sed -i "s/^DOMAIN=.*/DOMAIN=$domain/" "$ENV_FILE"
-			log_success "Domain saved: $domain"
-			echo ""
-			echo "Add this DNS record in Cloudflare:"
-			echo -e "${YELLOW}Type: CNAME${NC}"
-			echo -e "${YELLOW}Name: $(echo $domain | cut -d. -f1)${NC}"
-			echo -e "${YELLOW}Target: <your-tunnel-id>.trycloudflare.com${NC}"
-			echo -e "${YELLOW}Proxy: ON (orange cloud)${NC}"
-		fi
-		echo ""
-		log_warn "Restart services to apply tunnel: ./deploy.sh restart"
-	else
-		log_error "No token provided"
-	fi
-}
-
 show_help() {
 	show_banner
 	cat <<'EOF'
@@ -311,7 +234,6 @@ Commands:
     logs [service]  Show logs (default: app)
     health          Check health status
     update          Rebuild and restart
-    tunnel-setup    Setup Cloudflare Tunnel
     cleanup         Stop and remove all containers/volumes
     help            Show this help
 
@@ -319,7 +241,6 @@ Examples:
     ./deploy.sh install              # First time setup
     ./deploy.sh scale 8             # Scale to 8 instances
     ./deploy.sh logs caddy          # View Caddy logs
-    ./deploy.sh tunnel-setup        # Setup Cloudflare tunnel
 
 EOF
 }
@@ -343,25 +264,22 @@ install)
 	check_prerequisites
 	init_env
 	build_image
-	PROFILE="$(ask_cloudflare_profile)"
-	start_services "$PROFILE"
+	start_services
 	show_health
 	;;
 start)
 	check_prerequisites
 	init_env
-	PROFILE="$(ask_cloudflare_profile)"
-	start_services "$PROFILE"
+	start_services
 	;;
 stop)
 	stop_services
 	;;
 restart)
 	init_env
-	PROFILE="$(ask_cloudflare_profile)"
 	stop_services
 	sleep 2
-	start_services "$PROFILE" "${2:-$DEFAULT_REPLICAS}"
+	start_services "" "${2:-$DEFAULT_REPLICAS}"
 	;;
 scale)
 	scale_instances "$2"
@@ -377,10 +295,6 @@ health)
 	;;
 update)
 	update_image
-	;;
-tunnel-setup)
-	init_env
-	setup_cloudflare_tunnel
 	;;
 cleanup)
 	cleanup

@@ -169,7 +169,6 @@ export const APIKEY_PROVIDERS = {
   "anyscale": { id: "anyscale", alias: "anyscale", name: "Anyscale", icon: "cloud", color: "#1B6AC9", textIcon: "AS", website: "https://anyscale.com", serviceKinds: ["llm"] },
   "baseten": { id: "baseten", alias: "baseten", name: "Baseten", icon: "dns", color: "#5046E5", textIcon: "BT", website: "https://baseten.co", serviceKinds: ["llm"] },
   "bedrock": { id: "bedrock", alias: "bedrock", name: "AWS Bedrock", icon: "cloud", color: "#FF9900", textIcon: "BR", website: "https://aws.amazon.com/bedrock", serviceKinds: ["llm", "imageToText"] },
-  "cloudflare-ai": { id: "cloudflare-ai", alias: "cfai", name: "Cloudflare AI", icon: "cloud", color: "#F38020", textIcon: "CF", website: "https://ai.cloudflare.com", serviceKinds: ["llm"] },
   "databricks": { id: "databricks", alias: "databricks", name: "Databricks", icon: "analytics", color: "#FF3621", textIcon: "DB", website: "https://databricks.com", serviceKinds: ["llm"] },
   "deepinfra": { id: "deepinfra", alias: "deepinfra", name: "DeepInfra", icon: "bolt", color: "#1A73E8", textIcon: "DI", website: "https://deepinfra.com", serviceKinds: ["llm", "embedding"] },
   "friendliai": { id: "friendliai", alias: "friendliai", name: "FriendliAI", icon: "emoji_emotions", color: "#FF6B6B", textIcon: "FA", website: "https://friendli.ai", serviceKinds: ["llm"] },

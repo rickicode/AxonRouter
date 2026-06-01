@@ -2,17 +2,9 @@ import { NextResponse } from "next/server";
 
 export async function GET() {
 	try {
-		const {
-			getCloudflaredTunnelStatus,
-			getTailscaleTunnelStatus,
-			getNgrokTunnelStatus,
-		} = await import("@axonrouter/tunnel");
-		const [cloudflared, tailscale, ngrok] = await Promise.all([
-			getCloudflaredTunnelStatus(),
-			getTailscaleTunnelStatus(),
-			getNgrokTunnelStatus(),
-		]);
-		return NextResponse.json({ cloudflared, tailscale, ngrok });
+		const { getNgrokTunnelStatus } = await import("@axonrouter/tunnel");
+		const ngrok = await getNgrokTunnelStatus();
+		return NextResponse.json({ ngrok });
 	} catch (error: any) {
 		return NextResponse.json(
 			{ error: error?.message || "Failed to get tunnel status" },

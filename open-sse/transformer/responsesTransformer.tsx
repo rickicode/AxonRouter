@@ -1,7 +1,7 @@
 /**
  * Responses API Transformer
  * Converts OpenAI Chat Completions SSE to Codex Responses API SSE format
- * Can be used in both Next.js and Cloudflare Workers
+ * Can be used in Next.js runtime contexts.
  */
 
 import fs from "fs";

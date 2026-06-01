@@ -23,11 +23,20 @@ const MANICODE_DIR = join(homedir(), ".config", "manicode");
 const CREDENTIALS_PATH = join(MANICODE_DIR, "credentials.json");
 const INSTANCE_OWNER_PATH = join(MANICODE_DIR, "freebuff-instance-owner.json");
 
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
+
+function jsonNoStore(body: unknown, init?: ResponseInit) {
+  const response = NextResponse.json(body, init);
+  response.headers.set("Cache-Control", "no-store, max-age=0");
+  return response;
+}
+
 export async function GET() {
   try {
     await access(CREDENTIALS_PATH, constants.R_OK);
   } catch {
-    return NextResponse.json({
+    return jsonNoStore({
       found: false,
       error: "Freebuff credentials not found at ~/.config/manicode/credentials.json",
     });
@@ -42,7 +51,7 @@ export async function GET() {
     const account = parsed?.default;
 
     if (!account?.authToken || typeof account.authToken !== "string") {
-      return NextResponse.json({
+      return jsonNoStore({
         found: false,
         error: "Freebuff auth token is missing in credentials.json",
       });
@@ -65,13 +74,13 @@ export async function GET() {
       instanceId = undefined;
     }
 
-    return NextResponse.json({
+    return jsonNoStore({
       found: true,
       authToken: account.authToken,
       name: account.name || account.email || "Freebuff Account",
       email: account.email || null,
-      accountId: account.email || account.id || null,
-      fingerprintId: account.fingerprintId || null,
+      accountId: account.id || account.email || null,
+      fingerprintId: account.fingerprintId || instanceId || null,
       fingerprintHash: account.fingerprintHash || null,
       instanceId: instanceId || null,
       credentialsMtimeMs: credentialsStats.mtimeMs,
@@ -79,6 +88,6 @@ export async function GET() {
     });
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
-    return NextResponse.json({ found: false, error: message }, { status: 500 });
+    return jsonNoStore({ found: false, error: message }, { status: 500 });
   }
 }

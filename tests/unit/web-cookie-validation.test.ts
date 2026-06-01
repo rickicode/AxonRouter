@@ -4,7 +4,7 @@
  * Covers:
  *  - Cookie prefix stripping (sso=, __Secure-next-auth.session-token=)
  *  - 401/403 → invalid with error message
- *  - Non-auth responses (200, 400, 429) → valid (Cloudflare-bypass probe)
+ *  - Non-auth responses (200, 400, 429) → valid (bot-protection probe)
  *  - Required browser-fingerprint headers sent to Grok
  */
 
@@ -126,7 +126,7 @@ describe("grok-web validation", () => {
     );
   });
 
-  it("should send Cloudflare-bypass headers", async () => {
+  it("should send browser-like validation headers", async () => {
     global.fetch = vi.fn().mockResolvedValue({ status: 200 });
     await validateGrokWeb("token");
     const headers = global.fetch.mock.calls[0][1].headers;

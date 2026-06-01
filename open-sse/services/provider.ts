@@ -273,7 +273,7 @@ export function buildProviderHeaders(provider, credentials, stream = true, body 
         headers["user-agent"] = "GitHubCopilotChat/0.26.7";
         headers["openai-intent"] = "conversation-panel";
         headers["x-github-api-version"] = "2025-04-01";
-        // Generate a UUID for x-request-id (Cloudflare Workers compatible)
+        // Generate a UUID for x-request-id with a runtime-safe fallback.
         headers["x-request-id"] = crypto.randomUUID ? crypto.randomUUID() : 
           'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
             const r = Math.random() * 16 | 0;

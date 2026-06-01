@@ -17,8 +17,6 @@ type TunnelStatus = {
 };
 
 type TunnelsStatusResponse = {
-  cloudflared: TunnelStatus;
-  tailscale: TunnelStatus & { tunnelUrl?: string | null };
   ngrok: TunnelStatus;
 };
 
@@ -67,12 +65,6 @@ export default function AvailableEndpoints() {
   const tunnelData = tunnelQuery.data;
   const activeEndpoints: { label: string; url: string; id: string }[] = [];
 
-  if (tunnelData?.cloudflared?.running && tunnelData.cloudflared.apiUrl) {
-    activeEndpoints.push({ label: "Cloudflared", url: tunnelData.cloudflared.apiUrl, id: "cf" });
-  }
-  if (tunnelData?.tailscale?.running && tunnelData.tailscale.apiUrl) {
-    activeEndpoints.push({ label: "Tailscale", url: tunnelData.tailscale.apiUrl, id: "ts" });
-  }
   if (tunnelData?.ngrok?.running && tunnelData.ngrok.apiUrl) {
     activeEndpoints.push({ label: "Ngrok", url: tunnelData.ngrok.apiUrl, id: "ngrok" });
   }

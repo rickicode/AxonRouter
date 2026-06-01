@@ -4,18 +4,42 @@ import { createDeadlineSignal, mergeAbortSignals } from "../utils/abort";
 import { proxyAwareFetch } from "../utils/proxyFetch";
 import {
 	buildFreebuffHeaders,
+	buildFreebuffInstanceHeaders,
 	buildFreebuffAgentRunsUrl,
 	buildFreebuffRunStartRequest,
+	buildFreebuffSessionUrl,
 	FREEBUFF_DEFAULT_AGENT_ID,
 	FREEBUFF_DEFAULT_CLIENT_ID,
 	ensureFreebuffSession,
 	explainFreebuffError,
 	extractFreebuffFingerprint,
 	isFreebuffSessionActive,
+	parseFreebuffRetryAfterMs,
 	resolveFreebuffClientId,
+	resolveFreebuffInstanceId,
 } from "../../src/lib/freebuff/probe";
 
 const RUN_START_TIMEOUT_MS = 15_000;
+
+function buildFreebuffErrorResponse(payload: any, status = 429) {
+	const body =
+		payload && typeof payload === "object"
+			? payload
+			: { error: "freebuff_session_unavailable", message: String(payload || "Freebuff session unavailable") };
+	return new Response(JSON.stringify(body), {
+		status,
+		headers: { "Content-Type": "application/json" },
+	});
+}
+
+function isFreebuffRateLimitPayload(payload: any) {
+	if (!payload || typeof payload !== "object") return false;
+	return (
+		payload.status === "rate_limited" ||
+		payload.error === "free_mode_rate_limited" ||
+		String(payload.message || "").toLowerCase().includes("rate limit")
+	);
+}
 
 function normalizeFreebuffMessages(messages: unknown) {
 	if (!Array.isArray(messages)) return messages;
@@ -61,7 +85,10 @@ export class FreebuffExecutor extends BaseExecutor {
 
 	buildHeaders(credentials: any, stream = true, _model?: string) {
 		const token = credentials.apiKey || credentials.accessToken;
-		const headers = buildFreebuffHeaders(token);
+		const headers = buildFreebuffHeaders(
+			token,
+			buildFreebuffInstanceHeaders(resolveFreebuffInstanceId(credentials)),
+		);
 		if (stream) {
 			headers["Accept"] = "text/event-stream";
 		}
@@ -83,16 +110,33 @@ export class FreebuffExecutor extends BaseExecutor {
 			typeof body.model === "string" && body.model.startsWith("freebuff/")
 				? body.model.slice("freebuff/".length)
 				: body.model || args.model;
+		const credentialInstanceId = resolveFreebuffInstanceId(credentials);
 
 		// ── Step 1: Resolve session ──────────────────────────────────────────
 		// forceJoin=false reuses active sessions. ensureFreebuffSession auto-joins
 		// a new one when the current session is expired/inactive/rate-limited.
 		const session = await ensureFreebuffSession(token, {
+			instanceId: credentialInstanceId,
 			model: rawModel,
 			forceJoin: false,
 		});
 		const activeSessionPayload = session.join?.data || session.session?.data;
 		if (!session.active) {
+			if (isFreebuffRateLimitPayload(activeSessionPayload)) {
+				return {
+					response: buildFreebuffErrorResponse(
+						activeSessionPayload,
+						429,
+					),
+					url: buildFreebuffSessionUrl(),
+					headers: buildFreebuffHeaders(
+						token,
+						buildFreebuffInstanceHeaders(credentialInstanceId),
+					),
+					transformedBody: { model: rawModel },
+				};
+			}
+
 			const interpretation = explainFreebuffError(activeSessionPayload);
 			const detail =
 				activeSessionPayload?.message ||
@@ -114,16 +158,24 @@ export class FreebuffExecutor extends BaseExecutor {
 		// fallback chain: session.instanceId → clientId → default probe ID.
 		const clientId =
 			extractFreebuffFingerprint(activeSessionPayload) ||
+			credentialInstanceId ||
 			resolveFreebuffClientId(credentials);
 		const freebuffInstanceId =
 			extractFreebuffFingerprint(activeSessionPayload) ||
+			credentialInstanceId ||
 			clientId ||
 			FREEBUFF_DEFAULT_CLIENT_ID;
 
 		// ── Step 3: Start a run ──────────────────────────────────────────────
 		let runId: string;
 		try {
-			runId = await this.startRun(token, signal, proxyOptions, log);
+			runId = await this.startRun(
+				token,
+				signal,
+				proxyOptions,
+				log,
+				freebuffInstanceId,
+			);
 		} catch (error: any) {
 			log?.error?.("FREEBUFF", `Run start failed: ${error.message}`);
 			throw error;
@@ -172,11 +224,34 @@ export class FreebuffExecutor extends BaseExecutor {
 		return result;
 	}
 
+	parseError(response: Response, bodyText: string) {
+		let payload: any = null;
+		try {
+			payload = JSON.parse(bodyText);
+		} catch {
+			payload = null;
+		}
+
+		const message =
+			payload?.message ||
+			payload?.error ||
+			bodyText ||
+			`Freebuff request failed with HTTP ${response.status}`;
+		const retryAfterMs = parseFreebuffRetryAfterMs(payload);
+
+		return {
+			status: response.status,
+			message,
+			resetsAtMs: retryAfterMs ? Date.now() + retryAfterMs : undefined,
+		};
+	}
+
 	private async startRun(
 		token: string,
 		signal: AbortSignal | undefined,
 		proxyOptions: any,
 		log: any,
+		freebuffInstanceId?: string,
 	): Promise<string> {
 		const deadline = createDeadlineSignal(
 			RUN_START_TIMEOUT_MS,
@@ -190,7 +265,10 @@ export class FreebuffExecutor extends BaseExecutor {
 			buildFreebuffAgentRunsUrl(),
 			{
 				method: "POST",
-				headers: buildFreebuffHeaders(token),
+				headers: buildFreebuffHeaders(
+					token,
+					buildFreebuffInstanceHeaders(freebuffInstanceId),
+				),
 				body: JSON.stringify(
 					buildFreebuffRunStartRequest(FREEBUFF_DEFAULT_AGENT_ID),
 				),
@@ -254,9 +332,11 @@ export class FreebuffExecutor extends BaseExecutor {
 		log: any,
 	) {
 		const { credentials, body } = args;
+		const credentialInstanceId = resolveFreebuffInstanceId(credentials);
 
 		// Force-join a new session
 		const freshSession = await ensureFreebuffSession(token, {
+			instanceId: credentialInstanceId,
 			model: rawModel,
 			forceJoin: true,
 		});
@@ -268,14 +348,22 @@ export class FreebuffExecutor extends BaseExecutor {
 		const freshPayload = freshSession.join?.data || freshSession.session?.data;
 		const freshClientId =
 			extractFreebuffFingerprint(freshPayload) ||
+			credentialInstanceId ||
 			resolveFreebuffClientId(credentials);
 		const freshInstanceId =
 			extractFreebuffFingerprint(freshPayload) ||
+			credentialInstanceId ||
 			freshClientId ||
 			FREEBUFF_DEFAULT_CLIENT_ID;
 
 		// Start a new run with the fresh session
-		const freshRunId = await this.startRun(token, signal, proxyOptions, log);
+		const freshRunId = await this.startRun(
+			token,
+			signal,
+			proxyOptions,
+			log,
+			freshInstanceId,
+		);
 
 		// Build new body with fresh session data
 		const freshBody = this.buildEnhancedBody(

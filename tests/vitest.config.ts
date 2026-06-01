@@ -58,14 +58,6 @@ export default defineConfig({
 	},
 	resolve: {
 		alias: {
-			"@axonrouter/tunnel/cloudflared": resolve(
-				__dirname,
-				"../packages/tunnel/src/cloudflared.ts",
-			),
-			"@axonrouter/tunnel/tailscale": resolve(
-				__dirname,
-				"../packages/tunnel/src/tailscale.ts",
-			),
 			"@axonrouter/tunnel/ngrok": resolve(
 				__dirname,
 				"../packages/tunnel/src/ngrok.ts",

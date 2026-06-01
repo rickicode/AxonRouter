@@ -15,4 +15,15 @@ describe("openai stream think guard", () => {
     expect(source).toContain('indexOf("</think>")');
     expect(source).toContain("delta.reasoning_content = reasoning");
   });
+
+  it("synthesizes a final finish_reason chunk for passthrough streams that end without one", async () => {
+    const source = await fs.readFile(streamPath, "utf8");
+
+    expect(source).toContain("passthroughFinishReasonSeen");
+    expect(source).toContain("buildSyntheticOpenAIFinishChunk");
+    expect(source).toContain("shouldSynthesizeOpenAIFinishChunk");
+    expect(source).toContain("sourceFormat === FORMATS.OPENAI");
+    expect(source).toContain('finish_reason: "stop"');
+    expect(source).toContain('trimmed.slice(5).trim() === "[DONE]"');
+  });
 });

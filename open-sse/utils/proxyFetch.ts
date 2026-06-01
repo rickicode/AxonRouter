@@ -391,7 +391,7 @@ export async function proxyAwareFetch(url, options: any = {}, proxyOptions: any 
     try {
       const relayResponse = await originalFetch(relayUrl, { ...options, headers: relayHeaders });
 
-      // Detect HTML error pages from relay (rate limits, Cloudflare blocks, nginx errors)
+      // Detect HTML error pages from relay (rate limits, provider blocks, nginx errors)
       if (isRelayHtmlError(relayResponse)) {
         const ct = relayResponse.headers.get("content-type") || "(none)";
         console.warn(`[ProxyFetch] Relay returned HTML error (likely rate limit/block), status=${relayResponse.status}, content-type=${ct}`);

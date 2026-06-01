@@ -25,9 +25,6 @@ type LoginAttemptRecord = {
 type LoginSettings = {
   password?: string;
   auditLogEnabled?: boolean;
-  tunnelDashboardAccess?: boolean;
-  tunnelUrl?: string;
-  tailscaleUrl?: string;
 };
 
 const loginAttempts = new Map<string, LoginAttemptRecord>();
@@ -100,24 +97,6 @@ async function resetRateLimit(ip: string) {
   }
 }
 
-function isTunnelRequest(request: Request, settings: LoginSettings) {
-  const host = (request.headers.get("host") || "").split(":")[0].toLowerCase();
-
-  const getTunnelHost = (url?: string) => {
-    if (!url) return "";
-    try {
-      return new URL(url).hostname.toLowerCase();
-    } catch {
-      return "";
-    }
-  };
-
-  const tunnelHost = getTunnelHost(settings.tunnelUrl);
-  const tailscaleHost = getTunnelHost(settings.tailscaleUrl);
-
-  return (tunnelHost && host === tunnelHost) || (tailscaleHost && host === tailscaleHost);
-}
-
 export async function POST(request: Request) {
   try {
     assertProductionConfigReady();
@@ -150,27 +129,15 @@ export async function POST(request: Request) {
 
     const { password } = (await request.json()) as { password?: string };
 
-    if (isTunnelRequest(request, settings) && settings.tunnelDashboardAccess !== true) {
-      if (settings?.auditLogEnabled) {
-        auditLog.log("login_attempt", {
-          ip: clientIP,
-          success: false,
-          reason: "tunnel_access_disabled",
-        });
-      }
-      return NextResponse.json({ error: "Dashboard access via tunnel is disabled" }, { status: 403 });
-    }
-
     const storedHash = settings.password;
 
     // AUTOFIX F01: when no password is configured (storedHash is empty/null) and this
     // is a non-localhost (tunnel/remote) request, reject login. The default password
     // must never be accepted over a network-exposed endpoint — the admin must set a
     // real password via localhost first before enabling remote/tunnel access.
-    const isRemoteRequest = isTunnelRequest(request, settings) ||
-      !["127.0.0.1", "::1"].some(
-        (local) => (getClientIP(request, settings) || "").startsWith(local)
-      );
+    const isRemoteRequest = !["127.0.0.1", "::1"].some(
+      (local) => (getClientIP(request, settings) || "").startsWith(local)
+    );
     if (!storedHash && isRemoteRequest) {
       if (settings?.auditLogEnabled) {
         auditLog.log("login_attempt", {

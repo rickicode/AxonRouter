@@ -1,8 +1,6 @@
 # v0.6.0 (2025-05-26)
 
 ## Removed
-- **Cloud Worker System**: Removed entire cloud worker infrastructure including CloudSync, CloudWorkerClient, CloudRequestAuth, CloudUrlResolver, CloudUsageSync, CloudSyncScheduler, CloudUsagePoller, and all cloud API routes (`/api/cloud/`, `/api/cloud-urls/`). The `cloud/` directory (D1 worker service) and `WorkerProxy/` directory (Cloudflare relay proxy) have been fully deleted.
-- **R2 Backup/Restore System**: Removed all R2 backup infrastructure including R2BackupClient, R2BackupScheduler, R2ObjectClient, R2RuntimeArtifacts, R2RuntimePublisher, R2SqliteFingerprint, and R2 API routes (`/api/r2/`). R2 settings UI removed from dashboard.
 - **Usage Worker Process**: Removed the isolated background usage worker process (`src/lib/usageWorker/`). Usage scheduling for provider quota checks now runs in-process via the existing `usageRefreshQueue` system, which is more efficient for binary/production deployments.
 - **node-machine-id dependency**: Removed external `node-machine-id` package that used `require()` incompatible with ESM.
 - **CloudTab UI**: Removed cloud endpoint management tab from dashboard.
@@ -18,7 +16,6 @@
 
 ## Notes
 - **WorkerRelay** can be used as a relay proxy alternative for remote access scenarios that previously relied on CloudWorker/WorkerProxy.
-- The cloudflared tunnel system is preserved and remains the primary remote access method.
 - The `usageRefreshQueue` (in-process provider usage checking) and `connectionUsageRefresh` systems are preserved - these handle provider quota snapshot checking efficiently without a separate process.
 
 # v0.5.4 (2026-05-10)
@@ -163,7 +160,6 @@
 - Enhance CodexExecutor with compact URL support
 
 ## Improvements
-- Enhance Windows Tailscale installation with curl support and fallback to well-known Windows path
 - Refactor execSync and spawn calls with windowsHide option for better Windows compatibility
 
 ## Fixes
@@ -173,7 +169,6 @@
 # v0.3.89 (2026-04-13)
 
 ## Improvements
-- Improved dashboard access control by blocking tunnel/Tailscale access when disabled
 
 # v0.3.87 (2026-04-13)
 

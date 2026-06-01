@@ -147,7 +147,7 @@ function EmbeddingExampleCard({ providerId }) {
       .catch(() => {});
     fetch("/api/tunnel/status")
       .then((r) => r.json())
-      .then((d) => { if (d.publicUrl) setTunnelEndpoint(d.publicUrl); })
+      .then((d) => { if (d.ngrok?.publicUrl) setTunnelEndpoint(d.ngrok.publicUrl); })
       .catch(() => {});
   }, []);
 
@@ -374,7 +374,7 @@ function TtsExampleCard({ providerId }) {
       .catch(() => {});
     fetch("/api/tunnel/status")
       .then((r) => r.json())
-      .then((d) => { if (d.publicUrl) setTunnelEndpoint(d.publicUrl); })
+      .then((d) => { if (d.ngrok?.publicUrl) setTunnelEndpoint(d.ngrok.publicUrl); })
       .catch(() => {});
 
     // Pre-select default voice based on provider config
@@ -880,7 +880,7 @@ function GenericExampleCard({ providerId, kind }) {
       .catch(() => {});
     fetch("/api/tunnel/status")
       .then((r) => r.json())
-      .then((d) => { if (d.publicUrl) setTunnelEndpoint(d.publicUrl); })
+      .then((d) => { if (d.ngrok?.publicUrl) setTunnelEndpoint(d.ngrok.publicUrl); })
       .catch(() => {});
   }, []);
 

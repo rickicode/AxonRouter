@@ -226,7 +226,7 @@ export async function POST(request: Request) {
     if (isLocalhostUrl(baseUrl)) {
       return NextResponse.json(
         {
-          error: "Claude Cowork sandbox cannot reach localhost. Enable Tunnel/Cloud Endpoint or use Tailscale/VPS.",
+          error: "Claude Cowork sandbox cannot reach localhost. Use an external HTTPS endpoint or VPS.",
         },
         { status: 400 }
       );

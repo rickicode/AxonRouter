@@ -153,11 +153,6 @@ export const isCloud =
 	typeof caches !== "undefined" && typeof caches === "object";
 
 const DEFAULT_SETTINGS = {
-	tunnelEnabled: false,
-	tunnelUrl: "",
-	tunnelProvider: "cloudflare",
-	tailscaleEnabled: false,
-	tailscaleUrl: "",
 	routing: {
 		strategy: "fill-first",
 		stickyLimit: 3,
@@ -176,7 +171,6 @@ const DEFAULT_SETTINGS = {
 	roundRobin: false,
 	sticky: false,
 	stickyDuration: 300,
-	tunnelDashboardAccess: true,
 	observabilityEnabled: true,
 	observabilityMaxRecords: 1000,
 	observabilityBatchSize: 20,

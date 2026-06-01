@@ -4,7 +4,6 @@ import { describe, it, expect } from "vitest";
 // Mock the settings merge function
 function mergeSettingsWithDefaults(settings = {}) {
   const DEFAULT_SETTINGS = {
-    tunnelDashboardAccess: true,
     ipWhitelist: ["127.0.0.1", "::1", "172.17.0.0/16", "192.168.0.0/16"],
     trustedProxyEnabled: false,
     auditLogEnabled: true,

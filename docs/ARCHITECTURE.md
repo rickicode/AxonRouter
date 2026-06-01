@@ -18,7 +18,7 @@ Core capabilities:
 - Usage/cost tracking and request logging
 - Morph intelligence layer (auto-routing, key failover, instruction injection, reasoning normalization)
 - Caveman control surface with implemented dashboard/config/modifier layers active on the main chat request pipeline for translated and native passthrough chat paths
-- Tunnel system (Cloudflare Quick Tunnel + Tailscale Funnel) for remote access
+- Ngrok tunnel support for optional remote access
 - SQLite-backed primary state store with migration from JSON
 - Custom skills CRUD and import/export
 - Proxy pools for provider connection outbound routing
@@ -42,7 +42,7 @@ Primary runtime model:
 - Local state + usage persistence (SQLite-backed with JSON migration)
 - Morph intelligence layer (auto-routing, key failover, instruction injection, reasoning)
 - Caveman concise-output controls with dashboard/config support active on the main chat request pipeline
-- Tunnel system (Cloudflare Quick Tunnel + Tailscale Funnel)
+- Ngrok tunnel support
 - Custom skills management (CRUD, import/export)
 - Proxy pools for outbound provider routing
 - Opencode sync integration
@@ -52,7 +52,6 @@ Primary runtime model:
 
 - Provider SLA/control plane outside local process
 - External CLI binaries themselves (Claude CLI, Codex CLI, etc.)
-- Cloudflare/Tailscale infrastructure (only client-side tunnel management)
 
 ## High-Level System Context
 
@@ -72,7 +71,7 @@ flowchart LR
         DASH[Dashboard + Management API\n/api/*]
         CORE[SSE + Translation Core\nopen-sse + src/sse]
         MORPH[Morph Intelligence\nsrc/lib/morph +\napi/morph]
-        TUNNEL[Tunnel Manager\nCloudflare + Tailscale]
+        TUNNEL[Ngrok Tunnel Manager]
         DB[(db.sqlite)]
         UDB[(usage.sqlite)]
         MDB[(usage.sqlite morph tables)]
@@ -146,7 +145,7 @@ Management domains:
 - Keys/aliases/combos/pricing: `src/app/api/keys*`, `src/app/api/models`, `src/app/api/combos*`, `src/app/api/pricing`
 - Usage: `src/app/api/usage/*`
 - CLI tooling helpers: `src/app/api/cli-tools/*`
-- Tunnel: `src/app/api/tunnel/*` (Cloudflare Quick Tunnel + Tailscale Funnel)
+- Tunnel: `src/app/api/tunnel/*` (ngrok status/start/stop)
 - Morph: `src/app/api/morph/*` (Morph capability dispatch)
 - Skills: `src/app/api/skills/*` (custom skills CRUD)
 - Tags: `src/app/api/tags/*` (Ollama model tags)
@@ -220,7 +219,6 @@ Request Details DB:
 - Local trusted requests can bypass the dashboard login prompt for management setup flows
 - IP-based rate limiting on login (5 attempts per 5 min, 429 + Retry-After)
 - Security audit logging: `src/lib/security/auditLog.ts` (JSON-line file, rotated up to 3 files, 10MB threshold)
-- Tunnel access control: `isTunnelRequest()` blocks auth for tunnel hosts unless `tunnelDashboardAccess` is enabled
 - API key generation/verification: `src/shared/utils/apiKey.ts`
 - Internal proxy tokens: `src/lib/internalProxyTokens.ts` (32-byte resolve/report tokens, 30s TTL cache)
 - IP whitelist/CIDR validation: `src/lib/security/ipValidator.ts`
@@ -484,7 +482,7 @@ flowchart LR
 
     subgraph External[External Services]
         Providers[AI Providers]
-        Tunnel[Tunnel Endpoints\nCloudflare/Tailscale]
+        Tunnel[Ngrok Endpoint]
     end
 
     CLI --> Next
@@ -799,22 +797,14 @@ Translations are selected dynamically based on source payload shape and provider
 - sync errors are surfaced but local runtime continues
 - worker status persisted (online/offline/unauthorized/not_registered/error)
 - scheduler has retry-capable logic, single-attempt sync by default
-- R2 publish failures block sync but do not stop local operation
 
 ## 5) Data Integrity
 
 - SQLite schema migration + index repair on bootstrap
 - JSON→SQLite migration with validation
 - corrupt JSON reset safeguards for localDb and usageDb
-- R2 restore creates local DB backup before replacement
 
-## 6) Tunnel Resilience
-
-- Cloudflare tunnel reconnect backoff (5s→10s→20s→30s→60s)
-- Tailscale daemon auto-start with login recovery
-- Manual disable vs unexpected exit distinction prevents reconnect storms
-
-## 7) Morph Key Failover
+## 6) Morph Key Failover
 
 - API key round-robin with cursor per rotation key
 - retryable error detection (status codes + error messages)
@@ -840,9 +830,7 @@ Runtime visibility sources:
 - API key HMAC secret (`API_KEY_SECRET`) secures generated local API key format
 - Provider secrets (API keys/tokens) are persisted in local DB and should be protected at filesystem level
 - Cloud worker endpoints rely on `cloudSharedSecret` for authentication
-- R2 encryption key (`r2BackupEncryptionKey`) protects backup artifacts (AES-256-GCM)
 - Internal proxy tokens (`resolveToken`/`reportToken`) for credential resolution
-- Tunnel access control: `tunnelDashboardAccess` flag blocks dashboard auth from tunnel hosts
 - IP whitelist (`ipWhitelist` + CIDR matching) with trusted proxy mode (`trustedProxyEnabled`)
 - Audit logging (`auditLogEnabled`) with log rotation (3 files, 10MB threshold)
 - Login rate limiting (5 attempts/15min per IP, 429 + Retry-After)
@@ -872,11 +860,8 @@ Runtime default source:
 
 Components:
 
-- `src/lib/tunnel/tunnelManager.ts`: orchestrates Cloudflare + Tailscale tunnels
-- `src/lib/tunnel/cloudflared.ts`: Cloudflare Quick Tunnel (auto-download binary, PID tracking, reconnect backoff)
-- `src/lib/tunnel/tailscale.ts`: Tailscale Funnel (install/daemon/login/funnel management)
-- `src/lib/tunnel/state.ts`: tunnel state persistence in SQLite (`tunnelState` singleton)
-- `src/app/api/tunnel/*`: enable/disable/status routes
+- `packages/tunnel/src/ngrok.ts`: ngrok tunnel start/stop/status helpers
+- `src/app/api/tunnel/*`: ngrok start/stop/status routes
 
 Generates vanity URL `https://r<shortId>.axonrouter.com` and registers with worker endpoint.
 
@@ -947,52 +932,9 @@ flowchart LR
 - `src/app/api/outcome-intelligence/*`: spend, enterprise, and virtual-model insight summaries
 
 ### Worker Relay Proxy
-- `WorkerProxy/`: standalone Cloudflare Worker relay proxy for outbound provider routing
+- `WorkerProxy/`: standalone relay proxy for outbound provider routing
 - Uses `x-relay-target` + `x-relay-path` headers, restricts forwarding to `https://` targets, and supports optional host allowlists
 - Intended for Proxy Pools relay deployments rather than as the primary app runtime
-
-### Cloud Worker Infrastructure
-
-Cloudflare Worker deployment (`cloud/` directory) with edge routing and Morph bridge:
-
-- `cloud/src/index.js`: main worker entry point with route dispatch
-- `cloud/src/morphBridge.js`: Morph capability bridge (apply/warpgrep/compact/embeddings/rerank)
-
-Worker handlers:
-- `admin.js`: admin operations (register/unregister/sync/status/reload)
-- `cache.js`: cache management
-- `chat.ts`: chat completions handler
-- `cleanup.js`: cleanup and resource management
-- `countTokens.js`: token counting
-- `embeddings.ts`: embeddings handler
-- `forward.js` + `forwardRaw.js`: request forwarding
-- `health.js`: health checks
-- `sync.js`: sync from main instance
-- `testClaude.js`: Claude test endpoint
-- `usage.ts`: usage reporting
-- `verify.js`: worker verification
-
-Worker services:
-- `adminLogs.js`: admin log management
-- `landingPage.js`: landing page for unregistered workers
-- `routing.js`: request routing logic
-- `runtimeConfig.ts`: runtime configuration
-- `state.ts`: worker state management
-- `storage.js`: Durable Objects storage
-- `tokenRefresh.ts`: token refresh
-- `usage.ts`: usage aggregation
-
-Worker utilities:
-- `apiKey.ts`: API key validation
-- `logger.js`: worker logging
-- `secret.js`: secret management
-
-Worker stubs (replacements for local-only modules):
-- `codexInstructionsResolver.ts`: Codex instructions stub
-- `undici.js`: HTTP client stub
-- `usageDb.js`: worker-side usage DB stub
-
-Deployed as remote nodes managed by `cloud-urls` API. Wrangler configuration in `wrangler.toml`.
 
 ### MITM Proxy System (`src/mitm/`)
 
@@ -1024,12 +966,9 @@ Transparent HTTPS interception proxy for provider credential capture:
 4. Primary state is now SQLite-backed (`db.sqlite`); JSON `db.json` path exists only for migration.
 5. `usageDb` now follows `~/.axonrouter` with SQLite-first storage in `~/.axonrouter/usage.sqlite`, while legacy `usage.json` reads remain fallback-only for older data.
 6. `/api/v1/route.ts` returns a static model list and is not the main models source used by `/v1/models`.
-7. Cloud sync now requires private R2 configuration; old env-based cloud URL fallback removed.
-8. `ENABLE_REQUEST_LOGS=true` writes full headers/body; treat log directory as sensitive.
-9. Audit log at `~/.axonrouter/audit.log` captures login events when enabled.
-10. Tunnel manager registers Cloudflare tunnel to worker endpoint (`TUNNEL_WORKER_URL`, default `https://axonrouter.com`).
-11. Morph auto-routing (`morph/auto`, `morph/auto-manual`) requires Morph API keys configured in settings.
-12. Cloud worker sync requires valid `r2Config` and `cloudSharedSecret` before publishing.
+7. `ENABLE_REQUEST_LOGS=true` writes full headers/body; treat log directory as sensitive.
+8. Audit log at `~/.axonrouter/audit.log` captures login events when enabled.
+9. Morph auto-routing (`morph/auto`, `morph/auto-manual`) requires Morph API keys configured in settings.
 13. Request details store uses configurable sampling; observability mode controls persistence volume.
 14. OpenTelemetry settings live under `settings.observability.otel`; the OTLP HTTP exporter is lazy-initialized and reused with periodic settings reload.
 15. `/v1/*` tracing includes HTTP metadata plus route/model/provider attributes, and streaming responses record first-chunk timing before span completion.

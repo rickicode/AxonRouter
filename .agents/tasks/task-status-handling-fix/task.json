@@ -1,7 +1,0 @@
-{
-  "task_id": "task-status-handling-fix",
-  "task_description": "Fix connection status handling: (1) Timeout/rate-limit errors (429, 502, 504) should never change status to 'blocked' - they are transient and should keep connections 'eligible'. (2) All confirmed auth-invalid errors should set status to 'disabled' (not 'blocked'), since invalid tokens require manual re-auth and never self-recover.",
-  "status": "in_progress",
-  "feature_order": ["FEAT-001"],
-  "blocked_reason": null
-}

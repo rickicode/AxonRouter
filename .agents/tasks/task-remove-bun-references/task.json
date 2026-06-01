@@ -1,7 +1,0 @@
-{
-  "task_id": "task-remove-bun-references",
-  "task_description": "Remove all Bun references from the AxonRouter project and make it fully npm/Node.js only. This includes removing bun.lock, updating package.json scripts, removing Bun SQLite adapters from three core files, cleaning up bin/axonrouter.js, updating the Dockerfile to use Node.js base image, updating CI workflows, and cleaning all documentation.",
-  "status": "in_progress",
-  "feature_order": ["FEAT-001", "FEAT-002"],
-  "blocked_reason": null
-}

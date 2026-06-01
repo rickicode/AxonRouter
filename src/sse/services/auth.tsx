@@ -77,6 +77,15 @@ function sortByRecencyAsc(connections: any[] = []) {
 	});
 }
 
+function getConnectionDisplayName(connection: any = {}) {
+	return (
+		connection.email ||
+		connection.displayName ||
+		connection.name ||
+		(typeof connection.id === "string" ? connection.id.slice(0, 8) : "unknown")
+	);
+}
+
 function hasFutureTimestamp(value) {
 	if (!value) return false;
 	const timestamp = new Date(value).getTime();
@@ -257,6 +266,7 @@ function buildSelectionPool(
 		const earliest = expiries.sort()[0] || null;
 		if (earliest) {
 			const earliestConn = lockedConns[0];
+			const lockedNames = lockedConns.map(getConnectionDisplayName).join(", ");
 			log.warn(
 				"AUTH",
 				`${provider} | all ${connections.length} accounts locked for ${model || "all"} (${formatRetryAfter(earliest)}) | reason=${earliestConn?.reasonDetail?.slice(0, 50)}`,
@@ -268,7 +278,9 @@ function buildSelectionPool(
 					allRateLimited: true,
 					retryAfter: earliest,
 					retryAfterHuman: formatRetryAfter(earliest),
-					lastError: earliestConn?.reasonDetail || null,
+					lastError:
+						earliestConn?.reasonDetail ||
+						`All ${provider} accounts locked for ${model || "all"}: ${lockedNames}`,
 					lastErrorCode: earliestConn?.reasonCode || null,
 				},
 			};
@@ -1011,6 +1023,8 @@ function isProviderRequestValidationError(status, errorText, provider = null) {
 		normalized.includes("badrequest") ||
 		normalized.includes("unsupported") ||
 		normalized.includes("unknown field") ||
+		(normalized.includes("reasoning_content") &&
+			normalized.includes("thinking mode")) ||
 		(normalized.includes("json") && normalized.includes("schema"))
 	) {
 		return true;

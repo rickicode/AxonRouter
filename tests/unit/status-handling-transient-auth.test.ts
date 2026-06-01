@@ -226,6 +226,38 @@ describe("markAccountUnavailable does not produce 'blocked' for transient status
 		expect(patchArg.routingStatus).not.toBe("blocked");
 	});
 
+	it("does not block Freebuff accounts for reasoning_content thinking-mode request errors", async () => {
+		mockConnections.push({
+			id: "conn-freebuff-thinking-mode",
+			provider: "freebuff",
+			isActive: true,
+			priority: 1,
+			displayName: "Freebuff thinking mode",
+			apiKey: "token",
+			routingStatus: "eligible",
+			authState: "ok",
+			backoffLevel: 0,
+		});
+
+		const { markAccountUnavailable } = await import(
+			"../../src/sse/services/auth.tsx"
+		);
+
+		const result = await markAccountUnavailable(
+			"conn-freebuff-thinking-mode",
+			400,
+			'[400]: {"error":{"message":"The `reasoning_content` in the thinking mode must be passed back to the API.","code":"invalid_request_error","type":"invalid_request_error"}}',
+			"freebuff",
+			"deepseek/deepseek-v4-flash",
+		);
+
+		expect(result).toEqual({ shouldFallback: false, cooldownMs: 0 });
+		expect(checkFallbackError).not.toHaveBeenCalled();
+		expect(buildModelLockUpdate).not.toHaveBeenCalled();
+		expect(updateCurrentProviderConnection).not.toHaveBeenCalled();
+		expect(syncUsageStatus).not.toHaveBeenCalled();
+	});
+
 	it("status 502 does not produce routingStatus 'blocked' in the fallback path", async () => {
 		mockConnections.push({
 			id: "conn-502-test",

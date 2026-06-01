@@ -5,9 +5,6 @@
   "main": "src/index.ts",
   "types": "src/index.ts",
   "private": true,
-  "dependencies": {
-    "@axonrouter/data-dir": "*"
-  },
   "engines": {
     "node": ">=22.6.0"
   }

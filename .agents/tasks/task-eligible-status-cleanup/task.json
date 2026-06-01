@@ -1,7 +1,0 @@
-{
-  "task_id": "task-eligible-status-cleanup",
-  "task_description": "Ensure eligible connections have NO dirty metadata (reasonCode, reasonDetail, healthStatus != healthy) and fix authState invalid/revoked to map to 'disabled' not 'blocked' in the centralized status resolver.",
-  "status": "in_progress",
-  "feature_order": ["FEAT-001"],
-  "blocked_reason": null
-}

@@ -161,6 +161,10 @@ export function createSSEStream(options: any = {}) {
 	let accumulatedContent = "";
 	let accumulatedThinking = "";
 	let ttftAt = null;
+	let passthroughFinishReasonSeen = false;
+	let passthroughDoneSeen = false;
+	let passthroughChunkId = null;
+	let passthroughCreated = null;
 	const thinkState = createThinkStreamState();
 
 	// Single-point guarantee: if cloaking was applied on the request path,
@@ -178,6 +182,34 @@ export function createSSEStream(options: any = {}) {
 	function emit(output, controller) {
 		reqLogger?.appendConvertedChunk?.(output);
 		controller.enqueue(sharedEncoder.encode(output));
+	}
+
+	function buildSyntheticOpenAIFinishChunk() {
+		const finalChunk: any = {
+			id: passthroughChunkId || `chatcmpl-${Date.now()}`,
+			object: "chat.completion.chunk",
+			created: passthroughCreated || Math.floor(Date.now() / 1000),
+			model: model || "unknown",
+			choices: [{ index: 0, delta: {}, finish_reason: "stop" }],
+		};
+
+		if (hasValidUsage(usage)) {
+			finalChunk.usage = filterUsageForFormat(
+				addBufferToUsage(usage),
+				FORMATS.OPENAI,
+			);
+		} else if (totalContentLength > 0) {
+			const estimated = estimateUsage(body, totalContentLength, FORMATS.OPENAI);
+			finalChunk.usage = filterUsageForFormat(estimated, FORMATS.OPENAI);
+			usage = estimated;
+		}
+
+		passthroughFinishReasonSeen = true;
+		return `data: ${JSON.stringify(finalChunk)}\n\n`;
+	}
+
+	function shouldSynthesizeOpenAIFinishChunk() {
+		return sourceFormat === FORMATS.OPENAI && !passthroughFinishReasonSeen;
 	}
 
 	return new TransformStream({
@@ -209,6 +241,16 @@ export function createSSEStream(options: any = {}) {
 
 						if (
 							trimmed.startsWith("data:") &&
+							trimmed.slice(5).trim() === "[DONE]"
+						) {
+							if (shouldSynthesizeOpenAIFinishChunk()) {
+								emit(buildSyntheticOpenAIFinishChunk(), controller);
+							}
+							passthroughDoneSeen = true;
+						}
+
+						if (
+							trimmed.startsWith("data:") &&
 							trimmed.slice(5).trim() !== "[DONE]"
 						) {
 							try {
@@ -219,6 +261,12 @@ export function createSSEStream(options: any = {}) {
 								}
 
 								const idFixed = fixInvalidId(parsed);
+								if (typeof parsed.id === "string" && parsed.id.trim()) {
+									passthroughChunkId = parsed.id;
+								}
+								if (typeof parsed.created === "number") {
+									passthroughCreated = parsed.created;
+								}
 
 								// Ensure OpenAI-required fields are present on streaming chunks (Letta compat)
 								let fieldsInjected = false;
@@ -278,6 +326,9 @@ export function createSSEStream(options: any = {}) {
 								}
 
 								const isFinishChunk = parsed.choices?.[0]?.finish_reason;
+								if (isFinishChunk) {
+									passthroughFinishReasonSeen = true;
+								}
 								if (isFinishChunk && !hasValidUsage(parsed.usage)) {
 									const estimated = estimateUsage(
 										body,
@@ -502,7 +553,12 @@ export function createSSEStream(options: any = {}) {
 					// Some clients (e.g. OpenClaw) expect the OpenAI-style sentinel:
 					//   data: [DONE]\n\n
 					// Without it they can hang until timeout and trigger failover.
-					emit("data: [DONE]\n\n", controller);
+					if (shouldSynthesizeOpenAIFinishChunk()) {
+						emit(buildSyntheticOpenAIFinishChunk(), controller);
+					}
+					if (!passthroughDoneSeen) {
+						emit("data: [DONE]\n\n", controller);
+					}
 
 					if (onStreamComplete) {
 						onStreamComplete(

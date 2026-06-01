@@ -10,10 +10,7 @@
     "resolveJsonModule": true,
     "isolatedModules": true,
     "types": ["node"],
-    "baseUrl": ".",
-    "paths": {
-      "@axonrouter/data-dir": ["../data-dir/src"]
-    }
+    "baseUrl": "."
   },
   "include": ["src/**/*.ts"]
 }

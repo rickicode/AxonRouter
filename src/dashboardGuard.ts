@@ -85,18 +85,6 @@ async function loadSettings() {
 	}
 }
 
-function getTunnelHostname(tunnelUrl) {
-	if (!tunnelUrl || typeof tunnelUrl !== "string") return "";
-	try {
-		const url = new URL(tunnelUrl);
-		// Only allow http/https protocols
-		if (!["http:", "https:"].includes(url.protocol)) return "";
-		return url.hostname.toLowerCase();
-	} catch {
-		return ""; // Invalid URL format
-	}
-}
-
 async function logAudit(event: string, data: Record<string, unknown>) {
 	const { auditLog } = await import("@/lib/security/auditLog");
 	auditLog.log(event, data);
@@ -171,40 +159,6 @@ export async function proxy(request) {
 
 	// Protect all dashboard routes
 	if (pathname.startsWith("/app")) {
-		let tunnelDashboardAccess = true;
-
-		try {
-			if (settings) {
-				tunnelDashboardAccess = settings.tunnelDashboardAccess === true;
-
-				// Block tunnel/tailscale access if disabled
-				if (!tunnelDashboardAccess) {
-					const host = (request.headers.get("host") || "")
-						.split(":")[0]
-						.toLowerCase();
-					const tunnelHost = getTunnelHostname(settings.tunnelUrl);
-					const tailscaleHost = getTunnelHostname(settings.tailscaleUrl);
-
-					if (
-						(tunnelHost && host === tunnelHost) ||
-						(tailscaleHost && host === tailscaleHost)
-					) {
-						if (settings?.auditLogEnabled) {
-							await logAudit("tunnel_access_attempt", {
-								ip: clientIP,
-								host,
-								allowed: false,
-								tunnelUrl: settings.tunnelUrl || settings.tailscaleUrl,
-							});
-						}
-						return NextResponse.redirect(new URL("/login", request.url));
-					}
-				}
-			}
-		} catch {
-			// On error, keep defaults
-		}
-
 		// Verify PASETO token
 		const tokenState = await verifyManagementToken(request);
 		if (tokenState.ok) {

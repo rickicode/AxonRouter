@@ -12,7 +12,9 @@ import {
   isValidFreebuffCombo,
   getFreebuffSession,
   joinFreebuffSession,
+  parseFreebuffRetryAfterMs,
   resolveFreebuffClientId,
+  resolveFreebuffInstanceId,
   startFreebuffRun,
   sendFreebuffCompletion,
 } from "../../src/lib/freebuff/probe.ts";
@@ -79,16 +81,32 @@ describe("freebuff probe helpers", () => {
     expect(extractFreebuffFingerprint({ instanceId: "fp-123" })).toBe("fp-123");
   });
 
+  it("parses Freebuff retry hints from quota responses", () => {
+    expect(parseFreebuffRetryAfterMs({ retryAfterMs: 12_000 })).toBe(12_000);
+    expect(parseFreebuffRetryAfterMs({
+      error: "free_mode_rate_limited",
+      message: "Free mode rate limit exceeded (30 minutes limit). Try again in 6 minutes.",
+    })).toBe(6 * 60 * 1000);
+    expect(parseFreebuffRetryAfterMs({ message: "Try again in 45 seconds." })).toBe(45 * 1000);
+  });
+
   it("resolves the freebuff client id from imported runtime metadata", () => {
     expect(resolveFreebuffClientId({
+      providerSpecificData: { instanceId: "inst-123", fingerprint: "fp-123" },
+    })).toBe("inst-123");
+    expect(resolveFreebuffInstanceId({
       providerSpecificData: { instanceId: "inst-123", fingerprint: "fp-123" },
     })).toBe("inst-123");
 
     expect(resolveFreebuffClientId({
       providerSpecificData: { fingerprint: "fp-123" },
     })).toBe("fp-123");
+    expect(resolveFreebuffInstanceId({
+      providerSpecificData: { fingerprint: "fp-123" },
+    })).toBe("fp-123");
 
     expect(resolveFreebuffClientId({})).toBe("axonrouter-freebuff-probe");
+    expect(resolveFreebuffInstanceId({})).toBeUndefined();
   });
 
   it("calls the expected endpoints for session, run, and completion probes", async () => {
@@ -99,8 +117,8 @@ describe("freebuff probe helpers", () => {
 
     global.fetch = fetchMock as any;
 
-    const session = await getFreebuffSession("token-abc");
-    const run = await startFreebuffRun("token-abc");
+    const session = await getFreebuffSession("token-abc", "inst-1");
+    const run = await startFreebuffRun("token-abc", FREEBUFF_DEFAULT_AGENT_ID, "inst-1");
     const completion = await sendFreebuffCompletion("token-abc", {
       runId: "run-1",
       prompt: "hello",
@@ -114,13 +132,17 @@ describe("freebuff probe helpers", () => {
     expect(fetchMock).toHaveBeenNthCalledWith(
       1,
       "https://www.codebuff.com/api/v1/freebuff/session",
-      expect.objectContaining({ method: "GET" }),
+      expect.objectContaining({
+        method: "GET",
+        headers: expect.objectContaining({ "X-Freebuff-Instance-Id": "inst-1" }),
+      }),
     );
     expect(fetchMock).toHaveBeenNthCalledWith(
       2,
       "https://www.codebuff.com/api/v1/agent-runs",
       expect.objectContaining({
         method: "POST",
+        headers: expect.objectContaining({ "X-Freebuff-Instance-Id": "inst-1" }),
         body: JSON.stringify({ action: "START", agentId: FREEBUFF_DEFAULT_AGENT_ID }),
       }),
     );
@@ -129,6 +151,7 @@ describe("freebuff probe helpers", () => {
       "https://www.codebuff.com/api/v1/chat/completions",
       expect.objectContaining({
         method: "POST",
+        headers: expect.objectContaining({ "X-Freebuff-Instance-Id": "inst-1" }),
         body: expect.any(String),
       }),
     );
@@ -157,20 +180,24 @@ describe("freebuff probe helpers", () => {
 
     global.fetch = fetchMock as any;
 
-    const result = await ensureFreebuffSession("token-abc");
+    const result = await ensureFreebuffSession("token-abc", { instanceId: "inst-1" });
 
     expect(result.active).toBe(true);
     expect(result.join?.data).toMatchObject({ status: "active", instanceId: "inst-1" });
     expect(fetchMock).toHaveBeenNthCalledWith(
       1,
       "https://www.codebuff.com/api/v1/freebuff/session",
-      expect.objectContaining({ method: "GET" }),
+      expect.objectContaining({
+        method: "GET",
+        headers: expect.objectContaining({ "X-Freebuff-Instance-Id": "inst-1" }),
+      }),
     );
     expect(fetchMock).toHaveBeenNthCalledWith(
       2,
       "https://www.codebuff.com/api/v1/freebuff/session",
       expect.objectContaining({
         method: "POST",
+        headers: expect.objectContaining({ "X-Freebuff-Instance-Id": "inst-1" }),
         body: JSON.stringify({ model: FREEBUFF_DEFAULT_MODEL }),
       }),
     );
@@ -182,13 +209,14 @@ describe("freebuff probe helpers", () => {
 
     global.fetch = fetchMock as any;
 
-    const join = await joinFreebuffSession("token-abc");
+    const join = await joinFreebuffSession("token-abc", FREEBUFF_DEFAULT_MODEL, "inst-1");
 
     expect(join.data).toMatchObject({ status: "rate_limited" });
     expect(fetchMock).toHaveBeenCalledWith(
       "https://www.codebuff.com/api/v1/freebuff/session",
       expect.objectContaining({
         method: "POST",
+        headers: expect.objectContaining({ "X-Freebuff-Instance-Id": "inst-1" }),
         body: JSON.stringify({ model: FREEBUFF_DEFAULT_MODEL }),
       }),
     );
