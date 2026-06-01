@@ -20,7 +20,6 @@ export default function BuilderStepsStage({
   stepInput,
   setStepInput,
   handleAddManualStep,
-  setShowModelSelect,
   handleAddComboReference,
   dragOverIndex,
   dragIndex,
@@ -147,27 +146,24 @@ export default function BuilderStepsStage({
         </div>
 
         {/* Manual Input Section */}
-        <div className="mt-4 flex gap-2">
-          <input
-            type="text"
-            value={stepInput}
-            onChange={(e) => setStepInput(e.target.value)}
-            placeholder="provider/model or ref:combo-name"
-            className="flex-1 rounded border border-[var(--color-border)] bg-[var(--color-input-bg)] px-3 py-2.5 text-xs text-[var(--color-text-main)] placeholder-[var(--color-text-muted)] focus:border-[var(--color-primary)] focus:outline-none transition-colors"
-          />
-          <button
-            onClick={handleAddManualStep}
-            className="rounded border border-[var(--color-border)] px-3 py-2 text-xs font-medium text-[var(--color-text-muted)] transition-colors hover:border-[var(--color-primary)] hover:text-[var(--color-primary)] cursor-pointer"
-          >
-            Add
-          </button>
-          <button
-            onClick={() => setShowModelSelect(true)}
-            className="rounded border border-[var(--color-border)] px-3 py-2 text-xs font-medium text-[var(--color-text-muted)] transition-colors hover:border-[var(--color-primary)] hover:text-[var(--color-primary)] cursor-pointer"
-          >
-            Pick Model
-          </button>
-        </div>
+        <details className="mt-4 rounded border border-[var(--color-border)] bg-[var(--color-bg-alt)] p-3">
+          <summary className="cursor-pointer text-[10px] font-medium uppercase tracking-wide text-[var(--color-text-muted)]">Manual input</summary>
+          <div className="mt-2 flex gap-2">
+            <input
+              type="text"
+              value={stepInput}
+              onChange={(e) => setStepInput(e.target.value)}
+              placeholder="provider/model or ref:combo-name"
+              className="flex-1 rounded border border-[var(--color-border)] bg-[var(--color-input-bg)] px-3 py-2.5 text-xs text-[var(--color-text-main)] placeholder-[var(--color-text-muted)] focus:border-[var(--color-primary)] focus:outline-none transition-colors"
+            />
+            <button
+              onClick={handleAddManualStep}
+              className="rounded border border-[var(--color-border)] px-3 py-2 text-xs font-medium text-[var(--color-text-muted)] transition-colors hover:border-[var(--color-primary)] hover:text-[var(--color-primary)] cursor-pointer"
+            >
+              Add
+            </button>
+          </div>
+        </details>
       </div>
 
       {/* Steps List */}
