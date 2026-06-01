@@ -64,7 +64,11 @@ describe("SuperGrok import route", () => {
 
     expect(response.status).toBe(400);
     const body = await response.json();
-    expect(body.error).toContain("required");
+    // Zod validateBody returns { error: { message: "Validation failed", details: [...] } }
+    expect(body.error).toBeDefined();
+    // The top-level message is "Validation failed"; the Zod refine message appears in details
+    const errorStr = JSON.stringify(body.error);
+    expect(errorStr).toMatch(/Validation failed|required/i);
   });
 
   it("valid refreshToken creates connection with provider=xai and authType=supergrok_oauth", async () => {

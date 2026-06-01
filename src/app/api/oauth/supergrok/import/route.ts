@@ -1,10 +1,27 @@
 import { NextResponse } from "next/server";
+import { z } from "zod";
 import { createCurrentProviderConnection } from "@/lib/connectionAccess";
 import { finalizePostConnectValidation } from "@/lib/oauth/postConnectValidation";
 import { SUPERGROK_CONFIG } from "@/lib/oauth/constants/oauth";
+import { validateBody, isValidationFailure } from "@/shared/validation/helpers";
 
 const BASE64_BLOCK_SIZE = 4;
 
+/** Schema for POST /api/oauth/supergrok/import request body */
+const ImportRequestSchema = z
+  .object({
+    refreshToken: z.string().min(1).optional(),
+    accessToken: z.string().min(1).optional(),
+    expiresIn: z.number().positive().optional(),
+  })
+  .refine((data) => data.refreshToken || data.accessToken, {
+    message: "Either refreshToken or accessToken is required",
+  });
+
+/**
+ * Extract email claim from a JWT access token payload.
+ * Returns undefined if the token is not a valid JWT or has no email-like claim.
+ */
 function extractEmailFromJwt(token: string): string | undefined {
   try {
     if (!token || typeof token !== "string") return undefined;
@@ -20,26 +37,21 @@ function extractEmailFromJwt(token: string): string | undefined {
   }
 }
 
-type ImportRequestBody = {
-  refreshToken?: string;
-  accessToken?: string;
-  expiresIn?: number;
-};
-
 /**
  * POST /api/oauth/supergrok/import
- * Import and validate SuperGrok OAuth credentials (headless flow)
+ * Import and validate SuperGrok OAuth credentials (headless flow).
+ * Accepts a refresh_token (preferred) or access_token, validates against xAI,
+ * and persists the connection for use in subsequent API calls.
  */
 export async function POST(request: Request) {
   try {
-    const { refreshToken, accessToken, expiresIn }: ImportRequestBody = await request.json();
-
-    if (!refreshToken && !accessToken) {
-      return NextResponse.json(
-        { error: "Either refreshToken or accessToken is required" },
-        { status: 400 }
-      );
+    const rawBody: unknown = await request.json().catch(() => ({}));
+    const validation = validateBody(ImportRequestSchema, rawBody);
+    if (isValidationFailure(validation)) {
+      return NextResponse.json({ error: validation.error }, { status: 400 });
     }
+
+    const { refreshToken, accessToken, expiresIn } = validation.data;
 
     let finalAccessToken = accessToken;
     let finalRefreshToken = refreshToken;

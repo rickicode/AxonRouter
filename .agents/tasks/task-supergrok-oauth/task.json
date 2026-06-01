@@ -2,7 +2,7 @@
   "task_id": "task-supergrok-oauth",
   "task_description": "Implement SuperGrok/xAI OAuth support so users with a SuperGrok subscription can use xAI-compatible chat, responses, and image generation endpoints without requiring an xAI API key. Adds OAuth authorization code flow with PKCE, headless import, token refresh, xAI image generation, and comprehensive tests.",
   "status": "completed",
-  "feature_order": ["FEAT-001", "FEAT-002"],
+  "feature_order": ["FEAT-001", "FEAT-002", "FEAT-003"],
   "blocked_reason": null,
   "verification": {
     "build": "pass",
