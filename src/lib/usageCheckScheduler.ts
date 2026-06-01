@@ -1,29 +1,18 @@
 import { getCurrentProviderConnections } from "@/lib/connectionAccess";
 import { getCurrentSettings } from "@/lib/settingsAccess";
-import { runDedupedUsageRefreshJob } from "@/lib/usageRefreshQueue";
-import { refreshUsageWithTransientSkip } from "@/lib/usageRefreshAccess";
+import {
+  getCanonicalUsageWorkerBatchSize,
+  runCanonicalUsageWorker,
+} from "@/lib/canonicalUsageWorker";
 import { USAGE_SUPPORTED_PROVIDERS } from "@/shared/constants/providers";
 import { normalizeUsageCheckSettings } from "@/lib/localDb/normalize";
 
 const appGlobal = ((global as any).__appSingleton ??= {});
 
 const SCHEDULER_PER_CONNECTION_TIMEOUT_MS = 30000; // 30s max per connection
+const SCHEDULER_ENQUEUE_BATCH_SIZE = 25;
 const SCHEDULER_JITTER_MIN_PCT = 0.25;
 const SCHEDULER_JITTER_MAX_PCT = 0.45;
-
-function isFutureTimestamp(value: string | null | undefined): boolean {
-  if (!value) return false;
-  const ts = new Date(value).getTime();
-  return Number.isFinite(ts) && ts > Date.now();
-}
-
-function getNextRetryWaitMs(conn: any): number | null {
-  if (!conn?.nextRetryAt) return null;
-  const ts = new Date(conn.nextRetryAt).getTime();
-  if (!Number.isFinite(ts)) return null;
-  const remaining = ts - Date.now();
-  return remaining > 0 ? remaining : null;
-}
 
 async function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
   let timeoutId: ReturnType<typeof setTimeout>;
@@ -152,20 +141,26 @@ export class UsageCheckScheduler {
       let refreshedCount = 0;
       let errorCount = 0;
 
-      for (const conn of activeConnections) {
-        try {
-          await withTimeout(
-            runDedupedUsageRefreshJob(conn.id, () =>
-              refreshUsageWithTransientSkip(conn.id),
+      const batchSize = getCanonicalUsageWorkerBatchSize(SCHEDULER_ENQUEUE_BATCH_SIZE);
+      for (let index = 0; index < activeConnections.length; index += batchSize) {
+        const batch = activeConnections.slice(index, index + batchSize);
+        const results = await Promise.allSettled(
+          batch.map((conn: any) =>
+            withTimeout(
+              runCanonicalUsageWorker({
+                connectionId: conn.id,
+                trigger: "scheduled",
+                skipTransientConnectivityErrors: true,
+              }),
+              SCHEDULER_PER_CONNECTION_TIMEOUT_MS,
             ),
-            SCHEDULER_PER_CONNECTION_TIMEOUT_MS,
-          );
-          refreshedCount++;
-        } catch {
-          errorCount++;
+          ),
+        );
+
+        for (const result of results) {
+          if (result.status === "fulfilled") refreshedCount++;
+          else errorCount++;
         }
-        // Yield to event loop - let API requests take priority
-        await new Promise((r) => setTimeout(r, 200));
       }
 
       const completedAt = new Date().toISOString();
@@ -202,7 +197,7 @@ export class UsageCheckScheduler {
       return this.lastRun;
     } finally {
       this.running = false;
-      if (this.settings.enabled !== false) {
+      if (this.settings.enabled === true) {
         this.scheduleNext();
       }
     }
