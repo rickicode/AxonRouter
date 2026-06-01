@@ -3,16 +3,18 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { translate } from "@/i18n/runtime";
+import { cn } from "@/lib/utils";
 
 const filterButtonClass = (active) =>
-  `inline-flex cursor-pointer items-center gap-2 rounded-[4px] border px-3 py-2 text-sm transition-all ${
+  cn(
+    "inline-flex cursor-pointer items-center gap-2 rounded-[4px] border px-3 py-2 text-sm transition-all",
     active
       ? "border-primary bg-primary text-primary-foreground shadow-sm"
-      : "border-transparent text-text-muted hover:bg-black/5 hover:text-text-main dark:hover:bg-white/5"
-  }`;
+      : "border-transparent text-text-muted hover:bg-muted hover:text-text-main",
+  );
 
 const filterCountClass = (active) =>
-  `rounded-full px-1.5 py-0.5 text-[11px] ${active ? "bg-white/20" : "bg-black/10 dark:bg-white/10"}`;
+  cn("rounded-full px-1.5 py-0.5 text-[11px]", active ? "bg-primary-foreground/20" : "bg-muted");
 
 export default function CombosHeader({
   combos,
@@ -45,7 +47,7 @@ export default function CombosHeader({
               <span className="rounded-full border border-[var(--color-border)] bg-[var(--color-bg-alt)] px-2 py-1">{combos.length} {translate("combos")}</span>
               <span className="rounded-full border border-[var(--color-border)] bg-[var(--color-bg-alt)] px-2 py-1">{mappings.length} {translate("mappings")}</span>
               {isExpertMode ? (
-                <span className="rounded-full border border-amber-500/30 bg-amber-500/10 px-2 py-1 font-medium uppercase tracking-wider text-amber-600 dark:text-amber-400">{translate("Expert")}</span>
+                <span className="rounded-full border border-[var(--color-warning)]/35 bg-[var(--color-warning)]/15 px-2 py-1 font-medium uppercase tracking-wider text-[var(--color-warning)]">{translate("Expert")}</span>
               ) : null}
             </div>
           </div>
@@ -69,7 +71,13 @@ export default function CombosHeader({
           <button
             type="button"
             onClick={() => setIsExpertMode(!isExpertMode)}
-            className={`w-fit cursor-pointer rounded-[4px] border px-2.5 py-1.5 text-[10px] font-medium uppercase tracking-wider transition-colors ${isExpertMode ? "border-amber-500/30 bg-amber-500/10 text-amber-600 dark:text-amber-400" : "border-[var(--color-border)] text-text-muted hover:border-amber-500/30 hover:text-amber-600"}`}
+            aria-pressed={isExpertMode}
+            className={cn(
+              "w-fit cursor-pointer rounded-[4px] border px-2.5 py-1.5 text-[10px] font-medium uppercase tracking-wider transition-colors",
+              isExpertMode
+                ? "border-[var(--color-warning)]/35 bg-[var(--color-warning)]/15 text-[var(--color-warning)]"
+                : "border-[var(--color-border)] text-text-muted hover:border-[var(--color-warning)]/35 hover:text-[var(--color-warning)]",
+            )}
           >
             {isExpertMode ? translate("Expert mode on") : translate("Enable expert mode")}
           </button>
@@ -99,6 +107,7 @@ export default function CombosHeader({
           key="all"
           type="button"
           onClick={() => setStrategyFilter("all")}
+          aria-pressed={strategyFilter === "all"}
           className={filterButtonClass(strategyFilter === "all")}
         >
           <AppIcon name="layers" size={14} />
@@ -109,6 +118,7 @@ export default function CombosHeader({
           key="intelligent"
           type="button"
           onClick={() => setStrategyFilter("intelligent")}
+          aria-pressed={strategyFilter === "intelligent"}
           className={filterButtonClass(strategyFilter === "intelligent")}
         >
           <AppIcon name="auto_awesome" size={14} />
@@ -119,6 +129,7 @@ export default function CombosHeader({
           key="deterministic"
           type="button"
           onClick={() => setStrategyFilter("deterministic")}
+          aria-pressed={strategyFilter === "deterministic"}
           className={filterButtonClass(strategyFilter === "deterministic")}
         >
           <AppIcon name="sort" size={14} />

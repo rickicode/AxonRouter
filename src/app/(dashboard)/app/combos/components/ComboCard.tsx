@@ -1,6 +1,7 @@
 import AppIcon from "@/shared/components/AppIcon";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
+import { cn } from "@/lib/utils";
 
 export default function ComboCard({
   combo,
@@ -20,14 +21,16 @@ export default function ComboCard({
   const strategy = combo.strategy || "priority";
   const isSelected = selectedIntelligentCombo?.id === combo.id;
   const isDisabled = combo.isHidden === true;
-  const statusLabel = isDisabled ? "disabled" : "active";
+  const statusLabel = isDisabled ? t("disabled") : t("active");
 
   return (
     <div
       key={combo.id}
-      className={`group rounded-[4px] border bg-card p-4 transition-all hover:border-primary/30 hover:shadow-sm ${
-        isSelected ? "border-primary/40 bg-primary/5" : "border-[var(--color-border)]"
-      } ${isDisabled ? "opacity-60" : ""}`}
+      className={cn(
+        "group rounded-[4px] border bg-card p-4 transition-all hover:border-primary/30 hover:shadow-sm",
+        isSelected ? "border-primary/40 bg-primary/5" : "border-[var(--color-border)]",
+        isDisabled && "opacity-60",
+      )}
     >
       <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
         <div className="min-w-0 flex-1">
@@ -37,8 +40,17 @@ export default function ComboCard({
             </div>
             <code className="truncate text-sm font-semibold text-text-main">{combo.name}</code>
             <span className="rounded-full border border-[var(--color-border)] bg-[var(--color-bg-alt)] px-2 py-0.5 text-[10px] font-medium uppercase text-text-muted">{strategy}</span>
-            <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase ${isDisabled ? "bg-amber-500/10 text-amber-600 dark:text-amber-400" : "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"}`}>{statusLabel}</span>
-            {isSelected ? <span className="rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-semibold uppercase text-primary">selected</span> : null}
+            <span
+              className={cn(
+                "rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase",
+                isDisabled
+                  ? "border border-[var(--color-warning)]/35 bg-[var(--color-warning)]/15 text-[var(--color-warning)]"
+                  : "border border-[var(--color-success)]/35 bg-[var(--color-success)]/15 text-[var(--color-success)]",
+              )}
+            >
+              {statusLabel}
+            </span>
+            {isSelected ? <span className="rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-semibold uppercase text-primary">{t("selected")}</span> : null}
           </div>
 
           <div className="mt-2 flex flex-wrap gap-1.5">
@@ -63,12 +75,12 @@ export default function ComboCard({
           </div>
         </div>
 
-        <div className="flex items-center justify-between gap-2 border-t border-black/5 pt-2 dark:border-white/5 md:justify-end md:border-t-0 md:pt-0">
+        <div className="flex items-center justify-between gap-2 border-t border-border pt-2 md:justify-end md:border-t-0 md:pt-0">
           <div className="flex items-center gap-2">
             <Switch checked={!combo.isHidden} onToggle={() => handleToggleCombo(combo)} />
           </div>
           <div className="flex items-center gap-1">
-            <Button type="button" variant="ghost" size="sm" onClick={() => handleTestCombo({ name: combo.name })} className="rounded p-1.5 text-text-muted hover:text-emerald-500" title="Test combo">
+            <Button type="button" variant="ghost" size="sm" onClick={() => handleTestCombo({ name: combo.name })} className="rounded p-1.5 text-text-muted hover:text-[var(--color-success)]" title="Test combo">
               <AppIcon name={testingCombo === combo.name ? "progress_activity" : "play_arrow"} data-icon="inline-start" />
             </Button>
             <Button type="button" variant="ghost" size="sm" onClick={() => handleDuplicateCombo(combo)} className="rounded p-1.5 text-text-muted hover:text-primary" title="Duplicate combo">
@@ -80,7 +92,7 @@ export default function ComboCard({
             <Button type="button" variant="ghost" size="sm" onClick={() => startEdit(combo)} className="rounded p-1.5 text-text-muted hover:text-primary" title="Edit combo">
               <AppIcon name="edit" data-icon="inline-start" />
             </Button>
-            <Button type="button" variant="ghost" size="sm" onClick={() => handleDeleteCombo(combo.id)} className="rounded p-1.5 text-text-muted hover:text-red-500" title="Delete combo">
+            <Button type="button" variant="ghost" size="sm" onClick={() => handleDeleteCombo(combo.id)} className="rounded p-1.5 text-text-muted hover:text-destructive" title="Delete combo">
               <AppIcon name="delete" data-icon="inline-start" />
             </Button>
           </div>
