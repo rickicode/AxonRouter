@@ -64,6 +64,7 @@ const OAUTH_TEST_CONFIG = {
   },
   qwen: { checkExpiry: true, refreshable: true },
   kiro: { checkExpiry: true, refreshable: true },
+  "amazon-q": { checkExpiry: true, refreshable: true },
   "kimi-coding": { checkExpiry: true, refreshable: false },
   cursor: { tokenExists: true },
   kilocode: {
@@ -471,7 +472,7 @@ async function testApiKeyConnection(connection, effectiveProxy = null) {
         const res = await fetchWithConnectionProxy(endpoints[connection.provider], {
           method: "POST",
           headers: { "x-api-key": connection.apiKey, "anthropic-version": "2023-06-01", "content-type": "application/json" },
-          body: JSON.stringify({ model: "minimax-m2", max_tokens: 1, messages: [{ role: "user", content: "test" }] }),
+          body: JSON.stringify({ model: "MiniMax-M2.5", max_tokens: 1, messages: [{ role: "user", content: "test" }] }),
         }, effectiveProxy);
         const valid = res.status !== 401 && res.status !== 403;
         return { valid, error: valid ? null : "Invalid API key" };
@@ -601,6 +602,14 @@ async function testApiKeyConnection(connection, effectiveProxy = null) {
         const res = await fetchWithConnectionProxy("https://llm.chutes.ai/v1/models", { headers: { Authorization: `Bearer ${connection.apiKey}` } }, effectiveProxy);
         return { valid: res.ok, error: res.ok ? null : "Invalid API key" };
       }
+      case "mimo": {
+        const res = await fetchWithConnectionProxy("https://api.xiaomimimo.com/v1/models", { headers: { Authorization: `Bearer ${connection.apiKey}` } }, effectiveProxy);
+        return { valid: res.ok, error: res.ok ? null : "Invalid API key" };
+      }
+      case "blackbox": {
+        const res = await fetchWithConnectionProxy("https://api.blackbox.ai/api/models", { headers: { Authorization: `Bearer ${connection.apiKey}` } }, effectiveProxy);
+        return { valid: res.ok, error: res.ok ? null : "Invalid API key" };
+      }
       case "grok-web": {
         const token = connection.apiKey.startsWith("sso=") ? connection.apiKey.slice(4) : connection.apiKey;
         const randomHex = (n) => Array.from(crypto.getRandomValues(new Uint8Array(n)), (b) => b.toString(16).padStart(2, "0")).join("");
@@ -624,7 +633,7 @@ async function testApiKeyConnection(connection, effectiveProxy = null) {
         const testMessage = "ping";
         const res = await fetchWithConnectionProxy("https://api.commandcode.ai/alpha/generate", {
           method: "POST",
-          headers: { "Authorization": `Bearer ${connection.apiKey}`, "Content-Type": "application/json", "x-command-code-version": "0.25.0" },
+          headers: { "Authorization": `Bearer ${connection.apiKey}`, "Content-Type": "application/json", "x-command-code-version": "0.25.7" },
           body: JSON.stringify({
             model: testModel,
             messages: [{ role: "user", content: testMessage }],
