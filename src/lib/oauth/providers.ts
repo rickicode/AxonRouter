@@ -23,6 +23,7 @@ import {
   CLINE_CONFIG,
   GITLAB_CONFIG,
   CODEBUDDY_CONFIG,
+  SUPERGROK_CONFIG,
   getOAuthClientMetadata,
 } from "./constants/oauth";
 import { extractCodexIdentityFromJwt } from "./codexAccount";
@@ -1213,6 +1214,57 @@ const PROVIDERS = {
       expiresIn: 86400,
       providerSpecificData: {},
     }),
+  },
+
+  supergrok: {
+    config: SUPERGROK_CONFIG,
+    flowType: "authorization_code_pkce",
+    buildAuthUrl: (config, redirectUri, state, codeChallenge) => {
+      const params = new URLSearchParams({
+        response_type: "code",
+        client_id: config.clientId,
+        redirect_uri: redirectUri,
+        scope: config.scope,
+        code_challenge: codeChallenge,
+        code_challenge_method: config.codeChallengeMethod,
+        state: state,
+      });
+      return `${config.authorizeUrl}?${params.toString()}`;
+    },
+    exchangeToken: async (config, code, redirectUri, codeVerifier) => {
+      const response = await fetch(config.tokenUrl, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/x-www-form-urlencoded",
+          Accept: "application/json",
+        },
+        body: new URLSearchParams({
+          grant_type: "authorization_code",
+          client_id: config.clientId,
+          code: code,
+          redirect_uri: redirectUri,
+          code_verifier: codeVerifier,
+        }),
+      });
+
+      if (!response.ok) {
+        const error = await response.text();
+        throw new Error(`Token exchange failed: ${error}`);
+      }
+
+      return await response.json();
+    },
+    mapTokens: (tokens) => {
+      const email = extractEmailFromAccessToken(tokens.access_token);
+      return {
+        accessToken: tokens.access_token,
+        refreshToken: tokens.refresh_token,
+        expiresIn: tokens.expires_in,
+        email,
+        name: email || undefined,
+        displayName: email || undefined,
+      };
+    },
   },
 };
 

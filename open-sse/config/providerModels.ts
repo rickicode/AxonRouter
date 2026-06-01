@@ -437,6 +437,7 @@ export const PROVIDER_MODELS = {
     { id: "grok-4-fast-reasoning", name: "Grok 4 Fast Reasoning" },
     { id: "grok-code-fast-1", name: "Grok Code Fast" },
     { id: "grok-3", name: "Grok 3" },
+    { id: "grok-imagine-image", name: "Grok Imagine Image", type: "image" },
   ],
   mistral: [
     { id: "mistral-large-latest", name: "Mistral Large 3" },

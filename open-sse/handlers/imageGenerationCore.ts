@@ -37,6 +37,10 @@ const IMAGE_PROVIDERS = {
     baseUrl: "https://api-inference.huggingface.co/models",
     format: "huggingface",
   },
+  xai: {
+    baseUrl: "https://api.x.ai/v1/images/generations",
+    format: "xai-image",
+  },
 };
 
 /**
@@ -125,6 +129,20 @@ function buildImageBody(provider, model, body) {
         type: "TEXTTOIAMGE",
         numImages: n,
         image_size: sizeMap[size] || "1:1",
+      };
+    }
+
+    case "xai": {
+      const xaiSizeMap = {
+        "1024x1024": "1:1",
+        "1792x1024": "16:9",
+        "1024x1792": "9:16",
+      };
+      return {
+        model: model || "grok-imagine-image",
+        prompt,
+        aspect_ratio: xaiSizeMap[size] || "1:1",
+        resolution: "1k",
       };
     }
 

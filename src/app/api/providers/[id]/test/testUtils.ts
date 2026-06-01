@@ -82,6 +82,13 @@ const OAUTH_TEST_CONFIG = {
     authPrefix: "Bearer ",
   },
   codebuddy: { tokenExists: true },
+  xai: {
+    url: "https://api.x.ai/v1/models",
+    method: "GET",
+    authHeader: "Authorization",
+    authPrefix: "Bearer ",
+    refreshable: true,
+  },
 };
 
 function getConnectionTestUsageSnapshot(connection, lastCheckedAt) {
@@ -249,6 +256,21 @@ async function refreshOAuthToken(connection) {
         expiresIn,
         refreshToken: data?.refreshToken || refreshToken,
       };
+    }
+
+    if (provider === "xai") {
+      const response = await fetch("https://auth.x.ai/oauth2/token", {
+        method: "POST",
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+        body: new URLSearchParams({
+          grant_type: "refresh_token",
+          refresh_token: refreshToken,
+          client_id: "b1a00492-073a-47ea-816f-4c329264a828",
+        }),
+      });
+      if (!response.ok) return null;
+      const data = await response.json();
+      return { accessToken: data.access_token, expiresIn: data.expires_in, refreshToken: data.refresh_token || refreshToken };
     }
 
     return null;
@@ -538,8 +560,11 @@ async function testApiKeyConnection(connection, effectiveProxy = null) {
         return { valid: res.ok, error: res.ok ? null : "Invalid API key" };
       }
       case "xai": {
-        const res = await fetchWithConnectionProxy("https://api.x.ai/v1/models", { headers: { Authorization: `Bearer ${connection.apiKey}` } }, effectiveProxy);
-        return { valid: res.ok, error: res.ok ? null : "Invalid API key" };
+        const token = connection.apiKey || connection.accessToken;
+        const res = await fetchWithConnectionProxy("https://api.x.ai/v1/models", { headers: { Authorization: `Bearer ${token}` } }, effectiveProxy);
+        if (res.ok) return { valid: true, error: null };
+        if (res.status === 403) return { valid: false, error: "OAuth connected but API access denied" };
+        return { valid: false, error: "Invalid credentials" };
       }
       case "nvidia": {
         const res = await fetchWithConnectionProxy("https://integrate.api.nvidia.com/v1/models", { headers: { Authorization: `Bearer ${connection.apiKey}` } }, effectiveProxy);

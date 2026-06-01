@@ -154,6 +154,7 @@ export const REFRESH_LEAD_MS = {
   qwen:        20 * 60 * 1000,          // 20 minutes
   "kimi-coding": 5 * 60 * 1000,         // 5 minutes
   antigravity:  5 * 60 * 1000,          // 5 minutes
+  xai:          5 * 60 * 1000,          // 5 minutes
 };
 
 // OAuth endpoints
@@ -182,6 +183,10 @@ export const OAUTH_ENDPOINTS = {
     token: "https://github.com/login/oauth/access_token",
     auth: "https://github.com/login/oauth/authorize",
     deviceCode: "https://github.com/login/device/code"
+  },
+  supergrok: {
+    token: "https://auth.x.ai/oauth2/token",
+    auth: "https://auth.x.ai/oauth2/authorize"
   }
 };
 
