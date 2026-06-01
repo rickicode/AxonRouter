@@ -1,0 +1,25 @@
+{
+  "id": "FEAT-002",
+  "type": "feat",
+  "description": "Add comprehensive unit tests for all SuperGrok OAuth behavior: OAuth flow, token refresh, image generation with xAI, credential redaction, and routing. All tests use mocks (no live credentials).",
+  "status": "completed",
+  "steps": [
+    "1. Create tests/unit/supergrok-oauth.test.ts: Test the OAuth provider config (buildAuthUrl generates correct URL with PKCE params, exchangeToken calls correct endpoint with form body, mapTokens extracts fields correctly). Mock fetch for token endpoint.",
+    "2. In the same or separate test file tests/unit/supergrok-token-refresh.test.ts: Test that DefaultExecutor.refreshCredentials for xai provider with refreshToken calls auth.x.ai/oauth2/token with correct params and returns { accessToken, refreshToken, expiresIn }. Test failure case returns null.",
+    "3. Create tests/unit/supergrok-image-generation.test.ts: Test handleImageGenerationCore with provider='xai'. Verify: (a) size 1024x1024 maps to aspect_ratio 1:1, (b) size 1792x1024 maps to 16:9, (c) size 1024x1792 maps to 9:16, (d) model defaults to body.model, (e) response is normalized to OpenAI format. Mock fetch for xAI image API.",
+    "4. Create tests/unit/supergrok-import-route.test.ts: Test the /api/oauth/supergrok/import route handler. Verify: (a) missing refreshToken returns 400, (b) valid refreshToken with successful validation creates connection with provider='xai' and authType='supergrok_oauth', (c) xAI 403 response surfaces as 'OAuth connected but API access denied'. Mock fetch and localDb.",
+    "5. Verify all tests pass with npm run test. Ensure no regressions in existing tests."
+  ],
+  "acceptance_criteria": [
+    "All new test files run successfully with npm run test",
+    "Tests cover: OAuth URL generation, token exchange, token refresh (success+failure), image generation size mapping, import route validation, 403 handling",
+    "Tests do not use live credentials or make real network calls",
+    "Existing tests continue to pass without modification",
+    "Each test exercises new code paths and would fail if that code were reverted"
+  ],
+  "verification": [
+    "npm run test"
+  ],
+  "blocked_reason": null,
+  "findings": "All 23 new tests pass across 4 test files. The only test failure in the full suite is the pre-existing governance-api-key-policy.test.ts mock issue (documented in FEAT-001). The DefaultExecutor test required using a local vi.fn() reference rather than checking global.fetch directly, because proxyFetch patches globalThis.fetch at import time."
+}

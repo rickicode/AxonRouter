@@ -255,6 +255,15 @@ export const CODEBUDDY_CONFIG = {
   pollInterval: 5000,
 };
 
+// SuperGrok (xAI) OAuth Configuration (Authorization Code Flow with PKCE)
+export const SUPERGROK_CONFIG = {
+  clientId: "b1a00492-073a-47ea-816f-4c329264a828",
+  authorizeUrl: "https://auth.x.ai/oauth2/authorize",
+  tokenUrl: "https://auth.x.ai/oauth2/token",
+  scope: "openid profile email offline_access grok-cli:access api:access",
+  codeChallengeMethod: "S256",
+};
+
 // OAuth timeout (5 minutes)
 export const OAUTH_TIMEOUT = 300000;
 
@@ -276,4 +285,5 @@ export const PROVIDERS = {
   CLINE: "cline",
   GITLAB: "gitlab",
   CODEBUDDY: "codebuddy",
+  SUPERGROK: "supergrok",
 };

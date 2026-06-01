@@ -37,6 +37,9 @@ const IMAGE_PROVIDERS = {
     baseUrl: "https://api-inference.huggingface.co/models",
     format: "huggingface",
   },
+  xai: {
+    baseUrl: "https://api.x.ai/v1/images/generations",
+  },
 };
 
 /**
@@ -128,6 +131,21 @@ function buildImageBody(provider, model, body) {
       };
     }
 
+    case "xai": {
+      const xaiSizeMap = {
+        "1024x1024": "1:1",
+        "1792x1024": "16:9",
+        "1024x1792": "9:16",
+      };
+      return {
+        model: model || "grok-imagine-image",
+        prompt,
+        n,
+        aspect_ratio: xaiSizeMap[size] || "1:1",
+        resolution: "1k",
+      };
+    }
+
     default:
       // OpenAI-compatible format
       const requestBody: any = { model, prompt, n, size };
@@ -150,6 +168,10 @@ function normalizeImageResponse(responseBody, provider, prompt) {
   const timestamp = Math.floor(Date.now() / 1000);
 
   switch (provider) {
+    case "xai":
+      // xAI returns OpenAI-compatible format { created, data: [...] }
+      return responseBody;
+
     case "gemini": {
       const parts = responseBody.candidates?.[0]?.content?.parts || [];
       const images = parts
