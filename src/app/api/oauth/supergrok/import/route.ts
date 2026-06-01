@@ -43,7 +43,7 @@ export async function POST(request: Request) {
 
     let finalAccessToken = accessToken;
     let finalRefreshToken = refreshToken;
-    let finalExpiresIn = expiresIn || 3600;
+    let finalExpiresIn = expiresIn ?? 3600;
 
     // If refreshToken provided, validate by refreshing to get a fresh access token
     if (refreshToken && !accessToken) {
@@ -62,8 +62,10 @@ export async function POST(request: Request) {
 
       if (!refreshResponse.ok) {
         const errorText = await refreshResponse.text();
+        const safeError = errorText.slice(0, 200);
+        console.log("SuperGrok refresh error:", safeError);
         return NextResponse.json(
-          { error: `Token refresh failed: ${errorText}` },
+          { error: `Token refresh failed (HTTP ${refreshResponse.status})` },
           { status: 401 }
         );
       }
@@ -71,7 +73,7 @@ export async function POST(request: Request) {
       const tokens = await refreshResponse.json();
       finalAccessToken = tokens.access_token;
       finalRefreshToken = tokens.refresh_token || refreshToken;
-      finalExpiresIn = tokens.expires_in || 3600;
+      finalExpiresIn = tokens.expires_in ?? 3600;
     }
 
     // Validate access token by calling xAI models endpoint
@@ -98,6 +100,9 @@ export async function POST(request: Request) {
     // Extract email from JWT if available
     const email = finalAccessToken ? extractEmailFromJwt(finalAccessToken) : undefined;
 
+    // Determine if connection is ephemeral (no refresh token means it will expire permanently)
+    const isEphemeral = !finalRefreshToken;
+
     // Save connection
     const connection = await createCurrentProviderConnection({
       provider: "xai",
@@ -120,12 +125,13 @@ export async function POST(request: Request) {
       providerSpecificData: {
         authMethod: "supergrok_oauth",
         provider: "SuperGrok Import",
+        ...(isEphemeral ? { ephemeral: true } : {}),
       },
     });
 
     const latestConnection = await finalizePostConnectValidation(connection, "SuperGrok Import");
 
-    return NextResponse.json({
+    const response: Record<string, unknown> = {
       success: true,
       connection: {
         id: latestConnection.id,
@@ -140,7 +146,13 @@ export async function POST(request: Request) {
         reasonDetail: latestConnection.reasonDetail,
         lastCheckedAt: latestConnection.lastCheckedAt,
       },
-    });
+    };
+
+    if (isEphemeral) {
+      response.warning = "No refresh token provided - connection will expire and require re-import";
+    }
+
+    return NextResponse.json(response);
   } catch (error: unknown) {
     console.log("SuperGrok import error:", error instanceof Error ? error.message : "Unknown error");
     const message = error instanceof Error ? error.message : "Unknown error";

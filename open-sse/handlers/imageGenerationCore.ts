@@ -39,7 +39,6 @@ const IMAGE_PROVIDERS = {
   },
   xai: {
     baseUrl: "https://api.x.ai/v1/images/generations",
-    format: "xai-image",
   },
 };
 
@@ -141,6 +140,7 @@ function buildImageBody(provider, model, body) {
       return {
         model: model || "grok-imagine-image",
         prompt,
+        n,
         aspect_ratio: xaiSizeMap[size] || "1:1",
         resolution: "1k",
       };
@@ -168,6 +168,10 @@ function normalizeImageResponse(responseBody, provider, prompt) {
   const timestamp = Math.floor(Date.now() / 1000);
 
   switch (provider) {
+    case "xai":
+      // xAI returns OpenAI-compatible format { created, data: [...] }
+      return responseBody;
+
     case "gemini": {
       const parts = responseBody.candidates?.[0]?.content?.parts || [];
       const images = parts

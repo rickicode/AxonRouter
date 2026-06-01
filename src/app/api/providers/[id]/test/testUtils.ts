@@ -13,6 +13,7 @@ import {
   CLAUDE_CONFIG,
   CLINE_CONFIG,
   KILOCODE_CONFIG,
+  SUPERGROK_CONFIG,
 } from "../../../../../lib/oauth/constants/oauth";
 import { buildClineHeaders } from "../../../../../shared/utils/clineAuth";
 import {
@@ -265,7 +266,7 @@ async function refreshOAuthToken(connection) {
         body: new URLSearchParams({
           grant_type: "refresh_token",
           refresh_token: refreshToken,
-          client_id: "b1a00492-073a-47ea-816f-4c329264a828",
+          client_id: SUPERGROK_CONFIG.clientId,
         }),
       });
       if (!response.ok) return null;
