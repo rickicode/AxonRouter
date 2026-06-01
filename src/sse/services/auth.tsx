@@ -35,6 +35,7 @@ import { MAX_RATE_LIMIT_COOLDOWN_MS } from "../../../open-sse/config/errorConfig
 import {
 	resolveProviderId,
 	FREE_PROVIDERS,
+	APIKEY_PROVIDERS,
 } from "@/shared/constants/providers";
 import { canCodexConnectionUseModel } from "@/lib/codexModelAccess";
 import * as log from "../utils/logger";
@@ -465,7 +466,7 @@ export async function getProviderCredentials(
 			? governanceContext.requestApiKey.trim()
 			: null;
 
-	if (FREE_PROVIDERS[providerId]?.noAuth) {
+	if (FREE_PROVIDERS[providerId]?.noAuth || APIKEY_PROVIDERS[providerId]?.noAuth) {
 		return {
 			id: "noauth",
 			connectionName: "Public",
