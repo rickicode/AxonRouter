@@ -2,7 +2,7 @@
   "id": "FEAT-002",
   "type": "feat",
   "description": "Add comprehensive unit tests for all SuperGrok OAuth behavior: OAuth flow, token refresh, image generation with xAI, credential redaction, and routing. All tests use mocks (no live credentials).",
-  "status": "in_progress",
+  "status": "completed",
   "steps": [
     "1. Create tests/unit/supergrok-oauth.test.ts: Test the OAuth provider config (buildAuthUrl generates correct URL with PKCE params, exchangeToken calls correct endpoint with form body, mapTokens extracts fields correctly). Mock fetch for token endpoint.",
     "2. In the same or separate test file tests/unit/supergrok-token-refresh.test.ts: Test that DefaultExecutor.refreshCredentials for xai provider with refreshToken calls auth.x.ai/oauth2/token with correct params and returns { accessToken, refreshToken, expiresIn }. Test failure case returns null.",
@@ -21,5 +21,5 @@
     "npm run test"
   ],
   "blocked_reason": null,
-  "findings": ""
+  "findings": "All 23 new tests pass across 4 test files. The only test failure in the full suite is the pre-existing governance-api-key-policy.test.ts mock issue (documented in FEAT-001). The DefaultExecutor test required using a local vi.fn() reference rather than checking global.fetch directly, because proxyFetch patches globalThis.fetch at import time."
 }
