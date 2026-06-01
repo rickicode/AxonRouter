@@ -1,7 +1,7 @@
 import { getCurrentProviderConnectionById } from "@/lib/connectionStateAccess";
 import { syncUsageStatus } from "@/lib/usageStatus";
 import {
-	getUsageQueueMaxQueued,
+	getUsageQueueConcurrency,
 	runDedupedUsageRefreshJob,
 } from "@/lib/usageRefreshQueue";
 import { refreshConnectionUsage } from "@/lib/connectionUsageRefresh";
@@ -15,7 +15,7 @@ import type {
 } from "@/lib/usageRefresh/canonicalTypes";
 
 export function getCanonicalUsageWorkerBatchSize(maxBatchSize = 25) {
-	return Math.max(1, Math.min(maxBatchSize, getUsageQueueMaxQueued()));
+	return Math.max(1, Math.min(maxBatchSize, getUsageQueueConcurrency()));
 }
 
 function classifyUsageError(error: any): UsageErrorClass {
