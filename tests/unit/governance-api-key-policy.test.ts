@@ -18,6 +18,7 @@ vi.mock("@/lib/localDb", () => ({
 
 vi.mock("@/shared/constants/providers", () => ({
   FREE_PROVIDERS: {},
+  APIKEY_PROVIDERS: {},
   resolveProviderId: (provider: string) => provider,
 }));
 
