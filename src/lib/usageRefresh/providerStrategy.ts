@@ -4,11 +4,19 @@
  */
 
 export interface UsageRefreshStrategy {
+  /** Fetch provider usage. Defaults to the shared getUsageForProvider adapter. */
+  fetchUsage: ((connection: any, options?: any) => Promise<any>) | null;
+  /** Normalize raw provider usage into the canonical snapshot stored by the worker. */
+  normalizeUsage: ((rawUsage: any, connection: any, options?: any) => any) | null;
   /** Whether the usage response MUST contain quota data (throws if missing) */
   requiresQuota: boolean;
   /** Fetch timeout in ms */
   timeoutMs: number;
+  /** Provider-specific retryability hook. Null means worker uses generic retry rules. */
+  isRetryable: ((error: any, context?: any) => boolean) | null;
   /** On transient usage failure, try credential refresh via connection test before retry */
+  refreshCredentialsOnFailure: boolean;
+  /** Backcompat alias while older callers still reference the old field. */
   credentialRefreshOnTransientFailure: boolean;
   /** Detect a "temporary auth" response that can be recovered by re-running connection test */
   isTemporaryAuthResponse: ((usage: any) => boolean) | null;
@@ -16,6 +24,8 @@ export interface UsageRefreshStrategy {
   isRecoverableAuthExpiry: ((connection: any, usage: any) => boolean) | null;
   /** Post-success hook (e.g. persist plan type) */
   onSuccess: ((connection: any, usage: any) => Promise<void>) | null;
+  /** Post-failure hook for provider-specific state cleanup. */
+  onFailure: ((connection: any, error: any) => Promise<void>) | null;
   /** On final USAGE_QUOTA_UNAVAILABLE, silently skip instead of throwing */
   skipOnQuotaUnavailable: boolean;
 }
@@ -41,12 +51,17 @@ function isCodexTemporaryAuth(usage: any): boolean {
 }
 
 const DEFAULT: UsageRefreshStrategy = {
+  fetchUsage: null,
+  normalizeUsage: null,
   requiresQuota: false,
   timeoutMs: 5000,
+  isRetryable: null,
+  refreshCredentialsOnFailure: false,
   credentialRefreshOnTransientFailure: false,
   isTemporaryAuthResponse: null,
   isRecoverableAuthExpiry: null,
   onSuccess: null,
+  onFailure: null,
   skipOnQuotaUnavailable: false,
 };
 
@@ -85,5 +100,9 @@ const STRATEGIES: Record<string, Partial<UsageRefreshStrategy>> = {
 };
 
 export function getProviderStrategy(provider: string | undefined): UsageRefreshStrategy {
-  return { ...DEFAULT, ...(STRATEGIES[provider || ""] || {}) };
+  const strategy = { ...DEFAULT, ...(STRATEGIES[provider || ""] || {}) };
+  strategy.refreshCredentialsOnFailure =
+    strategy.refreshCredentialsOnFailure || strategy.credentialRefreshOnTransientFailure;
+  strategy.credentialRefreshOnTransientFailure = strategy.refreshCredentialsOnFailure;
+  return strategy;
 }

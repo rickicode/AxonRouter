@@ -1,8 +1,5 @@
-import { runDedupedUsageRefreshJob } from "../../../../lib/usageRefreshQueue";
-import { refreshUsageWithTransientSkip } from "@/lib/usageRefreshAccess";
+import { runCanonicalUsageWorker } from "@/lib/canonicalUsageWorker";
 import { ensureUsageCheckSchedulerStarted } from "@/lib/usageCheckScheduler/bootstrap";
-import { getCurrentProviderConnectionById } from "@/lib/connectionStateAccess";
-import { syncUsageStatus } from "@/lib/usageStatus";
 
 type RouteContext = {
   params: Promise<{
@@ -24,39 +21,26 @@ export async function GET(request: Request, { params }: RouteContext): Promise<R
     const includeMetadata = runConnectionTest || searchParams.get("meta") === "1";
     const forceRefresh = searchParams.get("force") === "1";
 
-    // Force refresh: reset backoff state before re-checking
-    if (forceRefresh) {
-      const connection = await getCurrentProviderConnectionById(connectionId);
-      if (connection) {
-        await syncUsageStatus(connection, {
-          backoffLevel: 0,
-          nextRetryAt: null,
-          routingStatus: "eligible",
-          healthStatus: "healthy",
-          quotaState: "ok",
-          authState: "ok",
-          reasonCode: null,
-          reasonDetail: null,
-          lastCheckedAt: new Date().toISOString(),
-        });
-      }
+    const result = await runCanonicalUsageWorker({
+      connectionId,
+      trigger: "manual",
+      force: forceRefresh,
+      runConnectionTest,
+      skipTransientConnectivityErrors: true,
+      metadata: { endpoint: "/api/usage/[connectionId]" },
+    });
+
+    if (includeMetadata || forceRefresh) {
+      return Response.json({
+        usage: result.usage,
+        testResult: result.testResult,
+        skipped: result.skipped,
+        skipReason: result.skipReason || null,
+        worker: result.worker,
+      });
     }
 
-    return (await runDedupedUsageRefreshJob(connectionId, async () => {
-      const result = await refreshUsageWithTransientSkip(connectionId, {
-        runConnectionTest: forceRefresh || runConnectionTest,
-      });
-      if (includeMetadata || forceRefresh) {
-        return Response.json({
-          usage: result.usage,
-          testResult: result.testResult,
-          skipped: result.skipped,
-          skipReason: result.skipReason || null,
-        });
-      }
-
-      return Response.json(result.usage);
-    })) as Response;
+    return Response.json(result.usage);
   } catch (error) {
     const typedError = error as UsageRefreshError;
     const status = Number.isInteger(typedError?.status) ? typedError.status : 500;
