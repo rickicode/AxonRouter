@@ -71,7 +71,7 @@ describe("SuperGrok import route", () => {
     expect(errorStr).toMatch(/Validation failed|required/i);
   });
 
-  it("valid refreshToken creates connection with provider=xai and authType=supergrok_oauth", async () => {
+  it("valid refreshToken creates connection with provider=supergrok and authType=supergrok_oauth", async () => {
     // First call: token refresh to auth.x.ai
     // Second call: validate token at api.x.ai/v1/models
     (global.fetch as any)
@@ -101,7 +101,7 @@ describe("SuperGrok import route", () => {
     expect(response.status).toBe(200);
     expect(createProviderConnection).toHaveBeenCalledWith(
       expect.objectContaining({
-        provider: "xai",
+        provider: "supergrok",
         authType: "supergrok_oauth",
         accessToken: "fresh-access-token",
         refreshToken: "fresh-refresh-token",
@@ -183,7 +183,7 @@ describe("SuperGrok import route", () => {
     expect(response.status).toBe(200);
     expect(createProviderConnection).toHaveBeenCalledWith(
       expect.objectContaining({
-        provider: "xai",
+        provider: "supergrok",
         authType: "supergrok_oauth",
         accessToken: "direct-access-token",
         refreshToken: "rt",
