@@ -12,6 +12,7 @@ import {
 } from "@/lib/modelCatalogAccess";
 import { isValidationFailure, validateBody } from "@/shared/validation/helpers";
 import { updateComboSchema } from "@/shared/validation/schemas";
+import { findComboDependents } from "@/lib/combos/domain";
 
 export const dynamic = "force-dynamic";
 
@@ -33,34 +34,6 @@ type UpdateComboPayload = {
   [key: string]: unknown;
 };
 
-function findComboRefDependents(targetName: string, combos: ComboRecord[], targetId?: string) {
-  return combos.filter((combo) => {
-    if (targetId && combo.id === targetId) return false;
-    const models = Array.isArray(combo.models) ? combo.models : [];
-    return models.some((step) => {
-      if (!step || typeof step !== "object") return false;
-      const comboRef = step as { kind?: unknown; comboName?: unknown };
-      return comboRef.kind === "combo-ref" && typeof comboRef.comboName === "string" && comboRef.comboName.trim() === targetName;
-    });
-  });
-}
-
-export async function GET(request: Request, { params }: RouteContext) {
-  const authError = await requireManagementAuth(request);
-  if (authError) return authError;
-
-  try {
-    const { id } = await params;
-    const combo = id ? ((await getCurrentComboById(id)) as ComboRecord | null) : null;
-    if (!combo) {
-      return NextResponse.json({ error: "Combo not found" }, { status: 404 });
-    }
-    return NextResponse.json(combo);
-  } catch (error) {
-    console.log("Error fetching combo:", error);
-    return NextResponse.json({ error: "Failed to fetch combo" }, { status: 500 });
-  }
-}
 
 export async function PUT(request: Request, { params }: RouteContext) {
   const authError = await requireManagementAuth(request);
@@ -152,7 +125,7 @@ export async function DELETE(request: Request, { params }: RouteContext) {
     const comboName = typeof combo.name === "string" ? combo.name.trim() : "";
     if (comboName) {
       const allCombos = (await getCurrentCombos()) as ComboRecord[];
-      const dependents = findComboRefDependents(comboName, allCombos, id);
+      const dependents = findComboDependents(comboName, allCombos, id);
       if (dependents.length > 0) {
         return NextResponse.json(
           {
