@@ -315,26 +315,25 @@ export default function ModelSelectModal({
         </DialogHeader>
 
         <div className="border-b border-[var(--color-border)] px-6 py-4 sm:px-7">
-          <div className="rounded-2xl border border-[var(--color-border)] bg-[var(--color-bg-alt)] p-3 sm:p-4">
-            <div className="relative">
-              <AppIcon
-                name="search"
-                size={18}
-                className="absolute left-4 top-1/2 -translate-y-1/2 text-[var(--color-text-muted)]"
-              />
-              <Input
-                type="text"
-                placeholder={translate("Search models, providers, or combos...")}
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="h-12 rounded-xl border-[var(--color-border)] bg-[var(--color-surface)] pl-11 text-sm text-[var(--color-text-main)]"
-              />
-            </div>
+          <div className="relative">
+            <AppIcon
+              name="search"
+              size={18}
+              className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--color-text-muted)]"
+            />
+            <Input
+              type="text"
+              placeholder={translate("Search models, providers, or combos...")}
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="h-10 rounded border border-[var(--color-border)] bg-[var(--color-surface)] pl-10 text-sm text-[var(--color-text-main)] focus:border-[var(--color-primary)] transition-colors shadow-sm"
+              autoFocus
+            />
           </div>
         </div>
 
         {/* Models grouped by provider */}
-        <div className="max-h-[68vh] overflow-x-hidden overflow-y-auto px-6 py-5 sm:px-7">
+        <div className="max-h-[68vh] overflow-x-hidden overflow-y-auto px-6 py-5 sm:px-7 bg-[var(--color-bg-alt)]">
           <div className="space-y-7">
             {/* Combos section - always first */}
             {filteredCombos.length > 0 && (
@@ -349,7 +348,7 @@ export default function ModelSelectModal({
                   </div>
                 </div>
 
-                <div className="grid min-w-0 grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
+                <div className="grid min-w-0 grid-cols-1 gap-2">
                   {filteredCombos.map((combo) => {
                     const isSelected = selectedModel === combo.name;
                     return (
@@ -357,26 +356,23 @@ export default function ModelSelectModal({
                         key={combo.id}
                         onClick={() => handleSelect({ id: combo.name, name: combo.name, value: combo.name })}
                         className={
-                          `group min-w-0 rounded-xl border p-4 text-left transition-all hover:-translate-y-0.5 hover:cursor-pointer ` +
+                          `group flex w-full items-center justify-between gap-3 rounded-lg border px-4 py-3 text-left transition-colors hover:cursor-pointer ` +
                           (isSelected
                             ? "border-pink-500/40 bg-pink-500/5 text-[var(--color-text-main)]"
-                            : "border-[var(--color-border)] bg-[var(--color-bg-alt)] text-[var(--color-text-main)] hover:border-pink-500/30")
+                            : "border-[var(--color-border)] bg-[var(--color-surface)] text-[var(--color-text-main)] hover:border-[var(--color-primary)]/40 hover:bg-[var(--color-bg-alt)]")
                         }
                       >
-                        <div className="flex items-start justify-between gap-3">
-                          <div className="min-w-0 flex-1">
-                            <div className="truncate text-base font-semibold tracking-[-0.01em]">{combo.name}</div>
-                            <div className="mt-1 text-xs text-[var(--color-text-muted)]">
-                              {translate("Combo route")}
-                            </div>
-                            <div className="mt-3 flex flex-wrap items-center gap-1.5">
-                              <span className="rounded-full bg-black/5 px-2 py-0.5 text-[10px] uppercase text-[var(--color-text-muted)] dark:bg-white/5">
-                                {translate("route")}
-                              </span>
-                              {isSelected ? <span className="rounded-full bg-pink-500/10 px-2 py-0.5 text-[10px] font-semibold uppercase text-pink-600 dark:text-pink-400">selected</span> : null}
-                            </div>
+                        <div className="flex items-center gap-3 min-w-0">
+                          <div className="flex size-8 shrink-0 items-center justify-center rounded-md bg-[var(--color-bg-alt)] border border-[var(--color-border)]">
+                            <AppIcon name="layers" size={16} className="text-[var(--color-text-muted)] group-hover:text-[var(--color-primary)]" />
                           </div>
-                          <AppIcon name="east" size={16} className="text-[var(--color-text-muted)] group-hover:text-pink-500" />
+                          <div className="min-w-0">
+                            <div className="truncate text-sm font-medium">{combo.name}</div>
+                            <div className="text-[11px] text-[var(--color-text-muted)]">{translate("Combo route")}</div>
+                          </div>
+                        </div>
+                        <div className="shrink-0">
+                          {isSelected && <span className="rounded bg-pink-500/10 px-1.5 py-0.5 text-[10px] font-medium text-pink-600 dark:text-pink-400">Selected</span>}
                         </div>
                       </button>
                     );
@@ -399,7 +395,7 @@ export default function ModelSelectModal({
                   </div>
                 </div>
 
-                <div className="grid min-w-0 grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
+                <div className="grid min-w-0 grid-cols-1 gap-2">
                   {group.models.map((model) => {
                     const isSelected = selectedModel === model.value;
                     const isPlaceholder = model.isPlaceholder;

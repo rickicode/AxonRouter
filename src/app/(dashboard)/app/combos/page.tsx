@@ -1081,6 +1081,7 @@ export default function CombosPage() {
                 {stage === "steps" && (
                   <BuilderStepsStage
                     draft={draft}
+                    activeProviders={activeProviders}
                     builderProviders={builderProviders}
                     effectiveBuilderProviderId={effectiveBuilderProviderId}
                     setBuilderProviderId={setBuilderProviderId}

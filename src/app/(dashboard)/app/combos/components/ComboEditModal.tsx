@@ -13,6 +13,8 @@ import {
   normalizeIntelligentRoutingConfig,
 } from "@/lib/combos/intelligentRouting";
 import BuilderIntelligentStep from "../BuilderIntelligentStep";
+import { ModelSelectModal } from "@/shared/components";
+
 
 const TABS = [
   { id: "overview", label: "Overview", icon: "dashboard" },

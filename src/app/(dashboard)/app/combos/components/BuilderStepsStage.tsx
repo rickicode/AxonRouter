@@ -1,8 +1,12 @@
 import AppIcon from "@/shared/components/AppIcon";
+import { useState } from "react";
+import { ModelSelectModal } from "@/shared/components";
+
 
 // BuilderStepsStage - Using CSS variables for dark/light mode support
 
 export default function BuilderStepsStage({
+  activeProviders = [],
   draft,
   builderProviders,
   effectiveBuilderProviderId,
@@ -38,6 +42,24 @@ export default function BuilderStepsStage({
   pricingCoveragePercent,
   t,
 }) {
+  const [isModelModalOpen, setIsModelModalOpen] = useState(false);
+
+  const handleModelSelect = (selectedId) => {
+    // Expected format from ModelSelectModal: "provider/model"
+    if (!selectedId) return;
+    
+    // Instead of local state, call the parent's add method directly
+    // Since we don't have a direct 'add raw step' prop, we need to adapt 
+    // to whatever add mechanism is available.
+    
+    // If it's a model, we can set the input and call add manual step
+    setStepInput(selectedId);
+    setTimeout(() => {
+      handleAddManualStep();
+    }, 10);
+    
+    setIsModelModalOpen(false);
+  };
   return (
     <div className="space-y-4">
       {/* Main Container */}
@@ -46,63 +68,22 @@ export default function BuilderStepsStage({
           Steps ({draft.models.length})
         </label>
 
-        {/* Provider / Model / Account Selection Grid */}
-        <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
-          <div>
-            <label className="mb-1.5 block text-[10px] font-medium uppercase tracking-wide text-[var(--color-text-muted)]">1. Provider</label>
-            <select
-              value={effectiveBuilderProviderId}
-              onChange={(e) => {
-                setBuilderProviderId(e.target.value);
-                setBuilderModelValue("");
-                setBuilderConnectionId("__auto__");
-              }}
-              className="w-full cursor-pointer rounded border border-[var(--color-border)] bg-[var(--color-input-bg)] px-3 py-2.5 text-xs text-[var(--color-text-main)] focus:border-[var(--color-primary)] focus:outline-none transition-colors"
-            >
-              <option value="">Select provider</option>
-              {builderProviders.map((provider) => (
-                <option key={provider.providerId} value={provider.providerId}>
-                  {provider.name} ({provider.models?.length || 0} models)
-                </option>
-              ))}
-            </select>
-          </div>
-
-          <div>
-            <label className="mb-1.5 block text-[10px] font-medium uppercase tracking-wide text-[var(--color-text-muted)]">2. Model</label>
-            <select
-              value={effectiveBuilderModelValue}
-              onChange={(e) => setBuilderModelValue(e.target.value)}
-              disabled={!selectedBuilderProvider}
-              className="w-full cursor-pointer rounded border border-[var(--color-border)] bg-[var(--color-input-bg)] px-3 py-2.5 text-xs text-[var(--color-text-main)] focus:border-[var(--color-primary)] focus:outline-none disabled:cursor-not-allowed disabled:opacity-40 transition-colors"
-            >
-              <option value="">{selectedBuilderProvider ? "Select model" : "Choose provider first"}</option>
-              {(selectedBuilderProvider?.models || []).map((model) => (
-                <option key={model.value} value={model.value}>
-                  {model.name}{model.isCustom ? " · custom" : ""}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          <div>
-            <label className="mb-1.5 block text-[10px] font-medium uppercase tracking-wide text-[var(--color-text-muted)]">3. Account</label>
-            <select
-              value={effectiveBuilderConnectionId}
-              onChange={(e) => setBuilderConnectionId(e.target.value)}
-              disabled={!effectiveBuilderModelValue}
-              className="w-full cursor-pointer rounded border border-[var(--color-border)] bg-[var(--color-input-bg)] px-3 py-2.5 text-xs text-[var(--color-text-main)] focus:border-[var(--color-primary)] focus:outline-none disabled:cursor-not-allowed disabled:opacity-40 transition-colors"
-            >
-              <option value="__auto__">Auto-select account at runtime</option>
-              {selectedBuilderConnections.map((connection) => (
-                <option key={connection.id} value={connection.id}>
-                  {connection.label || connection.name || connection.id}
-                  {connection.status && connection.status !== "active" ? ` · ${connection.status}` : ""}
-                </option>
-              ))}
-            </select>
-          </div>
+        <div className="flex gap-2">
+          <button
+            onClick={() => setIsModelModalOpen(true)}
+            className="w-full flex items-center justify-center gap-2 rounded border border-[var(--color-border)] bg-[var(--color-input-bg)] px-3 py-2.5 text-xs font-medium text-[var(--color-text-main)] hover:border-[var(--color-primary)] transition-colors cursor-pointer"
+          >
+            <AppIcon name="add" size={16} /> Select Model
+          </button>
         </div>
+        
+        <ModelSelectModal
+          isOpen={isModelModalOpen}
+          onClose={() => setIsModelModalOpen(false)}
+          onSelect={handleModelSelect}
+          activeProviders={activeProviders}
+          title="Select Combo Model"
+        />
 
         {/* Current Step Preview */}
         <div className="mt-3 flex flex-wrap items-center gap-3 rounded border border-[var(--color-border)] px-3 py-2.5 bg-[var(--color-bg-alt)]">
