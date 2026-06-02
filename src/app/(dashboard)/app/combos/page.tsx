@@ -508,11 +508,10 @@ export default function CombosPage() {
 
   const startCreate = () => {
     setEditingCombo(null);
-    setDraft(buildInitialDraft());
     setComboEditorError("");
-    setStage("basics");
-    setShowEditModal(false);
-    setShowComboEditor(true);
+    setSaving(false);
+    setShowComboEditor(false);
+    setShowEditModal(true);
   };
 
   const startEdit = (combo) => {
@@ -788,6 +787,12 @@ export default function CombosPage() {
     saveComboMutation.mutate({ endpoint, method, body });
   };
 
+  const handleCreateSave = (body) => {
+    setComboEditorError("");
+    setSaving(true);
+    saveComboMutation.mutate({ endpoint: "/api/combos", method: "POST", body });
+  };
+
   const handleEditSave = (body) => {
     if (!editingCombo?.id) return;
     setComboEditorError("");
@@ -974,9 +979,9 @@ export default function CombosPage() {
         setTestingCombo={setTestingCombo}
       />
 
-      {/* Combo Edit Modal (non-wizard) */}
+      {/* Combo editor: one compact flow for both create and edit. */}
       <ComboEditModal
-        key={editingCombo?.id || "combo-edit-modal"}
+        key={editingCombo?.id || "combo-create-modal"}
         combo={editingCombo}
         combos={combos}
         activeProviders={activeProviders}
@@ -984,7 +989,7 @@ export default function CombosPage() {
         providerModelsByProvider={providerModelsByProvider}
         isOpen={showEditModal}
         onClose={() => { setShowEditModal(false); setComboEditorError(""); }}
-        onSave={handleEditSave}
+        onSave={editingCombo ? handleEditSave : handleCreateSave}
         saving={saving}
         error={comboEditorError}
       />

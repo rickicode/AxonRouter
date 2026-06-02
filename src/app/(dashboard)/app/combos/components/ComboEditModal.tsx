@@ -230,6 +230,7 @@ export default function ComboEditModal({
 }) {
   const [activeTab, setActiveTab] = useState("overview");
   const [draft, setDraft] = useState<ComboDraft>(() => buildInitialDraft(combo));
+  const isEdit = Boolean(combo?.id);
 
   const [builderProviderId, setBuilderProviderId] = useState("");
   const [builderModelValue, setBuilderModelValue] = useState("");
@@ -381,8 +382,8 @@ export default function ComboEditModal({
               <AppIcon name="edit" size={16} style={{ color: "var(--color-primary)" }} />
             </div>
             <div>
-              <h3 className="text-base font-semibold" style={{ color: "var(--color-text-main)" }}>Edit Combo</h3>
-              <p className="text-xs" style={{ color: "var(--color-text-muted)" }}>{combo?.name}</p>
+              <h3 className="text-base font-semibold" style={{ color: "var(--color-text-main)" }}>{isEdit ? "Edit Combo" : "Create Combo"}</h3>
+              <p className="text-xs" style={{ color: "var(--color-text-muted)" }}>{isEdit ? combo?.name : "Name it, add models, save."}</p>
             </div>
           </div>
           <button
@@ -914,7 +915,7 @@ export default function ComboEditModal({
               Cancel
             </Button>
             <Button onClick={handleSave} disabled={saving || !canSave}>
-              {saving ? "Saving..." : "Save Changes"}
+              {saving ? "Saving..." : isEdit ? "Save Changes" : "Create Combo"}
             </Button>
           </div>
         </div>
