@@ -377,11 +377,6 @@ export const PROVIDERS = {
     headers: { "x-opencode-client": "desktop" }
   },
 
-  "grok-web": {
-    baseUrl: "https://grok.com/rest/app-chat/conversations/new",
-    format: "grok-web",
-    authType: "cookie"
-  },
   "perplexity-web": {
     baseUrl: "https://www.perplexity.ai/rest/sse/perplexity_ask",
     format: "perplexity-web",

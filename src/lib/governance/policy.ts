@@ -51,7 +51,7 @@ export async function evaluateGovernancePolicy({ settings = {}, providerId = nul
     }
   }
 
-  if (enterprisePolicy?.complianceMode === "strict" && providerId && ["grok-web", "perplexity-web"].includes(providerId)) {
+  if (enterprisePolicy?.complianceMode === "strict" && providerId && providerId === "perplexity-web") {
     return {
       allowed: false,
       reasonCode: "compliance_blocked_provider",

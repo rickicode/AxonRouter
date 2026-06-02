@@ -19,7 +19,7 @@ describe("provider test workflows", () => {
   });
 
   it("getProviderTestCapabilities returns correct capabilities for cookie provider", () => {
-    const caps = getProviderTestCapabilities("grok-web");
+    const caps = getProviderTestCapabilities("perplexity-web");
     expect(caps.connectivity).toBe(true);
     expect(caps.authValidation).toBe(false);
     expect(caps.modelListing).toBe(true);

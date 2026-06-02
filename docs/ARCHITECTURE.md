@@ -83,7 +83,7 @@ flowchart LR
         P1[OAuth Providers\nClaude/Codex/Gemini/Qwen/iFlow/GitHub/Kiro/Amazon Q/Cursor/Antigravity]
         P2[API Key Providers\nOpenAI/Anthropic/OpenRouter/GLM/Kimi/MiniMax/Azure]
         P3[Compatible Nodes\nOpenAI-compatible / Anthropic-compatible]
-        P4[Web Providers\nGrok-Web / Perplexity-Web]
+        P4[Web Providers\nPerplexity-Web]
     end
 
     C1 --> API
@@ -682,7 +682,6 @@ Specialized executors:
 - `qwen`
 - `opencode`
 - `opencode-go`
-- `grok-web`
 - `perplexity-web`
 - `freebuff` (alias: `fb`)
 

@@ -50,7 +50,7 @@ describe("provider ecosystem consistency", () => {
     const specializedProviders = [
       "opencode", "opencode-go", "opencode-zen",
       "codex", "kiro", "cursor", "github", "antigravity", "azure",
-      "gemini-cli", "iflow", "qoder", "qwen", "grok-web", "perplexity-web",
+      "gemini-cli", "iflow", "qoder", "qwen", "perplexity-web",
       "vertex", "vertex-partner"
     ];
 
