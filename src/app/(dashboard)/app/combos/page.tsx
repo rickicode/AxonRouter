@@ -366,6 +366,7 @@ export default function CombosPage() {
   const [mappingEditorError, setMappingEditorError] = useState("");
   const [showComboEditor, setShowComboEditor] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
+  const [createModalKey, setCreateModalKey] = useState(0);
   const [recentlyCreatedCombo, setRecentlyCreatedCombo] = useState("");
   const [testingCombo, setTestingCombo] = useState("");
   const [testResults, setTestResults] = useState(null);
@@ -508,11 +509,11 @@ export default function CombosPage() {
 
   const startCreate = () => {
     setEditingCombo(null);
-    setDraft(buildInitialDraft());
     setComboEditorError("");
-    setStage("basics");
-    setShowEditModal(false);
-    setShowComboEditor(true);
+    setSaving(false);
+    setShowComboEditor(false);
+    setCreateModalKey((key) => key + 1);
+    setShowEditModal(true);
   };
 
   const startEdit = (combo) => {
@@ -575,9 +576,10 @@ export default function CombosPage() {
       });
       if (!res.ok) throw new Error(await getApiErrorMessage(res, "Failed to save combo"));
     },
-    onSuccess: async () => {
+    onSuccess: async (_data, variables) => {
       await invalidateCombos();
-      setRecentlyCreatedCombo(draft.name);
+      const savedName = typeof variables.body?.name === "string" ? variables.body.name : draft.name;
+      setRecentlyCreatedCombo(savedName);
       setShowComboEditor(false);
       setShowEditModal(false);
       resetBuilder();
@@ -788,6 +790,12 @@ export default function CombosPage() {
     saveComboMutation.mutate({ endpoint, method, body });
   };
 
+  const handleCreateSave = (body) => {
+    setComboEditorError("");
+    setSaving(true);
+    saveComboMutation.mutate({ endpoint: "/api/combos", method: "POST", body });
+  };
+
   const handleEditSave = (body) => {
     if (!editingCombo?.id) return;
     setComboEditorError("");
@@ -974,9 +982,9 @@ export default function CombosPage() {
         setTestingCombo={setTestingCombo}
       />
 
-      {/* Combo Edit Modal (non-wizard) */}
+      {/* Combo editor: one compact flow for both create and edit. */}
       <ComboEditModal
-        key={editingCombo?.id || "combo-edit-modal"}
+        key={editingCombo?.id || `combo-create-modal-${createModalKey}`}
         combo={editingCombo}
         combos={combos}
         activeProviders={activeProviders}
@@ -984,7 +992,7 @@ export default function CombosPage() {
         providerModelsByProvider={providerModelsByProvider}
         isOpen={showEditModal}
         onClose={() => { setShowEditModal(false); setComboEditorError(""); }}
-        onSave={handleEditSave}
+        onSave={editingCombo ? handleEditSave : handleCreateSave}
         saving={saving}
         error={comboEditorError}
       />
