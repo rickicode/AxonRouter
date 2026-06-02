@@ -48,11 +48,7 @@ export default function AddApiKeyModal({
 	const isOllamaLocal = provider === "ollama-local";
 	const isCookie = authType === "cookie";
 	const credentialLabel = isCookie ? "Cookie Value" : "API Key";
-	const credentialPlaceholder = isCookie
-		? provider === "grok-web"
-			? "sso=xxxxx... or just the raw value"
-			: "eyJhbGciOi..."
-		: "";
+	const credentialPlaceholder = isCookie ? "eyJhbGciOi..." : "";
 	const isAzure = provider === "azure";
 	const isMimo = provider === "mimo";
 	const MIMO_ENDPOINTS = [

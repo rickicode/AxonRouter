@@ -37,7 +37,7 @@ describe("SuperGrok token refresh (DefaultExecutor)", () => {
     });
 
     const { DefaultExecutor } = await import("../../open-sse/executors/default.ts");
-    const executor = new DefaultExecutor("xai");
+    const executor = new DefaultExecutor("supergrok");
 
     const result = await executor.refreshCredentials(
       { refreshToken: "old-refresh-token" },
@@ -77,7 +77,7 @@ describe("SuperGrok token refresh (DefaultExecutor)", () => {
     });
 
     const { DefaultExecutor } = await import("../../open-sse/executors/default.ts");
-    const executor = new DefaultExecutor("xai");
+    const executor = new DefaultExecutor("supergrok");
 
     const result = await executor.refreshCredentials(
       { refreshToken: "expired-token" },
@@ -89,7 +89,7 @@ describe("SuperGrok token refresh (DefaultExecutor)", () => {
 
   it("refreshCredentials without refreshToken returns null", async () => {
     const { DefaultExecutor } = await import("../../open-sse/executors/default.ts");
-    const executor = new DefaultExecutor("xai");
+    const executor = new DefaultExecutor("supergrok");
 
     const result = await executor.refreshCredentials(
       { accessToken: "some-token" },
@@ -112,7 +112,7 @@ describe("SuperGrok token refresh (DefaultExecutor)", () => {
     });
 
     const { DefaultExecutor } = await import("../../open-sse/executors/default.ts");
-    const executor = new DefaultExecutor("xai");
+    const executor = new DefaultExecutor("supergrok");
 
     const result = await executor.refreshCredentials(
       { refreshToken: "original-refresh" },

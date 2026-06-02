@@ -176,7 +176,7 @@ export class DefaultExecutor extends BaseExecutor {
       cline: () => this.refreshCline(credentials.refreshToken),
       "kimi-coding": () => this.refreshKimiCoding(credentials.refreshToken),
       kilocode: () => this.refreshKilocode(credentials.refreshToken),
-      xai: () => this.refreshWithForm(OAUTH_ENDPOINTS.supergrok.token, { grant_type: "refresh_token", refresh_token: credentials.refreshToken, client_id: PROVIDERS.xai.clientId })
+      supergrok: () => this.refreshWithForm(OAUTH_ENDPOINTS.supergrok.token, { grant_type: "refresh_token", refresh_token: credentials.refreshToken, client_id: PROVIDERS.supergrok.clientId })
     };
 
     const refresher = refreshers[this.provider];

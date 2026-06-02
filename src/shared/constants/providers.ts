@@ -92,6 +92,7 @@ export const OAUTH_PROVIDERS = {
   cursor: { id: "cursor", alias: "cu", name: "Cursor IDE", icon: "edit_note", color: "#00D4AA" },
   kilocode: { id: "kilocode", alias: "kc", name: "Kilo Code", icon: "code", color: "#FF6B35", textIcon: "KC" },
   cline: { id: "cline", alias: "cl", name: "Cline", icon: "smart_toy", color: "#5B9BD5", textIcon: "CL" },
+  supergrok: { id: "supergrok", alias: "sg", name: "SuperGrok", icon: "auto_awesome", color: "#1DA1F2", textIcon: "SG", website: "https://grok.com", serviceKinds: ["llm", "imageToText", "webSearch", "image"], authHint: "Sign in with xAI OAuth to use SuperGrok/Grok premium access." },
 };
 
 export const MORPH_MANAGED_PROVIDER_ID = "morph-fast";
@@ -131,7 +132,7 @@ export const APIKEY_PROVIDERS = {
 
   deepseek: { id: "deepseek", alias: "ds", name: "DeepSeek", icon: "bolt", color: "#4D6BFE", textIcon: "DS", website: "https://deepseek.com", apiKeyCompatible: true },
   groq: { id: "groq", alias: "groq", name: "Groq", icon: "speed", color: "#F55036", textIcon: "GQ", website: "https://groq.com", serviceKinds: ["llm", "imageToText", "stt"], sttConfig: { format: "openai", authType: "apiKey", baseUrl: "https://api.groq.com/openai/v1/audio/transcriptions", authHeader: "bearer" }, apiKeyCompatible: true },
-  xai: { id: "xai", alias: "xai", name: "xAI (Grok)", icon: "auto_awesome", color: "#1DA1F2", textIcon: "XA", website: "https://x.ai", serviceKinds: ["llm", "imageToText", "webSearch", "image"], supergrokOauth: true, apiKeyCompatible: true },
+  xai: { id: "xai", alias: "xai", name: "xAI (Grok)", icon: "auto_awesome", color: "#1DA1F2", textIcon: "XA", website: "https://x.ai", serviceKinds: ["llm", "imageToText", "webSearch", "image"], apiKeyCompatible: true },
   mistral: { id: "mistral", alias: "mistral", name: "Mistral", icon: "air", color: "#FF7000", textIcon: "MI", website: "https://mistral.ai", serviceKinds: ["llm", "imageToText"], apiKeyCompatible: true },
   perplexity: { id: "perplexity", alias: "pplx", name: "Perplexity", icon: "search", color: "#20808D", textIcon: "PP", website: "https://www.perplexity.ai", serviceKinds: ["llm", "webSearch"], apiKeyCompatible: true },
   together: { id: "together", alias: "together", name: "Together AI", icon: "group_work", color: "#0F6FFF", textIcon: "TG", website: "https://www.together.ai", apiKeyCompatible: true },
@@ -227,7 +228,6 @@ export const APIKEY_PROVIDERS = {
 
 // Web Cookie Providers (use browser session cookie instead of API key)
 export const WEB_COOKIE_PROVIDERS = {
-  "grok-web": { id: "grok-web", alias: "gw", name: "Grok Web (Subscription)", icon: "auto_awesome", color: "#1DA1F2", textIcon: "GW", website: "https://grok.com", authType: "cookie", authHint: "Paste your sso= cookie value from grok.com", passthroughModels: true, serviceKinds: ["llm"] },
   "perplexity-web": { id: "perplexity-web", alias: "pw", name: "Perplexity Web (Pro/Max)", icon: "search", color: "#20808D", textIcon: "PW", website: "https://www.perplexity.ai", authType: "cookie", authHint: "Paste your __Secure-next-auth.session-token cookie value from perplexity.ai", serviceKinds: ["llm"] },
 };
 

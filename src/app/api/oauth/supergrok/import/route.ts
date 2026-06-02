@@ -117,7 +117,7 @@ export async function POST(request: Request) {
 
     // Save connection
     const connection = await createCurrentProviderConnection({
-      provider: "xai",
+      provider: "supergrok",
       authType: "supergrok_oauth",
       accessToken: finalAccessToken || null,
       refreshToken: finalRefreshToken || null,
