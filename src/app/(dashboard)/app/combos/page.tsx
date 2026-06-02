@@ -366,6 +366,7 @@ export default function CombosPage() {
   const [mappingEditorError, setMappingEditorError] = useState("");
   const [showComboEditor, setShowComboEditor] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
+  const [createModalKey, setCreateModalKey] = useState(0);
   const [recentlyCreatedCombo, setRecentlyCreatedCombo] = useState("");
   const [testingCombo, setTestingCombo] = useState("");
   const [testResults, setTestResults] = useState(null);
@@ -511,6 +512,7 @@ export default function CombosPage() {
     setComboEditorError("");
     setSaving(false);
     setShowComboEditor(false);
+    setCreateModalKey((key) => key + 1);
     setShowEditModal(true);
   };
 
@@ -574,9 +576,10 @@ export default function CombosPage() {
       });
       if (!res.ok) throw new Error(await getApiErrorMessage(res, "Failed to save combo"));
     },
-    onSuccess: async () => {
+    onSuccess: async (_data, variables) => {
       await invalidateCombos();
-      setRecentlyCreatedCombo(draft.name);
+      const savedName = typeof variables.body?.name === "string" ? variables.body.name : draft.name;
+      setRecentlyCreatedCombo(savedName);
       setShowComboEditor(false);
       setShowEditModal(false);
       resetBuilder();
@@ -981,7 +984,7 @@ export default function CombosPage() {
 
       {/* Combo editor: one compact flow for both create and edit. */}
       <ComboEditModal
-        key={editingCombo?.id || "combo-create-modal"}
+        key={editingCombo?.id || `combo-create-modal-${createModalKey}`}
         combo={editingCombo}
         combos={combos}
         activeProviders={activeProviders}
