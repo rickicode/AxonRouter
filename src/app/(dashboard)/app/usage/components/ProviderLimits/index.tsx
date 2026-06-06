@@ -489,6 +489,23 @@ export default function ProviderLimits() {
     },
   });
 
+  const setAntigravityActiveMutation = useMutation({
+    retry: false,
+    mutationFn: async (connectionId: string) => {
+      const res = await fetch("/api/providers/antigravity/auto-switch/active", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ connectionId }),
+      });
+      if (!res.ok) throw new Error("Failed to switch Antigravity account");
+      return res.json();
+    },
+    onSuccess: (data, connectionId) => {
+      setActiveAntigravityAccountId(connectionId);
+      inv.providerAutoSwitch("antigravity");
+    },
+  });
+
   const handleToggleConnectionActive = useCallback((id: string, isActive: boolean) => {
     setTogglingId(id);
     toggleActiveMutation.mutate({ id, isActive });
@@ -936,6 +953,20 @@ export default function ProviderLimits() {
                       className="h-8 px-2 text-xs"
                     >
                       {setCodexActiveMutation.isPending && setCodexActiveMutation.variables === conn.id ? <Spinner className="size-3 mr-1" /> : <AppIcon name="stars" data-icon="inline-start" className="mr-1 text-emerald-500" />}
+                      Set Active
+                    </ShadcnButton>
+                  )}
+                  {conn.provider === "antigravity" && !isActiveAntigravityAccount && (
+                    <ShadcnButton
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setAntigravityActiveMutation.mutate(conn.id)}
+                      disabled={rowBusy || setAntigravityActiveMutation.isPending}
+                      title="Set as active Antigravity CLI account"
+                      className="h-8 px-2 text-xs"
+                    >
+                      {setAntigravityActiveMutation.isPending && setAntigravityActiveMutation.variables === conn.id ? <Spinner className="size-3 mr-1" /> : <AppIcon name="stars" data-icon="inline-start" className="mr-1 text-primary" />}
                       Set Active
                     </ShadcnButton>
                   )}
