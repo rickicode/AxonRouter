@@ -1311,6 +1311,52 @@ export default function ProviderDetailPage() {
 		});
 	};
 
+	// Fetch active accounts for Codex and Antigravity to support manual activation buttons
+	const activeCodexAccountQuery = useQuery({
+		queryKey: queryKeys.providerAutoSwitchActive("codex"),
+		queryFn: ({ signal }) => fetchJson<{ connectionId: string | null }>("/api/providers/codex/auto-switch/active", { signal }),
+		enabled: providerId === "codex",
+	});
+
+	const activeAntigravityAccountQuery = useQuery({
+		queryKey: queryKeys.providerAutoSwitchActive("antigravity"),
+		queryFn: ({ signal }) => fetchJson<{ connectionId: string | null }>("/api/providers/antigravity/auto-switch/active", { signal }),
+		enabled: providerId === "antigravity",
+	});
+
+	const activeAccountId = providerId === "codex"
+		? activeCodexAccountQuery.data?.connectionId || null
+		: providerId === "antigravity"
+			? activeAntigravityAccountQuery.data?.connectionId || null
+			: null;
+
+	const switchActiveMutation = useMutation({
+		retry: false,
+		mutationFn: async (connectionId: string) => {
+			const endpoint = `/api/providers/${providerId}/auto-switch/active`;
+			const res = await fetch(endpoint, {
+				method: "PUT",
+				headers: { "Content-Type": "application/json" },
+				body: JSON.stringify({ connectionId }),
+			});
+			if (!res.ok) throw new Error(`Failed to switch active ${providerId} account`);
+			return res.json();
+		},
+		onSuccess: () => {
+			if (providerId === "codex") {
+				activeCodexAccountQuery.refetch();
+				inv.providerAutoSwitch("codex");
+			} else if (providerId === "antigravity") {
+				activeAntigravityAccountQuery.refetch();
+				inv.providerAutoSwitch("antigravity");
+			}
+			notify.success(`Active ${providerId === "codex" ? "Codex" : "Antigravity"} account updated successfully`);
+		},
+		onError: (error: any) => {
+			notify.error(error?.message || "Failed to switch account");
+		}
+	});
+
 	const connectionsList = (
 		<div className="flex flex-col gap-4">
 			<div className="rounded-[4px] border border-border bg-card px-4 py-4 shadow-sm space-y-4">
@@ -1402,6 +1448,7 @@ export default function ProviderDetailPage() {
 
 			<div className="flex flex-col divide-y divide-black/[0.03] dark:divide-white/[0.03] rounded-[4px] border border-black/5 dark:border-white/5 bg-[var(--color-surface)]">
 				{paginatedConnections.map((conn) => {
+					const isActiveAccount = (providerId === "codex" || providerId === "antigravity") && activeAccountId === conn.id;
 					return (
 						<div
 							key={conn.id}
@@ -1412,6 +1459,9 @@ export default function ProviderDetailPage() {
 									connection={conn}
 									proxyPools={proxyPools}
 									isOAuth={isOAuth}
+									isActiveAccount={isActiveAccount}
+									onSetActive={() => switchActiveMutation.mutate(conn.id)}
+									isSwitchingActive={switchActiveMutation.isPending && switchActiveMutation.variables === conn.id}
 									providerDefaultProxyPoolId={
 										providerDefaultProxyPoolId !== "__none__"
 											? providerDefaultProxyPoolId

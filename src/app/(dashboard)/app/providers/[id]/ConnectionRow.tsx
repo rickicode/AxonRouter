@@ -12,7 +12,19 @@ import { getConnectionStatusPresentation } from "../statusDisplay";
 import CooldownTimer from "./CooldownTimer";
 import { rowHoverClass, subtleCodeClass } from "../designSystem";
 
-export default function ConnectionRow({ connection, proxyPools, isOAuth, providerDefaultProxyPoolId, onToggleActive, onUpdateProxy, onEdit, onDelete }) {
+export default function ConnectionRow({
+  connection,
+  proxyPools,
+  isOAuth,
+  isActiveAccount,
+  onSetActive,
+  isSwitchingActive,
+  providerDefaultProxyPoolId,
+  onToggleActive,
+  onUpdateProxy,
+  onEdit,
+  onDelete
+}) {
   const [showProxyDropdown, setShowProxyDropdown] = useState(false);
   const [updatingProxy, setUpdatingProxy] = useState(false);
   const proxyDropdownRef = useRef(null);
@@ -83,12 +95,21 @@ export default function ConnectionRow({ connection, proxyPools, isOAuth, provide
     return () => { if (interval) clearInterval(interval); };
   }, [modelLockUntil]);
 
+  const isSwitchableProvider = connection.provider === "codex" || connection.provider === "antigravity";
+
   return (
-    <div className={`group flex items-center justify-between rounded p-2 transition-colors ${rowHoverClass} ${connection.isActive === false ? "opacity-60" : ""}`}>
+    <div className={`group flex items-center justify-between rounded p-2 transition-colors ${rowHoverClass} ${connection.isActive === false ? "opacity-60" : ""} ${isActiveAccount ? "ring-1 ring-emerald-500/30 bg-emerald-500/3" : ""}`}>
       <div className="flex min-w-0 flex-1 items-center gap-3">
         <AppIcon name={isOAuth ? "lock" : "key"} size={16} className="text-text-muted" />
         <div className="min-w-0 flex-1">
-          <p className="truncate text-sm font-medium">{displayName}</p>
+          <div className="flex items-center gap-2 flex-wrap">
+            <p className="truncate text-sm font-medium">{displayName}</p>
+            {isActiveAccount && (
+              <Badge variant="default" className="h-4 rounded border border-emerald-500/40 bg-emerald-500/12 text-emerald-400 text-[8px] px-1 py-0 leading-none">
+                Active
+              </Badge>
+            )}
+          </div>
           <div className="mt-1 flex flex-wrap items-center gap-2">
             <Badge variant={statusBadge.variant === "error" ? "destructive" : statusBadge.variant === "default" ? "secondary" : "default"} className="text-xs"><span className="size-1.5 rounded-full bg-current" />{statusBadge.label}</Badge>
             <span className="text-[11px] text-text-muted capitalize">{statusReasonLabel}</span>
@@ -115,6 +136,18 @@ export default function ConnectionRow({ connection, proxyPools, isOAuth, provide
       </div>
       <div className="flex items-center gap-2">
         <div className="flex gap-1">
+          {isSwitchableProvider && !isActiveAccount && onSetActive && (
+            <Button
+              onClick={onSetActive}
+              disabled={isSwitchingActive || connection.isActive === false}
+              variant="ghost"
+              size="sm"
+              className="flex h-auto flex-col rounded-xl px-2 py-1 text-[10px] text-emerald-500 hover:text-emerald-400"
+            >
+              <AppIcon name="stars" />
+              {isSwitchingActive ? "Activating..." : "Set Active"}
+            </Button>
+          )}
           {(hasAnyProxy || (proxyPools || []).length > 0) && (
             <div className="relative" ref={proxyDropdownRef}>
               <Button onClick={() => setShowProxyDropdown((v) => !v)} variant="ghost" size="sm" className={`flex h-auto flex-col rounded-xl px-2 py-1 text-[10px] ${hasAnyProxy ? "text-primary" : "text-text-muted hover:text-primary"}`} disabled={updatingProxy}>
@@ -138,10 +171,13 @@ export default function ConnectionRow({ connection, proxyPools, isOAuth, provide
 }
 
 ConnectionRow.propTypes = {
-  connection: PropTypes.shape({ id: PropTypes.string, name: PropTypes.string, email: PropTypes.string, displayName: PropTypes.string, modelLockUntil: PropTypes.string, isActive: PropTypes.bool, priority: PropTypes.number, globalPriority: PropTypes.number }).isRequired,
+  connection: PropTypes.shape({ id: PropTypes.string, name: PropTypes.string, email: PropTypes.string, displayName: PropTypes.string, modelLockUntil: PropTypes.string, isActive: PropTypes.bool, priority: PropTypes.number, globalPriority: PropTypes.number, provider: PropTypes.string }).isRequired,
   proxyPools: PropTypes.arrayOf(PropTypes.shape({ id: PropTypes.string, name: PropTypes.string, proxyUrl: PropTypes.string, noProxy: PropTypes.string, isActive: PropTypes.bool })),
   providerDefaultProxyPoolId: PropTypes.string,
   isOAuth: PropTypes.bool.isRequired,
+  isActiveAccount: PropTypes.bool,
+  onSetActive: PropTypes.func,
+  isSwitchingActive: PropTypes.bool,
   onToggleActive: PropTypes.func.isRequired,
   onUpdateProxy: PropTypes.func,
   onEdit: PropTypes.func.isRequired,
