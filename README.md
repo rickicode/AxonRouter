@@ -40,15 +40,15 @@ Runtime data is stored in `~/.axonrouter` on macOS/Linux and `%APPDATA%\axonrout
 
 Choose one:
 
-- **Run directly** with npm when AxonRouter should run on your machine as a local app.
+- **Run directly** with pnpm when AxonRouter should run on your machine as a local app.
 - **Run with Docker** when you want an isolated service with a mounted `~/.axonrouter` data directory.
 
 ### Run Directly
 
-#### npm
+#### pnpm
 
 ```bash
-npm install -g axonrouter
+pnpm install -g axonrouter
 axonrouter
 ```
 
@@ -176,9 +176,9 @@ Features:
 ```bash
 git clone https://github.com/rickicode/AxonRouter.git
 cd AxonRouter
-npm install
-npm run build
-npm run start
+pnpm install
+pnpm run build
+pnpm run start
 ```
 
 ---
@@ -193,10 +193,10 @@ npm run start
 ## Validation
 
 ```bash
-npm run lint
-npm run typecheck
-npm run test
-npm run build
+pnpm run lint
+pnpm run typecheck
+pnpm run test
+pnpm run build
 ```
 
 ---

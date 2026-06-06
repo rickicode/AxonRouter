@@ -113,6 +113,26 @@ export function calculatePercentage(used, total) {
 }
 
 /**
+ * Map Antigravity model ID to its provider family (Gemini vs Claude vs Other).
+ */
+const ANTIGRAVITY_MODEL_FAMILIES: Record<string, string> = {
+  "claude-opus-4-6-thinking": "Claude",
+  "claude-sonnet-4-6": "Claude",
+  "gemini-3.1-pro-high": "Gemini",
+  "gemini-3.1-pro-low": "Gemini",
+  "gemini-3-flash": "Gemini",
+  "gpt-oss-120b-medium": "Other",
+};
+
+export function getAntigravityModelFamily(modelKey: string): string {
+  if (ANTIGRAVITY_MODEL_FAMILIES[modelKey]) return ANTIGRAVITY_MODEL_FAMILIES[modelKey];
+  if (modelKey.startsWith("claude-") || modelKey.startsWith("anthropic/claude-")) return "Claude";
+  if (modelKey.startsWith("gemini-")) return "Gemini";
+  if (modelKey.startsWith("gpt-")) return "Other";
+  return "Other";
+}
+
+/**
  * Parse provider-specific quota structures into normalized array
  * @param {string} provider - Provider name (github, antigravity, codex, kiro, claude)
  * @param {Object} data - Raw quota data from provider
@@ -145,9 +165,13 @@ export function parseQuotaData(provider, data) {
             const quota: any = rawQuota;
             const remainingPercentage = getQuotaRemainingPercentage(quota);
 
+            // Determine model family for grouping
+            const family = getAntigravityModelFamily(modelKey);
+
             normalizedQuotas.push({
               name: quota.displayName || modelKey,
-              modelKey: modelKey, // Keep modelKey for sorting
+              modelKey: modelKey,
+              family, // e.g. "Claude", "Gemini", "Other"
               used: getQuotaUsed(quota),
               total: normalizeQuotaValue(quota.total),
               resetAt: quota.resetAt || null,

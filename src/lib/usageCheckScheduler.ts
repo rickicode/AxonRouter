@@ -36,6 +36,7 @@ export class UsageCheckScheduler {
   logger: any;
   timerId: ReturnType<typeof setTimeout> | null;
   running: boolean;
+  stopped: boolean;
   startedAt: string | null;
   nextRunAt: string | null;
   lastRun: UsageCheckLastRun | null;
@@ -45,6 +46,7 @@ export class UsageCheckScheduler {
     this.logger = logger;
     this.timerId = null;
     this.running = false;
+    this.stopped = false;
     this.startedAt = null;
     this.nextRunAt = null;
     this.lastRun = null;
@@ -59,6 +61,7 @@ export class UsageCheckScheduler {
 
   async start() {
     this.startedAt = this.startedAt || new Date().toISOString();
+    this.stopped = false;
     await this.loadSettings();
 
     if (this.settings.enabled !== true) {
@@ -197,7 +200,7 @@ export class UsageCheckScheduler {
       return this.lastRun;
     } finally {
       this.running = false;
-      if (this.settings.enabled === true) {
+      if (this.settings.enabled === true && !this.stopped) {
         this.scheduleNext();
       }
     }
@@ -214,6 +217,7 @@ export class UsageCheckScheduler {
   }
 
   stop() {
+    this.stopped = true;
     if (this.timerId) {
       clearTimeout(this.timerId);
       this.timerId = null;

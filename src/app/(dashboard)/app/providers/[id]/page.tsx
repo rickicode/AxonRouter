@@ -93,6 +93,8 @@ import EditCompatibleNodeModal from "./EditCompatibleNodeModal";
 import AddCustomModelModal from "./AddCustomModelModal";
 import ModelsCard from "../components/ModelsCard";
 import CodexInstructionsCard from "./CodexInstructionsCard";
+import CodexAutoSwitchCard from "./CodexAutoSwitchCard";
+import AntigravityCliCard from "./AntigravityCliCard";
 import CommandCodeInstructionsCard from "./CommandCodeInstructionsCard";
 import MorphInstructionsCard from "../../morph/MorphInstructionsCard";
 import { useNotificationStore } from "@/store/notificationStore";
@@ -2329,7 +2331,13 @@ export default function ProviderDetailPage() {
 			)}
 
 			{/* Provider default instructions config */}
-			{providerId === "codex" && <CodexInstructionsCard />}
+			{providerId === "codex" && (
+				<>
+					<CodexAutoSwitchCard />
+					<CodexInstructionsCard />
+				</>
+			)}
+			{providerId === "antigravity" && <AntigravityCliCard />}
 			{providerId === "commandcode" && <CommandCodeInstructionsCard />}
 			{providerId === "morph-fast" && <MorphInstructionsCard />}
 

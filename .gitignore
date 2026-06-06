@@ -55,7 +55,6 @@ source/*
 
 test/*
 bin/*
-!bin/axonrouter.js
 !bin/mcp-server-launcher.js
 !bin/mcp-server.ts
 open-sse/test/*
@@ -101,8 +100,6 @@ state.md
 .a5c/
 .claude/
 .opencode/
-.serena/memories/
-.serena/cache/
 tmp/
 
 BUG_FIXES_SUMMARY.md
@@ -155,3 +152,4 @@ docker/data/
 WorkerProxy/node_modules/
 WorkerProxy/.wrangler/
 WorkerProxy/dist/
+

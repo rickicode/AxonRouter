@@ -1,6 +1,6 @@
 # AxonRouter Architecture
 
-_Last updated: 2026-05-22_
+_Last updated: 2026-06-03_
 
 ## Executive Summary
 
@@ -19,10 +19,10 @@ Core capabilities:
 - Morph intelligence layer (auto-routing, key failover, instruction injection, reasoning normalization)
 - Caveman control surface with implemented dashboard/config/modifier layers active on the main chat request pipeline for translated and native passthrough chat paths
 - Ngrok tunnel support for optional remote access
-- SQLite-backed primary state store with migration from JSON
+- SQLite-first primary state store with migration from JSON (no Redis dependency)
 - Custom skills CRUD and import/export
 - Proxy pools for provider connection outbound routing
-- npm distribution with standalone Next.js output and a single `axonrouter` CLI; local MCP stdio runs through `axonrouter mcp`
+- pnpm distribution with standalone Next.js output and a single `axonrouter` CLI; local MCP stdio runs through `axonrouter mcp`
 
 Primary runtime model:
 
@@ -118,7 +118,7 @@ Main directories:
 - `src/app/api/v1/*` and `src/app/api/v1beta/*` for compatibility APIs
 - `src/app/morphllm/*` for native Morph HTTP routes (`/morphllm/*` and `/morphllm/v1/*`)
 - `src/app/api/*` for management/configuration APIs
-- Next rewrites in `next.config.ts` map `/v1/*` to `/api/v1/*`
+- Next rewrites in `next.config.mjs` map `/v1/*` to `/api/v1/*`
 
 Important compatibility routes:
 
@@ -185,7 +185,7 @@ Primary state DB (SQLite-backed):
 
 - `src/lib/localDb.ts` — SQLite-first with JSON migration path
 - Primary file: `~/.axonrouter/db.sqlite` (with `sqliteHelpers.ts` and `sqliteMigrations.ts`)
-- Driver: `better-sqlite3`. Published npm packages include the standalone native binary and Turbopack external alias; `node-gyp` is dependency-level fallback for platforms that must rebuild the native addon.
+- Driver: `better-sqlite3`. Published npm packages include the standalone native binary and Webpack external alias; `node-gyp` is dependency-level fallback for platforms that must rebuild the native addon.
 - Collections: providerConnections, providerNodes, proxyPools, modelAliases, customModels, disabledModels, customSkills, mitmAlias, combos, apiKeys, settings, pricing
 - Provider identity is data-driven, so `kiro` and `amazon-q` connections persist separately even though they share most OAuth/executor mechanics
 - Singletons: opencodeSync, runtimeConfig, tunnelState
@@ -960,7 +960,7 @@ Transparent HTTPS interception proxy for provider credential capture:
 ## Known Architectural Notes
 
 1. Runtime defaults are centralized in `src/shared/constants/runtimeDefaults.json`; avoid new hardcoded default ports/base URLs in runtime code.
-2. npm packaging materializes Turbopack external aliases under `.next/standalone/.next/node_modules` so native externals such as `better-sqlite3-<hash>` survive `npm pack`.
+2. pnpm packaging materializes Webpack external aliases under `.next/standalone/.next/node_modules` so native externals such as `better-sqlite3-<hash>` survive `pnpm pack`.
 3. The package exposes a single `axonrouter` binary; local MCP stdio uses `axonrouter mcp` instead of a separate helper binary.
 4. Primary state is now SQLite-backed (`db.sqlite`); JSON `db.json` path exists only for migration.
 5. `usageDb` now follows `~/.axonrouter` with SQLite-first storage in `~/.axonrouter/usage.sqlite`, while legacy `usage.json` reads remain fallback-only for older data.
@@ -973,14 +973,37 @@ Transparent HTTPS interception proxy for provider credential capture:
 15. `/v1/*` tracing includes HTTP metadata plus route/model/provider attributes, and streaming responses record first-chunk timing before span completion.
 16. Morph tracing is multi-phase: compatibility translation, auto-routing, fast-apply/compact preprocessing, upstream capability dispatch, and usage persistence each emit nested spans.
 17. Usage worker tracing spans parent IPC, child worker boot/commands, scheduler runs, queue behavior, and per-connection refresh work.
-18. Provider hot state uses SQLite `hot_state` table; remaining Redis-oriented paths exist only as compatibility or test fallback.
+18. Provider hot state uses SQLite `hot_state` table only; Redis is not used.
+
+## Build and Bundler Strategy
+
+AxonRouter uses a **dual-bundler strategy** aligned with OmniRoute's proven stability pattern:
+
+- **Production build**: `next build --webpack` (explicit, stable, proven)
+  - `pnpm run build` uses `--webpack` flag to force webpack bundler
+    - The `webpack()` function in `next.config.mjs` provides config hooks (splitChunks, warnings)
+    - Docker builds use `pnpm run build` which centralizes the flag
+- **Development**: `next dev` (default) or `next dev --turbopack` (faster)
+  - `pnpm run dev` — webpack dev mode
+  - `pnpm run dev:turbopack` — turbopack dev mode (faster HMR)
+
+Key config in `next.config.mjs`:
+- `outputFileTracingRoot: projectRoot` — ensures standalone build traces all deps
+- `serverExternalPackages` — 25+ native/Node modules externalized (better-sqlite3, node-forge, child_process, fs, crypto, net, tls, http, https, etc.)
+- `experimental.serverActions.bodySizeLimit: "50mb"` — AI proxy payloads can be multi-MB
+- `transpilePackages: ["open-sse"]` — transpile the open-sse workspace package
+- `turbopack.resolveAlias` — stub config for native modules during turbopack dev
+- Webpack `splitChunks` — separate vendor chunks for monaco-editor, @xyflow, recharts
+
+Security headers on `/v1/*` routes:
+- Content-Security-Policy (CSP), X-Content-Type-Options, X-Frame-Options, Cache-Control, Referrer-Policy
 
 ## Operational Verification Checklist
 
-- Install package: `npm install -g axonrouter`
-- Start package CLI: `axonrouter` or `npx axonrouter` (default port `12711`)
+- Install package: `pnpm install -g axonrouter`
+- Start package CLI: `axonrouter` or `pnpm dlx axonrouter` (default port `12711`)
 - MCP stdio subcommand: `axonrouter mcp`
-- Build from source: `cd /root/dev/axonrouter && npm install && npm run build`
+- Build from source: `cd /root/dev/axonrouter && pnpm install && pnpm run build`
 - Build Docker image: `cd /root/dev/axonrouter && docker build -t axonrouter .`
 - Start service and verify:
 - `GET /api/settings`

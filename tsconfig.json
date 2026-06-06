@@ -52,7 +52,9 @@
     "moduleDetection": "force",
     "noPropertyAccessFromIndexSignature": false,
     "noCheck": false,
-    "noUncheckedSideEffectImports": false
+    "noUncheckedSideEffectImports": false,
+    "forceConsistentCasingInFileNames": true,
+    "strictNullChecks": false
   },
   "include": [
     "next-env.d.ts",

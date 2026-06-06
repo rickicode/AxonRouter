@@ -2,7 +2,6 @@
 
 import AppIcon from "@/shared/components/AppIcon";
 import { useState, useEffect, useCallback, useMemo, useRef } from "react";
-import { useRouter } from "next/navigation";
 import ProviderIcon from "@/shared/components/ProviderIcon";
 import QuotaTable from "./QuotaTable";
 import Pagination from "@/shared/components/Pagination";
@@ -16,7 +15,6 @@ import { Label } from "@/components/ui/label";
 import { Select as ShadcnSelect, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { Spinner } from "@/components/ui/spinner";
-import { EditConnectionModal } from "@/shared/components";
 import { USAGE_SUPPORTED_PROVIDERS } from "@/shared/constants/providers";
 import { useUrlQueryControls } from "@/shared/hooks";
 import { useMutation } from "@tanstack/react-query";
@@ -29,6 +27,7 @@ import {
 } from "@/lib/connectionStatus";
 import { cn } from "@/lib/utils";
 import { getQuotaPresentation } from "./utils";
+import VerifyAccountBadge from "./VerifyAccountBadge";
 
 const DEFAULT_PAGE_SIZE = 24;
 
@@ -252,7 +251,6 @@ function getCanonicalStatusCounts(connections = []) {
 }
 
 export default function ProviderLimits() {
-  const router = useRouter();
   const inv = useInvalidate();
   const {
     getQueryValue,
@@ -276,14 +274,15 @@ export default function ProviderLimits() {
   const [refreshingConnectionIds, setRefreshingConnectionIds] = useState({});
   const [connectionRefreshErrors, setConnectionRefreshErrors] = useState({});
   const [latestTestResults, setLatestTestResults] = useState({});
-  const [deletingId, setDeletingId] = useState(null);
   const [togglingId, setTogglingId] = useState(null);
-  const [showEditModal, setShowEditModal] = useState(false);
-  const [selectedConnection, setSelectedConnection] = useState(null);
-  const [proxyPools, setProxyPools] = useState([]);
+  const [activeCodexAccountId, setActiveCodexAccountId] = useState(null);
+  const [activeCodexRotation, setActiveCodexRotation] = useState<{lastRotatedAt: string | null; lastRotatedFrom: string | null; lastRotatedTo: string | null} | null>(null);
+  const [activeAntigravityAccountId, setActiveAntigravityAccountId] = useState(null);
+  const [testingConnectionIds, setTestingConnectionIds] = useState({});
+  const [testResults, setTestResults] = useState({});
   const [currentPage, setCurrentPage] = useState(1);
   const searchQuery = getQueryValue("searchQuery", "");
-  const statusFilter = getQueryValue("statusFilter", "eligible") || "eligible";
+  const statusFilter = getQueryValue("statusFilter", "all") || "all";
   const accountTypeFilter = getQueryValue("accountTypeFilter", "all") || "all";
 
   const fetchConnections = useCallback(async () => {
@@ -329,50 +328,129 @@ export default function ProviderLimits() {
     }
   }, []);
 
+  // Fetch active Antigravity CLI account
+  const fetchActiveAntigravityAccount = useCallback(async () => {
+    try {
+      const res = await fetch("/api/providers/antigravity/auto-switch/active", { cache: "no-store" });
+      if (res.ok) {
+        const data = await res.json();
+        setActiveAntigravityAccountId(data?.connectionId || null);
+      }
+    } catch {
+      // Non-critical
+    }
+  }, []);
+
+  // Fetch active Codex auto-switch account + rotation info
+  const fetchActiveCodexAccount = useCallback(async () => {
+    try {
+      const [activeRes, settingsRes] = await Promise.all([
+        fetch("/api/providers/codex/auto-switch/active", { cache: "no-store" }),
+        fetch("/api/providers/codex/auto-switch", { cache: "no-store" }),
+      ]);
+      if (activeRes.ok) {
+        const data = await activeRes.json();
+        setActiveCodexAccountId(data?.connectionId || null);
+      }
+      if (settingsRes.ok) {
+        const settingsData = await settingsRes.json();
+        if (settingsData.lastRotatedAt) {
+          setActiveCodexRotation({
+            lastRotatedAt: settingsData.lastRotatedAt,
+            lastRotatedFrom: settingsData.lastRotatedFrom || null,
+            lastRotatedTo: settingsData.lastRotatedTo || null,
+          });
+        } else {
+          setActiveCodexRotation(null);
+        }
+      }
+    } catch {
+      // Non-critical — just skip
+    }
+  }, []);
+
   useEffect(() => {
     const initializeData = async () => {
       setConnectionsLoading(true);
       await refreshSharedState();
       await fetchLiveTestResults();
+      await fetchActiveCodexAccount();
+      await fetchActiveAntigravityAccount();
       setConnectionsLoading(false);
     };
 
     initializeData();
-  }, [fetchLiveTestResults, refreshSharedState]);
 
-  useEffect(() => {
-    let cancelled = false;
-    fetch("/api/proxy-pools?isActive=true", { cache: "no-store" })
-      .then((res) => res.json())
-      .then((data) => {
-        if (!cancelled && data?.proxyPools) {
-          setProxyPools(data.proxyPools);
-        }
-      })
-      .catch(() => {});
-    return () => {
-      cancelled = true;
-    };
+    // Poll for Codex + Antigravity active account changes every 30s
+    const pollInterval = setInterval(() => {
+      fetchActiveCodexAccount();
+      fetchActiveAntigravityAccount();
+    }, 30000);
+    return () => clearInterval(pollInterval);
+  }, [fetchLiveTestResults, refreshSharedState, fetchActiveCodexAccount, fetchActiveAntigravityAccount]);
+
+  const testConnection = useCallback(async (connectionId: string) => {
+    if (!connectionId) return;
+    setTestingConnectionIds((prev) => ({ ...prev, [connectionId]: true }));
+    setTestResults((prev) => {
+      const next = { ...prev };
+      delete next[connectionId];
+      return next;
+    });
+
+    try {
+      const res = await fetch(`/api/providers/${encodeURIComponent(connectionId)}/test`, {
+        method: "POST",
+        cache: "no-store",
+      });
+      const data = await res.json().catch(() => ({}));
+
+      if (!res.ok) {
+        setTestResults((prev) => ({
+          ...prev,
+          [connectionId]: {
+            valid: false,
+            error: data.error || "Test failed",
+            testedAt: new Date().toISOString(),
+          },
+        }));
+        return;
+      }
+
+      setTestResults((prev) => ({
+        ...prev,
+        [connectionId]: {
+          valid: data.valid === true,
+          error: data.error || null,
+          testedAt: new Date().toISOString(),
+        },
+      }));
+
+      // Auto-clear test result after 5 seconds
+      setTimeout(() => {
+        setTestResults((prev) => {
+          const next = { ...prev };
+          delete next[connectionId];
+          return next;
+        });
+      }, 5000);
+    } catch (error) {
+      setTestResults((prev) => ({
+        ...prev,
+        [connectionId]: {
+          valid: false,
+          error: error?.message || "Test failed",
+          testedAt: new Date().toISOString(),
+        },
+      }));
+    } finally {
+      setTestingConnectionIds((prev) => {
+        const next = { ...prev };
+        delete next[connectionId];
+        return next;
+      });
+    }
   }, []);
-
-  const deleteConnectionMutation = useMutation({
-    retry: false,
-    mutationFn: async (id: string) => {
-      const res = await fetch(`/api/providers/${id}`, { method: "DELETE" });
-      if (!res.ok) throw new Error("Failed to delete connection");
-    },
-    onSuccess: (_data, id) => {
-      setConnections((prev) => prev.filter((c) => c.id !== id));
-      inv.providers();
-    },
-    onSettled: () => setDeletingId(null),
-  });
-
-  const handleDeleteConnection = useCallback((id: string) => {
-    if (!confirm("Delete this connection?")) return;
-    setDeletingId(id);
-    deleteConnectionMutation.mutate(id);
-  }, [deleteConnectionMutation]);
 
   const toggleActiveMutation = useMutation({
     retry: false,
@@ -394,36 +472,27 @@ export default function ProviderLimits() {
     onSettled: () => setTogglingId(null),
   });
 
+  const setCodexActiveMutation = useMutation({
+    retry: false,
+    mutationFn: async (connectionId: string) => {
+      const res = await fetch("/api/providers/codex/auto-switch/active", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ connectionId }),
+      });
+      if (!res.ok) throw new Error("Failed to switch Codex account");
+      return res.json();
+    },
+    onSuccess: (data, connectionId) => {
+      setActiveCodexAccountId(connectionId);
+      inv.providerAutoSwitch("codex");
+    },
+  });
+
   const handleToggleConnectionActive = useCallback((id: string, isActive: boolean) => {
     setTogglingId(id);
     toggleActiveMutation.mutate({ id, isActive });
   }, [toggleActiveMutation]);
-
-  const updateConnectionMutation = useMutation({
-    retry: false,
-    mutationFn: async ({ connectionId, formData }: { connectionId: string; formData: any }) => {
-      const res = await fetch(`/api/providers/${connectionId}`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(formData),
-      });
-      if (!res.ok) throw new Error("Failed to save connection");
-    },
-    onSuccess: async () => {
-      await fetchConnections();
-      setShowEditModal(false);
-      setSelectedConnection(null);
-      inv.providers();
-    },
-  });
-
-  const handleUpdateConnection = useCallback(
-    (formData: any) => {
-      if (!selectedConnection?.id) return;
-      updateConnectionMutation.mutate({ connectionId: selectedConnection.id, formData });
-    },
-    [selectedConnection, updateConnectionMutation],
-  );
 
   const refreshConnectionUsage = useCallback(async (connectionId, opts: { force?: boolean } = {}) => {
     if (!connectionId) return;
@@ -506,7 +575,14 @@ export default function ProviderLimits() {
         },
       }));
 
-      await refreshSharedState();
+      // Clear stale test-button results for this connection after refresh
+      setTestResults((prev) => {
+        if (!prev[connectionId]) return prev;
+        const next = { ...prev };
+        delete next[connectionId];
+        return next;
+      });
+
     } catch (error) {
       console.error(`Error refreshing usage for connection ${connectionId}:`, error);
       setConnectionRefreshErrors((prev) => ({
@@ -520,7 +596,7 @@ export default function ProviderLimits() {
         return next;
       });
     }
-  }, [refreshSharedState]);
+  }, []);
 
 
 
@@ -725,7 +801,7 @@ export default function ProviderLimits() {
         {paginatedConnections.map((conn) => {
           const quota = getQuotaPresentation(conn, latestTestResults[conn.id] || null);
           const isInactive = conn.isActive === false;
-          const rowBusy = deletingId === conn.id || togglingId === conn.id;
+          const rowBusy = togglingId === conn.id;
           const isRefreshingConnection = Boolean(refreshingConnectionIds[conn.id]);
           const connectionRefreshError = connectionRefreshErrors[conn.id] || "";
           const codexAccountKind = getCodexAccountKindLabel(conn);
@@ -737,10 +813,16 @@ export default function ProviderLimits() {
               ? "border-[var(--color-warning)]/40 bg-[var(--color-warning-soft)] text-[var(--color-warning)]"
               : "border-border bg-muted/40 text-muted-foreground";
 
+          const isActiveCodexAccount = conn.provider === "codex" && activeCodexAccountId === conn.id;
+          const codexRotationTime = isActiveCodexAccount && activeCodexRotation?.lastRotatedAt
+            ? formatRelativeTime(activeCodexRotation.lastRotatedAt)
+            : null;
+          const isActiveAntigravityAccount = conn.provider === "antigravity" && activeAntigravityAccountId === conn.id;
+
           return (
             <ShadcnCard
               key={conn.id}
-              className={`min-w-0 gap-0 overflow-hidden ${isInactive ? "opacity-60" : ""}`}
+              className={`min-w-0 gap-0 overflow-hidden ${isInactive ? "opacity-60" : ""} ${isActiveCodexAccount ? "ring-1 ring-emerald-500/30" : ""} ${isActiveAntigravityAccount ? "ring-1 ring-primary/30" : ""}`}
             >
               <CardHeader className="flex-col gap-2 border-b border-border px-3 py-3 sm:px-4">
                 {/* Identity row: provider icon, title, account-type badge(s), and status badge */}
@@ -770,6 +852,16 @@ export default function ProviderLimits() {
                           {codexAccountKind}
                         </ShadcnBadge>
                       )}
+                      {isActiveCodexAccount && (
+                        <ShadcnBadge variant="default" className={cn(compactBadgeClass, "border-emerald-500/40 bg-emerald-500/12 text-emerald-400")}>
+                          Active
+                        </ShadcnBadge>
+                      )}
+                      {isActiveAntigravityAccount && (
+                        <ShadcnBadge variant="default" className={cn(compactBadgeClass, "border-primary/40 bg-primary/12 text-primary")}>
+                          Active
+                        </ShadcnBadge>
+                      )}
                     </div>
                     {conn.name && (
                       <p className="truncate text-xs text-muted-foreground">
@@ -784,6 +876,13 @@ export default function ProviderLimits() {
                   >
                     {connectionStatus}
                   </ShadcnBadge>
+                  {conn.validationUrl && (
+                    <VerifyAccountBadge
+                      validationUrl={conn.validationUrl}
+                      provider={conn.provider}
+                      className="shrink-0"
+                    />
+                  )}
                 </div>
 
                 {/* Action row: kept on its own line so controls never overlap the badges on mobile */}
@@ -818,29 +917,28 @@ export default function ProviderLimits() {
                     type="button"
                     variant="ghost"
                     size="icon"
-                    onClick={() => {
-                      setSelectedConnection(conn);
-                      setShowEditModal(true);
-                    }}
-                    disabled={rowBusy}
-                    title="Edit connection"
-                    aria-label="Edit connection"
+                    onClick={() => testConnection(conn.id)}
+                    disabled={rowBusy || Boolean(testingConnectionIds[conn.id])}
+                    title="Test account"
+                    aria-label="Test account"
                     className="size-8 text-muted-foreground"
                   >
-                    <AppIcon name="edit" data-icon="inline-start" />
+                    {testingConnectionIds[conn.id] ? <Spinner className="size-4" /> : <AppIcon name="checkcircle" data-icon="inline-start" />}
                   </ShadcnButton>
-                  <ShadcnButton
-                    type="button"
-                    variant="ghost"
-                    size="icon"
-                    onClick={() => handleDeleteConnection(conn.id)}
-                    disabled={rowBusy}
-                    title="Delete connection"
-                    aria-label="Delete connection"
-                    className="size-8 text-destructive hover:bg-destructive/10"
-                  >
-                    {deletingId === conn.id ? <Spinner className="size-4" /> : <AppIcon name="delete" data-icon="inline-start" />}
-                  </ShadcnButton>
+                  {conn.provider === "codex" && !isActiveCodexAccount && (
+                    <ShadcnButton
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setCodexActiveMutation.mutate(conn.id)}
+                      disabled={rowBusy || setCodexActiveMutation.isPending}
+                      title="Set as active Codex account"
+                      className="h-8 px-2 text-xs"
+                    >
+                      {setCodexActiveMutation.isPending && setCodexActiveMutation.variables === conn.id ? <Spinner className="size-3 mr-1" /> : <AppIcon name="stars" data-icon="inline-start" className="mr-1 text-emerald-500" />}
+                      Set Active
+                    </ShadcnButton>
+                  )}
                   <div
                     className="inline-flex h-8 items-center pl-1"
                     title={(conn.isActive ?? true) ? "Disable connection" : "Enable connection"}
@@ -861,6 +959,20 @@ export default function ProviderLimits() {
                   <Alert variant="destructive" className="mb-3">
                     <AlertDescription>{connectionRefreshError}</AlertDescription>
                   </Alert>
+                )}
+                {testResults[conn.id] && (
+                  <Alert variant={testResults[conn.id].valid ? "default" : "destructive"} className="mb-3">
+                    <AlertDescription>
+                      {testResults[conn.id].valid
+                        ? "Connection test passed."
+                        : `Test failed: ${testResults[conn.id].error || "Unknown error"}`}
+                    </AlertDescription>
+                  </Alert>
+                )}
+                {isActiveCodexAccount && codexRotationTime && (
+                  <p className="text-[11px] text-muted-foreground/70 mb-2">
+                    Auto-switch rotation {codexRotationTime}
+                  </p>
                 )}
                 {quota.quotas?.length > 0 ? (
                   <QuotaTable quotas={quota.quotas} compact provider={conn.provider} />
@@ -892,17 +1004,7 @@ export default function ProviderLimits() {
         />
       )}
 
-      <EditConnectionModal
-        isOpen={showEditModal}
-        connection={selectedConnection}
-        connections={connections}
-        proxyPools={proxyPools}
-        onSave={handleUpdateConnection}
-        onClose={() => {
-          setShowEditModal(false);
-          setSelectedConnection(null);
-        }}
-      />
+
     </div>
   );
 }

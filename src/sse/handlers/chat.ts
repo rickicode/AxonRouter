@@ -501,6 +501,7 @@ async function handleSingleModelChat(body, modelStr, clientRawRequest = null, re
       provider,
       model,
       result.resetsAtMs,
+      result.validationUrl || null,
     );
 
     if (shouldFallback) {

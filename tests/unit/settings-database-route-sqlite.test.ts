@@ -39,7 +39,6 @@ vi.mock("@/lib/providerHotState", () => ({
   mergeConnectionsWithHotState: vi.fn(async (connections) => connections),
   setConnectionHotState: vi.fn(async () => null),
   isHotOnlyUpdate: vi.fn(() => false),
-  isRedisHotStateReady: vi.fn(() => false),
 }));
 
 vi.mock("@/lib/opencodeSync/schema", () => ({
@@ -56,8 +55,6 @@ async function createTempDataDir() {
 
 async function loadModulesFor(dataDir) {
   process.env.DATA_DIR = dataDir;
-  delete process.env.REDIS_URL;
-  delete process.env.REDIS_HOST;
 
   vi.resetModules();
 
@@ -92,8 +89,6 @@ describe("settings database route SQLite integration", () => {
   afterEach(async () => {
     await closeSqlite();
     delete process.env.DATA_DIR;
-    delete process.env.REDIS_URL;
-    delete process.env.REDIS_HOST;
     delete process.env.HTTP_PROXY;
     delete process.env.HTTPS_PROXY;
     delete process.env.ALL_PROXY;

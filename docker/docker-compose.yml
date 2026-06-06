@@ -2,6 +2,14 @@
 # Usage:
 #   docker compose -f docker/docker-compose.yml up -d --build
 #   docker compose -f docker/docker-compose.yml up -d --scale app=8
+#
+# Runner variants (build target):
+#   docker build -t axonrouter:latest .                           → runner-base (lean, ~300 MB)
+#   docker build --target runner-web -t axonrouter:web .           → +Chromium/Playwright (~600 MB)
+#   docker build --target runner-cli -t axonrouter:cli .           → +git/docker/AI CLIs (~700 MB)
+#
+# Compose with variant:
+#   AXONROUTER_IMAGE=axonrouter:web docker compose -f docker/docker-compose.yml up -d --build
 
 services:
   # ============================================
@@ -33,7 +41,7 @@ services:
   # App Instances (scalable)
   # ============================================
   app:
-    image: axonrouter:latest
+    image: ${AXONROUTER_IMAGE:-axonrouter:latest}
     environment:
       - NODE_ENV=production
       - PORT=12711
@@ -66,7 +74,7 @@ services:
   # MITM Proxy Server (optional)
   # ============================================
   mitm:
-    image: axonrouter:latest
+    image: ${AXONROUTER_IMAGE:-axonrouter:latest}
     container_name: axonrouter-mitm
     command: ["tsx", "./src/mitm/server.ts"]
     environment:
@@ -85,7 +93,7 @@ services:
   # Init Container (runs once)
   # ============================================
   app-init:
-    image: axonrouter:latest
+    image: ${AXONROUTER_IMAGE:-axonrouter:latest}
     container_name: axonrouter-init
     entrypoint: ["echo", "AxonRouter data directory initialized"]
     volumes:

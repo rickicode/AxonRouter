@@ -5,6 +5,7 @@
 import { platform, arch } from "node:os";
 import { CLIENT_METADATA, getPlatformUserAgent } from "../config/appConstants";
 import { getAntigravityCredentials } from "../utils/publicCreds";
+import { extractGoogleValidationUrl } from "../utils/error";
 
 // GitHub API config
 const GITHUB_CONFIG = {
@@ -177,7 +178,7 @@ async function getGitHubUsage(accessToken, providerSpecificData) {
 
     return { message: "GitHub Copilot connected. Unable to parse quota data." };
   } catch (error) {
-    throw new Error(`Failed to fetch GitHub usage: ${error.message}`);
+    return { message: `GitHub connected. Unable to fetch usage: ${error.message}` };
   }
 }
 
@@ -291,13 +292,50 @@ const ANTIGRAVITY_PROJECT_NOUNS = ["fuze", "wave", "spark", "flow", "core"];
 function generateMockAntigravityProjectId() {
   const adjective = ANTIGRAVITY_PROJECT_ADJECTIVES[Math.floor(Math.random() * ANTIGRAVITY_PROJECT_ADJECTIVES.length)];
   const noun = ANTIGRAVITY_PROJECT_NOUNS[Math.floor(Math.random() * ANTIGRAVITY_PROJECT_NOUNS.length)];
-  let suffix = "";
-  while (suffix.length < 5) suffix += Math.floor(Math.random() * 36).toString(36);
-  return `${adjective}-${noun}-${suffix.slice(0, 5)}`;
+  // Use crypto UUID for unpredictable suffix (matches executor format)
+  const { randomUUID } = require("crypto");
+  const suffix = randomUUID().slice(0, 5);
+  return `${adjective}-${noun}-${suffix}`;
 }
 
 // Tier ids/names that are placeholders rather than a real, readable subscription tier.
 const NON_DISPLAY_ANTIGRAVITY_TIERS = new Set(["legacy-tier", "legacy", "unknown", ""]);
+
+// Cached set of known Antigravity model ids from PROVIDER_MODELS (single source of truth).
+// Populated lazily on first Antigravity usage fetch to avoid top-level circular import.
+// TTL: re-fetch every 30 minutes so new models appear without requiring a restart.
+let _cachedAntigravityModelIds: Set<string> | null = null;
+let _antigravityModelCacheTs = 0;
+const ANTIGRAVITY_MODEL_CACHE_TTL_MS = 30 * 60 * 1000; // 30 minutes
+
+async function getKnownAntigravityModelIds(): Promise<Set<string>> {
+  const now = Date.now();
+  if (_cachedAntigravityModelIds && (now - _antigravityModelCacheTs) < ANTIGRAVITY_MODEL_CACHE_TTL_MS) {
+    return _cachedAntigravityModelIds;
+  }
+  try {
+    const mod = await import("../config/providerModels");
+    const agModels = mod.getModelsByProviderId("antigravity");
+    if (agModels?.length) {
+      _cachedAntigravityModelIds = new Set(agModels.map((m: any) => m.id));
+      _antigravityModelCacheTs = now;
+      return _cachedAntigravityModelIds;
+    }
+  } catch { /* fallback below */ }
+  // Hardcoded fallback keeps working if the dynamic import fails
+  if (!_cachedAntigravityModelIds) {
+    _cachedAntigravityModelIds = new Set([
+      'claude-opus-4-6-thinking',
+      'claude-sonnet-4-6',
+      'gemini-3.1-pro-high',
+      'gemini-3.1-pro-low',
+      'gemini-3-flash',
+      'gpt-oss-120b-medium',
+    ]);
+  }
+  _antigravityModelCacheTs = now;
+  return _cachedAntigravityModelIds;
+}
 
 /**
  * Return a human-readable subscription tier name only when the API actually reported
@@ -352,9 +390,18 @@ async function getAntigravityUsage(accessToken, providerSpecificData) {
     }
 
     if (response.status === 403) {
+      // Try to extract account verification URL from 403 error details
+      let validationUrl: string | null = null;
+      try {
+        const errorBody = await response.clone().text();
+        validationUrl = extractGoogleValidationUrl(errorBody);
+      } catch { /* best effort */ }
       return {
-        message: "Antigravity quota API access forbidden. Chat may still work.",
-        quotas: {}
+        message: validationUrl
+          ? "Antigravity account needs verification. Please verify your account to continue."
+          : "Antigravity quota API access forbidden. Chat may still work.",
+        quotas: {},
+        ...(validationUrl ? { validationUrl } : {}),
       };
     }
 
@@ -374,15 +421,7 @@ async function getAntigravityUsage(accessToken, providerSpecificData) {
 
     // Parse model quotas (inspired by vscode-antigravity-cockpit)
     if (data.models) {
-      // Filter only recommended/important models (must match PROVIDER_MODELS ag ids)
-      const importantModels = [
-        'claude-opus-4-6-thinking',
-        'claude-sonnet-4-6',
-        'gemini-3.1-pro-high',
-        'gemini-3.1-pro-low',
-        'gemini-3-flash',
-        'gpt-oss-120b-medium',
-      ];
+      const knownModelIds = await getKnownAntigravityModelIds();
 
       for (const [modelKey, rawInfo] of Object.entries(data.models)) {
         const info: any = rawInfo;
@@ -391,8 +430,8 @@ async function getAntigravityUsage(accessToken, providerSpecificData) {
           continue;
         }
 
-        // Skip internal models and non-important models
-        if (info.isInternal || !importantModels.includes(modelKey)) {
+        // Skip internal models and models not in our known set
+        if (info.isInternal || !knownModelIds.has(modelKey)) {
           continue;
         }
 
@@ -681,7 +720,7 @@ async function getCodexUsage(accessToken) {
       usageWindowType: hasSessionWindow ? "session_and_weekly" : hasWeeklyWindow ? "weekly_only" : "unknown",
     };
   } catch (error) {
-    throw new Error(`Failed to fetch Codex usage: ${error.message}`);
+    return { message: `Codex connected. Unable to fetch usage: ${error.message}` };
   }
 }
 

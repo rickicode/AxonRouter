@@ -10,6 +10,15 @@ const { isKimiModel, buildKimiBody, handleKimiSSE, getSessionKey } = require("./
 async function intercept(req, res, bodyBuffer, mappedModel) {
   try {
     const body = JSON.parse(bodyBuffer.toString());
+    
+    // Guard: if mappedModel is missing, reject early instead of sending broken request
+    if (!mappedModel) {
+      err(`[antigravity] No mapped model for request — check MITM alias configuration`);
+      if (!res.headersSent) res.writeHead(400, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ error: { message: "No model mapping configured for this request", type: "mitm_error" } }));
+      return;
+    }
+    
     body.model = mappedModel;
     
     // Check if this is a Kimi model request

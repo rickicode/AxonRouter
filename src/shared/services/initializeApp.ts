@@ -6,6 +6,7 @@ import { drainUsageQueue } from "@/lib/usageDb/backgroundQueue";
 import { autoStartMitmIfEnabled, bootstrapMitmRuntimeFromInitializeApp } from "@/lib/mitm/initializeMitmAccess";
 import { ensureUsageCheckSchedulerStarted } from "@/lib/usageCheckScheduler/bootstrap";
 import { startProxyHealthCheck } from "@/lib/network/proxyHealthCheck";
+import { ensureDefaultPassword } from "@/lib/auth/ensureDefaultPassword";
 
 // Inject correct paths and DB hooks into the MITM runtime once from the initializer context.
 void bootstrapMitmRuntimeFromInitializeApp();
@@ -62,6 +63,9 @@ export async function initializeApp() {
       });
       g.signalHandlersRegistered = true;
     }
+
+    // Ensure dashboard password exists (first-run default or AXONROUTER_PASSWORD env)
+    await ensureDefaultPassword();
 
     // Auto-start MITM if it was enabled before restart
     autoStartMitm();

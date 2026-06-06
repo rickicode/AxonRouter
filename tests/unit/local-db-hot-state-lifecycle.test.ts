@@ -17,8 +17,6 @@ async function createTempDataDir() {
 async function loadModulesWithTempDataDir() {
   const dataDir = await createTempDataDir();
   process.env.DATA_DIR = dataDir;
-  delete process.env.REDIS_URL;
-  delete process.env.REDIS_HOST;
   vi.resetModules();
 
   const providerHotState = await import("../../src/lib/providerHotState.ts");
@@ -41,35 +39,6 @@ function readProviderConnectionFromSqlite(dataDir, id) {
   }
 }
 
-function createFakeRedisClient() {
-  const hashes = new Map();
-
-  return {
-    isReady: true,
-    async hGetAll(key) {
-      return { ...(hashes.get(key) || {}) };
-    },
-    async hSet(key, payload) {
-      hashes.set(key, {
-        ...(hashes.get(key) || {}),
-        ...(payload || {}),
-      });
-    },
-    async hDel(key, field) {
-      const current = { ...(hashes.get(key) || {}) };
-      delete current[field];
-      if (Object.keys(current).length === 0) hashes.delete(key);
-      else hashes.set(key, current);
-    },
-    async expire() {
-      return true;
-    },
-    async del(key) {
-      hashes.delete(key);
-    },
-  };
-}
-
 afterEach(async () => {
   try {
     const sqliteHelpers = await import("@/lib/sqliteHelpers");
@@ -77,8 +46,6 @@ afterEach(async () => {
   } catch (_) {}
 
   delete process.env.DATA_DIR;
-  delete process.env.REDIS_URL;
-  delete process.env.REDIS_HOST;
   vi.resetModules();
 
   while (tempDirs.length > 0) {
@@ -241,145 +208,12 @@ describe("localDb hot-state lifecycle", () => {
     await expect(localDb.getProviderConnections({ provider: "provider-delete" })).resolves.toEqual([]);
   });
 
-  it("prevents stale Redis provider state from resurrecting deleted hot state after redis recovers", async () => {
-    const { localDb, providerHotState } = await loadModulesWithTempDataDir();
-    const sqliteHelpers = await import("@/lib/sqliteHelpers");
-
-    process.env.REDIS_URL = "redis://example.test:6379";
-
-    const staleRedis = createFakeRedisClient();
-    providerHotState.__setRedisClientForTests(staleRedis);
-
-    const created = await localDb.createProviderConnection({
-      provider: "provider-resurrection-delete",
-      name: "Delete after outage",
-      apiKey: "key-delete",
-      isActive: true,
-      priority: 1,
-      testStatus: "active",
-    });
-
-    await providerHotState.setConnectionHotState(created.id, "provider-resurrection-delete", {
-      routingStatus: "blocked",
-      reasonDetail: "stale redis copy",
-    });
-
-    delete process.env.REDIS_URL;
-
-    await expect(localDb.deleteProviderConnection(created.id)).resolves.toBe(true);
-    expect(sqliteHelpers.loadProviderHotState("provider-resurrection-delete")).toEqual({});
-
-    providerHotState.__resetProviderHotStateForTests();
-    process.env.REDIS_URL = "redis://example.test:6379";
-    providerHotState.__setRedisClientForTests(staleRedis);
-
-    const projected = await providerHotState.getConnectionHotStates([
-      { id: created.id, provider: "provider-resurrection-delete", testStatus: "active" },
-    ]);
-
-    expect(projected.get(`provider-resurrection-delete:${created.id}`)).toMatchObject({
-      id: created.id,
-      provider: "provider-resurrection-delete",
-      testStatus: "active",
-    });
-    expect(projected.get(`provider-resurrection-delete:${created.id}`)).not.toHaveProperty("routingStatus");
-
-    providerHotState.__resetProviderHotStateForTests();
-    providerHotState.__setRedisClientForTests(staleRedis);
-
-    const projectedAgain = await providerHotState.getConnectionHotStates([
-      { id: created.id, provider: "provider-resurrection-delete", testStatus: "active" },
-    ]);
-
-    expect(projectedAgain.get(`provider-resurrection-delete:${created.id}`)).toMatchObject({
-      id: created.id,
-      provider: "provider-resurrection-delete",
-      testStatus: "active",
-    });
-    expect(projectedAgain.get(`provider-resurrection-delete:${created.id}`)).not.toHaveProperty("routingStatus");
-  });
-
-  it("prevents stale Redis provider state from resurrecting import-invalidated hot state after redis recovers", async () => {
-    const { localDb, providerHotState } = await loadModulesWithTempDataDir();
-
-    process.env.REDIS_URL = "redis://example.test:6379";
-
-    const staleRedis = createFakeRedisClient();
-    providerHotState.__setRedisClientForTests(staleRedis);
-
-    const created = await localDb.createProviderConnection({
-      id: "conn-import-stale",
-      provider: "provider-import-stale",
-      name: "Before import",
-      apiKey: "old-key",
-      isActive: true,
-      priority: 1,
-      testStatus: "active",
-    });
-
-    await providerHotState.setConnectionHotState(created.id, "provider-import-stale", {
-      routingStatus: "blocked",
-      reasonDetail: "stale redis state",
-    });
-
-    delete process.env.REDIS_URL;
-
-    await localDb.importDb({
-      format: DB_BACKUP_FORMAT,
-      providerConnections: [
-        {
-          id: "conn-import-stale",
-          provider: "provider-import-stale",
-          name: "Imported clean",
-          apiKey: "new-key",
-          isActive: true,
-          priority: 1,
-          routingStatus: "blocked",
-          reasonDetail: "imported truth",
-          testStatus: "active",
-        },
-      ],
-    });
-
-    providerHotState.__resetProviderHotStateForTests();
-    process.env.REDIS_URL = "redis://example.test:6379";
-    providerHotState.__setRedisClientForTests(staleRedis);
-
-    const imported = await localDb.getProviderConnectionById("conn-import-stale");
-
-    expect(imported).toMatchObject({
-      id: "conn-import-stale",
-      provider: "provider-import-stale",
-      name: "Imported clean",
-      routingStatus: "blocked",
-      reasonDetail: "imported truth",
-      testStatus: "active",
-    });
-
-    providerHotState.__resetProviderHotStateForTests();
-    providerHotState.__setRedisClientForTests(staleRedis);
-
-    const importedAgain = await localDb.getProviderConnectionById("conn-import-stale");
-
-    expect(importedAgain).toMatchObject({
-      id: "conn-import-stale",
-      provider: "provider-import-stale",
-      name: "Imported clean",
-      routingStatus: "blocked",
-      reasonDetail: "imported truth",
-      testStatus: "active",
-    });
-  });
-
-  it("durably persists projected legacy fallback fields for redis-backed hot-only updates", async () => {
+  it("durably persists projected legacy fallback fields for hot-only updates", async () => {
     const { dataDir, localDb, providerHotState } = await loadModulesWithTempDataDir();
 
-    process.env.REDIS_URL = "redis://example.test:6379";
-    providerHotState.__setRedisClientForTests(createFakeRedisClient());
-
     const created = await localDb.createProviderConnection({
-      provider: "provider-redis-fallback",
-      name: "Redis fallback",
+      provider: "provider-hot-only-fallback",
+      name: "Hot only fallback",
       apiKey: "secret",
       isActive: true,
       priority: 1,
@@ -399,12 +233,11 @@ describe("localDb hot-state lifecycle", () => {
     });
 
     providerHotState.__resetProviderHotStateForTests();
-    delete process.env.REDIS_URL;
 
     const recovered = await localDb.getProviderConnectionById(created.id);
     expect(recovered).toMatchObject({
       id: created.id,
-      provider: "provider-redis-fallback",
+      provider: "provider-hot-only-fallback",
       authState: "expired",
       reasonDetail: "Authentication expired",
     });
@@ -412,9 +245,6 @@ describe("localDb hot-state lifecycle", () => {
 
   it("writes mixed updates to both centralized hot state and persisted db fields", async () => {
     const { dataDir, localDb, providerHotState } = await loadModulesWithTempDataDir();
-
-    process.env.REDIS_URL = "redis://example.test:6379";
-    providerHotState.__setRedisClientForTests(createFakeRedisClient());
 
     const created = await localDb.createProviderConnection({
       provider: "provider-mixed-update",

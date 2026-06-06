@@ -1,12 +1,8 @@
-@import "tailwindcss/theme";
-@import "tailwindcss/preflight";
-@tailwind utilities;
+@import "tailwindcss";
 
 @custom-variant dark (&:is(.dark *));
 
-@source "./**/*.{ts,tsx}";
-@source "../components/**/*.{ts,tsx}";
-@source "../shared/**/*.{ts,tsx}";
+
 
 @theme inline {
   --color-background: var(--background);

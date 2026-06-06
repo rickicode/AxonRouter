@@ -213,7 +213,11 @@ export class AntigravityExecutor extends BaseExecutor {
           if (retryMs && retryMs <= MAX_RETRY_AFTER_MS && retryAfterAttemptsByUrl[urlIndex] < MAX_RETRY_AFTER_RETRIES) {
             retryAfterAttemptsByUrl[urlIndex]++;
             log?.debug?.("RETRY", `${response.status} with Retry-After: ${Math.ceil(retryMs / 1000)}s, waiting... (${retryAfterAttemptsByUrl[urlIndex]}/${MAX_RETRY_AFTER_RETRIES})`);
-            await new Promise(resolve => setTimeout(resolve, retryMs));
+            await new Promise(resolve => {
+              const timer = setTimeout(resolve, retryMs);
+              if (signal) signal.addEventListener("abort", () => { clearTimeout(timer); resolve(undefined); }, { once: true });
+            });
+            if (signal?.aborted) { throw new DOMException("Aborted", "AbortError"); }
             urlIndex--;
             continue;
           }
@@ -224,7 +228,11 @@ export class AntigravityExecutor extends BaseExecutor {
             // Exponential backoff: 2s, 4s, 8s...
             const backoffMs = Math.min(1000 * (2 ** retryAttemptsByUrl[urlIndex]), MAX_RETRY_AFTER_MS);
             log?.debug?.("RETRY", `429 auto retry ${retryAttemptsByUrl[urlIndex]}/${MAX_AUTO_RETRIES} after ${backoffMs / 1000}s`);
-            await new Promise(resolve => setTimeout(resolve, backoffMs));
+            await new Promise(resolve => {
+              const timer = setTimeout(resolve, backoffMs);
+              if (signal) signal.addEventListener("abort", () => { clearTimeout(timer); resolve(undefined); }, { once: true });
+            });
+            if (signal?.aborted) { throw new DOMException("Aborted", "AbortError"); }
             urlIndex--;
             continue;
           }
@@ -283,6 +291,11 @@ export class AntigravityExecutor extends BaseExecutor {
           continue;
         }
 
+        // Guard: skip if tool name already has the suffix (avoid double-suffix)
+        if (func.name.endsWith(AG_TOOL_SUFFIX)) {
+          clientDeclarations.push(func);
+          continue;
+        }
         const suffixed = `${func.name}${AG_TOOL_SUFFIX}`;
         toolNameMap.set(suffixed, func.name);
         clientDeclarations.push({ ...func, name: suffixed });
@@ -297,8 +310,8 @@ export class AntigravityExecutor extends BaseExecutor {
       if (!msg.parts) return msg;
       
       const cloakedParts = msg.parts.map(part => {
-        // Rename functionCall.name
-        if (part.functionCall && !AG_DEFAULT_TOOLS.has(part.functionCall.name)) {
+        // Rename functionCall.name (skip if already suffixed)
+        if (part.functionCall && !AG_DEFAULT_TOOLS.has(part.functionCall.name) && !part.functionCall.name.endsWith(AG_TOOL_SUFFIX)) {
           return {
             ...part,
             functionCall: {
@@ -308,8 +321,8 @@ export class AntigravityExecutor extends BaseExecutor {
           };
         }
         
-        // Rename functionResponse.name
-        if (part.functionResponse && !AG_DEFAULT_TOOLS.has(part.functionResponse.name)) {
+        // Rename functionResponse.name (skip if already suffixed)
+        if (part.functionResponse && !AG_DEFAULT_TOOLS.has(part.functionResponse.name) && !part.functionResponse.name.endsWith(AG_TOOL_SUFFIX)) {
           return {
             ...part,
             functionResponse: {

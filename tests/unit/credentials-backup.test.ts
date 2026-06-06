@@ -23,8 +23,6 @@ async function createTempDataDir() {
 async function loadRealLocalDbWithTempDataDir() {
   const dataDir = await createTempDataDir();
   process.env.DATA_DIR = dataDir;
-  delete process.env.REDIS_URL;
-  delete process.env.REDIS_HOST;
   vi.resetModules();
   vi.doUnmock("@/lib/localDb");
   vi.doMock("../../src/lib/dataDir.ts", () => ({
@@ -97,8 +95,6 @@ describe("credentials backup round-trip", () => {
     } catch (_) {}
 
     delete process.env.DATA_DIR;
-    delete process.env.REDIS_URL;
-    delete process.env.REDIS_HOST;
     vi.resetModules();
 
     while (tempDirs.length > 0) {

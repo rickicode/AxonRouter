@@ -1,69 +1,24 @@
 "use client";
 
-import AppIcon from "@/shared/components/AppIcon";
 import { useEffect, useState } from "react";
-import { useMutation, useQuery } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
 	Card,
-	CardAction,
 	CardContent,
-	CardDescription,
 	CardHeader,
 	CardTitle,
 } from "@/components/ui/card";
-import {
-	Empty,
-	EmptyDescription,
-	EmptyHeader,
-	EmptyMedia,
-	EmptyTitle,
-} from "@/components/ui/empty";
 import { Field, FieldDescription, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
-import {
-	Select,
-	SelectContent,
-	SelectItem,
-	SelectTrigger,
-	SelectValue,
-} from "@/components/ui/select";
-import { Skeleton } from "@/components/ui/skeleton";
 import { Spinner } from "@/components/ui/spinner";
 import { Switch } from "@/components/ui/switch";
 import ProfileSettingsContent from "@/shared/components/settings/ProfileSettingsContent";
 import { fetchJson, queryKeys, useInvalidate } from "@/shared/query";
 
-const STATUS_TONE_CLASSNAMES = {
-	idle: "border-[var(--color-border)] bg-[var(--color-bg-alt)] text-[var(--color-text-muted)]",
-	ready:
-		"border-[var(--color-border)] bg-[var(--color-bg-alt)] text-[var(--color-text-main)]",
-	pending:
-		"border-[var(--color-primary)]/30 bg-[var(--color-primary)]/10 text-[var(--color-text-main)]",
-	success:
-		"border-[var(--color-success)]/30 bg-[var(--color-success)]/10 text-[var(--color-text-main)]",
-	error:
-		"border-[var(--color-danger)]/30 bg-[var(--color-danger)]/10 text-[var(--color-text-main)]",
-};
-
-function formatRelativeTimestamp(value, fallback) {
-	if (!value) return fallback;
-
-	const date = new Date(value);
-	if (Number.isNaN(date.getTime())) return fallback;
-	return date.toLocaleString();
-}
-
 export default function SettingsPageClient() {
 	const inv = useInvalidate();
-	const [otelSettings, setOtelSettings] = useState({
-		enabled: false,
-		jaegerOtlpHttpEndpoint: "",
-	});
-	const [savingOtel, setSavingOtel] = useState(false);
-	const [otelFeedback, setOtelFeedback] = useState({ type: "", message: "" });
 	const [usageCheckSettings, setUsageCheckSettings] = useState({
 		enabled: true,
 		intervalMinutes: 60,
@@ -80,16 +35,8 @@ export default function SettingsPageClient() {
 	useEffect(() => {
 		const settings: any = settingsQuery.data;
 		if (!settings) return;
-		const otel = settings?.observability?.otel || {};
+		const uc = settings?.usageCheck || {};
 		queueMicrotask(() => {
-			setOtelSettings({
-				enabled: otel?.enabled === true,
-				jaegerOtlpHttpEndpoint:
-					typeof otel?.jaegerOtlpHttpEndpoint === "string"
-						? otel.jaegerOtlpHttpEndpoint
-						: "",
-			});
-			const uc = settings?.usageCheck || {};
 			setUsageCheckSettings({
 				enabled: uc.enabled !== false,
 				intervalMinutes:
@@ -99,40 +46,6 @@ export default function SettingsPageClient() {
 			});
 		});
 	}, [settingsQuery.data]);
-
-	async function handleSaveOtelSettings() {
-		setSavingOtel(true);
-		setOtelFeedback({ type: "", message: "" });
-		try {
-			const response = await fetch("/api/settings", {
-				method: "PATCH",
-				headers: { "Content-Type": "application/json" },
-				body: JSON.stringify({
-					observability: {
-						otel: {
-							enabled: otelSettings.enabled,
-							jaegerOtlpHttpEndpoint: otelSettings.jaegerOtlpHttpEndpoint,
-						},
-					},
-				}),
-			});
-			const data = await response.json().catch(() => ({}));
-			if (!response.ok)
-				throw new Error(data.error || "Failed to save telemetry settings");
-			setOtelFeedback({
-				type: "success",
-				message: "Telemetry settings saved.",
-			});
-			inv.settings();
-		} catch (error: any) {
-			setOtelFeedback({
-				type: "error",
-				message: error?.message || "Failed to save telemetry settings",
-			});
-		} finally {
-			setSavingOtel(false);
-		}
-	}
 
 	async function handleSaveUsageCheck() {
 		setSavingUsageCheck(true);
@@ -178,78 +91,6 @@ export default function SettingsPageClient() {
 				<CardContent>
 					<div className="space-y-4">
 						<ProfileSettingsContent />
-					</div>
-				</CardContent>
-			</Card>
-
-			<Card>
-				<CardHeader>
-					<div>
-						<CardTitle>Telemetry (Jaeger)</CardTitle>
-					</div>
-				</CardHeader>
-				<CardContent>
-					<div className="flex flex-col gap-4">
-						{otelFeedback.message ? (
-							<Alert
-								variant={
-									otelFeedback.type === "error" ? "destructive" : "default"
-								}
-								className="rounded-[4px]"
-							>
-								<AlertDescription>{otelFeedback.message}</AlertDescription>
-							</Alert>
-						) : null}
-
-						<label className="flex gap-3 rounded-[4px] border border-[var(--color-border)] bg-[var(--color-bg-alt)]/78 p-4 text-sm text-[var(--color-text-main)]">
-							<Switch
-								checked={otelSettings.enabled === true}
-								onToggle={(checked) =>
-									setOtelSettings((current) => ({
-										...current,
-										enabled: checked,
-									}))
-								}
-								disabled={savingOtel || settingsQuery.isPending}
-							/>
-							<span className="flex flex-col gap-1">
-								<span className="block font-medium">
-									Enable OpenTelemetry export
-								</span>
-							</span>
-						</label>
-
-						<Input
-							type="url"
-							value={otelSettings.jaegerOtlpHttpEndpoint}
-							onChange={(event) =>
-								setOtelSettings((current) => ({
-									...current,
-									jaegerOtlpHttpEndpoint: event.target.value,
-								}))
-							}
-							placeholder="http://localhost:4318/v1/traces"
-							autoComplete="url"
-							disabled={savingOtel || settingsQuery.isPending}
-						/>
-
-						<div className="rounded-[4px] border border-[var(--color-border)] bg-[var(--color-bg-alt)]/78 p-4 text-sm leading-6 text-[var(--color-text-muted)]">
-							<p>
-								Only Jaeger OTLP HTTP endpoint is required. Service name is
-								fixed inline.
-							</p>
-							<p>If disabled or endpoint is empty, OpenTelemetry stays off.</p>
-						</div>
-
-						<div className="flex flex-wrap gap-2">
-							<Button
-								onClick={handleSaveOtelSettings}
-								disabled={savingOtel || settingsQuery.isPending}
-							>
-								{savingOtel ? <Spinner data-icon="inline-start" /> : null}
-								{savingOtel ? "Saving" : "Save Telemetry Settings"}
-							</Button>
-						</div>
 					</div>
 				</CardContent>
 			</Card>

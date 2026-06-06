@@ -45,7 +45,7 @@ export function openaiToAntigravityResponse(chunk, state) {
       }
       const accum = state._toolCallAccum[idx];
       if (tc.id) accum.id = tc.id;
-      if (tc.function?.name) accum.name += tc.function.name;
+      if (tc.function?.name) accum.name = tc.function.name;
       if (tc.function?.arguments) accum.arguments += tc.function.arguments;
     }
     // Skip emit — wait for finish_reason
@@ -58,7 +58,9 @@ export function openaiToAntigravityResponse(chunk, state) {
     for (const idx of indices) {
       const accum = state._toolCallAccum[idx];
       let args = {};
-      try { args = JSON.parse(accum.arguments); } catch { /* empty */ }
+      try { args = JSON.parse(accum.arguments); } catch {
+        console.warn(`[Antigravity] Failed to parse tool call arguments for '${accum.name}', using empty args`);
+      }
       // Restore original tool name if it was prefixed during cloaking
       const originalName = state.toolNameMap?.get(accum.name) || accum.name;
       parts.push({

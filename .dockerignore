@@ -41,8 +41,6 @@ yarn-error.log*
 .a5c
 .claude
 .opencode
-.serena/cache
-.serena/memories
 .playwright-mcp
 .ralph
 .rpiv

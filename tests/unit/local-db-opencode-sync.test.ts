@@ -29,7 +29,6 @@ vi.mock("@/lib/providerHotState", () => ({
   mergeConnectionsWithHotState: vi.fn(async (connections) => connections),
   setConnectionHotState: vi.fn(async () => null),
   isHotOnlyUpdate: vi.fn(() => false),
-  isRedisHotStateReady: vi.fn(() => false),
 }));
 
 vi.mock("@/lib/opencodeSync/schema", async () => {
@@ -46,8 +45,6 @@ async function createTempDataDir() {
 async function loadLocalDb(initialData) {
   const dataDir = await createTempDataDir();
   process.env.DATA_DIR = dataDir;
-  delete process.env.REDIS_URL;
-  delete process.env.REDIS_HOST;
 
   if (initialData) {
     await fs.writeFile(path.join(dataDir, "db.json"), JSON.stringify(initialData, null, 2));
@@ -72,8 +69,6 @@ afterEach(async () => {
   }
 
   delete process.env.DATA_DIR;
-  delete process.env.REDIS_URL;
-  delete process.env.REDIS_HOST;
   vi.resetModules();
 
   while (tempDirs.length > 0) {

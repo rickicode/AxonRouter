@@ -417,12 +417,16 @@ export function logUsage(
 		connectionId,
 		tokens,
 		apiKey: apiKey || undefined,
-	}).catch(() => {});
+	}).catch((err) => {
+		console.debug(`[UsageTracking] saveRequestUsage failed:`, err?.message || err);
+	});
 	appendRequestLog({
 		model,
 		provider,
 		connectionId,
 		tokens,
 		status: "200 OK",
-	}).catch(() => {});
+	}).catch((err) => {
+		console.debug(`[UsageTracking] appendRequestLog failed:`, err?.message || err);
+	});
 }

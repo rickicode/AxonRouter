@@ -29,29 +29,29 @@ import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Spinner } from "@/components/ui/spinner";
 
-let providerNameCache = null;
-let providerNodesCache = null;
+let moduleProviderNameCache: Record<string, any> | null = null;
+let moduleProviderNodesCache: Record<string, string> | null = null;
 
 async function fetchProviderNames() {
-  if (providerNameCache && providerNodesCache) {
-    return { providerNameCache, providerNodesCache };
+  if (moduleProviderNameCache && moduleProviderNodesCache) {
+    return { providerNameCache: moduleProviderNameCache, providerNodesCache: moduleProviderNodesCache };
   }
 
   const nodesRes = await fetch("/api/provider-nodes");
   const nodesData = await nodesRes.json();
   const nodes = nodesData.nodes || [];
-  providerNodesCache = {};
+  moduleProviderNodesCache = {};
 
   for (const node of nodes) {
-    providerNodesCache[node.id] = node.name;
+    moduleProviderNodesCache[node.id] = node.name;
   }
 
-  providerNameCache = {
+  moduleProviderNameCache = {
     ...AI_PROVIDERS,
-    ...providerNodesCache
+    ...moduleProviderNodesCache
   };
 
-  return { providerNameCache, providerNodesCache };
+  return { providerNameCache: moduleProviderNameCache, providerNodesCache: moduleProviderNodesCache };
 }
 
 function getProviderName(providerId, cache) {

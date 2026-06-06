@@ -431,10 +431,12 @@ export async function handleChatCore({
 	// Provider returned error
 	if (!providerResponse.ok) {
 		trackPendingRequest(model, provider, connectionId, false, true);
-		const { statusCode, message, resetsAtMs } = await parseUpstreamError(
+		const parsedError = await parseUpstreamError(
 			providerResponse,
 			executor,
 		);
+		const { statusCode, message, resetsAtMs } = parsedError;
+		const validationUrl = 'validationUrl' in parsedError ? parsedError.validationUrl : undefined;
 		appendRequestLog({
 			model,
 			provider,
@@ -463,7 +465,9 @@ export async function handleChatCore({
 		);
 		console.log(`${COLORS.red}[ERROR] ${errMsg}${COLORS.reset}`);
 		reqLogger.logError(new Error(message), finalBody || translatedBody);
-		return createErrorResult(statusCode, errMsg, resetsAtMs);
+		return createErrorResult(statusCode, errMsg, resetsAtMs, {
+			...(validationUrl ? { validationUrl } : {}),
+		});
 	}
 
 	// One-shot recovery for strict JSON mode on Gemini CLI:

@@ -31,6 +31,8 @@ import {
 } from "../../open-sse/executors/codex";
 import { buildModelLockUpdate } from "../../open-sse/services/accountFallback";
 import { MAX_RATE_LIMIT_COOLDOWN_MS } from "../../open-sse/config/errorConfig";
+import { checkAndRotateCodexAccount } from "./codexAutoSwitch";
+import { checkAndRotateAntigravityAccount } from "./antigravityAutoSwitch";
 
 const TRANSIENT_USAGE_RETRY_DELAY_MS = 750;
 const TRANSIENT_USAGE_MAX_ATTEMPTS = 3;
@@ -477,9 +479,18 @@ async function fetchUsageWithTransientRetry(connection: any) {
 			const usage = await withUsageFetchTimeout(
 				() => getUsageForProvider(connection),
 				timeoutMs,
-			);
-			assertUsageHasQuota(connection, usage);
-			return usage;
+			);				// Persist validationUrl from usage (e.g. Antigravity 403 VALIDATION_REQUIRED)
+				// This must happen before assertUsageHasQuota which throws for empty quotas,
+				// causing the success-path clear below to never execute.
+				const validationUrl = (usage as any)?.validationUrl;
+				if (validationUrl) {
+					await updateCurrentProviderConnection(connection.id, {
+						validationUrl,
+					});
+				}
+
+				assertUsageHasQuota(connection, usage);
+				return usage;
 		} catch (usageError: any) {
 			lastError = usageError;
 			const isRetryable =
@@ -801,7 +812,28 @@ export async function refreshConnectionUsage(
 				// Sukses → reset backoff counter (after applyCanonicalUsageRefresh to avoid inconsistency)
 				await resetBackoffStatus(connection, usage);
 
+				// Clear any stale validationUrl now that usage succeeded
+				if (connection?.validationUrl) {
+					await updateCurrentProviderConnection(connection.id, {
+						validationUrl: null,
+					});
+				}
+
 				await applyPreemptiveCodexCooldown(connection, usage);
+
+				// Check Codex auto-switch after successful usage refresh
+				if (connection?.provider === "codex") {
+					checkAndRotateCodexAccount().catch((err) =>
+						console.warn("[UsageRefresh] Codex auto-switch check failed:", err?.message),
+					);
+				}
+
+				// Check Antigravity CLI auto-switch after successful usage refresh
+				if (connection?.provider === "antigravity") {
+					checkAndRotateAntigravityAccount().catch((err) =>
+						console.warn("[UsageRefresh] Antigravity auto-switch check failed:", err?.message),
+					);
+				}
 
 				return { connection, usage, testResult, skipped: false };
 			} catch (error: any) {

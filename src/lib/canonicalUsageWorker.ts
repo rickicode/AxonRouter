@@ -101,15 +101,21 @@ export function normalizeUsageSnapshot(
 async function clearForceBackoff(connectionId: string) {
 	const connection = await getCurrentProviderConnectionById(connectionId);
 	if (!connection) return;
+	// Preserve auth-invalid/disabled blocks — force refresh should only clear
+	// backoff and transient errors, not override genuine auth failures.
+	const isAuthBlocked = connection?.authState === "invalid"
+		|| connection?.reasonCode === "auth_invalid";
 	await syncUsageStatus(connection, {
 		backoffLevel: 0,
 		nextRetryAt: null,
-		routingStatus: "eligible",
-		healthStatus: "healthy",
-		quotaState: "ok",
-		authState: "ok",
-		reasonCode: null,
-		reasonDetail: null,
+		...(isAuthBlocked ? {} : {
+			routingStatus: "eligible",
+			healthStatus: "healthy",
+			quotaState: "ok",
+			authState: "ok",
+			reasonCode: null,
+			reasonDetail: null,
+		}),
 		lastCheckedAt: new Date().toISOString(),
 	});
 }

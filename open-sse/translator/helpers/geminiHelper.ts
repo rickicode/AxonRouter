@@ -283,8 +283,8 @@ function ensureObjectType(obj) {
 export function cleanJSONSchemaForAntigravity(schema) {
   if (!schema || typeof schema !== "object") return schema;
 
-  // Mutate directly (schema is only used once per request)
-  let cleaned = schema;
+  // Clone to avoid mutating the original schema (callers may cache/reuse schemas)
+  let cleaned = JSON.parse(JSON.stringify(schema));
 
   // Phase 1: Convert and prepare
   convertConstToEnum(cleaned);

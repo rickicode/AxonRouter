@@ -204,10 +204,10 @@ Rewire usage endpoints and UI consumers to the canonical state:
 Run after implementation:
 
 ```bash
-npm run lint
-npm run typecheck
-npm run test
-npm run build
+pnpm run lint
+pnpm run typecheck
+pnpm run test
+pnpm run build
 ```
 
 ## Acceptance Criteria

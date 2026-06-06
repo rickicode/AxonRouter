@@ -7,7 +7,7 @@ description: Unified multimodal routing via AxonRouter /v1/unified — single en
 
 Requires `AXONROUTER_URL` (and `AXONROUTER_KEY` if auth enabled). See https://raw.githubusercontent.com/rickicode/axonrouter/refs/heads/main/skills/axonrouter/SKILL.md for setup.
 
-> **AxonRouter exclusive** — this endpoint is not available in upstream 9Router.
+> **AxonRouter exclusive** — unified multimodal routing endpoint.
 
 ## Endpoint
 

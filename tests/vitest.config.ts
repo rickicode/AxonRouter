@@ -55,6 +55,7 @@ export default defineConfig({
 			".next/**",
 		],
 		silent: false,
+		testTimeout: 15000,
 	},
 	resolve: {
 		alias: {

@@ -80,11 +80,13 @@ const STRATEGIES: Record<string, Partial<UsageRefreshStrategy>> = {
     requiresQuota: true,
     timeoutMs: 10000,
     credentialRefreshOnTransientFailure: true,
+    skipOnQuotaUnavailable: true,
   },
   "gemini-cli": {
     requiresQuota: true,
     timeoutMs: 10000,
     credentialRefreshOnTransientFailure: true,
+    skipOnQuotaUnavailable: true,
   },
   github: {
     timeoutMs: 10000,
@@ -92,10 +94,12 @@ const STRATEGIES: Record<string, Partial<UsageRefreshStrategy>> = {
   kiro: {
     timeoutMs: 10000,
     isRecoverableAuthExpiry: isKiroRecoverableAuthExpiry,
+    skipOnQuotaUnavailable: true,
   },
   "amazon-q": {
     timeoutMs: 10000,
     isRecoverableAuthExpiry: isKiroRecoverableAuthExpiry,
+    skipOnQuotaUnavailable: true,
   },
 };
 

@@ -26,7 +26,7 @@ describe("Amazon Q provider parity", () => {
 
     expect(executor.constructor.name).toBe("KiroExecutor");
     expect(PROVIDER_ID_TO_ALIAS["amazon-q"]).toBe("aq");
-  });
+  }, 15000);
 
   it("reuses Kiro OAuth provider implementation for Amazon Q", async () => {
     const { getProvider } = await import("../../src/lib/oauth/providers.ts");

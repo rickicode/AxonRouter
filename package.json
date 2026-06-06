@@ -8,7 +8,6 @@
   ],
   "type": "module",
   "files": [
-    "bin/axonrouter.js",
     ".next/standalone/",
     ".next/static/",
     "public/",
@@ -17,6 +16,7 @@
     "!src/node_modules/",
     "!src/package.json",
     "!src/package-lock.json",
+    "packages/cli/",
     "scripts/postinstall.js",
     "scripts/start.js",
     "scripts/service.js",
@@ -27,13 +27,16 @@
     "installer.sh"
   ],
   "bin": {
-    "axonrouter": "bin/axonrouter.js"
+    "axonrouter": "packages/cli/cli.js"
   },
   "scripts": {
     "postinstall": "node scripts/postinstall.js",
-    "dev": "next dev --hostname 127.0.0.1 --turbopack --port 12712",
-    "build": "NODE_ENV=production next build --turbopack && node ./scripts/ensure-middleware-manifest.js",
-    "start": "NODE_ENV=production node ./scripts/start.js",
+    "dev": "next dev --hostname 127.0.0.1 --port 12712",
+    "dev:turbopack": "next dev --turbopack --hostname 127.0.0.1 --port 12712",
+    "build": "NODE_ENV=production next build --webpack && node ./scripts/ensure-middleware-manifest.js",
+    "build:cli": "node packages/cli/scripts/build-cli.js",
+    "start": "NODE_ENV=production node ./packages/cli/cli.js",
+    "start:legacy": "NODE_ENV=production node ./scripts/start.js",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
     "test": "vitest run --reporter=verbose --root tests",
@@ -43,11 +46,7 @@
   "dependencies": {
     "@monaco-editor/react": "^4.7.0",
     "@ngrok/ngrok": "^1.7.0",
-    "@opentelemetry/api": "^1.9.0",
-    "@opentelemetry/exporter-trace-otlp-http": "^0.57.2",
-    "@opentelemetry/resources": "^1.30.1",
-    "@opentelemetry/sdk-node": "^0.57.2",
-    "@opentelemetry/semantic-conventions": "^1.30.1",
+    
     "@tanstack/pacer": "^0.21.1",
     "@tanstack/react-query": "^5.100.10",
     "@tanstack/react-table": "^8.21.3",

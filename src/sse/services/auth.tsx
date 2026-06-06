@@ -628,6 +628,7 @@ export async function markAccountUnavailable(
 	provider = null,
 	model = null,
 	resetsAtMs = null,
+	validationUrl = null,
 ) {
 	if (!connectionId || connectionId === "noauth")
 		return { shouldFallback: false, cooldownMs: 0 };
@@ -782,10 +783,20 @@ export async function markAccountUnavailable(
 				})
 		: null;
 
+	// Multi-model providers (antigravity, gemini-cli) have independent quota per model family.
+	// A 429 on one model (e.g. Claude via Antigravity) should NOT block the entire connection.
+	// The model lock (modelLock_*) already handles per-model blocking.
+	const isMultiModelProvider = providerId === "antigravity" || providerId === "gemini-cli";
+
 	const exhaustedPatch =
 		!authBlockedPatch && isRuntimeQuotaOrRateLimited
-			? isTransientRateLimit
-				? transientRateLimitPatch
+			? isTransientRateLimit || isMultiModelProvider
+				? isTransientRateLimit
+					? transientRateLimitPatch
+					: {
+						// Model lock is sufficient — don't set global quotaState/routingStatus
+						lastCheckedAt,
+					}
 				: {
 						routingStatus: "exhausted",
 						healthStatus: "degraded",
@@ -852,6 +863,7 @@ export async function markAccountUnavailable(
 		...(canonicalBlockedPatch || {}),
 		...lockUpdate,
 		...(isTransientRateLimit ? transientRateLimitPatch : {}),
+		...(validationUrl ? { validationUrl } : {}),
 		backoffLevel: effectiveBackoffLevel,
 	};
 
@@ -958,6 +970,11 @@ export async function clearAccountError(
 	// Only reset full router-visible blocked state if no active locks remain
 	if (remainingActiveLocks.length === 0) {
 		Object.assign(clearObj, getLiveRequestRecoveryPatch());
+	}
+
+	// Clear validationUrl when account recovers successfully
+	if (conn.validationUrl) {
+		clearObj.validationUrl = null;
 	}
 
 	await updateCurrentProviderConnection(connectionId, clearObj);

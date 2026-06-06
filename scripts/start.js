@@ -344,7 +344,7 @@ export function getBuildInputPaths(projectRoot) {
     path.join(projectRoot, "public"),
     path.join(projectRoot, "package.json"),
     path.join(projectRoot, "package-lock.json"),
-    path.join(projectRoot, "next.config.ts"),
+    path.join(projectRoot, "next.config.mjs"),
   ];
 }
 
@@ -389,7 +389,7 @@ export function rebuildStandaloneBundle(projectRoot) {
       NODE_ENV: "production",
     };
 
-    const buildChild = spawn(process.execPath, [nextCliPath, "build", "--turbopack"], {
+    const buildChild = spawn(process.execPath, [nextCliPath, "build"], {
       cwd: projectRoot,
       stdio: "inherit",
       env: buildEnv,

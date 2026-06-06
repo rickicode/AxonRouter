@@ -42,7 +42,7 @@ describe("Morph raw proxy regression guards", () => {
   });
 
   it("only exposes explicit Morph LLM rewrites through /morphllm", () => {
-    const nextConfigSource = readRepoFile("next.config.ts");
+    const nextConfigSource = readRepoFile("next.config.mjs");
 
         expect(nextConfigSource).not.toContain('source: "/morphllm/:path*"');
     expect(nextConfigSource).not.toContain('source: "/morphllm"');

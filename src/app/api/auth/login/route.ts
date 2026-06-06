@@ -8,14 +8,10 @@ import { getPasetoPrivateKey } from "@/lib/security/pasetoKeys";
 import { assertProductionConfigReady } from "@/lib/security/productionConfig";
 import { getLoginSettings } from "@/lib/auth/loginSettingsAccess";
 import { MANAGEMENT_SESSION_COOKIE_OPTIONS, MANAGEMENT_SESSION_TTL_PASETO } from "@/lib/auth/managementSession";
+import { DEFAULT_DASHBOARD_PASSWORD } from "@/shared/constants/auth";
 
 const MAX_ATTEMPTS = 5;
 const WINDOW_MS = 5 * 60 * 1000;
-// AUTOFIX F01: default password is only valid for localhost first-run setup.
-// Tunnel/non-local access is blocked when no password has been configured
-// (see POST handler below). This constant is intentionally weak; users must
-// change it in Settings immediately after first login.
-const DEFAULT_DASHBOARD_PASSWORD = "12345677";
 
 type LoginAttemptRecord = {
   count: number;

@@ -2,9 +2,9 @@ import { NextResponse } from "next/server";
 import { requireManagementAuth } from "@/lib/api/requireManagementAuth";
 import { getUsageStats } from "@/lib/usageDb";
 
-type UsagePeriod = "24h" | "7d" | "30d" | "60d" | "all";
+type UsagePeriod = "live" | "24h" | "7d" | "30d" | "60d" | "all";
 
-const VALID_PERIODS = new Set<UsagePeriod>(["24h", "7d", "30d", "60d", "all"]);
+const VALID_PERIODS = new Set<UsagePeriod>(["live", "24h", "7d", "30d", "60d", "all"]);
 
 export const dynamic = "force-dynamic";
 

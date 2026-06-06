@@ -15,8 +15,6 @@ async function createTempDataDir() {
 async function loadModulesWithTempDataDir() {
   const dataDir = await createTempDataDir();
   process.env.DATA_DIR = dataDir;
-  delete process.env.REDIS_URL;
-  delete process.env.REDIS_HOST;
   vi.resetModules();
 
   const localDb = await import("../../src/lib/localDb.ts");
@@ -30,8 +28,6 @@ afterEach(async () => {
   } catch (_) {}
 
   delete process.env.DATA_DIR;
-  delete process.env.REDIS_URL;
-  delete process.env.REDIS_HOST;
   vi.resetModules();
 
   while (tempDirs.length > 0) {

@@ -172,8 +172,8 @@ Management APIs are protected by dashboard authentication or explicit route-leve
 ## Validation
 
 ```bash
-npm run lint
-npm run typecheck
-npm run test
-npm run build
+pnpm run lint
+pnpm run typecheck
+pnpm run test
+pnpm run build
 ```

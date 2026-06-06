@@ -1,4 +1,8 @@
-const AUTH_BLOCKED_PATTERNS = [
+/**
+ * Shared auth-related error patterns.
+ * Single source of truth — usageStatus.ts re-exports from here.
+ */
+export const AUTH_BLOCKED_PATTERNS = [
   "token invalid",
   "invalid token",
   "token expired",

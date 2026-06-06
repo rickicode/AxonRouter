@@ -123,14 +123,19 @@ function insertRequestLog(db, event) {
 
 async function ensureUsageEventCost(event) {
   if (event.costTotal > 0) return event;
-  const calculated = await calculateCost(event.provider, event.model, {
-    input: event.tokensInput,
-    output: event.tokensOutput,
-    cacheRead: event.tokensCacheRead,
-    cacheCreation: event.tokensCacheCreation,
-    reasoning: event.tokensReasoning,
-  });
-  return { ...event, costTotal: calculated || 0 };
+  try {
+    const calculated = await calculateCost(event.provider, event.model, {
+      input: event.tokensInput,
+      output: event.tokensOutput,
+      cacheRead: event.tokensCacheRead,
+      cacheCreation: event.tokensCacheCreation,
+      reasoning: event.tokensReasoning,
+    });
+    return { ...event, costTotal: calculated || 0 };
+  } catch (error) {
+    console.warn(`[UsageDb] Cost calculation failed for ${event.provider}/${event.model}:`, error?.message || error);
+    return { ...event, costTotal: 0 };
+  }
 }
 
 export async function flushUsageWriteBatch(batch) {

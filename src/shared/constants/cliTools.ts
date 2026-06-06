@@ -135,6 +135,15 @@ export const CLI_TOOLS = {
 		description: "Open Claw AI Assistant",
 		configType: "custom",
 	},
+	antigravity_cli: {
+		id: "antigravity_cli",
+		name: "Antigravity CLI",
+		image: "/providers/antigravity.png",
+		color: "#4285F4",
+		description: "Google Antigravity CLI (agy)",
+		authFile: "~/.gemini/antigravity-cli/antigravity-oauth-token",
+		configType: "custom",
+	},
 	codex: {
 		id: "codex",
 		name: "OpenAI Codex CLI",

@@ -16,8 +16,6 @@ async function createTempDataDir() {
 async function loadModulesWithTempDataDir() {
   const dataDir = await createTempDataDir();
   process.env.DATA_DIR = dataDir;
-  delete process.env.REDIS_URL;
-  delete process.env.REDIS_HOST;
   vi.resetModules();
 
   const providerHotState = await import("../../src/lib/providerHotState.ts");
@@ -44,34 +42,7 @@ function readProviderConnectionFromSqlite(dataDir, id) {
   }
 }
 
-function createFakeRedisClient() {
-  const hashes = new Map();
 
-  return {
-    isReady: true,
-    async hGetAll(key) {
-      return { ...(hashes.get(key) || {}) };
-    },
-    async hSet(key, payload) {
-      hashes.set(key, {
-        ...(hashes.get(key) || {}),
-        ...(payload || {}),
-      });
-    },
-    async hDel(key, field) {
-      const current = { ...(hashes.get(key) || {}) };
-      delete current[field];
-      if (Object.keys(current).length === 0) hashes.delete(key);
-      else hashes.set(key, current);
-    },
-    async expire() {
-      return true;
-    },
-    async del(key) {
-      hashes.delete(key);
-    },
-  };
-}
 
 afterEach(async () => {
   try {
@@ -80,8 +51,6 @@ afterEach(async () => {
   } catch (_) {}
 
   delete process.env.DATA_DIR;
-  delete process.env.REDIS_URL;
-  delete process.env.REDIS_HOST;
   vi.resetModules();
 
   while (tempDirs.length > 0) {
@@ -239,11 +208,8 @@ describe("localDb provider connection status writes", () => {
     expect(persisted).not.toHaveProperty("errorCode", "auth_invalid");
   });
 
-  it("does not persist synthesized legacy mirror fields for redis-backed hot-only updates", async () => {
+  it("does not persist synthesized legacy mirror fields for hot-only updates", async () => {
     const { dataDir, localDb, providerHotState } = await loadModulesWithTempDataDir();
-
-    process.env.REDIS_URL = "redis://example.test:6379";
-    providerHotState.__setRedisClientForTests(createFakeRedisClient());
 
     const created = await localDb.createProviderConnection({
       provider: "provider-hot-only",
@@ -283,9 +249,6 @@ describe("localDb provider connection status writes", () => {
 
   it("keeps canonical fields and avoids persisting legacy mirrors for mixed updates", async () => {
     const { dataDir, localDb, providerHotState } = await loadModulesWithTempDataDir();
-
-    process.env.REDIS_URL = "redis://example.test:6379";
-    providerHotState.__setRedisClientForTests(createFakeRedisClient());
 
     const created = await localDb.createProviderConnection({
       provider: "provider-mixed",

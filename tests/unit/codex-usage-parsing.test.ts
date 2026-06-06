@@ -119,7 +119,7 @@ describe("Codex usage parsing", () => {
     );
   });
 
-  it("fails Codex usage refresh when rate-limit windows are missing", async () => {
+  it("returns error message when rate-limit windows are missing", async () => {
     vi.stubGlobal(
       "fetch",
       vi.fn(async () => ({
@@ -133,10 +133,12 @@ describe("Codex usage parsing", () => {
 
     const { getUsageForProvider } = await import("../../open-sse/services/usage.ts");
 
-    await expect(getUsageForProvider({
+    const result = await getUsageForProvider({
       provider: "codex",
       accessToken: "token",
       providerSpecificData: {},
-    })).rejects.toThrow("Codex usage response missing rate-limit windows");
+    });
+
+    expect(result.message).toContain("Codex usage response missing rate-limit windows");
   });
 });

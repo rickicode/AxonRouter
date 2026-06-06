@@ -1,5 +1,6 @@
 import { getCurrentProviderConnectionById } from "./connectionStateAccess";
 import { updateCurrentProviderConnection } from "./connectionStateWriteAccess";
+import { getConnectionHotState } from "./providerHotState";
 import {
   getConnectionAuthBlockedPatch,
   getConnectionRecoveryPatch,
@@ -11,26 +12,9 @@ import {
   ensureUsageSnapshot,
 } from "./usageStatusSnapshots";
 import { persistConnectionHotStateSnapshot } from "./connectionHotStateStore";
+import { AUTH_BLOCKED_PATTERNS } from "./usageStatusPatches";
 
-const AUTH_EXPIRED_PATTERNS = ["expired", "authentication", "unauthorized", "401", "re-authorize"];
-const AUTH_BLOCKED_PATTERNS = [
-  "token invalid",
-  "invalid token",
-  "token expired",
-  "refresh failed",
-  "re-authorize",
-  "reauthorize",
-  "sign in again",
-  "unauthorized",
-  "unauthenticated",
-  "revoked",
-  "invalid grant",
-  "invalid_client",
-  "invalid_token",
-  "oauth",
-  "access token",
-  "authentication",
-];
+const AUTH_EXPIRED_PATTERNS = ["token expired", "access token expired", "session expired", "authentication expired", "auth expired", "unauthorized", "401", "re-authorize"];
 const CODEX_LIVE_QUOTA_PATTERNS = [
   "exceeded your current quota",
   "quota exceeded",
@@ -89,19 +73,43 @@ export async function syncUsageStatus(connection: any, updates: any) {
     return;
   }
 
-  // Prevent stale updates from overwriting fresh data
-  const currentConnection: any = await getCurrentProviderConnectionById(connection.id);
-  if (currentConnection?.lastCheckedAt && updates?.lastCheckedAt) {
-    const currentCheckedAt = new Date(currentConnection.lastCheckedAt).getTime();
+  // Prevent stale updates from overwriting fresh data.
+  // Read from hot_state (the actual source of truth for lastCheckedAt)
+  // rather than the entities table, which is not updated by usage refreshes.
+  const hotState: any = connection?.provider
+    ? await getConnectionHotState(connection.id, connection.provider)
+    : null;
+  const currentLastCheckedAt = hotState?.lastCheckedAt || connection?.lastCheckedAt;
+  if (currentLastCheckedAt && updates?.lastCheckedAt) {
+    const currentCheckedAt = new Date(currentLastCheckedAt).getTime();
     const newCheckedAt = new Date(updates.lastCheckedAt).getTime();
 
     if (currentCheckedAt > newCheckedAt) {
-      console.warn(`[UsageStatus] Ignoring stale update for ${connection.id}: current=${currentConnection.lastCheckedAt}, new=${updates.lastCheckedAt}`);
-      return;
+      console.warn(`[UsageStatus] Ignoring stale update for ${connection.id}: current=${currentLastCheckedAt}, new=${updates.lastCheckedAt}`);
+      // Stale update — return minimal status acknowledging the check occurred
+      // without overwriting the fresher hot_state data.
+      return {
+        lastCheckedAt: currentLastCheckedAt,
+        usageSnapshot: connection?.usageSnapshot || null,
+      };
     }
   }
 
   const sanitizedUpdates: any = stripLegacyMirrorFields(updates);
+
+  // Cap nextRetryAt and resetAt to max 7 days from now to prevent infinitely-future
+  // timestamps from scheduling bugs, misconfigured provider resetAt, or clock skew.
+  const MAX_HORIZON_MS = 7 * 24 * 60 * 60 * 1000;
+  const maxAllowed = Date.now() + MAX_HORIZON_MS;
+  for (const tsField of ["nextRetryAt", "resetAt"] as const) {
+    const val = sanitizedUpdates[tsField];
+    if (val) {
+      const time = new Date(val).getTime();
+      if (Number.isFinite(time) && time > maxAllowed) {
+        sanitizedUpdates[tsField] = new Date(maxAllowed).toISOString();
+      }
+    }
+  }
   const allowAuthRecovery = sanitizedUpdates.allowAuthRecovery === true;
   if ("allowAuthRecovery" in sanitizedUpdates) {
     delete sanitizedUpdates.allowAuthRecovery;
@@ -113,16 +121,32 @@ export async function syncUsageStatus(connection: any, updates: any) {
     || connection?.routingStatus === "blocked";
 
   if (isRecoveryToEligible && hasAuthInvalidBlock && !allowAuthRecovery) {
-    return stripLegacyMirrorFields({
-      ...connection,
-      ...sanitizedUpdates,
+    // Preserve auth-blocked status but still persist non-recovery fields
+    // (usageSnapshot, lastCheckedAt) so the UI reflects the latest check.
+    const preservedPatch = {
       routingStatus: connection?.routingStatus,
       authState: connection?.authState,
       reasonCode: connection?.reasonCode,
       reasonDetail: connection?.reasonDetail,
       nextRetryAt: connection?.nextRetryAt ?? sanitizedUpdates.nextRetryAt ?? null,
       resetAt: connection?.resetAt ?? sanitizedUpdates.resetAt ?? null,
-    });
+      lastCheckedAt: sanitizedUpdates.lastCheckedAt || connection?.lastCheckedAt,
+      usageSnapshot: sanitizedUpdates.usageSnapshot || connection?.usageSnapshot,
+      validationUrl: connection?.validationUrl ?? null,
+    };
+
+    const lastCheckedAt = preservedPatch.lastCheckedAt || new Date().toISOString();
+    const hotPatch = {
+      ...ensureUsageSnapshot(connection, preservedPatch, { checkedAt: lastCheckedAt }),
+      lastCheckedAt,
+      version: sanitizedUpdates.version || Date.now(),
+    };
+    const snapshot = await persistConnectionHotStateSnapshot(
+      connection.provider,
+      connection.id,
+      hotPatch,
+    );
+    return stripLegacyMirrorFields(snapshot || hotPatch);
   }
 
   const lastCheckedAt = sanitizedUpdates.lastCheckedAt || updates.lastCheckedAt || updates.lastTested || new Date().toISOString();
@@ -248,6 +272,147 @@ export function getCodexLiveQuotaSignal(connection: any, { statusCode, errorText
   };
 }
 
+/**
+ * Antigravity model ID → family name mapping.
+ * Each family has independent quota (e.g. Claude models vs Gemini models).
+ */
+const ANTIGRAVITY_MODEL_FAMILIES: Record<string, string> = {
+  "claude-opus-4-6-thinking": "Claude",
+  "claude-sonnet-4-6": "Claude",
+  "gemini-3.1-pro-high": "Gemini",
+  "gemini-3.1-pro-low": "Gemini",
+  "gemini-3-flash": "Gemini",
+  "gpt-oss-120b-medium": "Other",
+};
+
+function getAntigravityModelFamily(modelKey: string): string {
+  // Exact match first
+  if (ANTIGRAVITY_MODEL_FAMILIES[modelKey]) {
+    return ANTIGRAVITY_MODEL_FAMILIES[modelKey];
+  }
+  // Prefix-based fallback
+  if (modelKey.startsWith("claude-") || modelKey.startsWith("anthropic/claude-")) return "Claude";
+  if (modelKey.startsWith("gemini-")) return "Gemini";
+  if (modelKey.startsWith("gpt-")) return "Other";
+  return "Other";
+}
+
+/**
+ * Aggregate Antigravity quotas by model family and determine exhaustion state.
+ */
+export function getAntigravityFamilyQuotaState(usage: any = {}): {
+  families: Array<{ name: string; models: number; exhausted: number; remainingPercentage: number | null; resetAt: string | null }>;
+  allFamiliesExhausted: boolean;
+  someFamilyExhausted: boolean;
+} {
+  const quotas = usage?.quotas;
+  if (!quotas || typeof quotas !== "object") {
+    return { families: [], allFamiliesExhausted: false, someFamilyExhausted: false };
+  }
+
+  // Group models by family
+  const families = new Map<string, Array<{ modelKey: string; remainingPercentage: number; resetAt: string | null }>>();
+
+  for (const [modelKey, rawQuota] of Object.entries(quotas)) {
+    const quota = rawQuota as any;
+    if (!quota || typeof quota !== "object") continue;
+
+    const family = getAntigravityModelFamily(modelKey);
+    if (!families.has(family)) families.set(family, []);
+
+    const remainingPercentage =
+      typeof quota.remainingPercentage === "number" && quota.remainingPercentage >= 0 && quota.remainingPercentage <= 100
+        ? quota.remainingPercentage
+        : 100;
+
+    families.get(family)!.push({
+      modelKey,
+      remainingPercentage,
+      resetAt: quota.resetAt || null,
+    });
+  }
+
+  if (families.size === 0) {
+    return { families: [], allFamiliesExhausted: false, someFamilyExhausted: false };
+  }
+
+  const familyResults: Array<{
+    name: string;
+    models: number;
+    exhausted: number;
+    remainingPercentage: number | null;
+    resetAt: string | null;
+  }> = [];
+
+  let exhaustedFamilyCount = 0;
+  const familyNames = ["Claude", "Gemini", "Other"];
+
+  // Iterate in canonical order
+  for (const familyName of familyNames) {
+    const models = families.get(familyName);
+    if (!models || models.length === 0) continue;
+
+    const exhausted = models.filter((m) => m.remainingPercentage <= 0).length;
+    const allExhausted = exhausted === models.length;
+
+    // Find the earliest reset across all models in the family
+    const resetAt = models.reduce<string | null>((earliest, m) => {
+      if (!m.resetAt) return earliest;
+      if (!earliest || m.resetAt < earliest) return m.resetAt;
+      return earliest;
+    }, null);
+
+    // Best remaining percentage across the family (least exhausted model)
+    const bestRemaining = allExhausted
+      ? 0
+      : Math.min(...models.filter((m) => m.remainingPercentage > 0).map((m) => m.remainingPercentage));
+
+    if (allExhausted) exhaustedFamilyCount++;
+
+    familyResults.push({
+      name: familyName,
+      models: models.length,
+      exhausted,
+      remainingPercentage: allExhausted ? 0 : bestRemaining,
+      resetAt,
+    });
+  }
+
+  // Also include any families not in the canonical list
+  for (const [familyName, models] of families) {
+    if (familyNames.includes(familyName)) continue;
+
+    const exhausted = models.filter((m) => m.remainingPercentage <= 0).length;
+    const allExhausted = exhausted === models.length;
+
+    const resetAt = models.reduce<string | null>((earliest, m) => {
+      if (!m.resetAt) return earliest;
+      if (!earliest || m.resetAt < earliest) return m.resetAt;
+      return earliest;
+    }, null);
+
+    const bestRemaining = allExhausted
+      ? 0
+      : Math.min(...models.filter((m) => m.remainingPercentage > 0).map((m) => m.remainingPercentage));
+
+    if (allExhausted) exhaustedFamilyCount++;
+
+    familyResults.push({
+      name: familyName,
+      models: models.length,
+      exhausted,
+      remainingPercentage: allExhausted ? 0 : bestRemaining,
+      resetAt,
+    });
+  }
+
+  return {
+    families: familyResults,
+    allFamiliesExhausted: familyResults.length > 0 && exhaustedFamilyCount === familyResults.length,
+    someFamilyExhausted: exhaustedFamilyCount > 0,
+  };
+}
+
 function getCodexExhaustedQuota(usage: any = {}) {
   const usageRecord = usage as any;
   const quotas = usageRecord?.quotas;
@@ -330,15 +495,13 @@ function getSafeRemainingPercent(quota: any = {}) {
       : null;
   }
 
-  if (total === null || total <= 0) return null;
-  if (used === null || used < 0) return null;
+  // Fallback: derive from used/total when remaining is unavailable
+  if (total === null || total <= 0 || used === null || used < 0) return null;
 
   const remainingPercent = ((total - used) / total) * 100;
-  if (!Number.isFinite(remainingPercent) || remainingPercent < 0 || remainingPercent > 100) {
-    return null;
-  }
-
-  return remainingPercent;
+  return Number.isFinite(remainingPercent) && remainingPercent >= 0 && remainingPercent <= 100
+    ? remainingPercent
+    : null;
 }
 
 function shouldIgnoreKiroQuotaForRouting(quotaName: any) {
@@ -468,39 +631,82 @@ export function getUsageStatusUpdates(connection: any, usage: any, options: any 
     };
   }
 
-  if (connection?.provider !== "codex") {
-    if (connection?.provider === "kiro" || connection?.provider === "amazon-q") {
-      const kiroQuotaSignal = getKiroQuotaSignal(connection, usage, options);
+  if (connection?.provider === "kiro" || connection?.provider === "amazon-q") {
+    const kiroQuotaSignal = getKiroQuotaSignal(connection, usage, options);
 
-      if (kiroQuotaSignal?.kind === "exhausted") {
-        return {
-          ...base,
-          routingStatus: "exhausted",
-          healthStatus: "degraded",
-          quotaState: "exhausted",
-          reasonCode: "quota_exhausted",
-          reasonDetail: connection?.provider === "amazon-q" ? "Amazon Q quota exhausted" : "Kiro quota exhausted",
-          resetAt: kiroQuotaSignal.resetAt || null,
-          nextRetryAt: kiroQuotaSignal.resetAt || null,
-          usageSnapshot: JSON.stringify(usage || {}),
-        };
-      }
-
-      if (kiroQuotaSignal?.kind === "threshold") {
-        return {
-          ...base,
-          routingStatus: "exhausted",
-          healthStatus: "degraded",
-          quotaState: "exhausted",
-          reasonCode: "quota_threshold",
-          reasonDetail: `${connection?.provider === "amazon-q" ? "Amazon Q" : "Kiro"} remaining quota is at or below ${kiroQuotaSignal.minimumRemainingQuotaPercent}%`,
-          resetAt: kiroQuotaSignal.resetAt || null,
-          nextRetryAt: kiroQuotaSignal.resetAt || null,
-          usageSnapshot: JSON.stringify(usage || {}),
-        };
-      }
+    if (kiroQuotaSignal?.kind === "exhausted") {
+      return {
+        ...base,
+        routingStatus: "exhausted",
+        healthStatus: "degraded",
+        quotaState: "exhausted",
+        reasonCode: "quota_exhausted",
+        reasonDetail: connection?.provider === "amazon-q" ? "Amazon Q quota exhausted" : "Kiro quota exhausted",
+        resetAt: kiroQuotaSignal.resetAt || null,
+        nextRetryAt: kiroQuotaSignal.resetAt || null,
+        usageSnapshot: JSON.stringify(usage || {}),
+      };
     }
 
+    if (kiroQuotaSignal?.kind === "threshold") {
+      return {
+        ...base,
+        routingStatus: "exhausted",
+        healthStatus: "degraded",
+        quotaState: "exhausted",
+        reasonCode: "quota_threshold",
+        reasonDetail: `${connection?.provider === "amazon-q" ? "Amazon Q" : "Kiro"} remaining quota is at or below ${kiroQuotaSignal.minimumRemainingQuotaPercent}%`,
+        resetAt: kiroQuotaSignal.resetAt || null,
+        nextRetryAt: kiroQuotaSignal.resetAt || null,
+        usageSnapshot: JSON.stringify(usage || {}),
+      };
+    }
+  }
+
+  // Antigravity: per-family quota exhaustion
+  // Gemini and Claude quotas are independent — only mark globally exhausted if ALL families are exhausted.
+  if (connection?.provider === "antigravity") {
+    const familyResult = getAntigravityFamilyQuotaState(usage);
+
+    // Enrich snapshot with family-level aggregated data for the UI
+    const enrichedUsage = {
+      ...(usage || {}),
+      _familyQuotas: familyResult.families,
+    };
+
+    if (familyResult.allFamiliesExhausted) {
+      return {
+        ...base,
+        routingStatus: "exhausted",
+        healthStatus: "degraded",
+        quotaState: "exhausted",
+        reasonCode: "quota_exhausted",
+        reasonDetail: "All models exhausted across all families",
+        usageSnapshot: JSON.stringify(enrichedUsage),
+      };
+    }
+
+    if (familyResult.someFamilyExhausted) {
+      // Only some families exhausted — keep eligible at connection level.
+      // Per-model 429s will set model locks via markAccountUnavailable.
+      return {
+        ...base,
+        usageSnapshot: JSON.stringify(enrichedUsage),
+        reasonDetail: familyResult.families
+          .filter((f: any) => f.exhausted)
+          .map((f: any) => `${f.name} exhausted`)
+          .join("; "),
+      };
+    }
+
+    return {
+      ...base,
+      usageSnapshot: JSON.stringify(enrichedUsage),
+    };
+  }
+
+  // Codex-only: quota exhaustion and threshold checks
+  if (connection?.provider !== "codex") {
     return base;
   }
 

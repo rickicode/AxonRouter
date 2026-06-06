@@ -10,7 +10,7 @@ When instructions conflict, use this priority order:
 
 ## Product Goal
 
-AxonRouter is a new, separate product derived from the current 9Router Plus codebase. It should become a fast, local-first AI routing gateway with a lightweight dashboard, production-safe behavior, and TypeScript-first architecture with no application JS files left behind.
+AxonRouter is a fast, local-first AI routing gateway with a lightweight dashboard, production-safe behavior, and TypeScript-first architecture with no application JS files left behind.
 
 Use `docs/ARCHITECTURE.md` for architecture direction and `docs/DOCS.md` for user-facing setup/runtime behavior before large refactors, feature work, rebrand work, production-readiness changes, test organization changes, or build/test behavior changes.
 
@@ -75,10 +75,10 @@ Use `docs/ARCHITECTURE.md` for architecture direction and `docs/DOCS.md` for use
 ## Standard Validation Commands
 
 Use these commands unless the user explicitly asks for a narrower scope:
-- `npm run lint`
-- `npm run typecheck`
-- `npm run test`
-- `npm run build`
+- `pnpm run lint`
+- `pnpm run typecheck`
+- `pnpm run test`
+- `pnpm run build`
 
 If any command is skipped, state why in the final summary.
 

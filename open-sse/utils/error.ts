@@ -13,6 +13,60 @@ function sanitizeErrorMessage(msg: string): string {
 }
 
 /**
+ * Extract a Google/Antigravity account-verification URL from a 403 error body.
+ * Google Cloud Code APIs return structured error details when the user must
+ * verify their account before continuing.
+ *
+ * Looks for:
+ *  - metadata.validation_url in ErrorInfo details
+ *  - Help.links[].url with description "Verify your account"
+ *  - Deep-linked fallback from error.message containing validation_url
+ */
+export function extractGoogleValidationUrl(bodyText: string): string | null {
+  if (!bodyText || typeof bodyText !== 'string') return null;
+  try {
+    const json = JSON.parse(bodyText);
+    const errorObj = json?.error;
+    if (!errorObj) return null;
+
+    // 1. Check structured details array for ErrorInfo metadata
+    if (Array.isArray(errorObj.details)) {
+      for (const detail of errorObj.details) {
+        // ErrorInfo with metadata.validation_url
+        if (detail?.metadata?.validation_url) {
+          return detail.metadata.validation_url;
+        }
+        // Help.links with Verify your account
+        if (detail?.['@type']?.includes('google.rpc.Help') && Array.isArray(detail.links)) {
+          for (const link of detail.links) {
+            if (link?.url && /verify/i.test(link.description || '')) {
+              return link.url;
+            }
+          }
+          // Fall back to first link
+          if (detail.links.length > 0 && detail.links[0]?.url) {
+            return detail.links[0].url;
+          }
+        }
+      }
+    }
+
+    // 2. Check if message itself contains a validation URL pattern
+    const message = String(errorObj.message || '');
+    const urlMatch = message.match(/https?:\/\/accounts\.google\.com\/[^\s"']+/);
+    if (urlMatch) return urlMatch[0];
+  } catch {
+    // Not valid JSON — try raw text extraction
+    const urlMatch = bodyText.match(/"validation_url"\s*:\s*"(https?:\/\/[^"']+)"/);
+    if (urlMatch) return urlMatch[1];
+
+    const verifyMatch = bodyText.match(/https?:\/\/accounts\.google\.com\/[^\s"']+/);
+    if (verifyMatch) return verifyMatch[0];
+  }
+  return null;
+}
+
+/**
  * Build OpenAI-compatible error response body
  * @param {number} statusCode - HTTP status code
  * @param {string} message - Error message
@@ -94,10 +148,13 @@ export async function parseUpstreamError(response, executor = null) {
     message = bodyText;
   }
 
+  // Extract Google/Antigravity verification URL BEFORE message sanitization (URLs get redacted)
+  const validationUrl = response.status === 403 ? extractGoogleValidationUrl(bodyText) : null;
+
   const messageStr = typeof message === "string" ? message : JSON.stringify(message);
   const finalMessage = sanitizeErrorMessage(messageStr || DEFAULT_ERROR_MESSAGES[response.status] || `Upstream error: ${response.status}`);
 
-  return { statusCode: response.status, message: finalMessage };
+  return { statusCode: response.status, message: finalMessage, ...(validationUrl ? { validationUrl } : {}) };
 }
 
 /**

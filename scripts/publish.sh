@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Usage: npm run publish <version> [--allow-dirty|--auto-commit-dirty|--require-clean]
-# Example: npm run publish 0.1.9
-#          npm run publish v0.1.9
-#          npm run publish 0.1.9 --allow-dirty
-#          npm run publish 0.1.9 --auto-commit-dirty
+# Usage: pnpm run publish <version> [--allow-dirty|--auto-commit-dirty|--require-clean]
+# Example: pnpm run publish 0.1.9
+#          pnpm run publish v0.1.9
+#          pnpm run publish 0.1.9 --allow-dirty
+#          pnpm run publish 0.1.9 --auto-commit-dirty
 #
 # This script:
 # 1. Optionally auto-commits or allows existing dirty changes
@@ -44,7 +44,7 @@ while [ "$#" -gt 0 ]; do
       ;;
     *)
       echo "Error: unknown option: $1"
-      echo "Usage: npm run publish <version> [--allow-dirty|--auto-commit-dirty|--require-clean]"
+      echo "Usage: pnpm run publish <version> [--allow-dirty|--auto-commit-dirty|--require-clean]"
       exit 1
       ;;
   esac
@@ -56,11 +56,11 @@ VERSION="${VERSION#v}"
 
 if [ -z "$VERSION" ]; then
   echo "Error: version argument required"
-  echo "Usage: npm run publish <version> [--allow-dirty|--auto-commit-dirty|--require-clean]"
-  echo "Example: npm run publish 0.1.9"
-  echo "         npm run publish v0.1.9"
-  echo "         npm run publish 0.1.9 --allow-dirty"
-  echo "         npm run publish 0.1.9 --auto-commit-dirty"
+  echo "Usage: pnpm run publish <version> [--allow-dirty|--auto-commit-dirty|--require-clean]"
+  echo "Example: pnpm run publish 0.1.9"
+  echo "         pnpm run publish v0.1.9"
+  echo "         pnpm run publish 0.1.9 --allow-dirty"
+  echo "         pnpm run publish 0.1.9 --auto-commit-dirty"
   exit 1
 fi
 
@@ -112,16 +112,16 @@ rollback() {
 
   if [ "$DID_VERSION_BUMP" = "1" ]; then
     echo "==> Reverting version to $PREV_VERSION"
-    npm version "$PREV_VERSION" --no-git-tag-version 2>/dev/null || true
-    npm install --package-lock-only 2>/dev/null || true
+    pnpm version "$PREV_VERSION" --no-git-tag-version 2>/dev/null || true
+    pnpm install --lockfile-only 2>/dev/null || true
   fi
 
   # If we got back to a different HEAD than we started, unstage the version files
   if [ "$(git rev-parse HEAD)" != "$PREV_HEAD" ] && [ "$DID_COMMIT" = "0" ]; then
-    git checkout "$PREV_HEAD" -- package.json package-lock.json 2>/dev/null || true
+    git checkout "$PREV_HEAD" -- package.json pnpm-lock.yaml 2>/dev/null || true
   fi
 
-  echo "!! Rollback complete — you can safely retry npm run publish $VERSION !!"
+  echo "!! Rollback complete — you can safely retry pnpm run publish $VERSION !!"
 }
 
 # ── Step 1: Version bump ────────────────────────────────────
@@ -129,42 +129,42 @@ if [ "$VERSION" = "$PREV_VERSION" ]; then
   echo "==> Version is already $VERSION — skipping bump"
 else
   echo "==> Bumping version to $VERSION"
-  npm version "$VERSION" --no-git-tag-version
-  npm install --package-lock-only
+  pnpm version "$VERSION" --no-git-tag-version
+  pnpm install --lockfile-only
   DID_VERSION_BUMP=1
 fi
 
 # ── Step 2: Lint ────────────────────────────────────────────
 echo "==> Running lint"
-if ! npm run lint; then
+if ! pnpm run lint; then
   rollback
   exit 1
 fi
 
 # ── Step 3: Typecheck ───────────────────────────────────────
 echo "==> Running typecheck"
-if ! npm run typecheck; then
+if ! pnpm run typecheck; then
   rollback
   exit 1
 fi
 
 # ── Step 4: Tests ───────────────────────────────────────────
 echo "==> Running tests"
-if ! npm run test; then
+if ! pnpm run test; then
   rollback
   exit 1
 fi
 
 # ── Step 5: Build ───────────────────────────────────────────
 echo "==> Building"
-if ! npm run build; then
+if ! pnpm run build; then
   rollback
   exit 1
 fi
 
 # ── Step 6: Commit version bump ─────────────────────────────
 echo "==> Committing version bump"
-git add package.json package-lock.json
+git add package.json pnpm-lock.yaml
 git commit -m "chore: release v$VERSION"
 DID_COMMIT=1
 
@@ -175,7 +175,7 @@ DID_TAG=1
 
 # ── Step 8: Publish to npm ──────────────────────────────────
 echo "==> Publishing to npm"
-if ! npm publish --access public --ignore-scripts; then
+if ! pnpm publish --access public --no-git-checks; then
   rollback
   exit 1
 fi

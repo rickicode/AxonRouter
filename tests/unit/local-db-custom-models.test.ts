@@ -30,7 +30,6 @@ vi.mock("@/lib/providerHotState", () => ({
   mergeConnectionsWithHotState: vi.fn(async (connections) => connections),
   setConnectionHotState: vi.fn(async () => null),
   isHotOnlyUpdate: vi.fn(() => false),
-  isRedisHotStateReady: vi.fn(() => false),
   projectLegacyConnectionState: vi.fn((value) => value || {}),
 }));
 
@@ -61,8 +60,6 @@ async function importModules() {
 beforeEach(async () => {
   dataDir = await createTempDataDir();
   process.env.DATA_DIR = dataDir;
-  delete process.env.REDIS_URL;
-  delete process.env.REDIS_HOST;
 });
 
 afterEach(async () => {
@@ -73,8 +70,6 @@ afterEach(async () => {
   sqliteHelpersModule = null;
   dataDir = null;
   delete process.env.DATA_DIR;
-  delete process.env.REDIS_URL;
-  delete process.env.REDIS_HOST;
   vi.resetModules();
 
   while (tempDirs.length > 0) {

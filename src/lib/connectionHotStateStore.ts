@@ -20,6 +20,7 @@ export async function persistConnectionHotStateSnapshot(
 
   // Keep the in-process hot-state index in sync for /api/providers reads that
   // happen immediately after a manual usage refresh in the same server process.
-  await setConnectionHotState(connectionId, providerId, storedState || state);
+  // skipSqliteWrite because we already wrote above — avoids double SQLite I/O.
+  await setConnectionHotState(connectionId, providerId, storedState || state, { skipSqliteWrite: true });
   return storedState;
 }

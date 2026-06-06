@@ -189,4 +189,19 @@ describe("Dashboard Guard - Integration Tests", () => {
     expect(response.status).toBe(307); // NextResponse.redirect uses 307
   });
 
+  it("allows remote access to /api/settings/require-login without JWT", async () => {
+    isLocalRequest.mockReturnValue(false);
+    getClientIP.mockReturnValue("203.0.113.5");
+    getSettings.mockResolvedValue({});
+
+    const mockRequest = {
+      nextUrl: { pathname: "/api/settings/require-login" },
+      url: "http://example.com/api/settings/require-login",
+      headers: { get: () => "example.com" },
+      cookies: { get: () => null }
+    };
+
+    const response = await proxy(mockRequest);
+    expect(response.status).not.toBe(401);
+  });
 });

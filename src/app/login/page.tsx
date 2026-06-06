@@ -30,7 +30,7 @@ export default function LoginPage() {
 
 			try {
 				const data = await fetchJson<{ hasPassword?: boolean }>(
-					"/api/settings",
+					"/api/settings/require-login",
 					{ signal: controller.signal },
 				);
 				clearTimeout(timeoutId);

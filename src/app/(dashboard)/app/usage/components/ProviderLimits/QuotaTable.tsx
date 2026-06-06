@@ -148,25 +148,68 @@ function CreditLayout({ quotas }: { quotas: any[] }) {
   );
 }
 
-// --- Model Grid (antigravity: per-model compact bars) ---
+// --- Model Grid (antigravity: per-model compact bars grouped by family) ---
 function ModelGridLayout({ quotas }: { quotas: any[] }) {
+  // Group quotas by family
+  const familyOrder = ["Claude", "Gemini", "Other"];
+  const grouped = new Map<string, any[]>();
+  for (const quota of quotas) {
+    const family = quota.family || "Other";
+    if (!grouped.has(family)) grouped.set(family, []);
+    grouped.get(family)!.push(quota);
+  }
+
+  // Sort groups in canonical order
+  const sortedFamilies = [...grouped.entries()].sort(([a], [b]) => {
+    const ai = familyOrder.indexOf(a);
+    const bi = familyOrder.indexOf(b);
+    return (ai === -1 ? 99 : ai) - (bi === -1 ? 99 : bi);
+  });
+
   return (
-    <div className="grid grid-cols-2 gap-x-3 gap-y-1.5 py-1">
-      {quotas.map((quota, i) => {
-        const remaining = getRemaining(quota);
-        const colors = getColors(remaining);
-        const reset = formatResetTimeShort(quota.resetAt);
+    <div className="space-y-3 py-1">
+      {sortedFamilies.map(([familyName, familyQuotas]) => {
+        // Family-level remaining = best (highest) remaining across all models in the family
+        const familyRemaining = Math.max(...familyQuotas.map((q: any) => getRemaining(q)));
+        const familyColors = getColors(familyRemaining);
+        const allExhausted = familyQuotas.every((q: any) => getRemaining(q) <= 0);
 
         return (
-          <div key={i} className="min-w-0">
-            <div className="flex items-center justify-between gap-1 mb-0.5">
-              <span className="text-[10px] font-medium text-zinc-400 truncate">{quota.name}</span>
-              <span className={cn("text-[10px] font-bold tabular-nums shrink-0", colors.text)}>{remaining}%</span>
+          <div key={familyName}>
+            {/* Family header */}
+            <div className="flex items-center justify-between mb-1.5 px-1">
+              <span className="text-[11px] font-semibold text-zinc-300 uppercase tracking-wider">
+                {familyName}
+              </span>
+              {allExhausted ? (
+                <span className="text-[10px] font-bold text-rose-400">Exhausted</span>
+              ) : (
+                <span className={cn("text-[10px] font-bold tabular-nums", familyColors.text)}>
+                  {familyRemaining}%
+                </span>
+              )}
             </div>
-            <div className="h-1 rounded-full bg-zinc-800 overflow-hidden">
-              <div className={cn("h-full rounded-full transition-all duration-300", colors.bg)} style={{ width: `${remaining}%` }} />
+            {/* Model bars */}
+            <div className="grid grid-cols-2 gap-x-3 gap-y-1.5">
+              {familyQuotas.map((quota: any, i: number) => {
+                const remaining = getRemaining(quota);
+                const colors = getColors(remaining);
+                const reset = formatResetTimeShort(quota.resetAt);
+
+                return (
+                  <div key={i} className="min-w-0">
+                    <div className="flex items-center justify-between gap-1 mb-0.5">
+                      <span className="text-[10px] font-medium text-zinc-400 truncate">{quota.name}</span>
+                      <span className={cn("text-[10px] font-bold tabular-nums shrink-0", colors.text)}>{remaining}%</span>
+                    </div>
+                    <div className="h-1 rounded-full bg-zinc-800 overflow-hidden">
+                      <div className={cn("h-full rounded-full transition-all duration-300", colors.bg)} style={{ width: `${remaining}%` }} />
+                    </div>
+                    {reset && <span className="text-[8px] text-zinc-600">{reset}</span>}
+                  </div>
+                );
+              })}
             </div>
-            {reset && <span className="text-[8px] text-zinc-600">{reset}</span>}
           </div>
         );
       })}

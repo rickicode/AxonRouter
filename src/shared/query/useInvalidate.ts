@@ -24,6 +24,7 @@ export function useInvalidate() {
 		invalidate,
 		providers: () => invalidate(queryKeys.providers()),
 		providerDetail: (id: string) => invalidate(queryKeys.providerDetail(id)),
+		providerAutoSwitch: (id: string) => invalidate(queryKeys.providerAutoSwitch(id), queryKeys.providerAutoSwitchActive(id)),
 		providerNodes: () => invalidate(queryKeys.providerNodes()),
 		providerModels: () => invalidate(queryKeys.providerModels()),
 		settings: () => invalidate(queryKeys.settings()),

@@ -192,7 +192,9 @@ export async function runDedupedUsageRefreshJob(
 				IN_FLIGHT_BY_CONNECTION.delete(connectionId);
 			}
 		})
-		.catch(() => {});
+		.catch((err) => {
+			console.debug(`[UsageRefreshQueue] Deduped job for ${connectionId} rejected:`, err?.message || err);
+		});
 
 	return promise;
 }

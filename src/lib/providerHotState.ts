@@ -347,6 +347,7 @@ export async function setConnectionHotState(
 	connectionId,
 	providerId,
 	updates = {},
+	options: { skipSqliteWrite?: boolean } = {},
 ) {
 	if (!connectionId || !providerId || !updates || typeof updates !== "object") {
 		return { state: null };
@@ -365,13 +366,19 @@ export async function setConnectionHotState(
 	providerState.connections.set(connectionId, next);
 	recalculateProviderIndexes(providerState);
 
-	const storedInSqlite = Boolean(
-		sqliteWriteGate(() => {
-			const result = upsertHotState(providerId, connectionId, next);
-			if (result) markProviderHotStateInvalidated(providerId);
-			return result;
-		}),
-	);
+	let storedInSqlite = false;
+	if (!options.skipSqliteWrite) {
+		storedInSqlite = Boolean(
+			sqliteWriteGate(() => {
+				const result = upsertHotState(providerId, connectionId, next);
+				if (result) markProviderHotStateInvalidated(providerId);
+				return result;
+			}),
+		);
+	} else {
+		// Caller already wrote to SQLite; just update in-process caches.
+		storedInSqlite = true;
+	}
 	if (storedInSqlite) {
 		const cached = { ...(sqliteHotStateCache.get(providerId) || {}) };
 		cached[connectionId] = extractHotState(next);
@@ -451,9 +458,6 @@ export function __resetProviderHotStateForTests() {
 	sqliteHotStateCache.clear();
 }
 
-export function __setRedisClientForTests(_client) {
-	// No-op — kept for test compatibility.
-}
 
 export function __getProviderHotStateSnapshotForTests(providerId) {
 	const providerState = providerStateCache.get(providerId);

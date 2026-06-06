@@ -204,12 +204,14 @@ const DEFAULT_SETTINGS = {
 	caveman: DEFAULT_CAVEMAN_SETTINGS,
 	chatRuntime: DEFAULT_CHAT_RUNTIME_SETTINGS,
 	rateLimitPerKey: 600, // requests per minute per API key (0 = unlimited)
+	codexAutoSwitch: {
+		enabled: false,
+		thresholdPercent: 10,
+		activeConnectionId: null,
+	},
 
 	observability: {
-		otel: {
-			enabled: false,
-			jaegerOtlpHttpEndpoint: "",
-		},
+		// OTEL removed — simplified to lightweight timing utility
 	},
 };
 
@@ -665,16 +667,8 @@ export function mergeSettingsWithDefaults(settings: any = {}) {
 			? Math.floor(Number(sourceSettings.rateLimitPerKey))
 			: DEFAULT_SETTINGS.rateLimitPerKey;
 
-	const sourceOtel = sourceSettings?.observability?.otel;
-	merged.observability = {
-		otel: {
-			enabled: sourceOtel?.enabled === true,
-			jaegerOtlpHttpEndpoint:
-				typeof sourceOtel?.jaegerOtlpHttpEndpoint === "string"
-					? sourceOtel.jaegerOtlpHttpEndpoint
-					: "",
-		},
-	};
+	// OTEL persistence removed — simplified to lightweight timing utility
+	merged.observability = merged.observability || {};
 
 	return merged;
 }

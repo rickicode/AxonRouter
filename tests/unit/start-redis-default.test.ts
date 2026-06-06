@@ -17,7 +17,7 @@ function setInputTimes(projectRoot, atTime) {
     path.join(projectRoot, "scripts", "placeholder.js"),
     path.join(projectRoot, "package.json"),
     path.join(projectRoot, "package-lock.json"),
-    path.join(projectRoot, "next.config.ts"),
+    path.join(projectRoot, "next.config.mjs"),
   ];
 
   for (const inputPath of inputPaths) {
@@ -56,7 +56,7 @@ describe("standalone build freshness", () => {
       path.join(projectRoot, "public"),
       path.join(projectRoot, "package.json"),
       path.join(projectRoot, "package-lock.json"),
-      path.join(projectRoot, "next.config.ts"),
+      path.join(projectRoot, "next.config.mjs"),
     ]);
   });
 
@@ -78,7 +78,7 @@ describe("standalone build freshness", () => {
       fs.mkdirSync(path.join(projectRoot, ".next", "standalone", ".next", "server"), { recursive: true });
       fs.writeFileSync(path.join(projectRoot, "package.json"), "{}");
       fs.writeFileSync(path.join(projectRoot, "package-lock.json"), "{}");
-      fs.writeFileSync(path.join(projectRoot, "next.config.ts"), "export default {}\n");
+      fs.writeFileSync(path.join(projectRoot, "next.config.mjs"), "export default {}\n");
 
       const sourcePath = path.join(projectRoot, "src", "route.js");
       const standaloneServerPath = path.join(projectRoot, ".next", "standalone", "server.js");
@@ -110,7 +110,7 @@ describe("standalone build freshness", () => {
       fs.mkdirSync(path.join(projectRoot, ".next", "standalone", ".next", "server"), { recursive: true });
       fs.writeFileSync(path.join(projectRoot, "package.json"), "{}");
       fs.writeFileSync(path.join(projectRoot, "package-lock.json"), "{}");
-      fs.writeFileSync(path.join(projectRoot, "next.config.ts"), "export default {}\n");
+      fs.writeFileSync(path.join(projectRoot, "next.config.mjs"), "export default {}\n");
 
       const sourcePath = path.join(projectRoot, "src", "route.js");
       const standaloneServerPath = path.join(projectRoot, ".next", "standalone", "server.js");

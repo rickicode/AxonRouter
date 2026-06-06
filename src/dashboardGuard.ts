@@ -125,6 +125,10 @@ export async function proxy(request) {
 	}
 
 	// Protect sensitive API endpoints
+	if (pathname === "/api/settings/require-login") {
+		return NextResponse.next();
+	}
+
 	if (PROTECTED_API_PATHS.some((p) => pathname.startsWith(p))) {
 		const isLocal = isLocalRequest(request, settings);
 		const tokenState = await verifyManagementToken(request);
