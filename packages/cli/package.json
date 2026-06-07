@@ -1,0 +1,25 @@
+{
+  "name": "@axonrouter/cli",
+  "version": "2.0.7",
+  "private": false,
+  "type": "module",
+  "description": "AxonRouter CLI — interactive terminal UI, system tray, and auto-start",
+  "bin": {
+    "axonrouter": "./cli.js"
+  },
+  "scripts": {
+    "postinstall": "node hooks/postinstall.js",
+    "build": "node scripts/build-cli.js"
+  },
+  "dependencies": {
+    "open": "^11.0.0",
+    "systray2": "^2.1.4"
+  },
+  "optionalDependencies": {
+    "node-machine-id": "^1.1.12"
+  },
+  "engines": {
+    "node": ">=22.6.0"
+  },
+  "license": "MIT"
+}

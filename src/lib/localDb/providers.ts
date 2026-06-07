@@ -224,6 +224,47 @@ function mergeProviderSpecificDataForValidation(current: any, patch: any) {
   };
 }
 
+async function syncActiveCliTokens(conn: any) {
+  if (!conn || (conn.provider !== "antigravity" && conn.provider !== "codex")) return;
+  try {
+    if (conn.provider === "antigravity") {
+      const { getCurrentSettings } = await import("../settingsAccess");
+      const settings = await getCurrentSettings().catch(() => null);
+      const activeId = settings?.antigravityAutoSwitch?.activeConnectionId;
+      let isCurrentlyActive = (activeId === conn.id);
+      if (!isCurrentlyActive) {
+        const { getActiveAntigravityAccount } = await import("../antigravityAutoSwitch");
+        const activeAcc = await getActiveAntigravityAccount().catch(() => null);
+        if (activeAcc && activeAcc.connectionId === conn.id) {
+          isCurrentlyActive = true;
+        }
+      }
+      if (isCurrentlyActive) {
+        const { setActiveAntigravityAccount } = await import("../antigravityAutoSwitch");
+        await setActiveAntigravityAccount(conn.id).catch(() => null);
+      }
+    } else if (conn.provider === "codex") {
+      const { getCurrentSettings } = await import("../settingsAccess");
+      const settings = await getCurrentSettings().catch(() => null);
+      const activeId = settings?.codexAutoSwitch?.activeConnectionId;
+      let isCurrentlyActive = (activeId === conn.id);
+      if (!isCurrentlyActive) {
+        const { getActiveCodexAccount } = await import("../codexAutoSwitch");
+        const activeAcc = await getActiveCodexAccount().catch(() => null);
+        if (activeAcc && activeAcc.connectionId === conn.id) {
+          isCurrentlyActive = true;
+        }
+      }
+      if (isCurrentlyActive) {
+        const { setActiveCodexAccount } = await import("../codexAutoSwitch");
+        await setActiveCodexAccount(conn.id).catch(() => null);
+      }
+    }
+  } catch (err) {
+    console.warn("[localDb/providers] CLI token sync error:", err);
+  }
+}
+
 export async function updateProviderConnection(id, data) {
   const db = await getDb();
   let result = null;
@@ -312,6 +353,10 @@ export async function updateProviderConnection(id, data) {
 
     result = db.data.providerConnections[index];
   });
+
+  if (result) {
+    syncActiveCliTokens(result).catch(() => null);
+  }
 
   return result;
 }
@@ -410,6 +455,10 @@ export async function atomicUpdateProviderConnection(id, mutator) {
 
     result = await mergeConnectionsWithHotState([db.data.providerConnections[index]]).then((connections) => connections[0] || db.data.providerConnections[index]);
   });
+
+  if (result) {
+    syncActiveCliTokens(result).catch(() => null);
+  }
 
   return result;
 }

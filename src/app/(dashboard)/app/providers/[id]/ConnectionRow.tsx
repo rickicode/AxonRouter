@@ -136,33 +136,56 @@ export default function ConnectionRow({
       </div>
       <div className="flex items-center gap-2">
         <div className="flex gap-1">
-          {isSwitchableProvider && !isActiveAccount && onSetActive && (
+          {isSwitchableProvider && onSetActive && (
             <Button
               onClick={onSetActive}
               disabled={isSwitchingActive || connection.isActive === false}
               variant="ghost"
-              size="sm"
-              className="flex h-auto flex-col rounded-xl px-2 py-1 text-[10px] text-emerald-500 hover:text-emerald-400"
+              size="icon-sm"
+              className={isActiveAccount ? "text-emerald-500 bg-emerald-500/10 hover:bg-emerald-500/20" : "text-text-muted hover:text-emerald-500"}
+              title={isActiveAccount ? "Active Account (click to re-activate/override)" : "Set Active"}
             >
-              <AppIcon name="stars" />
-              {isSwitchingActive ? "Activating..." : "Set Active"}
+              <AppIcon name={isSwitchingActive ? "progress_activity" : isActiveAccount ? "verified" : "stars"} size={16} />
             </Button>
           )}
           {(hasAnyProxy || (proxyPools || []).length > 0) && (
             <div className="relative" ref={proxyDropdownRef}>
-              <Button onClick={() => setShowProxyDropdown((v) => !v)} variant="ghost" size="sm" className={`flex h-auto flex-col rounded-xl px-2 py-1 text-[10px] ${hasAnyProxy ? "text-primary" : "text-text-muted hover:text-primary"}`} disabled={updatingProxy}>
-                <AppIcon name={updatingProxy ? "progress_activity" : "lan"} />Proxy
+              <Button
+                onClick={() => setShowProxyDropdown((v) => !v)}
+                variant="ghost"
+                size="icon-sm"
+                className={hasAnyProxy ? "text-primary bg-primary/10 hover:bg-primary/20" : "text-text-muted hover:text-primary"}
+                disabled={updatingProxy}
+                title="Proxy Settings"
+              >
+                <AppIcon name={updatingProxy ? "progress_activity" : "lan"} size={16} />
               </Button>
               {showProxyDropdown && (
-                <div className="absolute right-0 top-full z-[70] mt-1 min-w-[160px] rounded border border-border bg-popover py-1 shadow-lg">
+                <div className="absolute right-0 top-full z-[70] mt-1 min-w-[180px] rounded border border-border bg-popover py-1 shadow-lg">
                   <Button variant="ghost" className={`h-auto w-full justify-start rounded-none px-3 py-1.5 text-sm ${!connectionProxyPoolId ? "text-primary font-medium" : "text-foreground"}`} onClick={() => handleSelectProxy("__none__")}>{providerDefaultProxyPoolId ? "Use provider default" : "No proxy / clear override"}</Button>
                   {(proxyPools || []).map((pool) => <Button key={pool.id} variant="ghost" className={`h-auto w-full justify-start rounded-none px-3 py-1.5 text-sm ${connectionProxyPoolId === pool.id ? "text-primary font-medium" : "text-foreground"}`} onClick={() => handleSelectProxy(pool.id)}>{pool.name}</Button>)}
                 </div>
               )}
             </div>
           )}
-          <Button onClick={onEdit} variant="ghost" size="sm" className="flex h-auto flex-col rounded-xl px-2 py-1 text-[10px] text-text-muted hover:text-primary"><AppIcon name="edit" />Edit</Button>
-          <Button onClick={onDelete} variant="ghost" size="sm" className="flex h-auto flex-col rounded-xl px-2 py-1 text-[10px] text-destructive hover:bg-destructive/10 hover:text-destructive"><AppIcon name="delete" />Delete</Button>
+          <Button
+            onClick={onEdit}
+            variant="ghost"
+            size="icon-sm"
+            className="text-text-muted hover:text-primary"
+            title="Edit Connection"
+          >
+            <AppIcon name="edit" size={16} />
+          </Button>
+          <Button
+            onClick={onDelete}
+            variant="ghost"
+            size="icon-sm"
+            className="text-text-muted hover:text-destructive hover:bg-destructive/10"
+            title="Delete Connection"
+          >
+            <AppIcon name="delete" size={16} />
+          </Button>
         </div>
         <Switch checked={connection.isActive ?? true} onToggle={onToggleActive} title={(connection.isActive ?? true) ? "Disable connection" : "Enable connection"} />
       </div>
