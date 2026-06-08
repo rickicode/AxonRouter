@@ -12,7 +12,7 @@ import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@/
 import { Field, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { getProviderAlias } from "@/shared/constants/providers";
-import { filterCodexModelsForConnections, isCodexFreePlan } from "@/lib/codexModelAccess";
+import { filterCodexModelsForConnections } from "@/lib/codexModelAccess";
 import { useCopyToClipboard } from "@/shared/hooks/useCopyToClipboard";
 import { translate } from "@/i18n/runtime";
 import { useMutation } from "@tanstack/react-query";
@@ -184,7 +184,7 @@ export default function ModelsCard({ providerId, kindFilter, providerModels = []
   const builtInModels = (kindFilter ? aggregateModels.filter((m) => m.kinds ? m.kinds.includes(kindFilter) : (m.type || "llm") === kindFilter) : aggregateModels).filter((model) => providerId !== "codex" || filterCodexModelsForConnections(connections, [model]).length > 0);
   const myCustomModels = customModels.filter((m) => m.providerAlias === providerAlias && (m.type || "llm") === effectiveType && !builtInModels.some((b) => b.id === m.id));
   const displayModels = builtInModels;
-  const hasCodexFreeConnection = providerId === "codex" && connections.some((connection) => isCodexFreePlan(connection));
+
 
   return (
     <>
@@ -203,7 +203,7 @@ export default function ModelsCard({ providerId, kindFilter, providerModels = []
         </CardHeader>
         <CardContent>
           {disabledModels.length > 0 ? <div className="mb-3 rounded-lg border border-destructive/20 bg-destructive/10 px-3 py-2 text-xs text-text-muted">Some models hidden from live routing. Use eye icon to re-enable them.</div> : null}
-          {hasCodexFreeConnection ? <div className="mb-3 rounded-lg border border-amber-500/20 bg-amber-500/8 px-3 py-2 text-xs text-text-muted">Premium models require a non-Free Codex account. Free Codex accounts will not see or route to models like <code className={subtleCodeClass}>cx/gpt-5.5</code>.</div> : null}
+
           {syncNotice ? <p className="mb-3 break-words text-xs text-emerald-600 dark:text-emerald-400">{syncNotice}</p> : null}
           {syncError ? <p className="mb-3 break-words text-xs text-destructive">{syncError}</p> : null}
           {testError && <p className="mb-3 break-words text-xs text-destructive">{testError}</p>}

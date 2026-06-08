@@ -215,11 +215,14 @@ export async function getActiveAntigravityAccount(): Promise<{
   });
 
   let actualActiveId: string | null = null;
+  let hasValidTokenInFile = false;
+  let currentToken: string | null = null;
   try {
     const tokenDataRaw = await fs.readFile(ANTIGRAVITY_OAUTH_TOKEN_PATH, "utf-8");
     const tokenData = JSON.parse(tokenDataRaw);
-    const currentToken = tokenData?.token?.access_token || tokenData?.token?.apiKey;
+    currentToken = tokenData?.token?.access_token || tokenData?.token?.apiKey || null;
     if (currentToken) {
+      hasValidTokenInFile = true;
       const matchedConn = connections.find(
         (c: any) => c.accessToken === currentToken || c.apiKey === currentToken,
       );
@@ -231,11 +234,80 @@ export async function getActiveAntigravityAccount(): Promise<{
     // Ignore read errors
   }
 
-  const effectiveConnectionId = actualActiveId || config.activeConnectionId;
-  if (!effectiveConnectionId) return null;
+  // If there is a token in the file but it does not match any connection in AxonRouter,
+  // we must respect the external account and NOT fall back to config.activeConnectionId.
+  const effectiveConnectionId = hasValidTokenInFile ? actualActiveId : config.activeConnectionId;
+
+  if (!effectiveConnectionId) {
+    if (hasValidTokenInFile) {
+      let externalEmail: string | null = null;
+      if (currentToken) {
+        try {
+          const controller = new AbortController();
+          const timeoutId = setTimeout(() => controller.abort(), 2000);
+          const res = await fetch("https://www.googleapis.com/oauth2/v1/userinfo?alt=json", {
+            headers: {
+              Authorization: `Bearer ${currentToken}`,
+              Accept: "application/json",
+            },
+            signal: controller.signal,
+          });
+          clearTimeout(timeoutId);
+          if (res.ok) {
+            const userInfo = await res.json();
+            if (userInfo?.email) {
+              externalEmail = userInfo.email;
+            }
+          }
+        } catch (e) {
+          // Ignore network errors or timeouts
+        }
+      }
+      return {
+        connectionId: "external",
+        connectionName: "External Account",
+        email: externalEmail ? `${externalEmail} (External)` : "Managed Outside AxonRouter",
+        projectId: null,
+      };
+    }
+    return null;
+  }
 
   const conn = connections.find((c: any) => c.id === effectiveConnectionId);
-  if (!conn) return null;
+  if (!conn) {
+    if (hasValidTokenInFile) {
+      let externalEmail: string | null = null;
+      if (currentToken) {
+        try {
+          const controller = new AbortController();
+          const timeoutId = setTimeout(() => controller.abort(), 2000);
+          const res = await fetch("https://www.googleapis.com/oauth2/v1/userinfo?alt=json", {
+            headers: {
+              Authorization: `Bearer ${currentToken}`,
+              Accept: "application/json",
+            },
+            signal: controller.signal,
+          });
+          clearTimeout(timeoutId);
+          if (res.ok) {
+            const userInfo = await res.json();
+            if (userInfo?.email) {
+              externalEmail = userInfo.email;
+            }
+          }
+        } catch (e) {
+          // Ignore network errors or timeouts
+        }
+      }
+      return {
+        connectionId: "external",
+        connectionName: "External Account",
+        email: externalEmail ? `${externalEmail} (External)` : "Managed Outside AxonRouter",
+        projectId: null,
+      };
+    }
+    return null;
+  }
 
   return {
     connectionId: conn.id || null,

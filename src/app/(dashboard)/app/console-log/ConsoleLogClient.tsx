@@ -27,7 +27,16 @@ function colorLine(line) {
 export default function ConsoleLogClient() {
   const [logs, setLogs] = useState([]);
   const [connected, setConnected] = useState(false);
+  const [isPaused, setIsPaused] = useState(false);
+  const [bufferedCount, setBufferedCount] = useState(0);
   const logRef = useRef<HTMLDivElement | null>(null);
+  const bufferedLogsRef = useRef<string[]>([]);
+  const isPausedRef = useRef(isPaused);
+
+  useEffect(() => {
+    isPausedRef.current = isPaused;
+  }, [isPaused]);
+
   // eslint-disable-next-line react-hooks/incompatible-library -- TanStack Virtual is required for high-volume streamed console logs.
   const rowVirtualizer = useVirtualizer({
     count: logs.length,
@@ -37,9 +46,24 @@ export default function ConsoleLogClient() {
     measureElement: (el) => el?.getBoundingClientRect().height ?? 22,
   });
 
+  const handleTogglePause = () => {
+    if (isPaused) {
+      // Unpausing: flush buffered logs
+      setLogs((prev) => {
+        const next = [...prev, ...bufferedLogsRef.current];
+        bufferedLogsRef.current = [];
+        return next.length > CONSOLE_LOG_CONFIG.maxLines ? next.slice(-CONSOLE_LOG_CONFIG.maxLines) : next;
+      });
+      setBufferedCount(0);
+    }
+    setIsPaused(!isPaused);
+  };
+
   const handleClear = async () => {
     try {
       await fetch("/api/translator/console-logs", { method: "DELETE" });
+      bufferedLogsRef.current = [];
+      setBufferedCount(0);
       // UI cleared via SSE "clear" event
     } catch (err) {
       console.error("Failed to clear console logs:", err);
@@ -56,12 +80,22 @@ export default function ConsoleLogClient() {
       if (msg.type === "init") {
         setLogs(msg.logs.slice(-CONSOLE_LOG_CONFIG.maxLines));
       } else if (msg.type === "line") {
-        setLogs((prev) => {
-          const next = [...prev, msg.line];
-          return next.length > CONSOLE_LOG_CONFIG.maxLines ? next.slice(-CONSOLE_LOG_CONFIG.maxLines) : next;
-        });
+        if (isPausedRef.current) {
+          bufferedLogsRef.current.push(msg.line);
+          if (bufferedLogsRef.current.length > CONSOLE_LOG_CONFIG.maxLines) {
+            bufferedLogsRef.current.shift();
+          }
+          setBufferedCount(bufferedLogsRef.current.length);
+        } else {
+          setLogs((prev) => {
+            const next = [...prev, msg.line];
+            return next.length > CONSOLE_LOG_CONFIG.maxLines ? next.slice(-CONSOLE_LOG_CONFIG.maxLines) : next;
+          });
+        }
       } else if (msg.type === "clear") {
         setLogs([]);
+        bufferedLogsRef.current = [];
+        setBufferedCount(0);
       }
     };
 
@@ -81,14 +115,27 @@ export default function ConsoleLogClient() {
       <Card>
         <CardContent>
           <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
-            <Badge variant={connected ? "default" : "secondary"}>
-              <span className="size-1.5 rounded-full bg-current" aria-hidden="true" />
-              {connected ? "Live" : "Disconnected"}
-            </Badge>
-            <Button size="sm" variant="outline" onClick={handleClear}>
-              <AppIcon name="delete" data-icon="inline-start" />
-              Clear
-            </Button>
+            <div className="flex items-center gap-2">
+              <Badge variant={connected ? "default" : "secondary"}>
+                <span className="size-1.5 rounded-full bg-current" aria-hidden="true" />
+                {connected ? (isPaused ? "Paused" : "Live") : "Disconnected"}
+              </Badge>
+              {isPaused && (
+                <Badge variant="outline" className="border-amber-500/20 bg-amber-500/8 text-amber-600 dark:text-amber-400 text-xs">
+                  {bufferedCount > 0 ? `${bufferedCount} buffered` : "Paused"}
+                </Badge>
+              )}
+            </div>
+            <div className="flex items-center gap-2">
+              <Button size="sm" variant="outline" onClick={handleTogglePause}>
+                <AppIcon name={isPaused ? "playarrow" : "pause"} data-icon="inline-start" />
+                {isPaused ? "Resume" : "Pause"}
+              </Button>
+              <Button size="sm" variant="outline" onClick={handleClear}>
+                <AppIcon name="delete" data-icon="inline-start" />
+                Clear
+              </Button>
+            </div>
           </div>
           <div
             ref={logRef}

@@ -8,8 +8,8 @@ import {
 } from "../../src/lib/codexModelAccess.ts";
 
 describe("codex model access", () => {
-  it("treats gpt-5.5 as a premium Codex model", () => {
-    expect(isCodexPremiumModel("gpt-5.5")).toBe(true);
+  it("treats no models as premium Codex models", () => {
+    expect(isCodexPremiumModel("gpt-5.5")).toBe(false);
     expect(isCodexPremiumModel("gpt-5.4")).toBe(false);
   });
 
@@ -20,16 +20,16 @@ describe("codex model access", () => {
     expect(isCodexFreePlan({ provider: "codex", providerSpecificData: { planType: "Plus" } })).toBe(false);
   });
 
-  it("blocks premium Codex models for free accounts only", () => {
+  it("does not block any Codex models for free accounts", () => {
     const freeConnection = { provider: "codex", providerSpecificData: { planType: "Free" } };
     const plusConnection = { provider: "codex", providerSpecificData: { planType: "Plus" } };
 
-    expect(canCodexConnectionUseModel(freeConnection, "gpt-5.5")).toBe(false);
+    expect(canCodexConnectionUseModel(freeConnection, "gpt-5.5")).toBe(true);
     expect(canCodexConnectionUseModel(freeConnection, "gpt-5.4")).toBe(true);
     expect(canCodexConnectionUseModel(plusConnection, "gpt-5.5")).toBe(true);
   });
 
-  it("filters premium Codex models out of free-account model lists", () => {
+  it("does not filter any Codex models out of free-account model lists", () => {
     const freeConnection = { provider: "codex", providerSpecificData: { planTypeRaw: "free" } };
     const models = [
       { id: "gpt-5.5", name: "GPT 5.5" },
@@ -37,6 +37,7 @@ describe("codex model access", () => {
     ];
 
     expect(filterCodexModelsForConnection(freeConnection, models)).toEqual([
+      { id: "gpt-5.5", name: "GPT 5.5" },
       { id: "gpt-5.4", name: "GPT 5.4" },
     ]);
   });

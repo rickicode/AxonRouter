@@ -40,24 +40,26 @@ export async function PUT(request: Request) {
 
   try {
     const body = await request.json() as Record<string, unknown>;
-    const enabled = body.enabled === true;
-    const activeConnectionId = typeof body.activeConnectionId === "string"
-      ? body.activeConnectionId
-      : null;
-
     const currentSettings = await getCurrentSettings();
     const current = currentSettings?.antigravityAutoSwitch || {};
 
     const updated = {
       ...current,
-      enabled,
-      ...(activeConnectionId !== undefined ? { activeConnectionId } : {}),
     };
+
+    if (body.enabled !== undefined) {
+      updated.enabled = body.enabled === true;
+    }
+    if (body.activeConnectionId !== undefined) {
+      updated.activeConnectionId = typeof body.activeConnectionId === "string"
+        ? body.activeConnectionId
+        : null;
+    }
 
     await updateCurrentSettings({ antigravityAutoSwitch: updated });
 
     return NextResponse.json({
-      enabled,
+      enabled: updated.enabled === true,
       activeConnectionId: updated.activeConnectionId || null,
     });
   } catch (error: unknown) {

@@ -49,27 +49,30 @@ export async function PUT(request: Request) {
 
   try {
     const body = await request.json() as Record<string, unknown>;
-    const enabled = body.enabled === true;
-    const thresholdPercent = normalizeThreshold(body.thresholdPercent);
-    const activeConnectionId = typeof body.activeConnectionId === "string"
-      ? body.activeConnectionId
-      : null;
-
     const currentSettings = await getCurrentSettings();
     const current = currentSettings?.codexAutoSwitch || {};
 
     const updated = {
       ...current,
-      enabled,
-      thresholdPercent,
-      ...(activeConnectionId !== undefined ? { activeConnectionId } : {}),
     };
+
+    if (body.enabled !== undefined) {
+      updated.enabled = body.enabled === true;
+    }
+    if (body.thresholdPercent !== undefined) {
+      updated.thresholdPercent = normalizeThreshold(body.thresholdPercent);
+    }
+    if (body.activeConnectionId !== undefined) {
+      updated.activeConnectionId = typeof body.activeConnectionId === "string"
+        ? body.activeConnectionId
+        : null;
+    }
 
     await updateCurrentSettings({ codexAutoSwitch: updated });
 
     return NextResponse.json({
-      enabled,
-      thresholdPercent,
+      enabled: updated.enabled === true,
+      thresholdPercent: updated.thresholdPercent,
       activeConnectionId: updated.activeConnectionId || null,
     });
   } catch (error: unknown) {

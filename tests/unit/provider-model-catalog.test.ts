@@ -7,8 +7,8 @@ describe("provider model catalog", () => {
     expect(PROVIDER_MODELS.openai.some((model) => model.id === "gpt-5.5")).toBe(true);
   });
 
-  it("marks codex gpt-5.5 as premium", () => {
-    expect(PROVIDER_MODELS.cx.find((model) => model.id === "gpt-5.5")).toMatchObject({ premium: true });
+  it("does not mark codex gpt-5.5 as premium", () => {
+    expect(PROVIDER_MODELS.cx.find((model) => model.id === "gpt-5.5")).not.toHaveProperty("premium", true);
     expect(PROVIDER_MODELS.openai.find((model) => model.id === "gpt-5.5")).not.toHaveProperty("premium", true);
   });
 

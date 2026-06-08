@@ -1,6 +1,4 @@
-const CODEX_PREMIUM_MODEL_IDS = new Set([
-  "gpt-5.5",
-]);
+const CODEX_PREMIUM_MODEL_IDS = new Set<string>([]);
 
 export function isCodexFreePlan(connection: any = {}) {
   if (connection?.provider !== "codex") return false;

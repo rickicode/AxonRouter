@@ -350,6 +350,20 @@ export async function checkAndRotateCodexAccount(): Promise<string | null> {
   return null;
 }
 
+function decodeJwtPayload(token: string): any {
+  try {
+    if (!token || typeof token !== "string") return null;
+    const parts = token.split(".");
+    if (parts.length !== 3) return null;
+
+    const base64 = parts[1].replace(/-/g, "+").replace(/_/g, "/");
+    const padding = "=".repeat((4 - (base64.length % 4)) % 4);
+    return JSON.parse(Buffer.from(base64 + padding, "base64").toString("utf8"));
+  } catch {
+    return null;
+  }
+}
+
 /**
  * Get info about the currently active Codex account.
  */
@@ -368,11 +382,14 @@ export async function getActiveCodexAccount(): Promise<{
   });
 
   let actualActiveId: string | null = null;
+  let hasValidTokenInFile = false;
+  let currentToken: string | null = null;
   try {
     const authDataRaw = await fs.readFile(CODEX_AUTH_PATH, "utf-8");
     const authData = JSON.parse(authDataRaw);
-    const currentToken = authData.OPENAI_API_KEY || authData.tokens?.access_token;
+    currentToken = authData.OPENAI_API_KEY || authData.tokens?.access_token || null;
     if (currentToken) {
+      hasValidTokenInFile = true;
       const matchedConn = connections.find((c: any) => c.accessToken === currentToken || c.apiKey === currentToken);
       if (matchedConn) {
         actualActiveId = matchedConn.id;
@@ -382,11 +399,50 @@ export async function getActiveCodexAccount(): Promise<{
     // Ignore read errors
   }
 
-  const effectiveConnectionId = actualActiveId || config.activeConnectionId;
-  if (!effectiveConnectionId) return null;
+  // If there is a token in the file but it does not match any connection in AxonRouter,
+  // we must respect the external account and NOT fall back to config.activeConnectionId.
+  const effectiveConnectionId = hasValidTokenInFile ? actualActiveId : config.activeConnectionId;
+
+  if (!effectiveConnectionId) {
+    if (hasValidTokenInFile) {
+      let externalEmail: string | null = null;
+      if (currentToken) {
+        const payload = decodeJwtPayload(currentToken);
+        if (payload?.email) {
+          externalEmail = payload.email;
+        }
+      }
+      return {
+        connectionId: "external",
+        connectionName: "External Account",
+        email: externalEmail ? `${externalEmail} (External)` : "Managed Outside AxonRouter",
+        planType: null,
+        remainingPercent: null,
+      };
+    }
+    return null;
+  }
 
   const conn = connections.find((c: any) => c.id === effectiveConnectionId);
-  if (!conn) return null;
+  if (!conn) {
+    if (hasValidTokenInFile) {
+      let externalEmail: string | null = null;
+      if (currentToken) {
+        const payload = decodeJwtPayload(currentToken);
+        if (payload?.email) {
+          externalEmail = payload.email;
+        }
+      }
+      return {
+        connectionId: "external",
+        connectionName: "External Account",
+        email: externalEmail ? `${externalEmail} (External)` : "Managed Outside AxonRouter",
+        planType: null,
+        remainingPercent: null,
+      };
+    }
+    return null;
+  }
 
   const { quotas } = parseUsageSnapshot(conn);
 

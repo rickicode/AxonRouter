@@ -230,6 +230,9 @@ async function syncActiveCliTokens(conn: any) {
     if (conn.provider === "antigravity") {
       const { getCurrentSettings } = await import("../settingsAccess");
       const settings = await getCurrentSettings().catch(() => null);
+      if (settings?.antigravityAutoSwitch?.enabled !== true) {
+        return; // Auto-switch is disabled, do not touch the token file!
+      }
       const activeId = settings?.antigravityAutoSwitch?.activeConnectionId;
       let isCurrentlyActive = (activeId === conn.id);
       if (!isCurrentlyActive) {
@@ -246,6 +249,9 @@ async function syncActiveCliTokens(conn: any) {
     } else if (conn.provider === "codex") {
       const { getCurrentSettings } = await import("../settingsAccess");
       const settings = await getCurrentSettings().catch(() => null);
+      if (settings?.codexAutoSwitch?.enabled !== true) {
+        return; // Auto-switch is disabled, do not touch the auth.json file!
+      }
       const activeId = settings?.codexAutoSwitch?.activeConnectionId;
       let isCurrentlyActive = (activeId === conn.id);
       if (!isCurrentlyActive) {
