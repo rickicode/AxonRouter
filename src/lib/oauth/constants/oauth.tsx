@@ -95,7 +95,7 @@ export const IFLOW_CONFIG = {
 export const ANTIGRAVITY_CONFIG = {
   clientId: getAntigravityCredentials().clientId,
   clientSecret: getAntigravityCredentials().clientSecret,
-  authorizeUrl: "https://accounts.google.com/o/oauth2/v2/auth",
+  authorizeUrl: "https://accounts.google.com/o/oauth2/auth",
   tokenUrl: "https://oauth2.googleapis.com/token",
   userInfoUrl: "https://www.googleapis.com/oauth2/v1/userinfo",
   scopes: [
@@ -104,6 +104,7 @@ export const ANTIGRAVITY_CONFIG = {
     "https://www.googleapis.com/auth/userinfo.profile",
     "https://www.googleapis.com/auth/cclog",
     "https://www.googleapis.com/auth/experimentsandconfigs",
+    "openid",
   ],
   // Antigravity specific
   apiEndpoint: "https://cloudcode-pa.googleapis.com",

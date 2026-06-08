@@ -11,12 +11,25 @@ export const MITM_TOOLS = {
 		configType: "mitm",
 		mitmDomain: "daily-cloudcode-pa.googleapis.com",
 		modelAliases: [
+			"gemini-3.5-flash",
+			"gemini-3.5-pro-high",
+			"gemini-3.5-pro-low",
 			"gemini-3-flash",
-			"gpt-oss-120b-medium",
 			"gemini-3-pro-high",
 			"gemini-3-pro-low",
 		],
 		defaultModels: [
+			{
+				id: "gemini-3.5-pro-high",
+				name: "Gemini 3.5 Pro High",
+				alias: "gemini-3.5-pro-high",
+			},
+			{
+				id: "gemini-3.5-pro-low",
+				name: "Gemini 3.5 Pro Low",
+				alias: "gemini-3.5-pro-low",
+			},
+			{ id: "gemini-3.5-flash", name: "Gemini 3.5 Flash", alias: "gemini-3.5-flash" },
 			{
 				id: "gemini-3.1-pro-high",
 				name: "Gemini 3.1 Pro High",
@@ -28,11 +41,6 @@ export const MITM_TOOLS = {
 				alias: "gemini-3.1-pro-low",
 			},
 			{ id: "gemini-3-flash", name: "Gemini 3 Flash", alias: "gemini-3-flash" },
-			{
-				id: "gpt-oss-120b-medium",
-				name: "GPT OSS 120B Medium",
-				alias: "gpt-oss-120b-medium",
-			},
 		],
 	},
 	copilot: {

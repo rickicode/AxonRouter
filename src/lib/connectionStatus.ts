@@ -199,11 +199,22 @@ const PLACEHOLDER_PLAN_TYPES = new Set(["legacy-tier", "legacy", "unknown", ""])
  * subscription status can't be reliably read from the provider API.
  */
 export function getDisplayPlanType(connection: ConnectionLike = {}): string | null {
+  if (connection?.provider === "antigravity" && connection?.providerSpecificData?.isWorkspaceAccount) {
+    return "PRO";
+  }
   const raw = connection?.providerSpecificData?.planType;
   if (typeof raw !== "string") return null;
   const trimmed = raw.trim();
   if (!trimmed) return null;
-  return PLACEHOLDER_PLAN_TYPES.has(trimmed.toLowerCase()) ? null : trimmed;
+  if (PLACEHOLDER_PLAN_TYPES.has(trimmed.toLowerCase())) return null;
+
+  if (connection?.provider === "antigravity") {
+    const lower = trimmed.toLowerCase();
+    if (lower.includes("ultra")) return "ULTRA";
+    if (lower.includes("pro")) return "PRO";
+    if (lower.includes("free")) return "FREE";
+  }
+  return trimmed;
 }
 
 export function getConnectionFilterStatus(connection: ConnectionLike = {}) {

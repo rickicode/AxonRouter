@@ -2,7 +2,7 @@
 
 /**
  * AxonRouter CLI — Interactive Terminal UI & System Tray
- * (100% matched with 9router CLI logic)
+ * (100% matched with AxonRouter CLI logic)
  */
 
 import { spawn, execSync, exec } from "node:child_process";
@@ -192,7 +192,7 @@ function checkForUpdate() {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-// Process Management (100% matched to 9router's robust kill system)
+// Process Management (100% matched to AxonRouter's robust kill system)
 // ═══════════════════════════════════════════════════════════════════════════
 function killByPidFile(pidFile) {
   try {

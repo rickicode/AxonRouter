@@ -78,7 +78,6 @@ Use these commands unless the user explicitly asks for a narrower scope:
 - `pnpm run lint`
 - `pnpm run typecheck`
 - `pnpm run test`
-- `pnpm run build`
 
 If any command is skipped, state why in the final summary.
 

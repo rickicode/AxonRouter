@@ -159,6 +159,7 @@ const PLAN_TYPE_RANKS = {
   enterprise: 100,
   business: 90,
   team: 80,
+  ultra: 75,
   pro: 70,
   plus: 60,
   go: 50,
@@ -822,7 +823,9 @@ export default function ProviderLimits() {
           const isRefreshingConnection = Boolean(refreshingConnectionIds[conn.id]);
           const connectionRefreshError = connectionRefreshErrors[conn.id] || "";
           const codexAccountKind = getCodexAccountKindLabel(conn);
-          const planLabel = getDisplayPlanType(conn);
+          const planLabel = getDisplayPlanType(conn) 
+            || (conn.provider === "codex" && conn.providerSpecificData?.isWorkspaceAccount !== true ? "free" : null)
+            || (conn.provider === "antigravity" && conn.providerSpecificData?.isWorkspaceAccount !== true ? "free" : null);
           const connectionStatus = getConnectionCentralizedStatus(conn);
           const quotaToneClass = quota.quotas?.length > 0
             ? "border-[var(--color-success)]/40 bg-[var(--color-success-soft)] text-[var(--color-success)]"
@@ -841,9 +844,9 @@ export default function ProviderLimits() {
               key={conn.id}
               className={`min-w-0 gap-0 overflow-hidden ${isInactive ? "opacity-60" : ""} ${isActiveCodexAccount ? "ring-1 ring-emerald-500/30" : ""} ${isActiveAntigravityAccount ? "ring-1 ring-primary/30" : ""}`}
             >
-              <CardHeader className="flex-col gap-2 border-b border-border px-3 py-3 sm:px-4">
-                {/* Identity row: provider icon, title, account-type badge(s), and status badge */}
-                <div className="flex items-start gap-2">
+              <CardHeader className="flex flex-row flex-wrap items-start justify-between gap-3 border-b border-border px-3 py-3 sm:px-4">
+                {/* Identity row */}
+                <div className="flex items-start gap-2 min-w-0 flex-1">
                   <div className="flex size-8 shrink-0 items-center justify-center overflow-hidden rounded-md">
                     <ProviderIcon
                       src={conn.provider}
@@ -880,9 +883,9 @@ export default function ProviderLimits() {
                         </ShadcnBadge>
                       )}
                     </div>
-                    {conn.name && (
+                    {(conn.name || conn.email) && (
                       <p className="truncate text-xs text-muted-foreground">
-                        {conn.name}
+                        {conn.name || conn.email}
                       </p>
                     )}
                   </div>
@@ -902,8 +905,8 @@ export default function ProviderLimits() {
                   )}
                 </div>
 
-                {/* Action row: kept on its own line so controls never overlap the badges on mobile */}
-                <div className="flex items-center justify-end gap-0.5">
+                {/* Action row */}
+                <div className="flex items-center justify-end gap-1 shrink-0">
                   <ShadcnButton
                     type="button"
                     variant="ghost"
@@ -916,20 +919,6 @@ export default function ProviderLimits() {
                   >
                     {isRefreshingConnection ? <Spinner className="size-4" /> : <AppIcon name="refresh" data-icon="inline-start" />}
                   </ShadcnButton>
-                  {(connectionStatus === "blocked" || connectionStatus === "exhausted" || connectionStatus === "unknown") && (
-                    <ShadcnButton
-                      type="button"
-                      variant="ghost"
-                      size="icon"
-                      onClick={() => refreshConnectionUsage(conn.id, { force: true })}
-                      disabled={rowBusy || isRefreshingConnection}
-                      title="Force re-check (reset backoff)"
-                      aria-label="Force re-check"
-                      className="size-8 text-amber-400 hover:text-amber-300 hover:bg-amber-500/10"
-                    >
-                      <AppIcon name="refresh" data-icon="inline-start" className="animate-pulse" />
-                    </ShadcnButton>
-                  )}
                   <ShadcnButton
                     type="button"
                     variant="ghost"
@@ -945,28 +934,28 @@ export default function ProviderLimits() {
                   {conn.provider === "codex" && !isActiveCodexAccount && (
                     <ShadcnButton
                       type="button"
-                      variant="ghost"
+                      variant="outline"
                       size="sm"
                       onClick={() => setCodexActiveMutation.mutate(conn.id)}
                       disabled={rowBusy || setCodexActiveMutation.isPending}
                       title="Set as active Codex account"
-                      className="h-8 px-2 text-xs"
+                      className="h-7 px-2 text-[10px] rounded-md border-dashed bg-transparent hover:bg-emerald-500/10 text-emerald-500 hover:text-emerald-400"
                     >
-                      {setCodexActiveMutation.isPending && setCodexActiveMutation.variables === conn.id ? <Spinner className="size-3 mr-1" /> : <AppIcon name="stars" data-icon="inline-start" className="mr-1 text-emerald-500" />}
+                      {setCodexActiveMutation.isPending && setCodexActiveMutation.variables === conn.id ? <Spinner className="size-3 mr-1" /> : <AppIcon name="checkcircle" data-icon="inline-start" className="mr-1" />}
                       Set Active
                     </ShadcnButton>
                   )}
                   {conn.provider === "antigravity" && !isActiveAntigravityAccount && (
                     <ShadcnButton
                       type="button"
-                      variant="ghost"
+                      variant="outline"
                       size="sm"
                       onClick={() => setAntigravityActiveMutation.mutate(conn.id)}
                       disabled={rowBusy || setAntigravityActiveMutation.isPending}
                       title="Set as active Antigravity CLI account"
-                      className="h-8 px-2 text-xs"
+                      className="h-7 px-2 text-[10px] rounded-md border-dashed bg-transparent hover:bg-primary/10 text-primary hover:text-primary"
                     >
-                      {setAntigravityActiveMutation.isPending && setAntigravityActiveMutation.variables === conn.id ? <Spinner className="size-3 mr-1" /> : <AppIcon name="stars" data-icon="inline-start" className="mr-1 text-primary" />}
+                      {setAntigravityActiveMutation.isPending && setAntigravityActiveMutation.variables === conn.id ? <Spinner className="size-3 mr-1" /> : <AppIcon name="checkcircle" data-icon="inline-start" className="mr-1" />}
                       Set Active
                     </ShadcnButton>
                   )}
@@ -1006,7 +995,7 @@ export default function ProviderLimits() {
                   </p>
                 )}
                 {quota.quotas?.length > 0 ? (
-                  <QuotaTable quotas={quota.quotas} compact provider={conn.provider} />
+                  <QuotaTable quotas={quota.quotas} compact provider={conn.provider} planLabel={planLabel} />
                 ) : quota.message ? (
                   <Alert className="text-xs">
                     <AlertDescription>{quota.message}</AlertDescription>

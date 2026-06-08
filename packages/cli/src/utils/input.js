@@ -72,7 +72,7 @@ export async function confirm(question, defaultValue = true) {
   }
 }
 
-// ── Arrow-key interactive menu (Fullscreen like 9router) ────────────────────
+// ── Arrow-key interactive menu (Fullscreen like AxonRouter) ────────────────────
 
 export async function selectMenu(title, items, { header } = {}) {
   return new Promise((resolve) => {

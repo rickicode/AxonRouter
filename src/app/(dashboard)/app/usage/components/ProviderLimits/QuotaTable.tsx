@@ -70,9 +70,12 @@ function formatResetTimeAbsolute(resetAt: any): string | null {
   }
 }
 
-function formatQuotaLabel(quota: any): string {
+function formatQuotaLabel(quota: any, planLabel?: string | null): string {
   const normalized = typeof quota?.name === "string" ? quota.name.trim().toLowerCase() : "";
   if (normalized === "session") {
+    if (planLabel === "free" || planLabel?.toLowerCase().includes("free")) {
+      return "Session window (1 month)";
+    }
     return quota?.hasSessionWindow === true || quota?.usageWindowType === "session_and_weekly"
       ? "Session window (5h)"
       : "Session window";
@@ -82,7 +85,7 @@ function formatQuotaLabel(quota: any): string {
 }
 
 // --- Percentage Row (claude/codex: session + weekly with prominent %) ---
-function PercentageLayout({ quotas }: { quotas: any[] }) {
+function PercentageLayout({ quotas, planLabel }: { quotas: any[], planLabel?: string | null }) {
   return (
     <div className="space-y-2.5 py-1">
       {quotas.map((quota, i) => {
@@ -94,7 +97,7 @@ function PercentageLayout({ quotas }: { quotas: any[] }) {
         return (
           <div key={i} className="space-y-1.5 rounded-md border border-zinc-800/80 bg-zinc-900/30 px-3 py-2">
             <div className="flex items-center justify-between gap-3">
-              <span className="text-xs font-medium text-zinc-200">{formatQuotaLabel(quota)}</span>
+              <span className="text-xs font-medium text-zinc-200">{formatQuotaLabel(quota, planLabel)}</span>
               <span className={cn("text-sm font-bold tabular-nums", colors.text)}>{remaining}%</span>
             </div>
             <div className="h-2 rounded-full overflow-hidden bg-zinc-800">
@@ -277,19 +280,28 @@ function detectDisplayType(provider: string | undefined, quotas: any[]): QuotaDi
 /**
  * Provider-aware Quota Display
  */
-export default function QuotaTable({ quotas = [], compact = false, provider }: { quotas?: any[]; compact?: boolean; provider?: string }) {
-  if (!quotas || quotas.length === 0) return null;
+export default function QuotaTable({ quotas = [], compact = false, provider, planLabel }: { quotas?: any[]; compact?: boolean; provider?: string; planLabel?: string | null }) {
+  let filteredQuotas = quotas;
+  if (provider === "antigravity") {
+    filteredQuotas = quotas.filter(q => q.name !== "GPT-OSS" && q.modelKey !== "GPT-OSS");
+  }
 
-  const displayType = detectDisplayType(provider, quotas);
+  if (!filteredQuotas || filteredQuotas.length === 0) return null;
+
+  let displayType = detectDisplayType(provider, filteredQuotas);
+
+  if (provider === "antigravity" && filteredQuotas.length === 1) {
+    displayType = "percentage";
+  }
 
   switch (displayType) {
     case "percentage":
-      return <PercentageLayout quotas={quotas} />;
+      return <PercentageLayout quotas={filteredQuotas} planLabel={planLabel} />;
     case "credit":
-      return <CreditLayout quotas={quotas} />;
+      return <CreditLayout quotas={filteredQuotas} />;
     case "model-grid":
-      return <ModelGridLayout quotas={quotas} />;
+      return <ModelGridLayout quotas={filteredQuotas} />;
     default:
-      return <StandardLayout quotas={quotas} />;
+      return <StandardLayout quotas={filteredQuotas} />;
   }
 }

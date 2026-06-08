@@ -118,9 +118,11 @@ export function calculatePercentage(used, total) {
 const ANTIGRAVITY_MODEL_FAMILIES: Record<string, string> = {
   "claude-opus-4-6-thinking": "Claude",
   "claude-sonnet-4-6": "Claude",
-  "gemini-3.1-pro-high": "Gemini",
+  "gemini-3.5-flash-low": "Gemini",
+  "gemini-3.5-flash-medium": "Gemini",
+  "gemini-3.5-flash-high": "Gemini",
   "gemini-3.1-pro-low": "Gemini",
-  "gemini-3-flash": "Gemini",
+  "gemini-3.1-pro-high": "Gemini",
   "gpt-oss-120b-medium": "Other",
 };
 
@@ -128,7 +130,6 @@ export function getAntigravityModelFamily(modelKey: string): string {
   if (ANTIGRAVITY_MODEL_FAMILIES[modelKey]) return ANTIGRAVITY_MODEL_FAMILIES[modelKey];
   if (modelKey.startsWith("claude-") || modelKey.startsWith("anthropic/claude-")) return "Claude";
   if (modelKey.startsWith("gemini-")) return "Gemini";
-  if (modelKey.startsWith("gpt-")) return "Other";
   return "Other";
 }
 

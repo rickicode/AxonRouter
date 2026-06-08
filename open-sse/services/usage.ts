@@ -16,7 +16,8 @@ const GITHUB_CONFIG = {
 // Antigravity API config (from Quotio)
 const ANTIGRAVITY_CONFIG = {
   quotaApiUrl: "https://cloudcode-pa.googleapis.com/v1internal:fetchAvailableModels",
-  loadProjectApiUrl: "https://cloudcode-pa.googleapis.com/v1internal:loadCodeAssist",
+  userQuotaApiUrl: "https://cloudcode-pa.googleapis.com/v1internal:retrieveUserQuota",
+  loadProjectApiUrl: "https://daily-cloudcode-pa.sandbox.googleapis.com/v1internal:loadCodeAssist",
   tokenUrl: "https://oauth2.googleapis.com/token",
   clientId: getAntigravityCredentials().clientId,
   clientSecret: getAntigravityCredentials().clientSecret,
@@ -41,7 +42,7 @@ const CLAUDE_CONFIG = {
  * @param {Object} connection - Provider connection with accessToken
  * @returns {Object} Usage data with quotas
  */
-export async function getUsageForProvider(connection: any) {
+export async function getUsageForProvider(connection: any, options?: any) {
   const { provider, accessToken, providerSpecificData, projectId } = connection;
   // The Antigravity/Gemini OAuth flow stores the resolved project id at the connection
   // top-level (not inside providerSpecificData). Merge it so the quota calls can use the
@@ -57,7 +58,7 @@ export async function getUsageForProvider(connection: any) {
     case "gemini-cli":
       return await getGeminiUsage(accessToken, providerDataWithProjectId);
     case "antigravity":
-      return await getAntigravityUsage(accessToken, providerDataWithProjectId);
+      return await getAntigravityUsage(accessToken, providerDataWithProjectId, options);
     case "claude":
       return await getClaudeUsage(accessToken);
     case "codex":
@@ -322,14 +323,15 @@ async function getKnownAntigravityModelIds(): Promise<Set<string>> {
       return _cachedAntigravityModelIds;
     }
   } catch { /* fallback below */ }
-  // Hardcoded fallback keeps working if the dynamic import fails
   if (!_cachedAntigravityModelIds) {
     _cachedAntigravityModelIds = new Set([
-      'claude-opus-4-6-thinking',
-      'claude-sonnet-4-6',
-      'gemini-3.1-pro-high',
+      'gemini-3.5-flash-low',
+      'gemini-3.5-flash-medium',
+      'gemini-3.5-flash-high',
       'gemini-3.1-pro-low',
-      'gemini-3-flash',
+      'gemini-3.1-pro-high',
+      'claude-sonnet-4-6',
+      'claude-opus-4-6-thinking',
       'gpt-oss-120b-medium',
     ]);
   }
@@ -342,127 +344,281 @@ async function getKnownAntigravityModelIds(): Promise<Set<string>> {
  * a real tier. Returns null for placeholder/legacy/unknown tiers so the UI can hide the badge.
  */
 function getAntigravityTierName(subscriptionInfo: any) {
-  const tier = subscriptionInfo?.currentTier;
-  const raw =
-    (typeof tier?.name === "string" && tier.name.trim()) ||
-    (typeof tier?.id === "string" && tier.id.trim()) ||
+  if (!subscriptionInfo) return null;
+
+  // Multi-level fallback matching Antigravity-Manager's logic
+  const paidTier = subscriptionInfo.paidTier;
+  let raw =
+    (typeof paidTier?.name === "string" && paidTier.name.trim()) ||
+    (typeof paidTier?.id === "string" && paidTier.id.trim()) ||
     "";
+
+  const isIneligible =
+    Array.isArray(subscriptionInfo.ineligibleTiers) &&
+    subscriptionInfo.ineligibleTiers.length > 0;
+
+  if (!raw) {
+    if (!isIneligible) {
+      const currentTier = subscriptionInfo.currentTier;
+      raw =
+        (typeof currentTier?.name === "string" && currentTier.name.trim()) ||
+        (typeof currentTier?.id === "string" && currentTier.id.trim()) ||
+        "";
+    } else {
+      // If account is marked as INELIGIBLE, drop to allowedTiers and extract default
+      if (Array.isArray(subscriptionInfo.allowedTiers)) {
+        const defaultTier = subscriptionInfo.allowedTiers.find((t: any) => t?.isDefault === true);
+        if (defaultTier) {
+          const name =
+            (typeof defaultTier.name === "string" && defaultTier.name.trim()) ||
+            (typeof defaultTier.id === "string" && defaultTier.id.trim()) ||
+            "";
+          if (name) {
+            raw = `${name} (Restricted)`;
+          }
+        }
+      }
+    }
+  }
+
   if (!raw) return null;
-  return NON_DISPLAY_ANTIGRAVITY_TIERS.has(raw.toLowerCase()) ? null : raw;
+  if (NON_DISPLAY_ANTIGRAVITY_TIERS.has(raw.toLowerCase())) return null;
+
+  const lower = raw.toLowerCase();
+  if (lower.includes("ultra")) {
+    return "ULTRA";
+  }
+  if (lower.includes("pro")) {
+    return "PRO";
+  }
+  if (
+    lower.includes("free") ||
+    lower === "antigravity"
+  ) {
+    return "FREE";
+  }
+
+  return raw;
 }
 
 /**
  * Antigravity Usage - Fetch quota from Google Cloud Code API
  */
-async function getAntigravityUsage(accessToken, providerSpecificData) {
+async function getAntigravityUsage(accessToken, providerSpecificData, options?: { trigger?: string }) {
   try {
-    // Fetch subscription info once — reuse for both projectId and plan
-    const subscriptionInfo = await getAntigravitySubscriptionInfo(accessToken);
+    const isScheduled = options?.trigger === "scheduled";
+    const cachedProjectId = normalizeCloudCodeProjectId(providerSpecificData?.projectId);
 
-    // The quota endpoint (fetchAvailableModels) returns 403 when no project is supplied.
-    // Always provide a project id: prefer the connection's already-resolved project, then
-    // the live loadCodeAssist project, and finally a generated mock id (matching the real
-    // Antigravity client, which also synthesizes a project id when none is available).
+    let subscriptionInfo = null;
+    // Optimization: Skip loadCodeAssist if project_id is cached AND trigger is scheduled to save API quota
+    if (isScheduled && cachedProjectId) {
+      // Skip fetching subscription info
+    } else {
+      subscriptionInfo = await getAntigravitySubscriptionInfo(accessToken);
+    }
+
     const projectId =
-      normalizeCloudCodeProjectId(providerSpecificData?.projectId) ||
+      cachedProjectId ||
       normalizeCloudCodeProjectId(subscriptionInfo?.cloudaicompanionProject) ||
       generateMockAntigravityProjectId();
 
-    // Fetch quota data with timeout
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 10000); // 10s timeout
+    const plan = getAntigravityTierName(subscriptionInfo);
 
-    let response;
-    try {
-      response = await fetch(ANTIGRAVITY_CONFIG.quotaApiUrl, {
-        method: "POST",
-        headers: {
-          "Authorization": `Bearer ${accessToken}`,
-          "User-Agent": ANTIGRAVITY_CONFIG.userAgent,
-          "Content-Type": "application/json",
-          "x-request-source": "local", // MITM bypass
-        },
-        body: JSON.stringify({ project: projectId }),
-        signal: controller.signal,
-      });
-    } finally {
-      clearTimeout(timeoutId);
-    }
+    const baseUrls = [
+      "https://daily-cloudcode-pa.sandbox.googleapis.com",
+      "https://daily-cloudcode-pa.googleapis.com",
+      "https://cloudcode-pa.googleapis.com",
+    ];
 
-    if (response.status === 403) {
-      // Try to extract account verification URL from 403 error details
-      let validationUrl: string | null = null;
-      try {
-        const errorBody = await response.clone().text();
-        validationUrl = extractGoogleValidationUrl(errorBody);
-      } catch { /* best effort */ }
-      return {
-        message: validationUrl
-          ? "Antigravity account needs verification. Please verify your account to continue."
-          : "Antigravity quota API access forbidden. Chat may still work.",
-        quotas: {},
-        ...(validationUrl ? { validationUrl } : {}),
-      };
-    }
+    let lastError: any = null;
 
-    if (response.status === 401) {
-      return {
-        message: "Antigravity quota API authentication expired. Chat may still work.",
-        quotas: {}
-      };
-    }
+    for (let i = 0; i < baseUrls.length; i++) {
+      const baseUrl = baseUrls[i];
+      const hasNext = i + 1 < baseUrls.length;
 
-    if (!response.ok) {
-      throw new Error(`Antigravity API error: ${response.status}`);
-    }
+      const quotaApiUrl = `${baseUrl}/v1internal:fetchAvailableModels`;
+      const userQuotaApiUrl = `${baseUrl}/v1internal:retrieveUserQuota`;
 
-    const data = await response.json();
-    const quotas: any = {};
+      let currentPayload = { project: projectId };
+      let retryWithoutProject = false;
 
-    // Parse model quotas (inspired by vscode-antigravity-cockpit)
-    if (data.models) {
-      const knownModelIds = await getKnownAntigravityModelIds();
+      // Loop to allow retrying without project on 403
+      while (true) {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 10000); // 10s timeout
 
-      for (const [modelKey, rawInfo] of Object.entries(data.models)) {
-        const info: any = rawInfo;
-        // Skip models without quota info
-        if (!info.quotaInfo) {
-          continue;
+        let response: Response | null = null;
+        let userQuotaResponse: Response | null = null;
+
+        try {
+          const fetchOpts = {
+            method: "POST",
+            headers: {
+              "Authorization": `Bearer ${accessToken}`,
+              "User-Agent": ANTIGRAVITY_CONFIG.userAgent,
+              "Content-Type": "application/json",
+              "x-request-source": "local", // MITM bypass
+            },
+            body: JSON.stringify(currentPayload),
+            signal: controller.signal,
+          };
+
+          const [res1, res2] = await Promise.allSettled([
+            fetch(quotaApiUrl, fetchOpts),
+            fetch(userQuotaApiUrl, fetchOpts),
+          ]);
+
+          response = res1.status === "fulfilled" ? res1.value : null;
+          userQuotaResponse = res2.status === "fulfilled" ? res2.value : null;
+        } catch (err: any) {
+          lastError = err;
+          console.warn(`[Antigravity Usage] Request failed at ${baseUrl}: ${err.message}`);
+          if (hasNext) {
+            await new Promise((resolve) => setTimeout(resolve, 1000));
+            break; // Break the inner loop, try next endpoint
+          }
+          throw err;
+        } finally {
+          clearTimeout(timeoutId);
         }
 
-        // Skip internal models and models not in our known set
-        if (info.isInternal || !knownModelIds.has(modelKey)) {
-          continue;
+        // Handle HTTP status codes / errors
+        const isForbidden = response?.status === 403 && userQuotaResponse?.status !== 200;
+        if (isForbidden) {
+          if (currentPayload.project && !retryWithoutProject) {
+            console.warn(`[Antigravity Usage] Got 403 with project ID at ${baseUrl}, retrying without project ID...`);
+            currentPayload = {} as any;
+            retryWithoutProject = true;
+            continue; // retry same endpoint without project
+          }
+
+          // Otherwise if still 403, immediately mark as forbidden and stop trying other endpoints!
+          console.warn(`[Antigravity Usage] Account unauthorized (403 Forbidden) at ${baseUrl}, marking as forbidden`);
+          let validationUrl: string | null = null;
+          try {
+            if (response) {
+              const errorBody = await response.clone().text();
+              validationUrl = extractGoogleValidationUrl(errorBody);
+            }
+          } catch { /* best effort */ }
+
+          return {
+            plan,
+            message: validationUrl
+              ? "Antigravity account needs verification. Please verify your account to continue."
+              : "Antigravity quota API access forbidden. Chat may still work.",
+            quotas: {},
+            isForbidden: true, // Mark connection as forbidden to align with Antigravity-Manager
+            ...(validationUrl ? { validationUrl } : {}),
+            subscriptionInfo,
+          };
         }
 
-        const remainingFraction = info.quotaInfo.remainingFraction || 0;
-        const remainingPercentage = remainingFraction * 100;
+        const isAuthExpired = response?.status === 401 && userQuotaResponse?.status !== 200;
+        if (isAuthExpired) {
+          // 401 is auth expired, same across all endpoints, return immediately
+          return {
+            plan,
+            message: "Antigravity quota API authentication expired. Chat may still work.",
+            quotas: {},
+            subscriptionInfo,
+          };
+        }
 
-        // Convert percentage to used/total for UI compatibility
-        const total = 1000; // Normalized base
-        const remaining = Math.round(total * remainingFraction);
-        const used = total - remaining;
+        if (response && !response.ok && userQuotaResponse && !userQuotaResponse.ok) {
+          const status = response.status;
+          // 429/5xx: fallback to next endpoint
+          if (hasNext && (status === 429 || status >= 500)) {
+            console.warn(`[Antigravity Usage] Endpoint ${baseUrl} returned ${status}, falling back to next endpoint`);
+            lastError = new Error(`HTTP ${status}`);
+            await new Promise((resolve) => setTimeout(resolve, 1000));
+            break; // Break the inner loop, try next endpoint
+          }
+          throw new Error(`Antigravity API error. Fetch: ${response?.status}, UserQuota: ${userQuotaResponse?.status}`);
+        }
 
-        // Use modelKey as key (matches PROVIDER_MODELS id)
-        quotas[modelKey] = {
-          used,
-          total,
-          resetAt: parseResetTime(info.quotaInfo.resetTime),
-          remainingPercentage,
-          unlimited: false,
-          displayName: info.displayName || modelKey,
+        // Successfully parsed from one of the endpoints
+        const quotas: any = {};
+        const knownModelIds = await getKnownAntigravityModelIds();
+
+        // 1. Parse model quotas from fetchAvailableModels
+        if (response?.ok) {
+          const data = await response.json().catch(() => ({}));
+          const uiDisplayNames: Record<string, string> = {};
+          try {
+            const mod = await import("../config/providerModels");
+            const agModels = mod.getModelsByProviderId("antigravity");
+            for (const m of agModels ?? []) {
+              uiDisplayNames[m.id] = m.name;
+            }
+          } catch { /* best effort */ }
+
+          if (data.models) {
+            for (const [modelKey, rawInfo] of Object.entries(data.models)) {
+              const info: any = rawInfo;
+              if (!info.quotaInfo || info.isInternal || !knownModelIds.has(modelKey)) continue;
+
+              const remainingFraction = info.quotaInfo.remainingFraction || 0;
+              const total = 1000;
+              const remaining = Math.round(total * remainingFraction);
+
+              quotas[modelKey] = {
+                used: total - remaining,
+                total,
+                resetAt: parseResetTime(info.quotaInfo.resetTime),
+                remainingPercentage: remainingFraction * 100,
+                unlimited: false,
+                displayName: uiDisplayNames[modelKey] || info.displayName || modelKey,
+              };
+            }
+          }
+        }
+
+        // 2. Parse accurate buckets from retrieveUserQuota (overrides fetchAvailableModels)
+        if (userQuotaResponse?.ok) {
+          const uqData = await userQuotaResponse.json().catch(() => ({}));
+          if (uqData.buckets) {
+            for (const bucket of uqData.buckets) {
+              const modelId = bucket.modelId;
+              if (!modelId || !knownModelIds.has(modelId)) continue;
+
+              const remainingFraction = bucket.remainingFraction || 0;
+              const total = 1000;
+              const remaining = Math.round(total * remainingFraction);
+
+              if (quotas[modelId]) {
+                quotas[modelId].used = total - remaining;
+                quotas[modelId].remainingPercentage = remainingFraction * 100;
+                quotas[modelId].resetAt = parseResetTime(bucket.resetTime) || quotas[modelId].resetAt;
+              } else {
+                quotas[modelId] = {
+                  used: total - remaining,
+                  total,
+                  resetAt: parseResetTime(bucket.resetTime),
+                  remainingPercentage: remainingFraction * 100,
+                  unlimited: false,
+                  displayName: modelId,
+                };
+              }
+            }
+          }
+        }
+
+        return {
+          plan,
+          quotas,
+          subscriptionInfo,
         };
       }
     }
 
-    return {
-      plan: getAntigravityTierName(subscriptionInfo),
-      quotas,
-      subscriptionInfo,
-    };
-  } catch (error) {
+    throw lastError || new Error("All endpoints exhausted");
+  } catch (error: any) {
     console.error("[Antigravity Usage] Error:", error.message, error.cause);
-    return { message: `Antigravity error: ${error.message}` };
+    return {
+      message: `Antigravity error: ${error.message}`,
+      quotas: {},
+    };
   }
 }
 

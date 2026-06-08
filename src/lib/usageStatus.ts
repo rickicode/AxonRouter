@@ -279,9 +279,11 @@ export function getCodexLiveQuotaSignal(connection: any, { statusCode, errorText
 const ANTIGRAVITY_MODEL_FAMILIES: Record<string, string> = {
   "claude-opus-4-6-thinking": "Claude",
   "claude-sonnet-4-6": "Claude",
-  "gemini-3.1-pro-high": "Gemini",
+  "gemini-3.5-flash-low": "Gemini",
+  "gemini-3.5-flash-medium": "Gemini",
+  "gemini-3.5-flash-high": "Gemini",
   "gemini-3.1-pro-low": "Gemini",
-  "gemini-3-flash": "Gemini",
+  "gemini-3.1-pro-high": "Gemini",
   "gpt-oss-120b-medium": "Other",
 };
 
@@ -293,7 +295,6 @@ function getAntigravityModelFamily(modelKey: string): string {
   // Prefix-based fallback
   if (modelKey.startsWith("claude-") || modelKey.startsWith("anthropic/claude-")) return "Claude";
   if (modelKey.startsWith("gemini-")) return "Gemini";
-  if (modelKey.startsWith("gpt-")) return "Other";
   return "Other";
 }
 

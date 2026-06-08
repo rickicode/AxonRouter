@@ -469,7 +469,7 @@ async function resolveGlobalExhaustedThreshold(value: any) {
 	return getCurrentQuotaExhaustedThresholdPercent();
 }
 
-async function fetchUsageWithTransientRetry(connection: any) {
+async function fetchUsageWithTransientRetry(connection: any, options: any = {}) {
 	let lastError = null;
 	const strategy = getProviderStrategy(connection?.provider);
 	const timeoutMs = strategy.timeoutMs;
@@ -477,7 +477,7 @@ async function fetchUsageWithTransientRetry(connection: any) {
 	for (let attempt = 1; attempt <= TRANSIENT_USAGE_MAX_ATTEMPTS; attempt += 1) {
 		try {
 			const usage = await withUsageFetchTimeout(
-				() => getUsageForProvider(connection),
+				() => getUsageForProvider(connection, options),
 				timeoutMs,
 			);				// Persist validationUrl from usage (e.g. Antigravity 403 VALIDATION_REQUIRED)
 				// This must happen before assertUsageHasQuota which throws for empty quotas,
@@ -487,6 +487,15 @@ async function fetchUsageWithTransientRetry(connection: any) {
 					await updateCurrentProviderConnection(connection.id, {
 						validationUrl,
 					});
+				}
+
+				if ((usage as any)?.isForbidden) {
+					const err: any = new Error((usage as any)?.message || "Antigravity quota API access forbidden.");
+					err.status = 403;
+					err.code = "FORBIDDEN";
+					err.isForbidden = true;
+					err.usage = usage;
+					throw err;
 				}
 
 				assertUsageHasQuota(connection, usage);
@@ -596,7 +605,7 @@ export async function refreshConnectionUsage(
 				const needsPreTest = connectionStatus === "blocked" || connectionStatus === "exhausted" || connectionStatus === "disabled";
 
 				if (runConnectionTest || needsPreTest) {
-					testResult = await runConnectionTestOrThrow(connectionId);
+					testResult = await runConnectionTestOrThrow(connectionId, { persistStatus: true });
 					connection = await getCurrentProviderConnectionById(connectionId);
 					if (!connection) {
 						throw createHttpError("Connection not found", 404, { testResult });
@@ -650,8 +659,33 @@ export async function refreshConnectionUsage(
 				let usage;
 				const strategy = getProviderStrategy(connection?.provider);
 				try {
-					usage = await fetchUsageWithTransientRetry(connection);
+					usage = await fetchUsageWithTransientRetry(connection, options);
 				} catch (usageError: any) {
+					if (usageError.isForbidden) {
+						const lastCheckedAt = new Date().toISOString();
+						await syncUsageStatus(
+							connection,
+							{
+								routingStatus: "disabled",
+								healthStatus: "healthy",
+								quotaState: "ok",
+								authState: "invalid",
+								reasonCode: "auth_invalid",
+								reasonDetail: usageError.message || "403 Forbidden - quota fetch denied",
+								nextRetryAt: null,
+								resetAt: null,
+								lastCheckedAt,
+								usageSnapshot: JSON.stringify(usageError.usage || {
+									provider: connection?.provider || null,
+									checkedAt: lastCheckedAt,
+									message: usageError.message,
+								}),
+								...(usageError.usage?.validationUrl ? { validationUrl: usageError.usage.validationUrl } : {}),
+							}
+						);
+						usageError.testResult = testResult;
+						throw usageError;
+					}
 					if (
 						strategy.credentialRefreshOnTransientFailure &&
 						!runConnectionTest &&
@@ -670,7 +704,7 @@ export async function refreshConnectionUsage(
 							});
 						}
 						try {
-							usage = await fetchUsageWithTransientRetry(connection);
+							usage = await fetchUsageWithTransientRetry(connection, options);
 						} catch (retryAfterTestError: any) {
 							retryAfterTestError.testResult = testResult;
 							throw retryAfterTestError;
@@ -685,7 +719,7 @@ export async function refreshConnectionUsage(
 						connection =
 							await tryCredentialRefreshFromConnectionTest(connection);
 						try {
-							usage = await fetchUsageWithTransientRetry(connection);
+							usage = await fetchUsageWithTransientRetry(connection, options);
 						} catch (retryAfterRefreshError: any) {
 							retryAfterRefreshError.testResult = testResult;
 							throw retryAfterRefreshError;
@@ -714,7 +748,7 @@ export async function refreshConnectionUsage(
 					if (!connection) {
 						throw createHttpError("Connection not found", 404, { testResult });
 					}
-					usage = await fetchUsageWithTransientRetry(connection);
+					usage = await fetchUsageWithTransientRetry(connection, options);
 				}
 
 				// Strategy: detect recoverable auth expiry → force credential refresh + retry
@@ -730,7 +764,7 @@ export async function refreshConnectionUsage(
 						connection = retryResult.connection;
 						credentialsRefreshed = retryResult.refreshed === true;
 					}
-					usage = await fetchUsageWithTransientRetry(connection);
+					usage = await fetchUsageWithTransientRetry(connection, options);
 				}
 
 				if (isAuthExpiredMessage(usage) && connection.refreshToken) {
@@ -782,7 +816,7 @@ export async function refreshConnectionUsage(
 
 					try {
 						usage = await withUsageFetchTimeout(
-							() => getUsageForProvider(connection),
+							() => getUsageForProvider(connection, options),
 							strategy.timeoutMs,
 						);
 						assertUsageHasQuota(connection, usage);

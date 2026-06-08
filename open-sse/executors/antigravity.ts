@@ -63,10 +63,16 @@ export class AntigravityExecutor extends BaseExecutor {
         : body.request?.toolConfig
     };
 
+    let finalModel = model;
+    if (model === "gemini-3.5-flash-low") finalModel = "gemini-3.1-flash-lite-preview";
+    if (model === "gemini-3.5-flash-medium" || model === "gemini-3.5-flash-high") finalModel = "gemini-3.5-flash";
+    if (model === "gemini-3.1-pro-low") finalModel = "gemini-3-pro-previewtext";
+    if (model === "gemini-3.1-pro-high") finalModel = "gemini-3.1-pro";
+
     return {
       ...body,
       project: projectId,
-      model: model,
+      model: finalModel,
       userAgent: "antigravity",
       requestType: "agent",
       requestId: `agent-${crypto.randomUUID()}`,

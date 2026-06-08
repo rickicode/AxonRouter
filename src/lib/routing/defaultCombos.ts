@@ -36,6 +36,7 @@ function estimateQualityScore(fullModelId) {
     ["gpt-4o", 5],
     ["claude-3-5-sonnet", 6],
     ["gemini-2.5-pro", 7],
+    ["gemini-3.5", 7],
     ["gemini-3", 6],
     ["kimi-k2.5", 6],
     ["deepseek-r1", 7],

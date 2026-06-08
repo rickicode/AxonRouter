@@ -15,6 +15,8 @@ import { startCodexProxy, stopCodexProxy } from "@/lib/oauth/utils/server";
  * Handles: authorize, exchange, device-code, poll
  */
 
+export const dynamic = "force-dynamic";
+
 // GET /api/oauth/[provider]/authorize - Generate auth URL
 // GET /api/oauth/[provider]/device-code - Request device code (for device_code flow)
 export async function GET(request, { params }) {
@@ -117,6 +119,8 @@ export async function POST(request, { params }) {
       // Exchange code for tokens (meta carries provider-specific params, e.g. gitlab clientId/baseUrl)
       const tokenData = await exchangeTokens(provider, code, redirectUri, codeVerifier, state, meta);
 
+      const hasValidationUrl = !!tokenData.providerSpecificData?.validationUrl;
+
       // Save to database
       const connection = await createCurrentProviderConnection({
         provider,
@@ -125,12 +129,12 @@ export async function POST(request, { params }) {
         expiresAt: tokenData.expiresIn
           ? new Date(Date.now() + tokenData.expiresIn * 1000).toISOString()
           : null,
-        routingStatus: "eligible",
+        routingStatus: hasValidationUrl ? "ineligible" : "eligible",
         quotaState: "ok",
-        authState: "ok",
-        healthStatus: "healthy",
-        reasonCode: null,
-        reasonDetail: null,
+        authState: hasValidationUrl ? "pending_verification" : "ok",
+        healthStatus: hasValidationUrl ? "degraded" : "healthy",
+        reasonCode: hasValidationUrl ? "auth_expired" : null,
+        reasonDetail: hasValidationUrl ? "Account requires verification" : null,
         nextRetryAt: null,
         resetAt: null,
         lastCheckedAt: new Date().toISOString(),
@@ -151,6 +155,7 @@ export async function POST(request, { params }) {
           reasonCode: finalizedConnection.reasonCode,
           reasonDetail: finalizedConnection.reasonDetail,
           lastCheckedAt: finalizedConnection.lastCheckedAt,
+          validationUrl: tokenData.providerSpecificData?.validationUrl,
         }
       });
     }

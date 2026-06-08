@@ -142,7 +142,7 @@ export default function ConnectionRow({
               disabled={isSwitchingActive || connection.isActive === false}
               variant="ghost"
               size="icon-sm"
-              className={isActiveAccount ? "text-emerald-500 bg-emerald-500/10 hover:bg-emerald-500/20" : "text-text-muted hover:text-emerald-500"}
+              className={isActiveAccount ? "text-emerald-500 hover:bg-emerald-500/10" : "text-text-muted hover:text-emerald-500"}
               title={isActiveAccount ? "Active Account (click to re-activate/override)" : "Set Active"}
             >
               <AppIcon name={isSwitchingActive ? "progress_activity" : isActiveAccount ? "verified" : "stars"} size={16} />

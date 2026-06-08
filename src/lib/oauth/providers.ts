@@ -5,6 +5,7 @@
 
 // Ensure outbound fetch respects HTTP(S)_PROXY/ALL_PROXY in Node runtime
 import "../../../open-sse/utils/proxyFetch";
+import { extractGoogleValidationUrl } from "../../../open-sse/utils/error";
 
 import { generatePKCE, generateState } from "./utils/pkce";
 import {
@@ -296,8 +297,8 @@ const PROVIDERS = {
 
   antigravity: {
     config: ANTIGRAVITY_CONFIG,
-    flowType: "authorization_code",
-    buildAuthUrl: (config, redirectUri, state) => {
+    flowType: "authorization_code_pkce",
+    buildAuthUrl: (config, redirectUri, state, codeChallenge) => {
       const params = new URLSearchParams({
         client_id: config.clientId,
         response_type: "code",
@@ -306,10 +307,12 @@ const PROVIDERS = {
         state: state,
         access_type: "offline",
         prompt: "consent",
+        code_challenge: codeChallenge,
+        code_challenge_method: "S256",
       });
       return `${config.authorizeUrl}?${params.toString()}`;
     },
-    exchangeToken: async (config, code, redirectUri) => {
+    exchangeToken: async (config, code, redirectUri, codeVerifier) => {
       const response = await fetch(config.tokenUrl, {
         method: "POST",
         headers: {
@@ -322,6 +325,7 @@ const PROVIDERS = {
           client_secret: config.clientSecret,
           code: code,
           redirect_uri: redirectUri,
+          code_verifier: codeVerifier,
         }),
       });
 
@@ -356,6 +360,8 @@ const PROVIDERS = {
       let projectId = "";
       let tierId = "legacy-tier";
       let planTier: string | undefined;
+      let validationUrl: string | undefined;
+
       try {
         const loadRes = await fetch(ANTIGRAVITY_CONFIG.loadCodeAssistEndpoint, {
           method: "POST",
@@ -376,6 +382,12 @@ const PROVIDERS = {
           // The displayed subscription tier comes from the account's *current* tier,
           // not the default allowed tier. Only keep it when it's a real (non-legacy) tier.
           planTier = getRealAntigravityTier(data.currentTier);
+        } else if (loadRes.status === 403) {
+          const errorBody = await loadRes.text();
+          const extractedUrl = extractGoogleValidationUrl(errorBody);
+          if (extractedUrl) {
+            validationUrl = extractedUrl;
+          }
         }
       } catch (e) {
         console.log("Failed to load code assist:", e);
@@ -404,7 +416,7 @@ const PROVIDERS = {
         doOnboard().catch(() => {});
       }
 
-      return { userInfo, projectId, tierId, planTier };
+      return { userInfo, projectId, tierId, planTier, validationUrl };
     },
     mapTokens: (tokens, extra) => ({
       accessToken: tokens.access_token,
@@ -413,7 +425,11 @@ const PROVIDERS = {
       scope: tokens.scope,
       email: extra?.userInfo?.email,
       projectId: extra?.projectId,
-      providerSpecificData: extra?.planTier ? { planType: extra.planTier } : undefined,
+      providerSpecificData: {
+        ...(extra?.planTier ? { planType: extra.planTier } : {}),
+        ...(extra?.validationUrl ? { validationUrl: extra.validationUrl } : {}),
+        isWorkspaceAccount: !!extra?.userInfo?.hd,
+      },
     }),
   },
 

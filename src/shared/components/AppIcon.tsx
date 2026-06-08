@@ -270,6 +270,8 @@ const iconRegistry = {
   science: FlaskIcon,
   shieldlock: ShieldCheck,
   star: Star,
+  stars: Star,
+  verified: Check,
   stopcircle: CircleStop,
   tune: SlidersHorizontal,
   shield: Shield,

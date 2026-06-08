@@ -25,6 +25,7 @@ import {
 	IFlowCookieModal,
 	GitLabAuthModal,
 	EditConnectionModal,
+	AntigravityAuthModal,
 } from "@/shared/components";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -2290,6 +2291,48 @@ export default function ProviderDetailPage() {
 										</div>
 									)}
 								</div>
+
+								{connections.length > 0 && !isCompatible && !isMorphManaged && (
+									<div className="flex gap-2">
+										{providerId === "iflow" && (
+											<Button
+												size="sm"
+												variant="secondary"
+												onClick={() => setShowIFlowCookieModal(true)}
+												title={translate("Add connection using browser cookie")}
+											>
+												<CookieIcon data-icon className="size-4" />
+												Cookie
+											</Button>
+										)}
+										<Button
+											size="sm"
+											onClick={() =>
+												isOAuth || providerId === "freebuff"
+													? setShowOAuthModal(true)
+													: setShowAddApiKeyModal(true)
+											}
+										>
+											<PlusIcon data-icon className="size-4" />
+											{translate("Add")}
+										</Button>
+										<Button
+											size="sm"
+											variant="secondary"
+											onClick={handleTestAllConnections}
+											disabled={
+												testingAllConnections || connections.length === 0
+											}
+										>
+											{testingAllConnections ? (
+												<Spinner className="size-4" />
+											) : null}
+											{testingAllConnections
+												? translate("Testing...")
+												: translate("Test All")}
+										</Button>
+									</div>
+								)}
 							</div>
 						</div>
 
@@ -2331,50 +2374,7 @@ export default function ProviderDetailPage() {
 								)}
 							</Empty>
 						) : (
-							<>
-								{connectionsList}
-								{!isCompatible && !isMorphManaged && (
-									<div className="mt-4 flex gap-2">
-										{providerId === "iflow" && (
-											<Button
-												size="sm"
-												variant="secondary"
-												onClick={() => setShowIFlowCookieModal(true)}
-												title={translate("Add connection using browser cookie")}
-											>
-												<CookieIcon data-icon className="size-4" />
-												Cookie
-											</Button>
-										)}
-										<Button
-											size="sm"
-											onClick={() =>
-												isOAuth || providerId === "freebuff"
-													? setShowOAuthModal(true)
-													: setShowAddApiKeyModal(true)
-											}
-										>
-											<PlusIcon data-icon className="size-4" />
-											{translate("Add")}
-										</Button>
-										<Button
-											size="sm"
-											variant="secondary"
-											onClick={handleTestAllConnections}
-											disabled={
-												testingAllConnections || connections.length === 0
-											}
-										>
-											{testingAllConnections ? (
-												<Spinner className="size-4" />
-											) : null}
-											{testingAllConnections
-												? translate("Testing...")
-												: translate("Test All")}
-										</Button>
-									</div>
-								)}
-							</>
+							connectionsList
 						)}
 					</CardContent>
 				</ShadcnCard>
@@ -2454,6 +2454,12 @@ export default function ProviderDetailPage() {
 				<GitLabAuthModal
 					isOpen={showOAuthModal}
 					providerInfo={providerInfo}
+					onSuccess={handleOAuthSuccess}
+					onClose={() => setShowOAuthModal(false)}
+				/>
+			) : providerId === "antigravity" ? (
+				<AntigravityAuthModal
+					isOpen={showOAuthModal}
 					onSuccess={handleOAuthSuccess}
 					onClose={() => setShowOAuthModal(false)}
 				/>

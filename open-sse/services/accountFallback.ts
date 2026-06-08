@@ -110,7 +110,7 @@ export function checkFallbackError(status, errorText, backoffLevel = 0, options?
 		: "";
 
 	const isRequestValidationError =
-		status === 400 &&
+		(status === 400 || status === 404) &&
 		(lowerError.includes("improperly formed request") ||
 			lowerError.includes("invalid model") ||
 			lowerError.includes("model not available") ||
@@ -119,7 +119,9 @@ export function checkFallbackError(status, errorText, backoffLevel = 0, options?
 			lowerError.includes("unsupported model") ||
 			lowerError.includes("not available for integrator") ||
 			lowerError.includes("vscode-chat") ||
-			lowerError.includes("bad request"));
+			lowerError.includes("bad request") ||
+			lowerError.includes("requested entity was not found") ||
+			lowerError.includes("model_not_found"));
 
 	if (isRequestValidationError) {
 		return { shouldFallback: false, cooldownMs: 0 };

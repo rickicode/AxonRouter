@@ -23,6 +23,7 @@ export { default as FreebuffAuthModal } from "./FreebuffAuthModal";
 export { default as IFlowCookieModal } from "./IFlowCookieModal";
 export { default as GitLabAuthModal } from "./GitLabAuthModal";
 export { default as EditConnectionModal } from "./EditConnectionModal";
+export { default as AntigravityAuthModal } from "./AntigravityAuthModal";
 
 // Layouts
 export * from "./layouts";
