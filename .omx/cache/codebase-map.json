@@ -1,0 +1,9 @@
+{
+  "version": 1,
+  "worktreeRoot": "/workspaces/AxonRouter",
+  "gitDir": "/workspaces/AxonRouter/.git",
+  "indexMtimeMs": 1780620230081.1716,
+  "indexSize": 145534,
+  "map": "  src/: dashboardGuard, instrumentation, proxy, server-init\n  src/app/: page, BasicChatPageClient, page, CavemanPageClient, page, CLIToolsPageClient, AntigravityToolCard, ClaudeToolCard, CodexToolCard, CopilotToolCard\n  src/components/: alert-dialog, alert, avatar, badge, button, card, checkbox, collapsible, dialog, dropdown-menu\n  src/domain/: tagRouter\n  src/hooks/: use-mobile\n  src/i18n/: RuntimeI18nProvider, config, runtime\n  src/lib/: requireManagementAuth, validateProviderUrl, apiKeyAccess, appUpdater, loginSettingsAccess, managementSession, canonicalUsageWorker, concurrencyLimiter, codexModelAccess, dag\n  src/mitm/: generate, install, rootCA, certRuntime, config, dnsConfig, status, dnsRuntime, antigravity, base\n  src/models/: index\n  src/shared/: AppIcon, ChangelogModal, CursorAuthModal, Drawer, EditConnectionModal, Footer, FreebuffAuthModal, GitLabAuthModal, Header, HeaderMenu\n  src/sse/: chat, embeddings, imageGeneration, stt, tts, apiKeyAuth, auth, embeddingsAuth, model, s...",
+  "createdAt": "2026-06-05T04:23:17.590Z"
+}

@@ -1,0 +1,9 @@
+{
+  "session_id": "omx-1780633448251-xsrmmk",
+  "started_at": "2026-06-05T04:24:08.305Z",
+  "cwd": "/workspaces/AxonRouter",
+  "pid": 1609792,
+  "platform": "linux",
+  "pid_start_ticks": 1713649,
+  "pid_cmdline": "node /home/ricki/.nvm/versions/node/v24.16.0/bin/omx"
+}
