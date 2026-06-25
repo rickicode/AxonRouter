@@ -6,24 +6,81 @@ import { checkFallbackError, formatRetryAfter } from "./accountFallback";
 import { unavailableResponse } from "../utils/error";
 import { recordComboRequest } from "./comboMetrics";
 import { getCircuitBreaker } from "@/shared/utils/circuitBreaker";
+/** Marker used to detect "no credentials" upstream errors (see checkFallbackError). */
+const NO_CREDENTIALS_MARKER = "no credentials";
 
-/**
- * Track rotation state per combo (for round-robin strategy)
- * Uses a monotonic counter; safe within synchronous sections of single-threaded Node.js.
- */
-const comboRotationState = new Map();
-const MAX_COMBO_ROTATION_STATE_ENTRIES = 500;
+/** Sentinel error thrown by `withTimeout` when the per-attempt budget is exhausted. */
+export class ComboAttemptTimeout extends Error {
+  readonly isComboTimeout = true;
+  constructor() {
+    super("combo attempt timeout");
+    this.name = "ComboAttemptTimeout";
+  }
+}
 
-function rememberComboRotationState(comboName: string, state: { counter: number }) {
-  const key = typeof comboName === "string" && comboName.trim() ? comboName : "__default__";
-  if (!comboRotationState.has(key) && comboRotationState.size >= MAX_COMBO_ROTATION_STATE_ENTRIES) {
+// ─── Rotation state (round-robin counter per combo) ────────────────────────
+const comboRotationState = new Map<string, { counter: number; strategy?: string }>();
+const MAX_ROTATION_ENTRIES = 500;
+let rotationInitialized = false;
+
+/** Load persisted rotation state from disk (call once on startup). */
+export async function initRotationState(): Promise<void> {
+  if (rotationInitialized) return;
+  rotationInitialized = true;
+  try {
+    const persisted = await (await getRotationPersist()).loadRotationState();
+    for (const [key, value] of Object.entries(persisted)) {
+      comboRotationState.set(key, value as { counter: number; strategy?: string });
+    }
+  } catch {
+    // Failed to load — start fresh, no big deal
+  }
+}
+
+function rememberRotationState(comboName: string, state: { counter: number; strategy?: string }, forceFlush = false): void {
+  if (comboRotationState.has(comboName)) {
+    comboRotationState.set(comboName, state);
+    if (forceFlush) {
+      flushRotationNow();
+    } else {
+      persistRotationDebounced();
+    }
+    return;
+  }
+  if (comboRotationState.size >= MAX_ROTATION_ENTRIES) {
     const oldestKey = comboRotationState.keys().next().value;
     if (oldestKey) comboRotationState.delete(oldestKey);
   }
   comboRotationState.set(key, state);
 }
 
-export function clearComboRotationState(comboName: string | null = null) {
+/** Debounced persistence — avoids thrashing disk on every request. */
+/** Immediate flush — used for sticky boundary crossings to survive crashes. */
+async function flushRotationNow(): Promise<void> {
+  if (persistTimer) { clearTimeout(persistTimer); persistTimer = null; }
+  const obj: Record<string, { counter: number; strategy?: string }> = {};
+  for (const [key, value] of comboRotationState.entries()) {
+    obj[key] = value;
+  }
+  const rp = await getRotationPersist();
+  rp.saveRotationState(obj);
+  // Also do an immediate disk write (bypasses debounce in rotationPersist)
+  void rp.flushRotationState(obj);
+}
+
+let persistTimer: ReturnType<typeof setTimeout> | null = null;
+function persistRotationDebounced(): void {
+  if (persistTimer) clearTimeout(persistTimer);
+  persistTimer = setTimeout(async () => {
+    const obj: Record<string, { counter: number; strategy?: string }> = {};
+    for (const [key, value] of comboRotationState.entries()) {
+      obj[key] = value;
+    }
+    (await getRotationPersist()).saveRotationState(obj);
+  }, 3_000);
+}
+
+export function clearComboRotationState(comboName: string | null = null): void {
   if (typeof comboName === "string" && comboName.trim()) {
     comboRotationState.delete(comboName);
     return;
