@@ -111,12 +111,12 @@ function validateRouteContract(protocolFamily?: string, publicPath?: string): bo
   return allowedPaths.has(publicPath);
 }
 
-function pickConnections(selectionPool: ProxyConnection[] = [], strategy = "fill-first") {
+function pickConnections(selectionPool: ProxyConnection[] = [], strategy = "round-robin") {
   const pool = sortByPriority(selectionPool);
   if (pool.length === 0) return { chosen: null, fallbackChain: [] as ProxyConnection[] };
 
   if (strategy === "round-robin") {
-    const stickyLimit = 3;
+    const stickyLimit = 1;
     const byRecency = sortByRecencyDesc(pool);
     const current = byRecency[0];
     const currentCount = current?.consecutiveUseCount || 0;
@@ -198,7 +198,7 @@ export async function POST(request: Request) {
       || providerOverride.fallbackStrategy
       || routing.strategy
       || typedSettings.fallbackStrategy
-      || "fill-first";
+      || "round-robin";
 
     const { chosen, fallbackChain } = pickConnections(selectionPool, strategy);
     const ttlSeconds = normalizeTtlSeconds();

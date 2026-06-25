@@ -114,7 +114,7 @@ export const createComboSchema = z.object({
     },
     { message: "Duplicate model entries are not allowed" }
   ),
-  strategy: comboStrategySchema.optional().default("priority"),
+  strategy: comboStrategySchema.optional().default("round-robin"),
   config: comboConfigSchema,
   allowedProviders: z.array(z.string().max(200)).optional(),
   system_message: z.string().max(50000).optional(),

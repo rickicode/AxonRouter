@@ -114,7 +114,7 @@ export async function createCombo(data) {
         id: typeof data.id === "string" && data.id.trim() ? data.id : uuidv4(),
         name: data.name,
         models: data.models || [],
-        strategy: data.strategy || "priority",
+        strategy: data.strategy || "round-robin",
         config: data.config || {},
         allowedProviders: Array.isArray(data.allowedProviders) ? data.allowedProviders : [],
         system_message: typeof data.system_message === "string" ? data.system_message : "",

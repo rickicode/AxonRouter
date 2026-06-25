@@ -427,7 +427,7 @@ export default function ConnectionsCard({ providerId, isOAuth }) {
       const current = data.routing?.providerStrategies || data.providerStrategies || {};
       const override: any = {};
       if (strategy) override.strategy = strategy;
-      if (strategy === "round-robin" && stickyLimit !== "") override.stickyLimit = Number(stickyLimit) || 3;
+      if (strategy === "round-robin" && stickyLimit !== "") override.stickyLimit = Number(stickyLimit) || 1;
       const updated = { ...current };
       if (Object.keys(override).length === 0) delete updated[providerId];
       else updated[providerId] = override;

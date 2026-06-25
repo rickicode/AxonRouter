@@ -310,7 +310,7 @@ export async function POST(request: Request) {
 
     return NextResponse.json({
       comboName,
-      strategy: combo.strategy || "priority",
+      strategy: combo.strategy || "round-robin",
       resolvedBy: resolvedResult?.modelStr || null,
       resolvedByExecutionKey: resolvedResult?.executionKey || null,
       resolvedByTarget: resolvedResult

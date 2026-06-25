@@ -163,7 +163,7 @@ function stepBadgeClass(stepLabel: string) {
 
 function resolveStrategyValue(entry: string | RoutingStrategyOption): string {
   if (typeof entry === "string") return entry;
-  return entry.value || entry.id || "priority";
+  return entry.value || entry.id || "round-robin";
 }
 
 function WeightTotalBar({ models }: { models: ComboStep[] }) {
@@ -189,7 +189,7 @@ function buildInitialDraft(combo: ComboRecord | null | undefined): ComboDraft {
   return {
     id: combo?.id || null,
     name: combo?.name || "",
-    strategy: combo?.strategy || "priority",
+    strategy: combo?.strategy || "round-robin",
     priority: combo?.priority != null ? String(combo.priority) : "0",
     models: Array.isArray(combo?.models)
       ? combo.models.map((step) => {

@@ -9,7 +9,7 @@ const getSettings = vi.fn(async () => ({
   requireApiKey: false,
   ccFilterNaming: false,
   comboStrategies: {},
-  comboStrategy: "priority",
+  comboStrategy: "round-robin",
   providerThinking: {},
 }));
 const getModelInfo = vi.fn();
@@ -127,7 +127,7 @@ describe("chat model routing", () => {
       requireApiKey: false,
       ccFilterNaming: false,
       comboStrategies: {},
-      comboStrategy: "priority",
+      comboStrategy: "round-robin",
       providerThinking: {},
     });
     getComboModels.mockResolvedValue(null);
@@ -237,13 +237,13 @@ describe("chat model routing", () => {
       requireApiKey: false,
       ccFilterNaming: false,
       routing: { comboStrategy: "round-robin", stickyLimit: 2 },
-      comboStrategy: "priority",
+      comboStrategy: "round-robin",
       providerThinking: {},
     });
     getComboModels.mockResolvedValue({
       id: "combo-1",
       name: "research",
-      strategy: "priority",
+      strategy: "round-robin",
       models: [{ kind: "model", model: "openai/gpt-4.1" }],
     });
     handleComboChat.mockResolvedValue({ status: 200, body: { ok: true } });

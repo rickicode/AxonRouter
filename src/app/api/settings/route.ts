@@ -230,7 +230,7 @@ export async function PATCH(request: Request) {
 			}
 			delete nextRouting.profile;
 			if (body.roundRobin !== undefined) {
-				nextRouting.strategy = body.roundRobin ? "round-robin" : "fill-first";
+				nextRouting.strategy = body.roundRobin ? "round-robin" : "round-robin";
 			}
 			if (body.sticky !== undefined || body.stickyDuration !== undefined) {
 				nextRouting.sticky = {

@@ -505,81 +505,114 @@ export async function getProviderCredentials(
 		};
 	}
 
-	return __runWithProviderSelectionLock(providerId, async () => {
-		const connections = await getCachedProviderConnections(providerId);
-		log.debug(
-			"AUTH",
-			`${provider} | total connections: ${connections.length}, excludeIds: ${excludeSet.size > 0 ? [...excludeSet].join(",") : "none"}, model: ${model || "any"}`,
-		);
+	// ── Fast path: build pool + try in-memory cursor (no mutex, no DB writes) ──
+	const connections = await getCachedProviderConnections(providerId);
+	log.debug(
+		"AUTH",
+		`${provider} | total connections: ${connections.length}, excludeIds: ${excludeSet.size > 0 ? [...excludeSet].join(",") : "none"}, model: ${model || "any"}`,
+	);
 
-		if (connections.length === 0) {
-			log.warn("AUTH", `No credentials for ${provider}`);
-			return null;
-		}
+	if (connections.length === 0) {
+		log.warn("AUTH", `No credentials for ${provider}`);
+		return null;
+	}
 
-		const availableConnections = connections.filter((c) => {
-			if (excludeSet.has(c.id)) return false;
-			if (isModelLockActive(c, model)) return false;
-			// Also check scope-level lock for Codex
-			if (providerId === "codex" && isModelLockActive(c, `__scope_${getCodexModelScope(model || "")}`)) return false;
-			if (!canCodexConnectionUseModel(c, model)) return false;
-			if (!circuitBreakerRegistry.canExecute(c.id)) return false;
-			return true;
-		});
+	const availableConnections = connections.filter((c) => {
+		if (excludeSet.has(c.id)) return false;
+		if (isModelLockActive(c, model)) return false;
+		if (providerId === "codex" && isModelLockActive(c, `__scope_${getCodexModelScope(model || "")}`)) return false;
+		if (!canCodexConnectionUseModel(c, model)) return false;
+		if (!circuitBreakerRegistry.canExecute(c.id)) return false;
+		return true;
+	});
 
-		const eligibilitySnapshot = loadProviderEligibilitySnapshot(providerId);
-		const centralizedEligibleConnections = getEligibleConnectionsFromSnapshot(
-			eligibilitySnapshot,
-			availableConnections,
-		);
-		const { selectionPool, rateLimitedResult } = buildSelectionPool(
-			provider,
+	const eligibilitySnapshot = loadProviderEligibilitySnapshot(providerId);
+	const centralizedEligibleConnections = getEligibleConnectionsFromSnapshot(
+		eligibilitySnapshot,
+		availableConnections,
+	);
+	const { selectionPool, rateLimitedResult } = buildSelectionPool(
+		provider,
+		providerId,
+		connections,
+		excludeSet,
+		model,
+		centralizedEligibleConnections,
+	);
+
+	if (rateLimitedResult) {
+		return rateLimitedResult;
+	}
+
+	if (!selectionPool || selectionPool.length === 0) {
+		return null;
+	}
+
+	const effectiveSettings =
+		routingOverride && typeof routingOverride === "object"
+			? {
+					...settings,
+					routing: {
+						...(settings?.routing || {}),
+						...(routingOverride.strategy
+							? { strategy: routingOverride.strategy }
+							: {}),
+						...(routingOverride.stickyLimit
+							? { stickyLimit: routingOverride.stickyLimit }
+							: {}),
+					},
+				}
+			: settings;
+
+	const routingPolicy = resolveRoutingPolicy(effectiveSettings, providerId);
+	const strategy = routingOverride?.strategy || routingPolicy.strategy;
+	const stickyLimit =
+		routingOverride?.stickyLimit || routingPolicy.stickyLimit;
+	const rankedPool = rankConnectionsForRouting(selectionPool);
+
+	// In-memory cursor: NO DB writes, NO mutex needed
+	if (strategy === "round-robin") {
+		const cursorResult = selectConnectionWithMemoryCursor(
+			rankedPool,
 			providerId,
-			connections,
-			excludeSet,
-			model,
-			centralizedEligibleConnections,
+			stickyLimit,
 		);
-
-		if (rateLimitedResult) {
-			return rateLimitedResult;
+		if (cursorResult) {
+			const resolvedProxy = await resolveConnectionProxyConfig(
+				cursorResult.providerSpecificData || {},
+				providerId,
+			);
+			log.debug("AUTH", `${provider} | fast-path: ${cursorResult.email || cursorResult.id?.slice(0, 8)}`);
+			return {
+				apiKey: cursorResult.apiKey,
+				accessToken: cursorResult.accessToken,
+				refreshToken: cursorResult.refreshToken,
+				projectId: cursorResult.projectId,
+				connectionName:
+					cursorResult.email ||
+					cursorResult.displayName ||
+					cursorResult.name ||
+					cursorResult.id,
+				copilotToken: cursorResult.providerSpecificData?.copilotToken,
+				providerSpecificData: {
+					...(cursorResult.providerSpecificData || {}),
+					connectionProxyEnabled: resolvedProxy.connectionProxyEnabled,
+					connectionProxyUrl: resolvedProxy.connectionProxyUrl,
+					connectionNoProxy: resolvedProxy.connectionNoProxy,
+					connectionProxyPoolId: resolvedProxy.proxyPoolId || null,
+					relayUrl: resolvedProxy.relayUrl || "",
+					strictProxy: resolvedProxy.strictProxy === true,
+				},
+				connectionId: cursorResult.id,
+				_connection: cursorResult,
+			};
 		}
+	}
 
-		if (!selectionPool || selectionPool.length === 0) {
-			return null;
-		}
-
-		const effectiveSettings =
-			routingOverride && typeof routingOverride === "object"
-				? {
-						...settings,
-						routing: {
-							...(settings?.routing || {}),
-							...(routingOverride.strategy
-								? { strategy: routingOverride.strategy }
-								: {}),
-							...(routingOverride.stickyLimit
-								? { stickyLimit: routingOverride.stickyLimit }
-								: {}),
-						},
-					}
-				: settings;
-
-		const routingPolicy = resolveRoutingPolicy(effectiveSettings, providerId);
-		const strategy = routingOverride?.strategy || routingPolicy.strategy;
-		const stickyLimit =
-			routingOverride?.stickyLimit || routingPolicy.stickyLimit;
-		const rankedPool = rankConnectionsForRouting(selectionPool);
-
-		const connection =
-			strategy === "round-robin"
-				? selectConnectionWithMemoryCursor(
-						rankedPool,
-						providerId,
-						stickyLimit,
-					) ||
-					(await selectConnectionForStrategy(rankedPool, strategy, stickyLimit))
-				: await selectConnectionForStrategy(rankedPool, strategy, stickyLimit);
+	// ── Slow path: DB writes, needs mutex ──
+	return __runWithProviderSelectionLock(providerId, async () => {
+		// ponytail: re-read pool inside mutex for DB-write path consistency
+		const connection = await selectConnectionForStrategy(rankedPool, strategy, stickyLimit);
 		const resolvedProxy = await resolveConnectionProxyConfig(
 			connection.providerSpecificData || {},
 			providerId,

@@ -140,7 +140,7 @@ export async function getHealth() {
 		},
 		settings: {
 			observabilityEnabled: settings?.observabilityEnabled !== false,
-			routingStrategy: settings?.routing?.strategy || "fill-first",
+			routingStrategy: settings?.routing?.strategy || "round-robin",
 		},
 		providers: {
 			total: connections.length,
@@ -248,7 +248,7 @@ export async function simulateRoute(input: any = {}) {
 	return {
 		simulated: true,
 		request: input,
-		strategy: settings?.routing?.strategy || "fill-first",
+		strategy: settings?.routing?.strategy || "round-robin",
 		note: "Simulation currently reflects configured policy and does not execute upstream traffic.",
 	};
 }

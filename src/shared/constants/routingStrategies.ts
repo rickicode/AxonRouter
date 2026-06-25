@@ -36,11 +36,15 @@ export const ACCOUNT_FALLBACK_STRATEGY_VALUES = [
 ];
 
 export function normalizeRoutingStrategy(value) {
-  if (typeof value !== "string") return "priority";
+  if (typeof value !== "string") return "round-robin";
   const normalized = value.trim().toLowerCase();
-  if (normalized === "usage") return "least-used";
-  if (normalized === "context") return "context-optimized";
-  return ROUTING_STRATEGY_VALUES.includes(normalized) ? normalized : "priority";
+  if (normalized === "usage") return "round-robin";
+  if (normalized === "context") return "round-robin";
+  // Map legacy strategies to round-robin
+  if (["auto", "weighted", "context-relay", "fill-first", "p2c", "random", "least-used", "cost-optimized", "strict-random", "lkgp", "context-optimized"].includes(normalized)) {
+    return "round-robin";
+  }
+  return ROUTING_STRATEGY_VALUES.includes(normalized) ? normalized : "round-robin";
 }
 
 export const ROUTING_STRATEGIES = [

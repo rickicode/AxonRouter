@@ -393,6 +393,13 @@ export default function CombosPage() {
     return intelligentCombos.find((combo) => combo.id === selectedIntelligentComboId) || intelligentCombos[0] || null;
   }, [selectedIntelligentComboId, intelligentCombos, normalizedFilter]);
 
+  const autoSeedMutation = useMutation({
+    mutationFn: () => fetchJson("/api/combos/auto-seed", { method: "POST" }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.combos() });
+    },
+  });
+
   const modelAliasesQuery = useQuery({
     queryKey: queryKeys.modelAliases(),
     queryFn: ({ signal }) => fetchJson<{ aliases?: Record<string, string> }>("/api/models/alias", { signal }),
@@ -412,7 +419,7 @@ export default function CombosPage() {
     const q = search.toLowerCase();
     return byCategory.filter((combo) => {
       const name = String(combo?.name || "").toLowerCase();
-      const strategy = String(combo?.strategy || "priority").toLowerCase();
+      const strategy = String(combo?.strategy || "round-robin").toLowerCase();
       return name.includes(q) || strategy.includes(q);
     });
   }, [combos, normalizedFilter, search]);

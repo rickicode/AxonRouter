@@ -9,8 +9,8 @@ const getProviderConnectionById = vi.fn(
 const validateApiKey = vi.fn(async () => true);
 const updateProviderConnection = vi.fn(async (id, data) => ({ id, ...data }));
 const getSettings = vi.fn(async () => ({
-	fallbackStrategy: "fill-first",
-	stickyRoundRobinLimit: 3,
+	fallbackStrategy: "round-robin",
+	stickyRoundRobinLimit: 1,
 	providerStrategies: {},
 }));
 const getEligibleConnections = vi.fn(async () => null);
@@ -90,8 +90,8 @@ describe("Amazon Q integration follow-ups", () => {
 		mockConnections.length = 0;
 		getProviderConnections.mockResolvedValue(mockConnections);
 		getSettings.mockResolvedValue({
-			fallbackStrategy: "fill-first",
-			stickyRoundRobinLimit: 3,
+			fallbackStrategy: "round-robin",
+			stickyRoundRobinLimit: 1,
 			providerStrategies: {},
 		});
 			getEligibleConnections.mockResolvedValue(null);

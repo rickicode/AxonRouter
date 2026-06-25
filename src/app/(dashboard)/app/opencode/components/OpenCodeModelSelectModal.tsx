@@ -190,7 +190,7 @@ export default function OpenCodeModelSelectModal({
                 const comboName = String(combo?.name || "");
                 const isSelected = multiSelect ? pendingSelection.includes(comboName) : selectedModel === comboName;
                 const isDisabled = enabledModelSet ? !enabledModelSet.has(comboName) : false;
-                const comboStrategy = String(combo?.strategy || "priority");
+                const comboStrategy = String(combo?.strategy || "round-robin");
 
                 return (
                   <button

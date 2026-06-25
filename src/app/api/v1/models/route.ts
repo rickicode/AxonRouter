@@ -85,7 +85,7 @@ function getFinalModelsResponseCacheKey(
 		})),
 		combos: (combos || []).map((combo) => ({
 			name: combo?.name || "",
-			strategy: combo?.strategy || "priority",
+			strategy: combo?.strategy || "round-robin",
 			sortOrder: combo?.sortOrder || 0,
 			modelCount: Array.isArray(combo?.models) ? combo.models.length : 0,
 		})),

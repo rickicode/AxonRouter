@@ -18,13 +18,13 @@ export function resolveRoutingPolicy(
 		providerOverride.fallbackStrategy ||
 		routing.strategy ||
 		settings.fallbackStrategy ||
-		"fill-first";
+		"round-robin";
 	const stickyLimit =
 		providerOverride.stickyLimit ||
 		providerOverride.stickyRoundRobinLimit ||
 		routing.stickyLimit ||
 		settings.stickyRoundRobinLimit ||
-		3;
+					1;
 
 	return { strategy, stickyLimit };
 }

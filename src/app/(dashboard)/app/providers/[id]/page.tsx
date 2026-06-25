@@ -577,7 +577,7 @@ export default function ProviderDetailPage() {
 			const override: any = {};
 			if (strategy) override.strategy = strategy;
 			if (strategy === "round-robin" && stickyLimit !== "") {
-				override.stickyLimit = Number(stickyLimit) || 3;
+				override.stickyLimit = Number(stickyLimit) || 1;
 			}
 			const updated = { ...current };
 			if (Object.keys(override).length === 0) {

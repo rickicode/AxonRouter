@@ -128,10 +128,10 @@ export default function ProfileSettingsContent() {
   const { theme, setTheme } = useTheme();
   const [settings, setSettings] = useState<SettingsState>({
     routing: {
-      strategy: "fill-first",
-      stickyLimit: 3,
+      strategy: "round-robin",
+      stickyLimit: 1,
       sticky: { enabled: false, durationSeconds: 300 },
-      comboStrategy: "priority",
+      comboStrategy: "round-robin",
       providerStrategies: {},
       comboStrategies: {},
     },
@@ -522,7 +522,7 @@ export default function ProfileSettingsContent() {
 
   const updateCloudRoundRobin = async (enabled) => {
     await updateCloudRoutingSettings(
-      { strategy: enabled ? "round-robin" : "fill-first" },
+      { strategy: "round-robin" },
       enabled ? "Round-robin enabled" : "Round-robin disabled"
     );
   };
@@ -751,7 +751,7 @@ export default function ProfileSettingsContent() {
               checked={settings.routing?.strategy === "round-robin"}
               onToggle={() =>
                 updateFallbackStrategy(
-                  settings.routing?.strategy === "round-robin" ? "fill-first" : "round-robin"
+                  "round-robin"
                 )
               }
               disabled={loading || routingLoading}
@@ -767,7 +767,7 @@ export default function ProfileSettingsContent() {
                 type="number"
                 min="1"
                 max="10"
-                value={settings.routing?.stickyLimit || 3}
+                value={settings.routing?.stickyLimit || 1}
                 onChange={(e) => updateStickyLimit(e.target.value)}
                 disabled={loading || routingLoading}
                 className="w-20 text-center"
@@ -783,7 +783,7 @@ export default function ProfileSettingsContent() {
               checked={settings.routing?.comboStrategy === "round-robin"}
               onToggle={() =>
                 updateComboStrategy(
-                  settings.routing?.comboStrategy === "round-robin" ? "priority" : "round-robin"
+                  "round-robin"
                 )
               }
               disabled={loading || routingLoading}
@@ -791,7 +791,7 @@ export default function ProfileSettingsContent() {
           </div>
           <p className="border-t border-border/50 pt-3 text-sm text-text-muted">
             {settings.routing?.strategy === "round-robin"
-              ? `Currently distributing requests across all available accounts with ${settings.routing?.stickyLimit || 3} calls per account.`
+              ? `Currently distributing requests across all available accounts with ${settings.routing?.stickyLimit || 1} calls per account.`
               : "Currently using accounts in priority order (Fill First)."}
           </p>
           <div className="border-t border-border/50 pt-4">

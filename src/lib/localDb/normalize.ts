@@ -154,19 +154,19 @@ export const isCloud =
 
 const DEFAULT_SETTINGS = {
 	routing: {
-		strategy: "fill-first",
-		stickyLimit: 3,
+		strategy: "round-robin",
+		stickyLimit: 1,
 		sticky: {
 			enabled: false,
 			durationSeconds: 300,
 		},
 		providerStrategies: {},
-		comboStrategy: "priority",
+		comboStrategy: "round-robin",
 		comboStrategies: {},
 	},
-	stickyRoundRobinLimit: 3,
+	stickyRoundRobinLimit: 1,
 	providerStrategies: {},
-	comboStrategy: "priority",
+	comboStrategy: "round-robin",
 	comboStrategies: {},
 	roundRobin: false,
 	sticky: false,
@@ -401,7 +401,7 @@ export function getDefaultChatRuntimeSettings() {
 	return { ...DEFAULT_CHAT_RUNTIME_SETTINGS };
 }
 
-function normalizeRoutingStrategy(value, fallback = "fill-first") {
+function normalizeRoutingStrategy(value, fallback = "round-robin") {
 	return value === "round-robin" ? "round-robin" : fallback;
 }
 
@@ -452,15 +452,12 @@ function normalizeComboRoutingStrategies(value: any = {}) {
 			continue;
 		const rawStrategy = config.strategy || config.fallbackStrategy || "";
 		const strategy = normalizeComboStrategyValue(rawStrategy);
-		if (!strategy || strategy === "priority") continue;
+		if (!strategy) continue;
 		normalized[comboName] = { strategy };
-
-		if (strategy === "round-robin") {
-			normalized[comboName].stickyLimit = normalizeStickyLimit(
-				config.stickyLimit ?? config.stickyRoundRobinLimit,
-				DEFAULT_SETTINGS.routing.stickyLimit,
-			);
-		}
+		normalized[comboName].stickyLimit = normalizeStickyLimit(
+			config.stickyLimit ?? config.stickyRoundRobinLimit,
+			DEFAULT_SETTINGS.routing.stickyLimit,
+		);
 	}
 
 	return normalized;

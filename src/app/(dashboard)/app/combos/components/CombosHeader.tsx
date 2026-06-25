@@ -67,6 +67,10 @@ export default function CombosHeader({
               <AppIcon name="add" data-icon="inline-start" />
               {translate("Create")}
             </Button>
+            <Button variant="secondary" onClick={onAutoSeed} disabled={isAutoSeeding}>
+              <AppIcon name="auto_awesome" data-icon="inline-start" />
+              {isAutoSeeding ? translate("Seeding...") : translate("Auto-Seed")}
+            </Button>
           </div>
           <button
             type="button"

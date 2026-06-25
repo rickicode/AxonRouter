@@ -12,6 +12,10 @@ import { cacheClaudeHeaders } from "../../../open-sse/utils/claudeHeaderCache";
 import { getCurrentSettings } from "@/lib/settingsAccess";
 import { getCurrentCombos } from "@/lib/modelCatalogAccess";
 import { getModelInfo, getComboModels, getComboForModel } from "../services/model";
+import { SmartRouter } from "@/lib/smart-router";
+
+// Singleton — compiled task classes and config reused across requests
+const smartRouter = new SmartRouter();
 import { errorResponse, unavailableResponse } from "../../../open-sse/utils/error";
 import { handleComboChat } from "../../../open-sse/services/combo";
 import { handleBypassRequest } from "../../../open-sse/utils/bypassHandler";
@@ -83,7 +87,7 @@ export async function handleChat(request, clientRawRequest = null) {
 
   // Log request endpoint and model
   const url = new URL(request.url);
-  const modelStr = body.model;
+  const modelStr = typeof body.model === "string" ? body.model : String(body.model ?? "");
 
   // Count messages (support both messages[] and input[] formats)
   const msgCount = body.messages?.length || body.input?.length || 0;
@@ -104,6 +108,12 @@ export async function handleChat(request, clientRawRequest = null) {
   // Enforce API key if enabled in settings
   const settings = await getCurrentSettings();
   setChatRuntimeSettings(settings.chatRuntime);
+
+  // Reconfigure smart router from settings (user may have changed thresholds/targets)
+  if (settings.smartRouter) {
+    smartRouter.configure(settings.smartRouter);
+  }
+
   const requestContext = {
     settings,
     comboModelsByName: new Map(),
@@ -162,7 +172,7 @@ export async function handleChat(request, clientRawRequest = null) {
     const comboStrategies = routing.comboStrategies || settings.comboStrategies || {};
     const comboConfig = comboStrategies[effectiveModelStr] || {};
     const comboSpecificStrategy = comboConfig.strategy;
-    const comboStrategy = comboSpecificStrategy || routing.comboStrategy || comboObject.strategy || "priority";
+    const comboStrategy = comboSpecificStrategy || routing.comboStrategy || comboObject.strategy || "round-robin";
     const comboStickyLimit = comboConfig.stickyLimit || comboObject?.config?.stickyLimit || routing.stickyLimit || 1;
 
     log.info("CHAT", `Combo \"${effectiveModelStr}\" with ${(comboObject.models || []).length} steps (strategy: ${comboStrategy}, stickyLimit: ${comboStickyLimit})`);
@@ -227,7 +237,7 @@ async function handleSingleModelChat(body, modelStr, clientRawRequest = null, re
       const comboStrategies = routing.comboStrategies || settings.comboStrategies || {};
       const comboConfig = comboStrategies[modelStr] || {};
       const comboSpecificStrategy = comboConfig.strategy;
-      const comboStrategy = comboSpecificStrategy || routing.comboStrategy || comboObject.strategy || "priority";
+      const comboStrategy = comboSpecificStrategy || routing.comboStrategy || comboObject.strategy || "round-robin";
       const comboStickyLimit = comboConfig.stickyLimit || comboObject?.config?.stickyLimit || routing.stickyLimit || 1;
 
       log.info("CHAT", `Combo \"${modelStr}\" with ${(comboObject.models || []).length} steps (strategy: ${comboStrategy}, stickyLimit: ${comboStickyLimit})`);

@@ -18,7 +18,7 @@ export default function ComboCard({
   t,
 }) {
   const models = combo.models || [];
-  const strategy = combo.strategy || "priority";
+  const strategy = combo.strategy || "round-robin";
   const isSelected = selectedIntelligentCombo?.id === combo.id;
   const isDisabled = combo.isHidden === true;
   const statusLabel = isDisabled ? t("disabled") : t("active");
