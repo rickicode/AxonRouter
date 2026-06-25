@@ -80,7 +80,7 @@ const nextConfig = {
 	},
 
 	// --- Dev origins ---
-	allowedDevOrigins: ["127.0.0.1", "localhost"],
+	allowedDevOrigins: ["127.0.0.1", "localhost", "agent-x"],
 
 	// --- TypeScript ---
 	typescript: {

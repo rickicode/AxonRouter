@@ -5,10 +5,6 @@ const dispatchMorphCapability = vi.fn();
 const isMorphFastModel = vi.fn();
 const resolveMorphInstructionsForRequest = vi.fn();
 const buildMorphRepoContext = vi.fn();
-const resolveMorphAutoModel = vi.fn();
-const applyMorphAutoResolution = vi.fn();
-const shouldPreflightRejectMorphContext = vi.fn();
-const createMorphContextLengthPreflightResponse = vi.fn();
 const maybeCompactCleanApplyPayload = vi.fn();
 const maybeBuildMorphFastApplyPayload = vi.fn();
 
@@ -30,13 +26,6 @@ vi.mock("../../open-sse/config/morphInstructionsResolver.ts", () => ({
 
 vi.mock("../../src/lib/morph/repoContext.ts", () => ({
   buildMorphRepoContext,
-}));
-
-vi.mock("../../src/lib/morph/autoRouting.ts", () => ({
-  resolveMorphAutoModel,
-  applyMorphAutoResolution,
-  shouldPreflightRejectMorphContext,
-  createMorphContextLengthPreflightResponse,
 }));
 
 vi.mock("../../src/lib/morph/compact.ts", () => ({
@@ -68,22 +57,8 @@ describe("Morph v1 bridges", () => {
       gitStatus: "M 0, D 0, ?? 0",
       recentCommits: ["abc123 initial"],
     });
-    resolveMorphAutoModel.mockImplementation(async ({ payload }) => ({
-      requestedModel: typeof payload?.model === "string" ? payload.model.replace(/^morph\//, "") : "qwen",
-      resolvedModel: typeof payload?.model === "string" ? payload.model.replace(/^morph\//, "") : "qwen",
-      routeSource: "explicit",
-      reason: "explicit_model",
-      fallbackUsed: false,
-    }));
-    shouldPreflightRejectMorphContext.mockReturnValue(false);
-    createMorphContextLengthPreflightResponse.mockImplementation(() => Response.json({ error: { code: "context_length_exceeded" } }, { status: 400 }));
     maybeCompactCleanApplyPayload.mockImplementation(async (payload) => payload);
     maybeBuildMorphFastApplyPayload.mockResolvedValue({ intercept: false });
-    applyMorphAutoResolution.mockImplementation((payload, resolution) => ({
-      ...payload,
-      model: resolution?.resolvedModel || payload?.model,
-      ...(resolution ? { morphRoute: resolution } : {}),
-    }));
   });
 
   it("injects repo context and forwards tools for /v1/messages", async () => {
@@ -232,145 +207,6 @@ describe("Morph v1 bridges", () => {
     expect(dispatched.tools[0].function.name).toBe("functions_read");
     expect(dispatched.tool_choice).toEqual({ type: "function", function: { name: "functions_read" } });
     expect(dispatched.messages.some((msg) => msg.tool_calls?.[0]?.function?.name === "functions_read")).toBe(true);
-  });
-
-  it("resolves Morph auto aliases for /v1/messages before dispatch", async () => {
-    const { maybeDispatchMorphMessagesRequest } = await import("../../src/app/api/v1/_morphMessages.ts");
-
-    resolveMorphAutoModel.mockResolvedValueOnce({
-      requestedModel: "auto-manual",
-      resolvedModel: "morph-qwen36-27b",
-      routeSource: "manual",
-      reason: "short_prompt,no_tools",
-      fallbackUsed: false,
-    });
-    applyMorphAutoResolution.mockImplementationOnce((payload, resolution) => ({
-      ...payload,
-      model: resolution.resolvedModel,
-      morphRoute: resolution,
-    }));
-
-    dispatchMorphCapability.mockResolvedValueOnce(new Response(JSON.stringify({
-      id: "chatcmpl_auto_messages",
-      model: "morph-qwen36-27b",
-      choices: [{ index: 0, message: { role: "assistant", content: "ok" }, finish_reason: "stop" }],
-    }), {
-      headers: { "Content-Type": "application/json" },
-    }));
-
-    const request = new Request("http://localhost/v1/messages", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        model: "morph/auto-manual",
-        max_tokens: 64,
-        messages: [{ role: "user", content: [{ type: "text", text: "reply with ok" }] }],
-      }),
-    });
-
-    const response = await maybeDispatchMorphMessagesRequest(request);
-    expect(response.status).toBe(200);
-
-    const dispatched = dispatchMorphCapability.mock.calls.at(-1)[0].requestPayload;
-    expect(dispatched.model).toBe("morph-qwen36-27b");
-    expect(dispatched.morphRoute).toMatchObject({
-      requestedModel: "auto-manual",
-      resolvedModel: "morph-qwen36-27b",
-      routeSource: "manual",
-    });
-  });
-
-  it("resolves Morph auto aliases for /v1/responses before dispatch", async () => {
-    const { maybeDispatchMorphResponsesRequest } = await import("../../src/app/api/v1/_morphResponses.ts");
-
-    resolveMorphAutoModel.mockResolvedValueOnce({
-      requestedModel: "auto-manual",
-      resolvedModel: "morph-qwen36-27b",
-      routeSource: "manual",
-      reason: "short_prompt,no_tools",
-      fallbackUsed: false,
-    });
-    applyMorphAutoResolution.mockImplementationOnce((payload, resolution) => ({
-      ...payload,
-      model: resolution.resolvedModel,
-      morphRoute: resolution,
-    }));
-
-    dispatchMorphCapability.mockResolvedValueOnce(new Response(JSON.stringify({
-      id: "chatcmpl_auto_responses",
-      model: "morph-qwen36-27b",
-      choices: [{ index: 0, message: { role: "assistant", content: "ok" }, finish_reason: "stop" }],
-    }), {
-      headers: { "Content-Type": "application/json" },
-    }));
-
-    const request = new Request("http://localhost/v1/responses", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        model: "morph/auto-manual",
-        input: [{ role: "user", content: [{ type: "input_text", text: "reply with ok" }] }],
-      }),
-    });
-
-    const response = await maybeDispatchMorphResponsesRequest(request);
-    expect(response.status).toBe(200);
-
-    const dispatched = dispatchMorphCapability.mock.calls.at(-1)[0].requestPayload;
-    expect(dispatched.model).toBe("morph-qwen36-27b");
-    expect(dispatched.morphRoute).toMatchObject({
-      requestedModel: "auto-manual",
-      resolvedModel: "morph-qwen36-27b",
-      routeSource: "manual",
-    });
-  });
-
-  it("returns a preflight context-length error for impossible /v1/messages requests", async () => {
-    const { maybeDispatchMorphMessagesRequest } = await import("../../src/app/api/v1/_morphMessages.ts");
-
-    resolveMorphAutoModel.mockResolvedValueOnce({
-      requestedModel: "auto-manual",
-      resolvedModel: "morph-qwen35-397b",
-      routeSource: "context-aware",
-      reason: "context_fallback_max",
-      fallbackUsed: false,
-      estimatedTokens: 205850,
-      requiredContext: 242177,
-      selectedContextWindow: 196608,
-      selectedContextMeta: {
-        contextWindow: 196608,
-        documentedContextWindow: 262000,
-        verifiedRuntimeContextWindow: 196608,
-        contextWindowSource: "runtime-verified",
-      },
-    });
-    shouldPreflightRejectMorphContext.mockReturnValueOnce(true);
-    createMorphContextLengthPreflightResponse.mockImplementationOnce(() => Response.json({
-      error: {
-        code: "context_length_exceeded",
-        type: "invalid_request_error",
-      },
-    }, { status: 400 }));
-
-    const request = new Request("http://localhost/v1/messages", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        model: "morph/auto-manual",
-        max_tokens: 16384,
-        messages: [{ role: "user", content: [{ type: "text", text: "x".repeat(600000) }] }],
-      }),
-    });
-
-    const response = await maybeDispatchMorphMessagesRequest(request);
-    expect(response.status).toBe(400);
-    await expect(response.json()).resolves.toEqual({
-      error: {
-        code: "context_length_exceeded",
-        type: "invalid_request_error",
-      },
-    });
-    expect(dispatchMorphCapability).not.toHaveBeenCalled();
   });
 
   it("runs Morph compact before dispatch when clean apply payloads are eligible", async () => {

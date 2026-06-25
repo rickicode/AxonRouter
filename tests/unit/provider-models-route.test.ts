@@ -13,6 +13,7 @@ vi.mock("@/shared/constants/providers", () => ({
   APIKEY_PROVIDERS: { assemblyai: {}, nvidia: {} },
   FREE_PROVIDERS: {},
   FREE_TIER_PROVIDERS: {},
+  WEB_COOKIE_PROVIDERS: {},
   isOpenAICompatibleProvider: vi.fn(() => false),
   isAnthropicCompatibleProvider: vi.fn(() => false),
   isMorphManagedProvider: vi.fn(() => false),

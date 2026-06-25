@@ -10,12 +10,7 @@ import {
 } from "@/lib/morph/reasoning";
 import { injectMorphInstructionsIntoOpenAIChatPayload } from "@/lib/morph/instructions";
 import { resolveMorphInstructionsForRequest } from "../../../../open-sse/config/morphInstructionsResolver";
-import {
-  applyMorphAutoResolution,
-  createMorphContextLengthPreflightResponse,
-  resolveMorphAutoModel,
-  shouldPreflightRejectMorphContext,
-} from "@/lib/morph/autoRouting";
+
 import { maybeCompactCleanApplyPayload } from "@/lib/morph/compact";
 import { maybeBuildMorphFastApplyPayload } from "@/lib/morph/fastApplyIntercept";
 import {
@@ -508,41 +503,17 @@ export async function maybeDispatchMorphResponsesRequest(req) {
       "axonrouter.morph.endpoint": "responses",
       "axonrouter.morph.requested_model": model,
     }, () => translateResponsesRequestToOpenAI(requestPayload));
-    const autoResolution = await withOtelSpan("morph.responses.auto_resolve", {
-      "axonrouter.morph.endpoint": "responses",
-      "axonrouter.morph.requested_model": model,
-    }, () => resolveMorphAutoModel({
-      payload: translatedRequest,
-      morphSettings,
-      context: { endpoint: "responses" },
-    }));
-    if (shouldPreflightRejectMorphContext(autoResolution)) {
-      return createMorphContextLengthPreflightResponse({
-        model: autoResolution.resolvedModel,
-        estimatedTokens: autoResolution.estimatedTokens,
-        requiredContext: autoResolution.requiredContext,
-        selectedContextWindow: autoResolution.selectedContextWindow,
-        selectedContextMeta: autoResolution.selectedContextMeta,
-      });
-    }
-    const routedRequest = await withOtelSpan("morph.responses.route_resolution", {
-      "axonrouter.morph.endpoint": "responses",
-      "axonrouter.morph.resolved_model": autoResolution.resolvedModel || "",
-    }, () => applyMorphAutoResolution(
-      translatedRequest,
-      autoResolution,
-    ));
     const fastApplyIntercept = await withOtelSpan("morph.responses.fast_apply_intercept", {
       "axonrouter.morph.endpoint": "responses",
     }, () => maybeBuildMorphFastApplyPayload(
-      routedRequest,
+      translatedRequest,
       morphSettings,
     ));
     const compactedRequest = fastApplyIntercept.intercept
       ? fastApplyIntercept.requestPayload
       : await withOtelSpan("morph.responses.compact_payload", {
         "axonrouter.morph.endpoint": "responses",
-      }, () => maybeCompactCleanApplyPayload(routedRequest, morphSettings));
+      }, () => maybeCompactCleanApplyPayload(translatedRequest, morphSettings));
     const upstreamResponse = await dispatchMorphCapability({
       capability: "apply",
       req,

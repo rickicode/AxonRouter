@@ -4,12 +4,7 @@ import { createMorphDispatchError } from "@/lib/morph/keySelection";
 import { isMorphFastModel } from "@/shared/constants/models";
 import { normalizeMorphChatResponse } from "@/app/api/v1/_morphThink";
 import { resolveAndInjectMorphInstructions } from "@/lib/morph/instructions";
-import {
-  applyMorphAutoResolution,
-  createMorphContextLengthPreflightResponse,
-  resolveMorphAutoModel,
-  shouldPreflightRejectMorphContext,
-} from "@/lib/morph/autoRouting";
+
 import { maybeCompactCleanApplyPayload } from "@/lib/morph/compact";
 import { maybeBuildMorphFastApplyPayload } from "@/lib/morph/fastApplyIntercept";
 
@@ -59,24 +54,12 @@ export async function maybeDispatchMorphV1Request({ req, capability, requestLabe
   }
 
   const normalizedRequestPayload = normalizeMorphRequestRoles(requestPayload);
-  const autoResolution = await resolveMorphAutoModel({
-    payload: normalizedRequestPayload,
-    morphSettings,
-    context: { endpoint: "chat" },
-  });
-  if (shouldPreflightRejectMorphContext(autoResolution)) {
-    return createMorphContextLengthPreflightResponse({
-      model: autoResolution.resolvedModel,
-      estimatedTokens: autoResolution.estimatedTokens,
-      requiredContext: autoResolution.requiredContext,
-      selectedContextWindow: autoResolution.selectedContextWindow,
-      selectedContextMeta: autoResolution.selectedContextMeta,
-    });
+  if (typeof normalizedRequestPayload.model === "string") {
+    normalizedRequestPayload.model = normalizedRequestPayload.model.replace(/^morph\//, "");
   }
-  const routedRequestPayload = applyMorphAutoResolution(normalizedRequestPayload, autoResolution);
   const instructionInjectedPayload = capability === "apply"
-    ? await resolveAndInjectMorphInstructions(routedRequestPayload)
-    : routedRequestPayload;
+    ? await resolveAndInjectMorphInstructions(normalizedRequestPayload)
+    : normalizedRequestPayload;
   const fastApplyIntercept: any = capability === "apply"
     ? await maybeBuildMorphFastApplyPayload(instructionInjectedPayload, morphSettings)
     : { intercept: false };

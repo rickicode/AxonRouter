@@ -1,7 +1,43 @@
 import { existsSync, pathIsAbsolute, pathJoin } from "@axonrouter/data-dir";
 import { resolveMorphInstructionsForRequest } from "../../../open-sse/config/morphInstructionsResolver";
 import { buildMorphRepoContext } from "./repoContext";
-import { estimateMorphTokenCount } from "./autoRouting";
+// ponystail: inlined from autoRouting.ts (removed). Simple char-based token estimation.
+const CHARS_PER_TOKEN = 4;
+
+function estimateMorphTokenCount(payload: Record<string, unknown>): number {
+  const messages = Array.isArray(payload?.messages) ? payload.messages as Record<string, unknown>[] : [];
+  const inputText = messages
+    .map((m) => {
+      const c = m?.content;
+      if (typeof c === "string") return c;
+      if (!Array.isArray(c)) return "";
+      return (c as Record<string, unknown>[])
+        .map((p) => (typeof p?.text === "string" ? p.text : typeof p?.content === "string" ? p.content : ""))
+        .filter(Boolean)
+        .join("\n");
+    })
+    .filter(Boolean)
+    .join("\n\n");
+  const inputTokens = Math.ceil(inputText.length / CHARS_PER_TOKEN);
+
+  const systemPrompt = payload?.system as string | Record<string, string>[] | undefined;
+  const systemTokens = systemPrompt
+    ? (typeof systemPrompt === "string"
+        ? Math.ceil(systemPrompt.length / CHARS_PER_TOKEN)
+        : Array.isArray(systemPrompt)
+          ? systemPrompt.reduce((acc, block) => acc + Math.ceil((block?.text || "").length / CHARS_PER_TOKEN), 0)
+          : 0)
+    : 0;
+
+  const tools = Array.isArray(payload?.tools) ? payload.tools : [];
+  const toolsTokens = tools.reduce((acc, tool) => {
+    const def = JSON.stringify(tool).length;
+    return acc + Math.ceil(def / CHARS_PER_TOKEN) + 50;
+  }, 0);
+
+  const maxTokens = Number(payload?.max_tokens) || 4096;
+  return inputTokens + systemTokens + toolsTokens + maxTokens;
+}
 
 const LARGE_FILE_WRITE_THRESHOLD_CHARS = 80_000;
 const FAST_APPLY_REQUIRED_TOOL_NAMES = new Set(["edit", "functions.edit"]);

@@ -95,10 +95,7 @@ export function getMorphFastModel(modelId) {
   return MORPH_FAST_MODELS.find((model) => model.id === modelId.trim()) || null;
 }
 
-export function isMorphAutoModel(modelId) {
-  const normalized = typeof modelId === "string" ? modelId.trim() : "";
-  return normalized === "auto" || normalized === "auto-manual";
-}
+
 
 export const EXTENDED_PROVIDER_ID_TO_ALIAS = {
   ...CORE_PROVIDER_ID_TO_ALIAS,

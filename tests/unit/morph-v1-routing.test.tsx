@@ -11,10 +11,7 @@ const validateApiKey = vi.fn();
 const dispatchMorphCapability = vi.fn();
 const resolveMorphInstructionsForRequest = vi.fn();
 const buildMorphRepoContext = vi.fn();
-const resolveMorphAutoModel = vi.fn();
-const applyMorphAutoResolution = vi.fn();
-const shouldPreflightRejectMorphContext = vi.fn();
-const createMorphContextLengthPreflightResponse = vi.fn();
+
 
 vi.mock("@/sse/handlers/chat", () => ({
   handleChat,
@@ -48,13 +45,6 @@ vi.mock("open-sse/config/morphInstructionsResolver.ts", () => ({
 
 vi.mock("@/lib/morph/repoContext", () => ({
   buildMorphRepoContext,
-}));
-
-vi.mock("@/lib/morph/autoRouting", () => ({
-  resolveMorphAutoModel,
-  applyMorphAutoResolution,
-  shouldPreflightRejectMorphContext,
-  createMorphContextLengthPreflightResponse,
 }));
 
 describe("Morph v1 route bridging", () => {
@@ -94,20 +84,6 @@ describe("Morph v1 route bridging", () => {
       gitStatus: "M 0, D 0, ?? 0",
       recentCommits: [],
     });
-    resolveMorphAutoModel.mockImplementation(async ({ payload }) => ({
-      requestedModel: typeof payload?.model === "string" ? payload.model.replace(/^morph\//, "") : "morph-qwen35-397b",
-      resolvedModel: typeof payload?.model === "string" ? payload.model.replace(/^morph\//, "") : "morph-qwen35-397b",
-      routeSource: "explicit",
-      reason: "explicit_model",
-      fallbackUsed: false,
-    }));
-    applyMorphAutoResolution.mockImplementation((payload, resolution) => ({
-      ...payload,
-      model: resolution?.resolvedModel || payload?.model,
-      ...(resolution ? { morphRoute: resolution } : {}),
-    }));
-    shouldPreflightRejectMorphContext.mockReturnValue(false);
-    createMorphContextLengthPreflightResponse.mockImplementation(() => new Response("preflight", { status: 400 }));
   });
 
   it("keeps generic chat-completions traffic on the standard handler", async () => {
@@ -305,44 +281,6 @@ describe("Morph v1 route bridging", () => {
     }));
   });
 
-  it("resolves Morph auto aliases before dispatching fast-model chat requests", async () => {
-    resolveMorphAutoModel.mockResolvedValueOnce({
-      requestedModel: "auto-manual",
-      resolvedModel: "morph-qwen36-27b",
-      routeSource: "manual",
-      reason: "short_prompt,no_tools",
-      fallbackUsed: false,
-    });
-    applyMorphAutoResolution.mockImplementationOnce((payload, resolution) => ({
-      ...payload,
-      model: resolution.resolvedModel,
-      morphRoute: resolution,
-    }));
-
-    const { POST } = await import("../../src/app/api/v1/chat/completions/route.ts");
-    const request = new Request("http://localhost/v1/chat/completions", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ model: "morph/auto-manual", messages: [{ role: "user", content: "reply with ok" }] }),
-    });
-
-    await POST(request);
-
-    expect(resolveMorphAutoModel).toHaveBeenCalledWith(expect.objectContaining({
-      payload: expect.objectContaining({ model: "morph/auto-manual" }),
-    }));
-    expect(dispatchMorphCapability).toHaveBeenCalledWith(expect.objectContaining({
-      requestPayload: expect.objectContaining({
-        model: "morph-qwen36-27b",
-        morphRoute: expect.objectContaining({
-          requestedModel: "auto-manual",
-          resolvedModel: "morph-qwen36-27b",
-          routeSource: "manual",
-        }),
-      }),
-    }));
-  });
-
   it("serves explicit Morph chat-completions without generic `/v1` probing", async () => {
     dispatchMorphCapability.mockResolvedValueOnce(new Response(JSON.stringify({
       id: "chatcmpl_native_1",
@@ -457,8 +395,6 @@ describe("Morph v1 route bridging", () => {
     expect(payload.object).toBe("list");
     expect(payload.data).toEqual(
       expect.arrayContaining([
-        expect.objectContaining({ id: "auto", object: "model", owned_by: "morph", root: "auto" }),
-        expect.objectContaining({ id: "auto-manual", object: "model", owned_by: "morph", root: "auto-manual" }),
         expect.objectContaining({ id: "morph-qwen35-397b", object: "model", owned_by: "morph", root: "morph-qwen35-397b" }),
         expect.objectContaining({ id: "morph-minimax27-230b", object: "model", owned_by: "morph", root: "morph-minimax27-230b" }),
         expect.objectContaining({ id: "morph-qwen36-27b", object: "model", owned_by: "morph", root: "morph-qwen36-27b" }),

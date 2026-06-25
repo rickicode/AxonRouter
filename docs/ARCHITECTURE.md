@@ -159,7 +159,7 @@ Management domains:
 - Health/init/shutdown/version: operational endpoints
 - Proxy pools: `src/app/api/proxy-pools/*`
 - MCP + protocol surfaces: `src/app/api/mcp/*`, `src/app/api/protocols/*`
-- Operational intelligence: `src/app/api/incidents/*`, `src/app/api/evals/*`, `src/app/api/outcome-intelligence/*`
+- Operational intelligence: `src/app/api/incidents/*`, `src/app/api/evals/*`
 - Media/audio: `src/app/api/v1/audio/*`
 
 ## 2) SSE + Translation Core
@@ -868,7 +868,7 @@ Generates vanity URL `https://r<shortId>.axonrouter.com` and registers with work
 
 Components:
 
-- `src/lib/morph/autoRouting.ts`: model auto-routing (`morph/auto`, `morph/auto-manual`) with difficulty classification
+- `src/lib/smart-router/`: smart model routing via task classification and complexity scoring
 - `src/lib/morph/instructions.ts`: system instruction injection with repo context
 - `src/lib/morph/keySelection.ts`: API key round-robin with failover and status tracking
 - `src/lib/morph/reasoning.tsx`: reasoning/think-tag normalization and SSE transform
@@ -928,7 +928,7 @@ flowchart LR
 ### Operational Intelligence
 - `src/app/api/incidents/*`: derived routing/health/quota incidents and action hints
 - `src/app/api/evals/*`: lightweight evaluation snapshots and run history persisted in settings
-- `src/app/api/outcome-intelligence/*`: spend, enterprise, and virtual-model insight summaries
+
 
 ### Worker Relay Proxy
 - `WorkerProxy/`: standalone relay proxy for outbound provider routing
