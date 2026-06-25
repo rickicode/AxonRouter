@@ -51,7 +51,7 @@ function rememberRotationState(comboName: string, state: { counter: number; stra
     const oldestKey = comboRotationState.keys().next().value;
     if (oldestKey) comboRotationState.delete(oldestKey);
   }
-  comboRotationState.set(key, state);
+  comboRotationState.set(comboName, state);
 }
 
 /** Debounced persistence — avoids thrashing disk on every request. */
@@ -163,7 +163,7 @@ export function getRotatedModels(models: string[], comboName: string, strategy: 
   const state = comboRotationState.get(stateKey) || { counter: 0 };
   const currentCounter = state.counter;
   state.counter = currentCounter + 1;
-  rememberComboRotationState(stateKey, state);
+  rememberRotationState(stateKey, state);
 
   // Derive index from counter and sticky limit
   const effectiveIndex = Math.floor(currentCounter / normalizedStickyLimit) % models.length;
