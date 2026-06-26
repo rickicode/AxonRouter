@@ -23,9 +23,9 @@ export async function POST(request: Request, { params }: RouteContext) {
     }
 
     const result =
-      proxyPool.type === "relay"
-        ? await testRelay(proxyPool.proxyUrl)
-        : await testProxyUrl({ proxyUrl: proxyPool.proxyUrl });
+      proxyPool.type === "http"
+        ? await testProxyUrl({ proxyUrl: proxyPool.proxyUrl })
+        : await testRelay(proxyPool.proxyUrl, proxyPool.relayAuth);
     const now = new Date().toISOString();
 
     await updateCurrentProxyPool(id, {

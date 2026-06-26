@@ -1,5 +1,6 @@
 import { getCurrentProxyPools, updateCurrentProxyPool } from "@/lib/proxyPoolAccess";
 import { testProxyUrl, testRelay } from "@/lib/network/proxyTest";
+import { isRelayType } from "@/lib/relayTypes";
 
 const HEALTH_CHECK_INTERVAL_MS = 1800000; // 30 minutes
 const INITIAL_DELAY_MS = 60000; // 60 seconds before first check
@@ -28,8 +29,8 @@ export async function runHealthCheckNow(): Promise<{ checkedAt: string; results:
     for (const pool of activePools) {
       try {
         const result =
-          pool.type === "relay"
-            ? await testRelay(pool.proxyUrl)
+          isRelayType(pool.type)
+            ? await testRelay(pool.proxyUrl, pool.relayAuth)
             : await testProxyUrl({ proxyUrl: pool.proxyUrl });
 
         const now = new Date().toISOString();

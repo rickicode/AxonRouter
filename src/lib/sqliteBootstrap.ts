@@ -12,7 +12,7 @@ import { sqliteWriteGate } from './sqliteWriteGate';
 
 type SQLiteRow = Record<string, unknown>;
 
-const COLLECTION_KEYS = ['providerConnections', 'providerNodes', 'proxyPools', 'combos', 'apiKeys', 'customModels', 'modelComboMappings'];
+const COLLECTION_KEYS = ['providerConnections', 'providerNodes', 'proxyPools', 'proxyGroups', 'combos', 'apiKeys', 'customModels', 'modelComboMappings'];
 const SINGLETON_KEYS = ['settings', 'modelAliases', 'mitmAlias', 'opencodeSync', 'runtimeConfig', 'tunnelState', 'pricing', 'disabledModels', 'customSkills', 'syncedAvailableModels'];
 const DB_JSON_FILE = pathJoin(getDataDir(), 'db.json');
 

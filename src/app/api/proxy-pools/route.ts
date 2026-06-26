@@ -3,8 +3,7 @@ import { requireManagementAuth } from "@/lib/api/requireManagementAuth";
 import { getCurrentProviderConnections } from "@/lib/connectionAccess";
 import { getCurrentSettings } from "@/lib/settingsAccess";
 import { createCurrentProxyPool, getCurrentProxyPools } from "@/lib/proxyPoolAccess";
-
-type ProxyPoolType = "http" | "relay";
+import { type ProxyPoolType, type RelayType, RELAY_TYPES, isRelayType, normalizeProxyPoolType, generateRelayAuth } from "@/lib/relayTypes";
 
 type ProxyPoolInputBody = {
   name?: unknown;
@@ -22,6 +21,7 @@ type NormalizedProxyPoolInput = {
   isActive: boolean;
   strictProxy: boolean;
   type: ProxyPoolType;
+  relayAuth?: string;
 };
 
 type NormalizedProxyPoolResult =
@@ -51,11 +51,7 @@ function toBoolean(value: string | null): boolean | undefined {
   return undefined;
 }
 
-const VALID_PROXY_TYPES: ProxyPoolType[] = ["http", "relay"];
-
-function normalizeProxyPoolType(value: unknown): ProxyPoolType {
-  return value === "relay" ? "relay" : "http";
-}
+const VALID_PROXY_TYPES: ProxyPoolType[] = ["http", "vercel", "deno", "cloudflare"];
 
 function normalizeProxyPoolInput(body: ProxyPoolInputBody = {}): NormalizedProxyPoolResult {
   const name = typeof body?.name === "string" ? body.name.trim() : "";
@@ -65,16 +61,7 @@ function normalizeProxyPoolInput(body: ProxyPoolInputBody = {}): NormalizedProxy
   const strictProxy = body?.strictProxy === true;
 
   // Auto-detect type from URL if not explicitly provided
-  let type: ProxyPoolType = normalizeProxyPoolType(body?.type);
-
-  if (type === "http" && proxyUrl) {
-    try {
-      const u = new URL(proxyUrl);
-      if (u.hostname.endsWith("workers.dev") || u.hostname.endsWith("vercel.app") || u.hostname.endsWith("now.sh")) {
-        type = "relay";
-      }
-    } catch {}
-  }
+  const type: ProxyPoolType = normalizeProxyPoolType(body?.type, proxyUrl);
 
   if (!name) {
     return { error: "Name is required" };
@@ -84,7 +71,8 @@ function normalizeProxyPoolInput(body: ProxyPoolInputBody = {}): NormalizedProxy
     return { error: "Proxy URL is required" };
   }
 
-  return { name, proxyUrl, noProxy, isActive, strictProxy, type };
+  const relayAuth = isRelayType(type) ? generateRelayAuth() : undefined;
+  return { name, proxyUrl, noProxy, isActive, strictProxy, type, relayAuth };
 }
 
 function buildUsageMap(connections: ProviderConnectionWithProxyPool[] = []): Map<string, number> {

@@ -138,6 +138,7 @@ export async function createProxyPool(data) {
       proxyUrl: data.proxyUrl,
       noProxy: data.noProxy || "",
       type: data.type || "http",
+      relayAuth: data.relayAuth || null,
       isActive: data.isActive !== undefined ? data.isActive : true,
       strictProxy: data.strictProxy === true,
       testStatus: data.testStatus || "unknown",

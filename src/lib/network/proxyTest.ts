@@ -98,18 +98,21 @@ export async function testProxyUrl({ proxyUrl, testUrl, timeoutMs }: any = {}) {
   }
 }
 
-export async function testRelay(relayUrl: string, timeoutMs = 10000): Promise<ProxyTestResult> {
+export async function testRelay(relayUrl: string, relayAuth?: string, timeoutMs = 30000): Promise<ProxyTestResult> {
   const controller = new AbortController();
   const startedAt = Date.now();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
 
   try {
+    const headers: Record<string, string> = {
+      "x-relay-target": "https://api64.ipify.org",
+      "x-relay-path": "/?format=json",
+    };
+    if (relayAuth) headers["x-relay-auth"] = relayAuth;
+
     const res = await undiciFetch(relayUrl, {
       method: "GET",
-      headers: {
-        "x-relay-target": "https://httpbin.org",
-        "x-relay-path": "/get",
-      },
+      headers,
       signal: controller.signal,
     });
 

@@ -8,6 +8,7 @@ import {
   updateCurrentProxyPool,
 } from "@/lib/proxyPoolAccess";
 import { getCurrentProxyGroups, updateCurrentProxyGroup } from "@/lib/proxyGroupAccess";
+import { type ProxyPoolType, isRelayType, normalizeProxyPoolType } from "@/lib/relayTypes";
 
 type ProxyPoolUpdateBody = {
   name?: unknown;
@@ -24,7 +25,7 @@ type ProxyPoolUpdates = {
   noProxy?: string;
   isActive?: boolean;
   strictProxy?: boolean;
-  type?: "http" | "relay";
+  type?: ProxyPoolType;
 };
 
 type NormalizeProxyPoolUpdateResult =
@@ -87,10 +88,7 @@ function normalizeProxyPoolUpdate(body: ProxyPoolUpdateBody = {}): NormalizeProx
   }
 
   if (Object.prototype.hasOwnProperty.call(body, "type")) {
-    const validTypes = ["http", "relay"] as const;
-    updates.type = validTypes.includes(body.type as (typeof validTypes)[number])
-      ? (body.type as "http" | "relay")
-      : "http";
+    updates.type = normalizeProxyPoolType(body.type);
   }
 
   return { updates };

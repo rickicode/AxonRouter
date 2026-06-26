@@ -98,7 +98,7 @@ function ConnectionRow({ connection, proxyPools, isOAuth, onToggleActive, onUpda
   const proxyPoolMap = new Map((proxyPools || []).map((p: any) => [p.id, p]));
   const boundProxyPoolId = connection.providerSpecificData?.proxyPoolId || null;
   const boundProxyPool: any = boundProxyPoolId ? proxyPoolMap.get(boundProxyPoolId) : null;
-  const proxyTypeLabel = boundProxyPool?.type === "relay" ? translate("Relay") : translate("Proxy");
+  const proxyTypeLabel = boundProxyPool?.type && boundProxyPool.type !== "http" ? translate("Relay") : translate("Proxy");
   const hasLegacyProxy = connection.providerSpecificData?.connectionProxyEnabled === true && !!connection.providerSpecificData?.connectionProxyUrl;
   const hasAnyProxy = !!boundProxyPoolId || hasLegacyProxy;
 

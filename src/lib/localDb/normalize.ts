@@ -760,6 +760,7 @@ export function cloneDefaultData() {
 		providerConnections: [],
 		providerNodes: [],
 		proxyPools: [],
+		proxyGroups: [],
 		modelAliases: {},
 		customModels: [],
 		syncedAvailableModels: {},

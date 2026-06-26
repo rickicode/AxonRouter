@@ -383,11 +383,13 @@ export async function proxyAwareFetch(url, options: any = {}, proxyOptions: any 
     }
 
     const parsed = parsedTarget;
-    const relayHeaders = {
+    const relayHeaders: Record<string, string> = {
       ...options.headers,
       "x-relay-target": `${parsed.protocol}//${parsed.host}`,
       "x-relay-path": `${parsed.pathname}${parsed.search}`,
     };
+    const relayAuth = normalizeString(proxyOptions?.relayAuth);
+    if (relayAuth) relayHeaders["x-relay-auth"] = relayAuth;
     try {
       const relayResponse = await originalFetch(relayUrl, { ...options, headers: relayHeaders });
 

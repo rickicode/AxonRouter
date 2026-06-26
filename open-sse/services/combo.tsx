@@ -6,6 +6,8 @@ import { checkFallbackError, formatRetryAfter } from "./accountFallback";
 import { unavailableResponse } from "../utils/error";
 import { recordComboRequest } from "./comboMetrics";
 import { getCircuitBreaker } from "@/shared/utils/circuitBreaker";
+import { join } from "path";
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "fs";
 /** Marker used to detect "no credentials" upstream errors (see checkFallbackError). */
 const NO_CREDENTIALS_MARKER = "no credentials";
 
@@ -52,6 +54,35 @@ function rememberRotationState(comboName: string, state: { counter: number; stra
     if (oldestKey) comboRotationState.delete(oldestKey);
   }
   comboRotationState.set(comboName, state);
+}
+
+// ponytail: inline persist instead of separate rotationPersist module (avoids Turbopack NFT)
+const STATE_DIR = join(process.cwd(), ".axonrouter");
+const STATE_FILE = join(STATE_DIR, "combo-rotation.json");
+
+const rotationPersist = {
+  loadRotationState: (): Record<string, { counter: number; strategy?: string }> => {
+    try {
+      if (existsSync(STATE_FILE)) return JSON.parse(readFileSync(STATE_FILE, "utf8"));
+    } catch { /* ignore */ }
+    return {};
+  },
+  saveRotationState: (obj: Record<string, unknown>) => {
+    try {
+      if (!existsSync(STATE_DIR)) mkdirSync(STATE_DIR, { recursive: true });
+      writeFileSync(STATE_FILE, JSON.stringify(obj));
+    } catch { /* ignore */ }
+  },
+  flushRotationState: (obj: Record<string, unknown>) => {
+    try {
+      if (!existsSync(STATE_DIR)) mkdirSync(STATE_DIR, { recursive: true });
+      writeFileSync(STATE_FILE, JSON.stringify(obj));
+    } catch { /* ignore */ }
+  },
+};
+
+async function getRotationPersist() {
+  return rotationPersist;
 }
 
 /** Debounced persistence — avoids thrashing disk on every request. */

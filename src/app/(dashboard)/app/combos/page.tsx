@@ -897,6 +897,8 @@ export default function CombosPage() {
         strategyFilter={strategyFilter}
         setStrategyFilter={setStrategyFilter}
         isIntelligentStrategy={isIntelligentStrategy}
+        onAutoSeed={() => autoSeedMutation.mutate()}
+        isAutoSeeding={autoSeedMutation.isPending}
       />
 
       {/* Intelligent Combo Panel - Shows when intelligent filter is active */}

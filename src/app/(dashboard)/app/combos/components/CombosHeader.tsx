@@ -30,6 +30,8 @@ export default function CombosHeader({
   strategyFilter,
   setStrategyFilter,
   isIntelligentStrategy,
+  onAutoSeed,
+  isAutoSeeding,
 }) {
   return (
     <div className="flex flex-col gap-4">

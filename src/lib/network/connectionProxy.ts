@@ -1,6 +1,7 @@
 import { getCurrentProxyPoolById } from "../connectionAccess";
 import { getCurrentSettings } from "../settingsAccess";
 import { getCurrentProxyGroupById } from "../proxyGroupAccess";
+import { isRelayType } from "@/lib/relayTypes";
 
 function normalizeString(value: any) {
   if (value === undefined || value === null) return "";
@@ -23,7 +24,7 @@ async function resolveProxyPoolConfig(proxyPoolId: string, source: string) {
   }
 
   // Relay: rewrite base URL instead of using HTTP_PROXY
-  if (proxyPool.type === "relay") {
+  if (isRelayType(proxyPool.type)) {
     return {
       source,
       proxyPoolId,
@@ -33,6 +34,7 @@ async function resolveProxyPoolConfig(proxyPoolId: string, source: string) {
       connectionNoProxy: noProxy,
       strictProxy: proxyPool.strictProxy === true,
       relayUrl: proxyUrl,
+      relayAuth: normalizeString(proxyPool?.relayAuth),
     };
   }
 
@@ -45,6 +47,7 @@ async function resolveProxyPoolConfig(proxyPoolId: string, source: string) {
     connectionNoProxy: noProxy,
     strictProxy: proxyPool.strictProxy === true,
     relayUrl: "",
+    relayAuth: "",
   };
 }
 

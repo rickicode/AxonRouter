@@ -112,7 +112,7 @@ describe("proxy health check", () => {
     });
 
     it("should test relay pools using testRelay", async () => {
-      const poolRelay = makePool("pool-relay", { type: "relay", proxyUrl: "https://relay.workers.dev" });
+      const poolRelay = makePool("pool-relay", { type: "cloudflare", proxyUrl: "https://relay.workers.dev", relayAuth: "test-auth-token" });
 
       mockGetCurrentProxyPools.mockResolvedValue([poolRelay]);
       mockTestRelay.mockResolvedValue({ ok: true, status: 200, elapsedMs: 300 });
@@ -125,7 +125,7 @@ describe("proxy health check", () => {
       expect(results[0].testStatus).toBe("active");
       expect(results[0].responseTimeMs).toBe(300);
 
-      expect(mockTestRelay).toHaveBeenCalledWith(poolRelay.proxyUrl);
+      expect(mockTestRelay).toHaveBeenCalledWith(poolRelay.proxyUrl, poolRelay.relayAuth);
     });
 
     it("should mark pool as error on test failure", async () => {

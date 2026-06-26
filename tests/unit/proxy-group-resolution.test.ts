@@ -379,7 +379,7 @@ describe("proxy group resolution", () => {
 
   describe("relay proxy type", () => {
     it("should return relayUrl for relay pools in a group", async () => {
-      const poolRelay = makePool("pool-relay", { type: "relay", proxyUrl: "https://relay.workers.dev" });
+      const poolRelay = makePool("pool-relay", { type: "cloudflare", proxyUrl: "https://relay.workers.dev", relayAuth: "test-auth-token" });
       const group = makeGroup("group-1", { proxyPoolIds: ["pool-relay"] });
 
       mockGetCurrentProxyGroupById.mockResolvedValue(group);

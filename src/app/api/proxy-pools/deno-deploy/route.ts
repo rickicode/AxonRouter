@@ -3,22 +3,20 @@ import { requireManagementAuth } from "@/lib/api/requireManagementAuth";
 import { createCurrentProxyPool } from "@/lib/proxyPoolAccess";
 import { buildRelayEdgeFunctionSource, generateRelayAuth } from "@/lib/relayTypes";
 
-const VERCEL_API = "https://api.vercel.com";
+const DENO_API = "https://api.deno.com";
 
-const RELAY_FUNCTION_CODE = buildRelayEdgeFunctionSource("vercel");
+const RELAY_WORKER_CODE = buildRelayEdgeFunctionSource("deno");
 
-async function pollDeployment(deploymentId, token, maxMs = 120000) {
+async function pollRevision(revisionId: string, token: string, maxMs = 60000) {
   const start = Date.now();
   while (Date.now() - start < maxMs) {
-    const res = await fetch(`${VERCEL_API}/v13/deployments/${deploymentId}`, {
+    const res = await fetch(`${DENO_API}/v2/revisions/${revisionId}`, {
       headers: { Authorization: `Bearer ${token}` },
     });
     const data = await res.json();
-    if (data.readyState === "READY") return data;
-    if (data.readyState === "ERROR" || data.readyState === "CANCELED") {
-      throw new Error(`Deployment failed: ${data.readyState}`);
-    }
-    await new Promise((r) => setTimeout(r, 3000));
+    if (data.status === "deployed") return data;
+    if (data.status === "failed") throw new Error(`Deployment failed`);
+    await new Promise((r) => setTimeout(r, 2000));
   }
   throw new Error("Deployment timed out");
 }
@@ -59,91 +57,95 @@ async function testRelayDeployment(relayUrl: string, relayAuth?: string, timeout
   }
 }
 
-// POST /api/proxy-pools/vercel-deploy
+// POST /api/proxy-pools/deno-deploy
 export async function POST(request: Request) {
   const authError = await requireManagementAuth(request);
   if (authError) return authError;
 
   try {
     const body = await request.json();
-    const vercelToken = body.vercelToken;
-    const projectName = body.projectName?.trim() || `relay-${Date.now().toString(36)}`;
+    const denoToken = body.denoToken;
+    const orgDomain = body.orgDomain?.trim();
+    const projectName = body.projectName?.trim() || `axonrelay-${Date.now().toString(36)}`;
 
-    if (!vercelToken) {
-      return NextResponse.json({ error: "Vercel API token is required" }, { status: 400 });
+    if (!denoToken) {
+      return NextResponse.json({ error: "Deno Deploy token is required" }, { status: 400 });
+    }
+    if (!orgDomain) {
+      return NextResponse.json({ error: "Organization domain is required" }, { status: 400 });
     }
 
-    // Deploy relay function to Vercel
-    const deployRes = await fetch(`${VERCEL_API}/v13/deployments`, {
+    // Create Deno Deploy project
+    const createRes = await fetch(`${DENO_API}/v2/apps`, {
       method: "POST",
       headers: {
-        Authorization: `Bearer ${vercelToken}`,
+        Authorization: `Bearer ${denoToken}`,
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
         name: projectName,
-        files: [
+        type: "playground",
+      }),
+    });
+
+    if (!createRes.ok) {
+      const err = await createRes.json().catch(() => ({}));
+      return NextResponse.json(
+        { error: err.message || "Failed to create Deno Deploy project" },
+        { status: createRes.status }
+      );
+    }
+
+    const project = await createRes.json();
+    const projectId = project.id;
+
+    // Deploy the relay function
+    const relayAuth = generateRelayAuth();
+    const deployRes = await fetch(`${DENO_API}/v2/apps/${projectId}/deploy`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${denoToken}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        entrypointUrl: "main.ts",
+        manifest: {},
+        assets: [
           {
-            file: "api/relay.js",
-            data: RELAY_FUNCTION_CODE,
-          },
-          {
-            file: "package.json",
-            data: JSON.stringify({ name: projectName, version: "1.0.0" }),
-          },
-          {
-            file: "vercel.json",
-            data: JSON.stringify({
-              rewrites: [{ source: "/(.*)", destination: "/api/relay" }],
-            }),
+            kind: "file",
+            path: "main.ts",
+            content: RELAY_WORKER_CODE,
+            encoding: "utf-8",
           },
         ],
-        projectSettings: {
-          framework: null,
+        envVars: {
+          RELAY_AUTH: relayAuth,
         },
-        target: "production",
       }),
     });
 
     if (!deployRes.ok) {
       const err = await deployRes.json().catch(() => ({}));
       return NextResponse.json(
-        { error: err.error?.message || "Failed to create Vercel deployment" },
+        { error: err.message || "Failed to deploy to Deno Deploy" },
         { status: deployRes.status }
       );
     }
 
     const deployment = await deployRes.json();
-    const deploymentId = deployment.id || deployment.uid;
+    const revisionId = deployment.id || deployment.deploymentId;
 
-    // Disable deployment protection (Vercel Authentication)
-    const projectId = deployment.projectId || projectName;
-    const protectionRes = await fetch(`${VERCEL_API}/v9/projects/${projectId}`, {
-      method: "PATCH",
-      headers: {
-        Authorization: `Bearer ${vercelToken}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({ ssoProtection: null }),
-    });
+    // Poll until deployment is ready
+    await pollRevision(revisionId, denoToken);
 
-    if (!protectionRes.ok) {
-      const err = await protectionRes.json().catch(() => ({}));
-      throw new Error(err.error?.message || "Failed to disable Vercel deployment protection");
-    }
-
-    // Poll until deployment is ready, then verify the relay before saving it.
-    const relayAuth = generateRelayAuth();
-    const ready = await pollDeployment(deploymentId, vercelToken);
-    const deployUrl = `https://${ready.url}`;
+    const deployUrl = `https://${projectName}.${orgDomain}.deno.net`;
     const relayTest = await testRelayDeployment(deployUrl, relayAuth);
     const testedAt = new Date().toISOString();
 
-    // Create proxy pool entry with vercel relay type
     const proxyPool = await createCurrentProxyPool({
       name: projectName,
       proxyUrl: deployUrl,
-      type: "vercel",
+      type: "deno",
       relayAuth,
       noProxy: "",
       isActive: relayTest.ok,
@@ -156,7 +158,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ proxyPool, deployUrl, relayTest }, { status: 201 });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Deploy failed";
-    console.log("Error deploying Vercel relay:", error);
+    console.log("Error deploying Deno relay:", error);
     return NextResponse.json({ error: message || "Deploy failed" }, { status: 500 });
   }
 }

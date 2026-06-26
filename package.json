@@ -1,6 +1,6 @@
 {
-  "name": "axonrouter",
-  "version": "2.0.7",
+  "name": "@rickicode/axonrouter",
+  "version": "0.1.4",
   "description": "Route AI coding tools across providers.",
   "private": false,
   "workspaces": [
@@ -31,9 +31,10 @@
   },
   "scripts": {
     "postinstall": "node scripts/postinstall.js",
-    "dev": "next dev --hostname 127.0.0.1 --port 12712",
-    "dev:turbopack": "next dev --turbopack --hostname 127.0.0.1 --port 12712",
+    "dev": "next dev --hostname 0.0.0.0 --port 12712",
+    "dev:turbopack": "next dev --turbopack --hostname 0.0.0.0 --port 12712",
     "build": "NODE_ENV=production next build --webpack && node ./scripts/ensure-middleware-manifest.js",
+    "build:run": "npm run build && fuser -k 12712/tcp 2>/dev/null; sleep 1 && NODE_ENV=production npx next start --hostname 0.0.0.0 --port 12712",
     "build:cli": "node packages/cli/scripts/build-cli.js",
     "start": "NODE_ENV=production node ./packages/cli/cli.js",
     "start:legacy": "NODE_ENV=production node ./scripts/start.js",
@@ -46,7 +47,6 @@
   "dependencies": {
     "@monaco-editor/react": "^4.7.0",
     "@ngrok/ngrok": "^1.7.0",
-    
     "@tanstack/pacer": "^0.21.1",
     "@tanstack/react-query": "^5.100.10",
     "@tanstack/react-table": "^8.21.3",

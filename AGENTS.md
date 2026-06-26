@@ -18,6 +18,18 @@ Use `docs/ARCHITECTURE.md` for architecture direction and `docs/DOCS.md` for use
 
 - Do not revert unrelated user changes.
 
+## Runtime Port Rules
+
+| Port | What | How to start |
+|------|------|---------------|
+| 12711 | Production (global install) | managed by user, do NOT touch |
+| 12712 | Dev / local build | `npm run dev` (dev) or `npm run build:run` (prod build + start) |
+
+- **Never kill, restart, or interfere with the production server on port 12711.**
+- Use `npm run dev` for development (hot reload, port 12712).
+- Use `npm run build:run` to build and run a production server on port 12712.
+- After code changes, the user will restart the appropriate server themselves.
+
 ## Product Identity Rules
 
 - Use **AxonRouter** as the product/dashboard/docs name.

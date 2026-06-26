@@ -109,19 +109,13 @@ function formatRelativeTime(isoDate: string | null) {
   return `${hours} ${translate("hour(s) ago")}`;
 }
 
-function detectProxyPoolType(proxyUrl: string): "http" | "relay" {
+function detectProxyPoolType(proxyUrl: string): "http" | "vercel" | "deno" | "cloudflare" {
   try {
     const u = new URL(proxyUrl.trim());
-    if (
-      u.hostname.endsWith("workers.dev") ||
-      u.hostname.endsWith("vercel.app") ||
-      u.hostname.endsWith("now.sh")
-    ) {
-      return "relay";
-    }
-  } catch {
-    // Keep default type when URL is incomplete/invalid during typing.
-  }
+    if (u.hostname.endsWith(".vercel.app") || u.hostname.endsWith(".now.sh")) return "vercel";
+    if (u.hostname.endsWith(".deno.net")) return "deno";
+    if (u.hostname.endsWith(".workers.dev")) return "cloudflare";
+  } catch {}
   return "http";
 }
 
@@ -1133,9 +1127,19 @@ export default function ProxyPoolsPage() {
                       {pool.type === "http" && (
                         <Badge variant="outline">{translate("http proxy")}</Badge>
                       )}
-                      {pool.type === "relay" && (
+                      {pool.type === "vercel" && (
                         <Badge className="border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300">
-                          {translate("relay")}
+                          {translate("Vercel Relay")}
+                        </Badge>
+                      )}
+                      {pool.type === "deno" && (
+                        <Badge className="border-blue-500/30 bg-blue-500/10 text-blue-700 dark:text-blue-300">
+                          {translate("Deno Relay")}
+                        </Badge>
+                      )}
+                      {pool.type === "cloudflare" && (
+                        <Badge className="border-orange-500/30 bg-orange-500/10 text-orange-700 dark:text-orange-300">
+                          {translate("CF Relay")}
                         </Badge>
                       )}
                       <Badge variant="secondary">
@@ -1167,7 +1171,7 @@ export default function ProxyPoolsPage() {
                     </p>
                   </div>
 
-                  <div className="flex items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100">
+                  <div className="flex items-center gap-1">
                     <Button
                       onClick={() => handleTest(pool.id)}
                       variant="ghost"
@@ -1263,7 +1267,7 @@ export default function ProxyPoolsPage() {
                         </p>
                       </div>
 
-                      <div className="flex items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100">
+                      <div className="flex items-center gap-1">
                         <Button
                           onClick={() => {
                             setRemoveAllGroupId(group.id);
@@ -1566,7 +1570,9 @@ export default function ProxyPoolsPage() {
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="http">{translate("HTTP Proxy")}</SelectItem>
-                    <SelectItem value="relay">{translate("Relay")}</SelectItem>
+                    <SelectItem value="vercel">{translate("Vercel Relay")}</SelectItem>
+                    <SelectItem value="deno">{translate("Deno Relay")}</SelectItem>
+                    <SelectItem value="cloudflare">{translate("Cloudflare Relay")}</SelectItem>
                   </SelectContent>
                 </Select>
                 <FieldDescription>

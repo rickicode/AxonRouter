@@ -271,7 +271,7 @@ export function ensureSchema(db) {
 }
 
 
-const COLLECTION_KEYS = ['providerConnections', 'providerNodes', 'proxyPools', 'combos', 'apiKeys', 'customModels', 'modelComboMappings'];
+const COLLECTION_KEYS = ['providerConnections', 'providerNodes', 'proxyPools', 'proxyGroups', 'combos', 'apiKeys', 'customModels', 'modelComboMappings'];
 const SINGLETON_KEYS = ['settings', 'modelAliases', 'mitmAlias', 'opencodeSync', 'runtimeConfig', 'tunnelState', 'pricing', 'disabledModels', 'customSkills', 'syncedAvailableModels'];
 const HOT_STATE_METADATA_KEY = 'hotStateMetadata';
 

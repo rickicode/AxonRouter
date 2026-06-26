@@ -1,7 +1,13 @@
 import { getChatRuntimeSettings } from "../../../open-sse/utils/abort";
 
+const SLOT_TTL_MS = 5 * 60 * 1000; // ponytail: auto-release leaked slots after 5min
+
 const counters = {
   global: 0,
+  provider: new Map(),
+  account: new Map(),
+};
+const acquiredAt = {
   provider: new Map(),
   account: new Map(),
 };
@@ -21,16 +27,29 @@ function getLimits(overrides = null) {
 }
 
 function getCount(map, key) {
-  return map.get(key) || 0;
+  return (typeof map.get(key) === 'number') ? map.get(key) : 0;
+}
+
+function sweepStale(map, tsMap, key) {
+  const ts = tsMap.get(key);
+  if (ts && Date.now() - ts > SLOT_TTL_MS) {
+    const leaked = map.get(key) || 0;
+    if (leaked > 0) {
+      map.delete(key);
+      tsMap.delete(key);
+      return leaked;
+    }
+  }
+  return 0;
 }
 
 function increment(map, key) {
   map.set(key, getCount(map, key) + 1);
 }
 
-function decrement(map, key) {
+function decrement(map, tsMap, key) {
   const next = Math.max(0, getCount(map, key) - 1);
-  if (next === 0) map.delete(key);
+  if (next === 0) { map.delete(key); tsMap.delete(key); }
   else map.set(key, next);
 }
 
@@ -44,16 +63,27 @@ export function tryAcquireChatSlot({ provider = "unknown", connectionId = "unkno
   if (counters.global >= resolvedLimits.global) {
     return { ok: false, status: 503, reason: "Global chat concurrency limit reached" };
   }
-  if (providerCount >= resolvedLimits.provider) {
+  const leakedProvider = sweepStale(counters.provider, acquiredAt.provider, providerKey);
+  const leakedAccount = sweepStale(counters.account, acquiredAt.account, accountKey);
+  if (leakedProvider > 0 || leakedAccount > 0) {
+    counters.global = Math.max(0, counters.global - leakedProvider);
+  }
+
+  const effectiveProviderCount = getCount(counters.provider, providerKey);
+  const effectiveAccountCount = getCount(counters.account, accountKey);
+
+  if (effectiveProviderCount >= resolvedLimits.provider) {
     return { ok: false, status: 503, reason: `Provider ${providerKey} concurrency limit reached` };
   }
-  if (accountCount >= resolvedLimits.account) {
+  if (effectiveAccountCount >= resolvedLimits.account) {
     return { ok: false, status: 429, reason: `Account ${accountKey} concurrency limit reached` };
   }
 
   counters.global += 1;
   increment(counters.provider, providerKey);
   increment(counters.account, accountKey);
+  acquiredAt.provider.set(providerKey, Date.now());
+  acquiredAt.account.set(accountKey, Date.now());
 
   let released = false;
   return {
@@ -62,8 +92,8 @@ export function tryAcquireChatSlot({ provider = "unknown", connectionId = "unkno
       if (released) return;
       released = true;
       counters.global = Math.max(0, counters.global - 1);
-      decrement(counters.provider, providerKey);
-      decrement(counters.account, accountKey);
+      decrement(counters.provider, acquiredAt.provider, providerKey);
+      decrement(counters.account, acquiredAt.account, accountKey);
     },
   };
 }
@@ -126,4 +156,6 @@ export function resetChatLimiterForTests() {
   counters.global = 0;
   counters.provider.clear();
   counters.account.clear();
+  acquiredAt.provider.clear();
+  acquiredAt.account.clear();
 }
