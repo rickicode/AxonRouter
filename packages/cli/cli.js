@@ -482,6 +482,157 @@ function getServerScriptPath() {
   return { path: null, type: null };
 }
 
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Service Management
+// ═══════════════════════════════════════════════════════════════════════════
+
+async function runMenuLoop(latestVersion, url, cleanup, serverInfo, envModifier) {
+  const displayHost = host === DEFAULT_HOST ? "localhost" : host;
+
+  try {
+    while (true) {
+      const choice = await showInterfaceMenu(latestVersion);
+
+      if (choice === "update") {
+        console.clear();
+        console.log(`\n⬆  Update v${PKG.version} → v${latestVersion}\n`);
+        console.log(`Run this after exit:\n`);
+        console.log(`   \x1b[33m${INSTALL_CMD_LATEST}\x1b[0m\n`);
+        if (cleanup) cleanup();
+        await killAllAppProcesses(port);
+        await killProcessOnPort(port);
+        setTimeout(() => process.exit(0), 200);
+        return;
+      } else if (choice === "web") {
+        openBrowser(url);
+        const { pause } = await import("./src/utils/input.js");
+        await pause("\nPress Enter to go back to menu...");
+      } else if (choice === "terminal") {
+        const { startTerminalUI } = await import("./src/terminalUI.js");
+        await startTerminalUI(port);
+      } else if (choice === "service") {
+        await showServiceMenu(port, latestVersion, serverInfo, envModifier);
+      } else if (choice === "hide") {
+        console.clear();
+        try {
+          const { enableAutostart } = await import("./src/tray/autostart.js");
+          enableAutostart();
+        } catch (e) { }
+
+        if (process.platform === "darwin") {
+          process.removeAllListeners("SIGHUP");
+          process.on("SIGHUP", () => {});
+          console.log(`\n⏳ Switching to tray mode... (icon already visible in menu bar)`);
+          console.log(`🔔 ${APP_NAME} is running in tray (PID: ${process.pid})`);
+          console.log(`   Server: http://${displayHost}:${port}`);
+          console.log(`\n💡 You can close this terminal. Right-click tray icon to quit.\n`);
+          return;
+        }
+
+        console.log(`\n⏳ Starting background process... (tray icon will appear in ~3s)`);
+        const bgProcess = spawn(RUNTIME, [fileURLToPath(import.meta.url), "--tray", "--skip-update", "-p", port.toString()], {
+          detached: true,
+          stdio: "ignore",
+          windowsHide: true,
+          env: { ...process.env, TRAY_MODE: "1" }
+        });
+        bgProcess.unref();
+
+        console.log(`🔔 ${APP_NAME} is now running in background (PID: ${bgProcess.pid})`);
+        console.log(`   Server: http://${displayHost}:${port}`);
+        console.log(`\n💡 You can close this terminal. Right-click tray icon to quit.\n`);
+        
+        if (cleanup) cleanup();
+        process.exit(0);
+      } else if (choice === "exit") {
+        console.log("\nExiting...");
+        if (cleanup) cleanup();
+        setTimeout(() => process.exit(0), 100);
+      }
+    }
+  } catch (err) {
+    console.error("Error:", err.message);
+    if (cleanup) cleanup();
+    process.exit(1);
+  }
+}
+
+async function showServiceMenu(port, latestVersion, serverInfo, envModifier) {
+  const { selectMenu, pause } = await import("./src/utils/input.js");
+  const { COLORS, color } = await import("./src/utils/display.js");
+  const api = await import("./src/api/client.js");
+
+  while (true) {
+    let statusText;
+    try {
+      const healthRes = await api.getHealth();
+      statusText = healthRes?.status === 200
+        ? color("● Running", COLORS.success)
+        : color("● Unreachable", COLORS.error);
+    } catch {
+      statusText = color("● Not Running", COLORS.dim);
+    }
+
+    const inUse = await isPortInUse(port, host);
+    const portStatus = inUse
+      ? color(`Port ${port}: In Use`, COLORS.yellow)
+      : color(`Port ${port}: Free`, COLORS.dim);
+
+    const header = `  ${statusText}  ${portStatus}`;
+
+    const items = [
+      { label: "📊 Status" },
+      { label: "▶️  Start Server" },
+      { label: "⏹️  Stop Server" },
+      { label: "🔄 Restart Server" },
+      { label: "🔙 Back" },
+    ];
+
+    const selected = await selectMenu("Service Management", items, { header });
+
+    if (selected === 0) {
+      try {
+        const healthRes = await api.getHealth();
+        console.log(`\n  ${color("AxonRouter Service Status", COLORS.bright)}`);
+        console.log(`  ${"─".repeat(40)}`);
+        console.log(`  ${color("Health:", COLORS.dim)} ${healthRes?.status === 200 ? "OK" : "Error (" + healthRes?.status + ")"}`);
+        console.log(`  ${color("Port:", COLORS.dim)} ${port}`);
+      } catch {
+        console.log(`\n  ${color("Service is not running", COLORS.error)}`);
+      }
+      await pause();
+    } else if (selected === 1) {
+      if (await isPortInUse(port, host)) {
+        console.log(`\n  ${color(`Port ${port} already in use.`, COLORS.error)}`);
+        await pause();
+        continue;
+      }
+      console.log(`\n  ${color("Starting...", COLORS.cyan)}`);
+      startServer(latestVersion, serverInfo.path, envModifier);
+      await new Promise(r => setTimeout(r, 3000));
+      await pause();
+    } else if (selected === 2) {
+      console.log(`\n  ${color("Stopping...", COLORS.yellow)}`);
+      await killAllAppProcesses(port);
+      await killProcessOnPort(port);
+      console.log(`  ${color("Stopped.", COLORS.success)}`);
+      await pause();
+    } else if (selected === 3) {
+      console.log(`\n  ${color("Restarting...", COLORS.yellow)}`);
+      await killAllAppProcesses(port);
+      await killProcessOnPort(port);
+      await new Promise(r => setTimeout(r, 1000));
+      startServer(latestVersion, serverInfo.path, envModifier);
+      await new Promise(r => setTimeout(r, 3000));
+      console.log(`  ${color("Restarted.", COLORS.success)}`);
+      await pause();
+    } else {
+      break;
+    }
+  }
+}
+
 // ═══════════════════════════════════════════════════════════════════════════
 // Menu System
 // ═══════════════════════════════════════════════════════════════════════════
@@ -519,6 +670,7 @@ async function showInterfaceMenu(latestVersion) {
   menuItems.push(
     { label: "🌐 Web UI (Open in Browser)" },
     { label: "💻 Terminal UI (Interactive CLI)" },
+    { label: "⚙️  Service Management" },
     { label: "🔔 Hide to Tray (Background)" },
     { label: "🚪 Exit" }
   );
@@ -529,7 +681,8 @@ async function showInterfaceMenu(latestVersion) {
   if (latestVersion && selected === 0) return "update";
   if (selected === offset) return "web";
   if (selected === offset + 1) return "terminal";
-  if (selected === offset + 2) return "hide";
+  if (selected === offset + 2) return "service";
+  if (selected === offset + 3) return "hide";
   return "exit";
 }
 
@@ -564,10 +717,32 @@ async function main() {
   }
 
   const latestVersion = await checkForUpdate();
-  await killAllAppProcesses(port);
-  await killProcessOnPort(port);
 
-  startServer(latestVersion, serverInfo.path, envModifier);
+  // Check if AxonRouter is already running on this port
+  const portOccupied = await isPortInUse(port, host);
+  let existingInstance = false;
+  if (portOccupied) {
+    try {
+      const api = await import("./src/api/client.js");
+      const healthRes = await api.getHealth();
+      if (healthRes?.status === 200) {
+        existingInstance = true;
+        console.log(`\n✅ ${color(`AxonRouter is already running on port ${port}`, COLORS.success)}`);
+      }
+    } catch {}
+  }
+
+  if (!existingInstance) {
+    await killAllAppProcesses(port);
+    await killProcessOnPort(port);
+    startServer(latestVersion, serverInfo.path, envModifier);
+  } else {
+    // Connect to existing instance - show menu
+    latestVersion && console.log(`  ${color(`Update available: v${latestVersion}`, COLORS.cyan)}`);
+    const displayHost = host === DEFAULT_HOST ? "localhost" : host;
+    const serverUrl = `http://${displayHost}:${port}`;
+    await runMenuLoop(latestVersion, serverUrl, null, serverInfo, envModifier);
+  }
 }
 
 function startServer(latestVersion, serverPath, envModifier) {
@@ -678,72 +853,7 @@ function startServer(latestVersion, serverPath, envModifier) {
 
   setTimeout(async () => {
     initTrayIcon();
-    try {
-      while (true) {
-        const choice = await showInterfaceMenu(latestVersion);
-
-        if (choice === "update") {
-          isShuttingDown = true;
-          console.clear();
-          console.log(`\n⬆  Update v${PKG.version} → v${latestVersion}\n`);
-          console.log(`Run this after exit:\n`);
-          console.log(`   \x1b[33m${INSTALL_CMD_LATEST}\x1b[0m\n`);
-          cleanup();
-          await killAllAppProcesses(port);
-          await killProcessOnPort(port);
-          setTimeout(() => process.exit(0), 200);
-          return;
-        } else if (choice === "web") {
-          openBrowser(url);
-          const { pause } = await import("./src/utils/input.js");
-          await pause("\nPress Enter to go back to menu...");
-        } else if (choice === "terminal") {
-          const { startTerminalUI } = await import("./src/terminalUI.js");
-          await startTerminalUI(port);
-        } else if (choice === "hide") {
-          console.clear();
-          try {
-            const { enableAutostart } = await import("./src/tray/autostart.js");
-            enableAutostart();
-          } catch (e) { }
-
-          if (process.platform === "darwin") {
-            process.removeAllListeners("SIGHUP");
-            process.on("SIGHUP", () => {});
-            console.log(`\n⏳ Switching to tray mode... (icon already visible in menu bar)`);
-            console.log(`🔔 ${APP_NAME} is running in tray (PID: ${process.pid})`);
-            console.log(`   Server: http://${displayHost}:${port}`);
-            console.log(`\n💡 You can close this terminal. Right-click tray icon to quit.\n`);
-            return;
-          }
-
-          console.log(`\n⏳ Starting background process... (tray icon will appear in ~3s)`);
-          const bgProcess = spawn(RUNTIME, [fileURLToPath(import.meta.url), "--tray", "--skip-update", "-p", port.toString()], {
-            detached: true,
-            stdio: "ignore",
-            windowsHide: true,
-            env: { ...process.env, TRAY_MODE: "1" }
-          });
-          bgProcess.unref();
-
-          console.log(`🔔 ${APP_NAME} is now running in background (PID: ${bgProcess.pid})`);
-          console.log(`   Server: http://${displayHost}:${port}`);
-          console.log(`\n💡 You can close this terminal. Right-click tray icon to quit.\n`);
-          
-          cleanup();
-          process.exit(0);
-        } else if (choice === "exit") {
-          isShuttingDown = true;
-          console.log("\nExiting...");
-          cleanup();
-          setTimeout(() => process.exit(0), 100);
-        }
-      }
-    } catch (err) {
-      console.error("Error:", err.message);
-      cleanup();
-      process.exit(1);
-    }
+    await runMenuLoop(latestVersion, url, cleanup, serverInfo, envModifier);
   }, 3000);
 
   function attachServerEvents() {
