@@ -489,6 +489,7 @@ async function showInterfaceMenu(latestVersion) {
   const { selectMenu } = await import("./src/utils/input.js");
   const { getEndpoint } = await import("./src/utils/endpoint.js");
   const { COLORS, color } = await import("./src/utils/display.js");
+  const api = await import("./src/api/client.js");
 
   const displayHost = host === DEFAULT_HOST ? "localhost" : host;
   let serverUrl;
@@ -500,6 +501,16 @@ async function showInterfaceMenu(latestVersion) {
   }
 
   const subtitle = `🚀 Server: ${color(serverUrl, COLORS.success)}`;
+  let statusLine = "";
+  try {
+    const healthRes = await api.getHealth();
+    const healthy = healthRes?.status === 200;
+    statusLine = healthy
+      ? `  ${color("● Service Running", COLORS.success)}`
+      : `  ${color("● Service Unreachable", COLORS.error)}`;
+  } catch {
+    statusLine = `  ${color("● Service Not Running", COLORS.dim)}`;
+  }
   const menuItems = [];
 
   if (latestVersion) {
@@ -512,7 +523,7 @@ async function showInterfaceMenu(latestVersion) {
     { label: "🚪 Exit" }
   );
 
-  const selected = await selectMenu(`Choose Interface (v${PKG.version})`, menuItems, { header: subtitle });
+  const selected = await selectMenu(`Choose Interface (v${PKG.version})`, menuItems, { header: `${subtitle}\n${statusLine}` });
   const offset = latestVersion ? 1 : 0;
 
   if (latestVersion && selected === 0) return "update";

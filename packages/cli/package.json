@@ -1,6 +1,6 @@
 {
   "name": "@axonrouter/cli",
-  "version": "2.0.7",
+  "version": "0.1.4",
   "private": false,
   "type": "module",
   "description": "AxonRouter CLI — interactive terminal UI, system tray, and auto-start",

@@ -1,5 +1,6 @@
 import readline, { createInterface } from "node:readline";
 import { COLORS, color } from "./display.js";
+export { COLORS, color };
 
 let rawPrimed = false;
 
