@@ -73,3 +73,14 @@
 - Parity gap: skipped
 - Issues created: none
 - Notes: automation/bug-scanner-config.json not found; repository is not Go, so no fallback build/test run.
+
+## 2026-07-27 12:04 UTC
+- Run side: none
+- Baseline: none
+- Deep check: none
+- Objective result: config missing / no run performed
+- Failure details:
+  - `[automation]` `automation/bug-scanner-config.json` is missing; project_id unknown. Skipping issue creation and checks per AGENTS.md fallback rules.
+- Parity gap: skipped (no usable references)
+- Issues created: none
+- Notes: Repository is TypeScript/Node (Next.js workspace) based on package.json; no go.mod found so Go fallback not applicable. Repository freshly cloned from origin/main before run.
