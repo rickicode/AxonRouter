@@ -115,3 +115,12 @@
 - Parity gap: skipped (no usable references)
 - Issues created: none
 - Notes: Repository is TypeScript/Node (Next.js workspace) based on package.json; no go.mod found so Go fallback not applicable. Repository freshly cloned from origin/main before run.
+## 2026-07-28 08:02 UTC
+- Run side: N/A (config missing)
+- Baseline: N/A
+- Deep check: N/A
+- Objective result: config missing / project ID unknown
+- Failure details: none
+- Parity gap: skipped (no config/references)
+- Issues created: none
+- Notes: automation/bug-scanner-config.json not found; repository is not Go, so no safe fallback was executed.
