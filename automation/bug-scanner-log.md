@@ -124,3 +124,13 @@
 - Parity gap: skipped (no config/references)
 - Issues created: none
 - Notes: automation/bug-scanner-config.json not found; repository is not Go, so no safe fallback was executed.
+
+## 2026-07-28 08:04 UTC
+- Run side: N/A (config missing)
+- Baseline: N/A
+- Deep check: N/A
+- Objective result: config missing / project ID unknown
+- Failure details: none
+- Parity gap: skipped (no config/references)
+- Issues created: none
+- Notes: automation/bug-scanner-config.json not found in checked-out repository; TypeScript/Node (Next.js) workspace with no go.mod, so Go fallback does not apply. No source code changes were made.
