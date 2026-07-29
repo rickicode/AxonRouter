@@ -183,3 +183,13 @@
 - Parity gap: skipped (no config/references)
 - Issues created: none
 - Notes: Repository is TypeScript/Node (Next.js workspace) with no go.mod, so Go fallback does not apply. Repository freshly cloned from origin/main before run.
+## 2026-07-29 20:03 UTC
+- Run side: N/A (config missing)
+- Baseline: N/A
+- Deep check: N/A
+- Objective result: config missing / project ID unknown
+- Failure details:
+  - `[automation]` `automation/bug-scanner-config.json` is missing; project_id/sides/baseline unknown. Skipping issue creation and parity checks per AGENTS.md fallback rules.
+- Parity gap: skipped (no config/references)
+- Issues created: none
+- Notes: Repository is TypeScript/Node (Next.js workspace) with no `go.mod`, so the Go fallback build/test does not apply. Repository freshly cloned from https://github.com/rickicode/AxonRouter (origin/main) before run. No source code changes were made.
