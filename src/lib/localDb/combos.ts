@@ -1,6 +1,7 @@
 import { v4 as uuidv4 } from "uuid";
 import { normalizeComboRecord } from "../combos/steps";
 import { normalizeRoutingStrategy as normalizeComboStrategyValue } from "../../shared/constants/routingStrategies";
+import { cascadeComboRename, cascadeComboDelete } from "../combos/domain";
 import {
   getDb,
   withLocalDbMutex,
@@ -199,27 +200,7 @@ export async function renameComboWithDependents(id, updateData, oldName, newName
     const now = new Date().toISOString();
 
     // Update all dependent combos' combo-ref steps
-    for (let i = 0; i < db.data.combos.length; i++) {
-      if (db.data.combos[i].id === id) continue;
-      const combo = db.data.combos[i];
-      if (!Array.isArray(combo?.models)) continue;
-      let changed = false;
-      const updatedModels = combo.models.map((step) => {
-        if (!step || typeof step !== "object") return step;
-        if (step.kind === "combo-ref" && typeof step.comboName === "string" && step.comboName.trim() === oldName) {
-          changed = true;
-          return { ...step, comboName: newName };
-        }
-        return step;
-      });
-      if (changed) {
-        db.data.combos[i] = normalizeStoredComboRecord(
-          { ...combo, models: updatedModels, updatedAt: now },
-          db.data.combos,
-          [combo.name]
-        );
-      }
-    }
+    db.data.combos = cascadeComboRename(db.data.combos, oldName, newName, id);
 
     // Update the combo itself
     const current = db.data.combos[index] || {};
@@ -292,22 +273,7 @@ export async function deleteCombo(id) {
     db.data.combos.splice(index, 1);
 
     // Clean combo-ref steps in dependent combos that reference the deleted combo
-    if (deletedName) {
-      for (let i = 0; i < db.data.combos.length; i++) {
-        const combo = db.data.combos[i];
-        if (!Array.isArray(combo?.models)) continue;
-        const filtered = combo.models.filter((step) => {
-          if (!step || typeof step !== "object") return true;
-          if (step.kind === "combo-ref" && typeof step.comboName === "string" && step.comboName.trim() === deletedName) {
-            return false;
-          }
-          return true;
-        });
-        if (filtered.length !== combo.models.length) {
-          db.data.combos[i] = { ...combo, models: filtered, updatedAt: new Date().toISOString() };
-        }
-      }
-    }
+    db.data.combos = cascadeComboDelete(db.data.combos, deletedName);
 
     if (Array.isArray(db.data.modelComboMappings)) {
       db.data.modelComboMappings = db.data.modelComboMappings.filter((mapping) => mapping.comboId !== id);
