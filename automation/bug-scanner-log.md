@@ -213,3 +213,19 @@
 - Parity gap: none (no references configured)
 - Issues created: none
 - Notes: Project is a Next.js TypeScript repository. Build succeeded with Next.js compilation. TypeScript typecheck passed. Backend check confirmed no type errors in router and server-related code (src/lib/smart-router, src/mitm/router*). No issues found in baseline or deep checks.
+## 2026-08-02 17:30 UTC
+- Run side: router
+- Baseline: npm run build, npm run typecheck (npm install required first)
+- Deep check: TypeScript typecheck on router-related files (src/lib/smart-router/*.ts, src/mitm/routerBaseRuntime.ts)
+- Objective result: found 10 product failures
+- Failure details:
+  - `[router]` `TypeScript typecheck` → `Unable to create issue` (`product`)
+- Parity gap: none (no references configured)
+- Issues created: none
+- Notes: TypeScript compilation errors detected when checking router-side code:
+  1. MITM router file (`src/mitm/routerBaseRuntime.ts`) uses CommonJS syntax (`require`, `module.exports`) in ES module project - causes TS2591 errors about undefined `require` and `module`
+  2. Multiple implicit `any` types in function parameters and variables (TS7034, TS7006, TS7005)
+  3. Missing type annotations for `_getSettings`, `_updateSettings`, and parameters
+  4. Dynamic imports of `@/lib/localDb/combos` and `@/lib/localDb` at runtime fail type resolution
+  
+  Issue description created for router CommonJS/ESM mismatch but multica CLI encountered restrictions preventing issue creation. This is a product bug in production code that needs fixing.
