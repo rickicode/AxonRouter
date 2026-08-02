@@ -1,0 +1,33 @@
+{
+  "project_id": "ce57cc40-4682-4196-896c-d6c7c1745e92",
+  "log_file": "automation/bug-scanner-log.md",
+  "max_objective_issues": 15,
+  "max_parity_issues": 5,
+  "baseline": [
+    "npm run build",
+    "npm run typecheck"
+  ],
+  "sides": [
+    {
+      "name": "frontend",
+      "command": "npm run test -- --passWithNoTests 2>&1",
+      "parity_focus": "ui/components"
+    },
+    {
+      "name": "backend",
+      "command": "find ./packages/backend -name '*.ts' -path '*/src/*' 2>/dev/null | head -5 | xargs -I {} tsc --noEmit {} 2>&1 || find ./src -name '*.ts' -path '*/server/*' 2>/dev/null | head -5 | xargs -I {} tsc --noEmit {} 2>&1",
+      "parity_focus": "routing/server"
+    },
+    {
+      "name": "router",
+      "command": "find ./src -name '*.ts' -o -name '*.tsx' 2>/dev/null | grep -E '(route|path|router)' | head -10 | xargs -I {} tsc --noEmit {} 2>&1",
+      "parity_focus": "routing"
+    },
+    {
+      "name": "cli",
+      "command": "cd ./packages/cli && npm run build 2>&1",
+      "parity_focus": "command-line"
+    }
+  ],
+  "references": []
+}
