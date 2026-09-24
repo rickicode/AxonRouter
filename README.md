@@ -13,7 +13,7 @@
   [![Valkey](https://img.shields.io/badge/Cache-Valkey_8_%2F_Redis_7+-CC0000?logo=redis&logoColor=white)](https://valkey.io/)
   [![Docker](https://img.shields.io/badge/Deployment-Docker_Compose-2496ED?logo=docker&logoColor=white)](https://www.docker.com/)
 
-[⚡ AxonRouter vs Original](#-axonrouter-web-vs-axonrouter-original) • [🚀 Quick Start (Docker)](#-quick-start-docker-compose---recommended) • [💡 Features](#-key-features) • [🛠️ Supported Tools](#%EF%B8%8F-supported-cli-tools) • [🌐 Providers](#-supported-providers) • [📖 Setup](#-setup-guide)
+[⚡ AxonRouter vs 9Router](#-axonrouter-vs-9router-upstream) • [🚀 Quick Start (Docker)](#-quick-start-docker-compose---recommended) • [💡 Features](#-key-features) • [🛠️ Supported Tools](#%EF%B8%8F-supported-cli-tools) • [🌐 Providers](#-supported-providers) • [📖 Setup](#-setup-guide)
 
   <table>
     <tr>
@@ -32,13 +32,13 @@
 
 ---
 
-## ⚡ AxonRouter vs AxonRouter Original
+## ⚡ AxonRouter vs 9Router (Upstream)
 
 AxonRouter is an enterprise-grade, high-concurrency fork of [decolua/9router (9Router)](https://github.com/decolua/9router) — originally maintained here as [rickicode/9router-X](https://github.com/rickicode/9router-X) before the full rebrand. While the upstream 9Router targets single-user desktop tray setups with embedded SQLite, AxonRouter is re-architected for multi-agent workloads, heavy CLI concurrency, and production deployments.
 
 > **Fork lineage:** `decolua/9router` (upstream) → `rickicode/9router-X` (this fork's legacy name; the legacy 9router-x Docker stack in `docker-compose.9router-x.yml` keeps that identity for backward compatibility) → **AxonRouter** (current brand, ports 3777/3778, PostgreSQL 17 SSOT).
 
-| Architectural Component | AxonRouter Original (Upstream) | AxonRouter (Enterprise Edition) |
+| Architectural Component | 9Router Original (Upstream) | AxonRouter (Enterprise Edition) |
 |---|---|---|
 | **Database Engine** | SQLite file-based (`data.sqlite`) / `better-sqlite3` / `sql.js` (subject to file locks under concurrency) | **Pure PostgreSQL 17** — connection pool, true ACID, row-level locking, zero file-lock contention |
 | **Caching & Cooldown (L2)** | In-memory JavaScript `Map` (wiped on server restarts or container redeploys) | **Valkey 8 / Redis Speed Layer** — persistent TTL cooldowns, distributed OAuth refresh locks, instant cross-worker failover |
