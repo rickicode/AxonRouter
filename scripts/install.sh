@@ -24,7 +24,7 @@ rand_hex() {
 ask_secret() {
   var="$1"; label="$2"; default="$3"
   printf "    %s [%s]: " "$label" "$default"
-  read -r input || input=""
+  IFS= read -r input 2>/dev/null </dev/tty || input=""
   value="${input:-$default}"
   if grep -q "^${var}=" .env; then
     awk -v k="$var" -v v="$value" 'BEGIN{d=0} $0 ~ "^"k"=" { if(!d){print k"="v; d=1; next} } {print}' .env > .env.tmp
@@ -38,11 +38,15 @@ ask_secret() {
 if ! command -v docker >/dev/null 2>&1; then
   echo "==> Docker is not installed on this system."
   printf "    Install Docker now? (yes/no): "
-  read -r answer
+  IFS= read -r answer 2>/dev/null </dev/tty || answer=""
   case "$answer" in
     yes|YES|Yes|y|Y)
       echo "==> Installing Docker Engine via https://get.docker.com ..."
       curl -sSL https://get.docker.com | sh
+      if [ "$(id -u)" != "0" ] && ! docker info >/dev/null 2>&1; then
+        echo "    NOTE: if you see 'permission denied' running docker, run:"
+        echo "          sudo usermod -aG docker $(whoami)   # then log out and back in"
+      fi
       ;;
     *)
       echo "==> Skipping Docker installation."
@@ -98,7 +102,7 @@ echo "==> Secrets written to $INSTALL_DIR/.env"
 
 # ---------- 5. Start the stack ----------
 printf "    Start the stack now? (yes/no): "
-read -r start_now
+IFS= read -r start_now 2>/dev/null </dev/tty || start_now=""
 case "$start_now" in
   yes|YES|Yes|y|Y)
     echo "==> docker compose up -d  (GHCR images)"

@@ -145,19 +145,15 @@ curl -sSL https://raw.githubusercontent.com/rickicode/AxonRouter/main/scripts/in
 
 ### Windows
 
-The installer is a POSIX shell script — pick one:
-
-- **WSL2 (recommended):** enable WSL2 with Docker Desktop WSL integration, open the WSL terminal and run the Linux command above → compose file lands in `\\wsl$\<distro>\home\<user>\AxonRouter\docker-compose.yml`.
-- **Native PowerShell (Docker Desktop running):**
+Native PowerShell installer (recommended — installs Docker Desktop via winget if missing, generates secrets, starts the stack):
 
 ```powershell
-git clone https://github.com/rickicode/AxonRouter.git
-cd AxonRouter
-Copy-Item .env.example .env
-docker compose up -d
+irm https://raw.githubusercontent.com/rickicode/AxonRouter/main/scripts/install.ps1 | iex
 ```
 
-Compose file: `C:\Users\<you>\AxonRouter\docker-compose.yml`
+- Default location: `C:\Users\<you>\AxonRouter\docker-compose.yml`
+- Custom location: `& ([scriptblock]::Create((irm https://raw.githubusercontent.com/rickicode/AxonRouter/main/scripts/install.ps1))) -Path D:\AxonRouter`
+- Alternative (WSL2): run the Linux one-liner inside WSL → `\\wsl$\<distro>\home\<user>\AxonRouter\docker-compose.yml`
 
 ### Start or manage the stack later
 
