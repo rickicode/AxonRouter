@@ -108,24 +108,40 @@ Incoming Request (Claude Code, Cursor, Codex, OpenClaw, Cline...)
 
 ## 🚀 Quick Start (Docker Compose - Recommended)
 
-The production Docker Compose stack orchestrates:
+AxonRouter ships as a containerized stack: **Docker is required** (the installer will offer to install it for you if missing). Running without Docker is supported only for manual local development — see [Local Node.js Development](#local-nodejs-development).
+
+The production stack orchestrates:
 - **axonrouter-api** (Dedicated High-Throughput Hono API Gateway): `http://localhost:3778`
 - **axonrouter-web** (Dashboard & Management Gateway): `http://localhost:3777`
 - **postgres** (PostgreSQL 17 ACID database with healthcheck): port `5432`
 
-### 1. Pre-Built Images from GitHub Container Registry (GHCR)
+### Option 1: One-Line Installer (Recommended)
+
+Detects Docker; if it is missing, the installer prompts `Install Docker now? (yes/no)` and runs `curl -sSL https://get.docker.com | sh` when you answer `yes`. It then clones the repo and prepares the environment file:
 
 ```bash
-docker pull ghcr.io/rickicode/axonrouter-web:latest
-docker pull ghcr.io/rickicode/axonrouter-api:latest
+curl -sSL https://raw.githubusercontent.com/rickicode/AxonRouter/main/scripts/install.sh | sh
 ```
 
-### 2. Clone & Configure
+Then edit your secrets and start everything:
 
+```bash
+cd AxonRouter
+$EDITOR .env          # set JWT_SECRET, POSTGRES_PASSWORD, etc.
+docker compose up -d  # launch the full stack from GHCR images
+```
+
+### Option 2: Manual Setup
+
+**1. Install Docker** (skip if the installer already offered and you accepted):
+```bash
+curl -sSL https://get.docker.com | sh
+```
+
+**2. Clone & Configure:**
 ```bash
 git clone https://github.com/rickicode/AxonRouter.git
 cd AxonRouter
-
 cp .env.example .env
 ```
 
@@ -136,8 +152,7 @@ Configure `.env` with your secure secrets (e.g. via `openssl rand -hex 32`):
 - `POSTGRES_PASSWORD` — PostgreSQL database password
 - `DATABASE_URL` — PostgreSQL connection string
 
-### 3. Launch Container Stack
-
+**3. Launch Container Stack:**
 ```bash
 # Run production stack using GHCR images:
 docker compose up -d
@@ -145,45 +160,32 @@ docker compose up -d
 # Or build locally from source:
 docker compose -f docker-compose.build.yml up -d --build
 ```
-### 4. Access Services
+
+### Access Services
 - **AxonRouter Web Dashboard**: `http://localhost:3777/dashboard`
 - **Hono API Gateway Endpoint**: `http://localhost:3778/v1`
 
 ---
 
-## 🛠️ Supported AI Coding Tools (Docker Host & Remote Agents)
+## 🧱 Dual-Process Architecture — Why Ports 3777 and 3778
 
-Because AxonRouter runs as a containerized stack, your CLI tools and IDEs connect directly via network endpoints exposed on your host or server (Default Hono API Port: `3778`):
+AxonRouter intentionally separates the web dashboard and the public LLM API into two independent processes:
 
-### 1. Claude Code
-```bash
-export ANTHROPIC_BASE_URL="http://localhost:3778"
-export ANTHROPIC_API_KEY="axon-local-token"
-claude
-```
+| Aspect | Dashboard (Port 3777) | API Gateway (Port 3778) |
+|---|---|---|
+| **Process** | Next.js standalone server | Standalone Hono multi-worker cluster |
+| **Entry** | `custom-server.js` | `gateway/server.js` |
+| **Purpose** | Management UI, settings, live observability | High-throughput `/v1/*` inference routing |
+| **Concurrency** | Single Node event loop | Node cluster across CPU cores (`GATEWAY_WORKERS`) |
+| **Failure isolation** | Dashboard restart never drops live agent streams | Gateway crash never kills the dashboard |
 
-### 2. Cursor
-- Navigate to **Settings** $\rightarrow$ **Models** $\rightarrow$ **OpenAI API Key**.
-- **Override OpenAI Base URL**: `http://localhost:3778/v1`
-- **API Key**: Any placeholder or AxonRouter API key.
+**Advantages of this split:**
+- **Zero event-loop contention**: Dozens of concurrent coding agents streaming SSE never block dashboard renders or admin actions.
+- **Independent scaling & restarts**: Scale gateway workers or re-deploy the dashboard without dropping active inference traffic.
+- **Secure blast radius**: Public API keys and streaming load are isolated from session/cookie-based admin UI.
+- **Stateless gateway**: The gateway reads credentials from PostgreSQL, so any worker can serve any request.
 
-### 3. Codex CLI
-```bash
-export OPENAI_BASE_URL="http://localhost:3778/v1"
-export OPENAI_API_KEY="axon-local-token"
-```
-
-### 4. Cline / Roo Code / OpenCode
-- Provider: **OpenAI Compatible**
-- Base URL: `http://localhost:3778/v1` (or your remote Docker host IP: `http://<SERVER_IP>:3778/v1`)
-- API Key: Configured AxonRouter Gateway Key
-
-### 5. Multi-Container / Agentic Workspaces
-If running coding agents inside Docker or Kubernetes networks, reach AxonRouter via container DNS:
-- Internal Docker Network: `http://axonrouter-api:3778/v1`
-- Host Access from WSL / VM: `http://host.docker.internal:3778/v1`
----
-
+> Local Docker networks and agentic workspaces can reach the gateway via container DNS: `http://axonrouter-api:3778/v1`, or from WSL/VM hosts via `http://host.docker.internal:3778/v1`.
 ## 🌐 Supported Providers (40+)
 
 AxonRouter supports direct credential rotation and wire translation across 40+ providers:
@@ -206,7 +208,7 @@ docker compose up -d
 
 ### Local Node.js Development
 
-Requires Node.js 22+ and a running PostgreSQL 17 instance:
+Manual mode — supported **only for local development**. Production runs on Docker only. Requires Node.js 22+ and a running PostgreSQL 17 instance:
 
 ```bash
 # 1. Install dependencies
