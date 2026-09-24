@@ -48,8 +48,8 @@ services:
     image: axonrouter-web:local
     container_name: axonrouter-web
     restart: always
-    mem_limit: 2500m
-    memswap_limit: 2500m
+    mem_limit: 1024m
+    memswap_limit: 1024m
     ports:
       - "3777:3777"
       - "10128:3777"

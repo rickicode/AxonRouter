@@ -9,6 +9,14 @@ import { statSync } from "node:fs";
 const projectRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 
 export async function resolve(specifier, context, nextResolve) {
+  if (specifier === "next/server") {
+    const target = path.join(projectRoot, "shims", "next", "server.js");
+    return { url: pathToFileURL(target).href, shortCircuit: true };
+  }
+  if (specifier === "next/headers") {
+    const target = path.join(projectRoot, "shims", "next", "headers.js");
+    return { url: pathToFileURL(target).href, shortCircuit: true };
+  }
   if (specifier.startsWith("@/")) {
     const target = path.join(projectRoot, "src", specifier.slice(2));
     const candidates = [
@@ -29,6 +37,24 @@ export async function resolve(specifier, context, nextResolve) {
   if (specifier === "open-sse" || specifier.startsWith("open-sse/")) {
     const subpath = specifier === "open-sse" ? "" : specifier.slice("open-sse/".length);
     const target = path.join(projectRoot, "open-sse", subpath);
+    const candidates = [
+      target,
+      `${target}.js`,
+      `${target}.mjs`,
+      path.join(target, "index.js"),
+      path.join(target, "index.mjs"),
+    ];
+    for (const c of candidates) {
+      try {
+        if (statSync(c).isFile()) {
+          return { url: pathToFileURL(c).href, shortCircuit: true };
+        }
+      } catch {}
+    }
+  }
+  if ((specifier.startsWith("./") || specifier.startsWith("../")) && context.parentURL) {
+    const parentPath = fileURLToPath(context.parentURL);
+    const target = path.resolve(path.dirname(parentPath), specifier);
     const candidates = [
       target,
       `${target}.js`,
