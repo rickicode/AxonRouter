@@ -135,14 +135,7 @@ The default install path is **`~/AxonRouter`** (your home directory) — whereve
 | Environment | Command | Resulting compose file |
 |---|---|---|
 | **Default (any OS user)** | run the installer | `~/AxonRouter/docker-compose.yml` |
-| **Linux server / VPS under `/opt`** | `curl … \| sh -s -- /opt/AxonRouter` | `/opt/AxonRouter/docker-compose.yml` |
 | **Custom location** | `curl … \| sh -s -- /your/path` | `/your/path/docker-compose.yml` |
-
-Server example (system-wide install under `/opt`):
-
-```bash
-curl -sSL https://raw.githubusercontent.com/rickicode/AxonRouter/main/scripts/install.sh | sh -s -- /opt/AxonRouter
-```
 
 Default example (installs to `~/AxonRouter`):
 
@@ -171,7 +164,7 @@ Compose file: `C:\Users\<you>\AxonRouter\docker-compose.yml`
 All compose commands run **from the install directory**:
 
 ```bash
-cd ~/AxonRouter          # default location (or /opt/AxonRouter / your custom path)
+cd ~/AxonRouter          # default install location
 docker compose up -d      # start
 docker compose ps         # status
 docker compose logs -f    # logs
