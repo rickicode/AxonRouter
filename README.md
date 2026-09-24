@@ -10,7 +10,7 @@
   [![PostgreSQL](https://img.shields.io/badge/Database-PostgreSQL_17-336791?logo=postgresql&logoColor=white)](https://www.postgresql.org/)
   [![Docker](https://img.shields.io/badge/Deployment-Docker_Compose-2496ED?logo=docker&logoColor=white)](https://www.docker.com/)
 
-[⚡ AxonRouter vs 9Router](#-axonrouter-vs-9router-upstream) • [🚀 Quick Start (Docker)](#-quick-start-docker-compose---recommended) • [💡 Features](#-key-features) • [🛠️ Supported Tools](#%EF%B8%8F-supported-cli-tools) • [🌐 Providers](#-supported-providers) • [📖 Setup](#-setup-guide)
+[⚡ AxonRouter vs 9Router](#-axonrouter-vs-9router) • [🚀 Quick Start (Docker)](#-quick-start-docker-compose---recommended) • [💡 Features](#-key-features) • [🛠️ Supported Tools](#%EF%B8%8F-supported-cli-tools) • [🌐 Providers](#-supported-providers) • [📖 Setup](#-setup-guide)
 
   <table>
     <tr>
@@ -29,13 +29,13 @@
 
 ---
 
-## ⚡ AxonRouter vs 9Router (Upstream)
+## ⚡ AxonRouter vs 9Router
 
-AxonRouter is an enterprise-grade, high-concurrency fork of [decolua/9router (9Router)](https://github.com/decolua/9router). While upstream 9Router targets single-user desktop tray setups using embedded SQLite (`data.sqlite`), AxonRouter is purpose-built for heavy multi-agent concurrency, containerized environments, and production deployments.
+AxonRouter is an enterprise-grade, high-concurrency fork of [decolua/9router (9Router)](https://github.com/decolua/9router). While 9Router targets single-user desktop tray setups using embedded SQLite (`data.sqlite`), AxonRouter is purpose-built for heavy multi-agent concurrency, containerized environments, and production deployments.
 
-> **Fork Lineage:** `decolua/9router` (upstream desktop SQLite) → `rickicode/9router-X` → **AxonRouter** (Pure PostgreSQL 17 SSOT + Dedicated Hono Gateway cluster).
+> **Fork Lineage:** `decolua/9router` (desktop SQLite) → `rickicode/9router-X` → **AxonRouter** (Pure PostgreSQL 17 SSOT + Dedicated Hono Gateway cluster).
 
-| Architectural Component | 9Router Original (Upstream) | AxonRouter (Enterprise Edition) |
+| Architectural Component | 9Router Original | AxonRouter (Enterprise Edition) |
 |---|---|---|
 | **Database Engine** | SQLite file-based (`better-sqlite3` / `sql.js`) — locks on parallel writes | **Pure PostgreSQL 17** — connection pooling via `postgres.js`, ACID transactions, zero file locks |
 | **API Gateway Layer** | Integrated inside Next.js server event loop | **Dedicated Hono API Gateway (`gateway/server.js`)** — multi-worker Node cluster on port `3778` |
@@ -152,16 +152,37 @@ docker compose up -d --build
 
 ---
 
-## 🛠️ Supported AI Coding Tools
+## 🛠️ Supported AI Coding Tools (Docker Host & Remote Agents)
 
-AxonRouter integrates seamlessly with all OpenAI and Anthropic compatible tools:
+Because AxonRouter runs as a containerized stack, your CLI tools and IDEs connect directly via network endpoints exposed on your host or server (Default Hono API Port: `3778`):
 
-- **Claude Code**: Set `ANTHROPIC_BASE_URL=http://localhost:3778`
-- **Cursor**: Configure OpenAI Base URL to `http://localhost:3778/v1`
-- **Codex CLI**: Point endpoint to `http://localhost:3778/v1`
-- **Cline / Roo Code**: Select OpenAI-compatible provider with base URL `http://localhost:3778/v1`
-- **OpenClaw / Antigravity**: Direct upstream compatibility
+### 1. Claude Code
+```bash
+export ANTHROPIC_BASE_URL="http://localhost:3778"
+export ANTHROPIC_API_KEY="axon-local-token"
+claude
+```
 
+### 2. Cursor
+- Navigate to **Settings** $\rightarrow$ **Models** $\rightarrow$ **OpenAI API Key**.
+- **Override OpenAI Base URL**: `http://localhost:3778/v1`
+- **API Key**: Any placeholder or AxonRouter API key.
+
+### 3. Codex CLI
+```bash
+export OPENAI_BASE_URL="http://localhost:3778/v1"
+export OPENAI_API_KEY="axon-local-token"
+```
+
+### 4. Cline / Roo Code / OpenCode
+- Provider: **OpenAI Compatible**
+- Base URL: `http://localhost:3778/v1` (or your remote Docker host IP: `http://<SERVER_IP>:3778/v1`)
+- API Key: Configured AxonRouter Gateway Key
+
+### 5. Multi-Container / Agentic Workspaces
+If running coding agents inside Docker or Kubernetes networks, reach AxonRouter via container DNS:
+- Internal Docker Network: `http://axonrouter-api:3778/v1`
+- Host Access from WSL / VM: `http://host.docker.internal:3778/v1`
 ---
 
 ## 🌐 Supported Providers (40+)
