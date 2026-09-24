@@ -208,7 +208,7 @@ docker compose up -d
 
 ### Local Node.js Development
 
-Manual mode — supported **only for local development**. Production runs on Docker only. Requires Node.js 22+ and a running PostgreSQL 17 instance:
+Mode manual — hanya untuk pengembangan lokal. Produksi berjalan dengan Docker saja. Membutuhkan Node.js 22+ dan PostgreSQL 17 yang sudah berjalan:
 
 ```bash
 # 1. Install dependencies
