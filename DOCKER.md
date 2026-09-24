@@ -1,129 +1,68 @@
-# Docker
+# Docker Guide — AxonRouter
 
-Run AxonRouter in a container. Published image: [`decolua/axonrouter`](https://hub.docker.com/r/decolua/axonrouter) — multi-platform `linux/amd64` + `linux/arm64`.
+AxonRouter is designed to run containerized with Docker and Docker Compose. Published images are hosted on GitHub Container Registry (GHCR):
+- `ghcr.io/rickicode/axonrouter-web:latest` (Web Dashboard + Control Plane, port `3777`)
+- `ghcr.io/rickicode/axonrouter-api:latest` (Standalone Hono Gateway, port `3778`)
 
 ---
 
-# 👤 For Users
+## 🚀 Quick Start (Production)
 
-## Quick start
-
-```bash
-docker run -d \
-  -p 20128:20128 \
-  -v "$HOME/.axonrouter:/app/data" \
-  -e DATA_DIR=/app/data \
-  --name axonrouter \
-  decolua/axonrouter:latest
-```
-
-App listens on port `20128`. Open: http://localhost:20128
-
-## Manage container
+The production stack uses pre-built images from GHCR and connects to a managed PostgreSQL 17 database.
 
 ```bash
-docker logs -f axonrouter        # view logs
-docker stop axonrouter           # stop
-docker start axonrouter          # start again
-docker rm -f axonrouter          # remove
+# 1. Download installer and run interactively (generates secrets and starts stack)
+curl -sSL https://raw.githubusercontent.com/rickicode/AxonRouter/main/scripts/install.sh | sh
+
+# Or manual start:
+git clone https://github.com/rickicode/AxonRouter.git
+cd AxonRouter
+cp .env.example .env
+docker compose up -d
 ```
 
-## Data persistence
+### Endpoints
+- **Web Dashboard**: `http://localhost:3777/dashboard`
+- **Hono API Gateway**: `http://localhost:3778/v1`
+
+---
+
+## 🛠 Container Management
 
 ```bash
--v "$HOME/.axonrouter:/app/data" \
--e DATA_DIR=/app/data
-```
+# View running services
+docker compose ps
 
-Without `DATA_DIR`, the app falls back to `~/.axonrouter/` (macOS/Linux) or `%APPDATA%\axonrouter\` (Windows). In the container, `DATA_DIR=/app/data` makes the bind mount work.
+# Follow container logs
+docker compose logs -f axonrouter-api
+docker compose logs -f axonrouter-web
 
-Data layout under `$DATA_DIR/`:
+# Restart services
+docker compose restart
 
-```text
-$DATA_DIR/
-├── mitm/                 # MITM CA certs and read-replica aliases
-└── ...                   # runtime configs and local certificates
-```
+# Stop the stack
+docker compose down
 
-Database is hosted via PostgreSQL 17 (see `docker-compose.yml` for the production stack).
-
-## Optional env vars
-
-```bash
-docker run -d \
-  -p 20128:20128 \
-  -v "$HOME/.axonrouter:/app/data" \
-  -e DATA_DIR=/app/data \
-  -e PORT=20128 \
-  -e HOSTNAME=0.0.0.0 \
-  -e DEBUG=true \
-  --name axonrouter \
-  decolua/axonrouter:latest
-```
-
-## Optional Headroom sidecar
-
-The AxonRouter image does not bundle Python or Headroom. To use Headroom in Docker, run it as a separate service and point AxonRouter at that proxy:
-
-```yaml
-services:
-  axonrouter:
-    image: decolua/axonrouter:latest
-    ports:
-      - "20128:20128"
-    volumes:
-      - "$HOME/.axonrouter:/app/data"
-    environment:
-      DATA_DIR: /app/data
-      HEADROOM_URL: http://headroom:8787
-    depends_on:
-      - headroom
-
-  headroom:
-    image: ghcr.io/chopratejas/headroom:latest
-    ports:
-      - "8787:8787"
-```
-
-In the dashboard, open `Endpoint` → `Token Saver` → `Headroom`, confirm the URL is `http://headroom:8787`, recheck status, then enable Headroom.
-
-If Headroom runs on the Docker host instead of as a sidecar, use `http://host.docker.internal:8787` on macOS/Windows. On Linux, add `--add-host=host.docker.internal:host-gateway` or the equivalent compose `extra_hosts` entry.
-
-## Update to latest
-
-```bash
-docker pull decolua/axonrouter:latest
-docker rm -f axonrouter
-# re-run the quick start command
+# Update to latest images
+docker compose pull
+docker compose up -d
 ```
 
 ---
 
-# 🛠 For Developers
+## 💾 Data Persistence
 
-## Build image locally (test)
+All application data and state are preserved across container updates:
+- **`axonrouter-data`** volume: certificates, logs, and local proxy certificates mounted at `/app/data`.
+- **`axonrouter-pgdata`** volume: PostgreSQL 17 database storage mounted at `/var/lib/postgresql/data`.
 
-```bash
-cd app && docker build -t axonrouter .
+---
 
-docker run --rm -p 20128:20128 \
-  -v "$HOME/.axonrouter:/app/data" \
-  -e DATA_DIR=/app/data \
-  axonrouter
-```
+## 🏗️ Local Development (Build Images Locally)
 
-## Publish (automatic via CI)
-
-Push a git tag `v*` → GitHub Actions builds multi-platform (amd64+arm64) and pushes to:
-- `ghcr.io/decolua/axonrouter:v{version}` + `:latest`
-- `decolua/axonrouter:v{version}` + `:latest`
+If you are developing or testing custom changes:
 
 ```bash
-# Use scripts/release.js (recommended)
-node scripts/release.js "Release title" "Notes"
-
-# Or manually
-git tag v0.4.x && git push origin v0.4.x
+# Build and run using the local build compose definition:
+docker compose -f docker-compose.build.yml up -d --build
 ```
-
-Workflow: `app/.github/workflows/docker-publish.yml`

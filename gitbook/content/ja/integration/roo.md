@@ -22,7 +22,7 @@ Roo AIアシスタントを起動し、設定パネルを開きます。
 
 **ローカルAxonRouter用:**
 ```
-Base URL: http://localhost:20128/v1
+Base URL: http://localhost:3778/v1
 API Key: your-api-key-from-dashboard
 ```
 
@@ -87,7 +87,7 @@ Model: cx/deepseek-reasoner
 ## トラブルシューティング
 
 ### 接続失敗
-- AxonRouterが動作中か確認: `curl http://localhost:20128/health`
+- AxonRouterが動作中か確認: `curl http://localhost:3778/health`
 - APIキーが正しいか確認
 - Base URLに `/v1` サフィックスが含まれていることを確認
 

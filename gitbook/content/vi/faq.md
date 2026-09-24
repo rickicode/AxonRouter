@@ -172,7 +172,7 @@ Cursor Settings → Models → Advanced:
 **Thay thế:** Self-host trên VPS với domain công khai:
 ```bash
 # Deploy to VPS
-git clone https://github.com/decolua/axonrouter.git
+git clone https://github.com/rickicode/AxonRouter.git
 cd axonrouter/app
 npm install && npm run build
 npm start
@@ -201,12 +201,12 @@ Xem [hướng dẫn tích hợp Cursor](integration/cursor.md) để biết chi 
 npm install -g axonrouter
 axonrouter
 → Dashboard: http://localhost:3000
-→ API: http://localhost:20128/v1
+→ API: http://localhost:3778/v1
 ```
 
 ### VPS/Cloud
 ```bash
-git clone https://github.com/decolua/axonrouter.git
+git clone https://github.com/rickicode/AxonRouter.git
 cd axonrouter/app
 npm install && npm run build
 
@@ -316,7 +316,7 @@ axonrouter --version
 ```
 
 **Breaking changes:**
-- Xem [CHANGELOG.md](https://github.com/decolua/axonrouter/blob/main/CHANGELOG.md)
+- Xem [CHANGELOG.md](https://github.com/rickicode/AxonRouter/blob/main/CHANGELOG.md)
 - Backup `~/.axonrouter` trước khi update lớn
 - Xem hướng dẫn migration cho major version
 
@@ -329,11 +329,11 @@ axonrouter --version
 ### Các cách đóng góp:
 
 1. **Report bugs:**
-   - [GitHub Issues](https://github.com/decolua/axonrouter/issues)
+   - [GitHub Issues](https://github.com/rickicode/AxonRouter/issues)
    - Bao gồm error logs, các bước reproduce
 
 2. **Request features:**
-   - [GitHub Discussions](https://github.com/decolua/axonrouter/discussions)
+   - [GitHub Discussions](https://github.com/rickicode/AxonRouter/discussions)
    - Mô tả use case và lợi ích
 
 3. **Submit code:**
@@ -375,13 +375,13 @@ axonrouter --version
 - Cập nhật tài liệu
 - Giữ commit nhỏ gọn và mô tả rõ ràng
 
-Xem [CONTRIBUTING.md](https://github.com/decolua/axonrouter/blob/main/CONTRIBUTING.md) để biết chi tiết.
+Xem [CONTRIBUTING.md](https://github.com/rickicode/AxonRouter/blob/main/CONTRIBUTING.md) để biết chi tiết.
 
 ---
 
 ## Cần trợ giúp thêm?
 
 - **Documentation:** [axonrouter.com/docs](https://axonrouter.com/docs)
-- **GitHub:** [github.com/decolua/axonrouter](https://github.com/decolua/axonrouter)
-- **Issues:** [github.com/decolua/axonrouter/issues](https://github.com/decolua/axonrouter/issues)
+- **GitHub:** [github.com/rickicode/AxonRouter](https://github.com/rickicode/AxonRouter)
+- **Issues:** [github.com/rickicode/AxonRouter/issues](https://github.com/rickicode/AxonRouter/issues)
 - **Troubleshooting:** [troubleshooting.md](troubleshooting.md)

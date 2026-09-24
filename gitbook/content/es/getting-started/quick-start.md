@@ -20,7 +20,7 @@ npm install -g axonrouter
 axonrouter
 ```
 
-🎉 **El dashboard se abre automáticamente** en `http://localhost:20128`
+🎉 **El dashboard se abre automáticamente** en `http://localhost:3778`
 
 - Contraseña por defecto: `123456` (cámbiala en el dashboard)
 - API key generada automáticamente
@@ -89,7 +89,7 @@ Apunta tu herramienta de codificación a AxonRouter:
 
 ```
 Settings → Models → Advanced:
-  OpenAI API Base URL: http://localhost:20128/v1
+  OpenAI API Base URL: http://localhost:3778/v1
   OpenAI API Key: [desde el dashboard de axonrouter]
   Model: cc/claude-opus-4-5-20251101
 ```
@@ -100,7 +100,7 @@ Edita `~/.claude/config.json`:
 
 ```json
 {
-  "anthropic_api_base": "http://localhost:20128/v1",
+  "anthropic_api_base": "http://localhost:3778/v1",
   "anthropic_api_key": "your-axonrouter-api-key"
 }
 ```
@@ -109,7 +109,7 @@ Edita `~/.claude/config.json`:
 
 ```
 Provider: OpenAI Compatible
-Base URL: http://localhost:20128/v1
+Base URL: http://localhost:3778/v1
 API Key: [desde el dashboard]
 Model: cc/claude-opus-4-5-20251101
 ```
@@ -117,7 +117,7 @@ Model: cc/claude-opus-4-5-20251101
 ### Codex CLI
 
 ```bash
-export OPENAI_BASE_URL="http://localhost:20128"
+export OPENAI_BASE_URL="http://localhost:3778"
 export OPENAI_API_KEY="your-axonrouter-api-key"
 
 codex "your prompt"
@@ -243,5 +243,5 @@ Rutina diaria:
 ## ¿Necesitas ayuda?
 
 - **Sitio web**: [axonrouter.com](https://axonrouter.com)
-- **GitHub**: [github.com/decolua/axonrouter](https://github.com/decolua/axonrouter)
-- **Issues**: [github.com/decolua/axonrouter/issues](https://github.com/decolua/axonrouter/issues)
+- **GitHub**: [github.com/rickicode/AxonRouter](https://github.com/rickicode/AxonRouter)
+- **Issues**: [github.com/rickicode/AxonRouter/issues](https://github.com/rickicode/AxonRouter/issues)

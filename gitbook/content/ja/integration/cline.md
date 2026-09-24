@@ -29,7 +29,7 @@ Base URLをAxonRouterエンドポイントに設定:
 
 **ローカルAxonRouter用:**
 ```
-http://localhost:20128/v1
+http://localhost:3778/v1
 ```
 
 **クラウドAxonRouter用:**
@@ -70,7 +70,7 @@ Cline設定は次のようになります:
 
 ```
 API Provider: Ollama
-Base URL: http://localhost:20128/v1
+Base URL: http://localhost:3778/v1
 API Key: sk-axonrouter-xxxxxxxxxxxxx
 Model: gpt-4
 ```
@@ -118,9 +118,9 @@ AxonRouterダッシュボードで設定されたモデルを使用できます�
 
 ### 「Connection Failed」エラー
 
-1. AxonRouterが動作中か確認: `curl http://localhost:20128/health`
+1. AxonRouterが動作中か確認: `curl http://localhost:3778/health`
 2. Base URLが正しく、`/v1` を含むことを確認
-3. ファイアウォールがポート20128をブロックしていないか確認
+3. ファイアウォールがポート3778をブロックしていないか確認
 4. VSCodeを再起動してみる
 
 ### 「Invalid API Key」エラー

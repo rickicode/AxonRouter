@@ -20,7 +20,7 @@ npm install -g axonrouter
 axonrouter
 ```
 
-🎉 **Dashboard tự động mở** tại `http://localhost:20128`
+🎉 **Dashboard tự động mở** tại `http://localhost:3778`
 
 - Mật khẩu mặc định: `123456` (đổi trong dashboard)
 - API key được tạo tự động
@@ -89,7 +89,7 @@ Trỏ công cụ code của bạn tới AxonRouter:
 
 ```
 Settings → Models → Advanced:
-  OpenAI API Base URL: http://localhost:20128/v1
+  OpenAI API Base URL: http://localhost:3778/v1
   OpenAI API Key: [from axonrouter dashboard]
   Model: cc/claude-opus-4-5-20251101
 ```
@@ -100,7 +100,7 @@ Sửa `~/.claude/config.json`:
 
 ```json
 {
-  "anthropic_api_base": "http://localhost:20128/v1",
+  "anthropic_api_base": "http://localhost:3778/v1",
   "anthropic_api_key": "your-axonrouter-api-key"
 }
 ```
@@ -109,7 +109,7 @@ Sửa `~/.claude/config.json`:
 
 ```
 Provider: OpenAI Compatible
-Base URL: http://localhost:20128/v1
+Base URL: http://localhost:3778/v1
 API Key: [from dashboard]
 Model: cc/claude-opus-4-5-20251101
 ```
@@ -117,7 +117,7 @@ Model: cc/claude-opus-4-5-20251101
 ### Codex CLI
 
 ```bash
-export OPENAI_BASE_URL="http://localhost:20128"
+export OPENAI_BASE_URL="http://localhost:3778"
 export OPENAI_API_KEY="your-axonrouter-api-key"
 
 codex "your prompt"
@@ -243,5 +243,5 @@ Daily routine:
 ## Cần trợ giúp?
 
 - **Website**: [axonrouter.com](https://axonrouter.com)
-- **GitHub**: [github.com/decolua/axonrouter](https://github.com/decolua/axonrouter)
-- **Issues**: [github.com/decolua/axonrouter/issues](https://github.com/decolua/axonrouter/issues)
+- **GitHub**: [github.com/rickicode/AxonRouter](https://github.com/rickicode/AxonRouter)
+- **Issues**: [github.com/rickicode/AxonRouter/issues](https://github.com/rickicode/AxonRouter/issues)

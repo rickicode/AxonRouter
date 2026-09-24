@@ -172,7 +172,7 @@ Cursor Settings → Models → Advanced:
 **替代方案:** 在 VPS 上自托管,使用公开域名:
 ```bash
 # 部署到 VPS
-git clone https://github.com/decolua/axonrouter.git
+git clone https://github.com/rickicode/AxonRouter.git
 cd axonrouter/app
 npm install && npm run build
 npm start
@@ -201,12 +201,12 @@ npm start
 npm install -g axonrouter
 axonrouter
 → 仪表盘: http://localhost:3000
-→ API: http://localhost:20128/v1
+→ API: http://localhost:3778/v1
 ```
 
 ### VPS/云
 ```bash
-git clone https://github.com/decolua/axonrouter.git
+git clone https://github.com/rickicode/AxonRouter.git
 cd axonrouter/app
 npm install && npm run build
 
@@ -316,7 +316,7 @@ axonrouter --version
 ```
 
 **破坏性变更:**
-- 查看 [CHANGELOG.md](https://github.com/decolua/axonrouter/blob/main/CHANGELOG.md)
+- 查看 [CHANGELOG.md](https://github.com/rickicode/AxonRouter/blob/main/CHANGELOG.md)
 - 大版本更新前备份 `~/.axonrouter`
 - 阅读大版本的迁移指南
 
@@ -329,11 +329,11 @@ axonrouter --version
 ### 贡献方式:
 
 1. **报告 bug:**
-   - [GitHub Issues](https://github.com/decolua/axonrouter/issues)
+   - [GitHub Issues](https://github.com/rickicode/AxonRouter/issues)
    - 附上错误日志、复现步骤
 
 2. **功能请求:**
-   - [GitHub Discussions](https://github.com/decolua/axonrouter/discussions)
+   - [GitHub Discussions](https://github.com/rickicode/AxonRouter/discussions)
    - 描述使用场景和价值
 
 3. **提交代码:**
@@ -375,13 +375,13 @@ axonrouter --version
 - 更新文档
 - 提交保持原子化、描述清晰
 
-详情见 [CONTRIBUTING.md](https://github.com/decolua/axonrouter/blob/main/CONTRIBUTING.md)。
+详情见 [CONTRIBUTING.md](https://github.com/rickicode/AxonRouter/blob/main/CONTRIBUTING.md)。
 
 ---
 
 ## 需要更多帮助?
 
 - **文档:** [axonrouter.com/docs](https://axonrouter.com/docs)
-- **GitHub:** [github.com/decolua/axonrouter](https://github.com/decolua/axonrouter)
-- **Issues:** [github.com/decolua/axonrouter/issues](https://github.com/decolua/axonrouter/issues)
+- **GitHub:** [github.com/rickicode/AxonRouter](https://github.com/rickicode/AxonRouter)
+- **Issues:** [github.com/rickicode/AxonRouter/issues](https://github.com/rickicode/AxonRouter/issues)
 - **故障排除:** [troubleshooting.md](troubleshooting.md)

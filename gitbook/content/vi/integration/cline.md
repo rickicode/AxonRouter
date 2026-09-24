@@ -29,7 +29,7 @@ Tích hợp AxonRouter với extension Cline VSCode để định tuyến reques
 
 **Cho AxonRouter cục bộ:**
 ```
-http://localhost:20128/v1
+http://localhost:3778/v1
 ```
 
 **Cho AxonRouter cloud:**
@@ -70,7 +70,7 @@ Cline settings của bạn nên trông như sau:
 
 ```
 API Provider: Ollama
-Base URL: http://localhost:20128/v1
+Base URL: http://localhost:3778/v1
 API Key: sk-axonrouter-xxxxxxxxxxxxx
 Model: gpt-4
 ```
@@ -118,9 +118,9 @@ Bạn có thể dùng bất kỳ model nào đã cấu hình trong AxonRouter da
 
 ### Lỗi "Connection Failed"
 
-1. Xác minh AxonRouter đang chạy: `curl http://localhost:20128/health`
+1. Xác minh AxonRouter đang chạy: `curl http://localhost:3778/health`
 2. Kiểm tra base URL đúng và bao gồm `/v1`
-3. Đảm bảo không firewall nào chặn port 20128
+3. Đảm bảo không firewall nào chặn port 3778
 4. Thử khởi động lại VSCode
 
 ### Lỗi "Invalid API Key"

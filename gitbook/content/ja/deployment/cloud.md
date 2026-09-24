@@ -16,7 +16,7 @@
 ### ステップ1: リポジトリをクローン
 
 ```bash
-git clone https://github.com/decolua/axonrouter.git
+git clone https://github.com/rickicode/AxonRouter.git
 cd axonrouter/app
 ```
 
@@ -130,7 +130,7 @@ COPY . .
 RUN npm run build
 
 # Expose ports
-EXPOSE 3000 20128
+EXPOSE 3000 3778
 
 # Set environment variables
 ENV NODE_ENV=production
@@ -153,7 +153,7 @@ docker build -t axonrouter .
 docker run -d \
   --name axonrouter \
   -p 3000:3000 \
-  -p 20128:20128 \
+  -p 3778:3778 \
   -e JWT_SECRET="your-secure-secret-change-this" \
   -e INITIAL_PASSWORD="your-secure-password" \
   -v axonrouter-data:/app/data \
@@ -173,7 +173,7 @@ services:
     container_name: axonrouter
     ports:
       - "3000:3000"
-      - "20128:20128"
+      - "3778:3778"
     environment:
       - NODE_ENV=production
       - JWT_SECRET=your-secure-secret-change-this
@@ -266,7 +266,7 @@ server {
 
     # API endpoint
     location /v1 {
-        proxy_pass http://localhost:20128;
+        proxy_pass http://localhost:3778;
         proxy_http_version 1.1;
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
@@ -335,7 +335,7 @@ sudo ufw allow 443/tcp
 
 # リバースプロキシを使用しない場合、AxonRouterポートを許可
 sudo ufw allow 3000/tcp
-sudo ufw allow 20128/tcp
+sudo ufw allow 3778/tcp
 
 # ファイアウォールを有効化
 sudo ufw enable
@@ -418,7 +418,7 @@ htop
 df -h
 
 # ネットワーク接続
-netstat -tulpn | grep -E '3000|20128'
+netstat -tulpn | grep -E '3000|3778'
 ```
 
 ---
@@ -433,7 +433,7 @@ pm2 logs axonrouter
 
 # ポートが使用中か確認
 sudo lsof -i :3000
-sudo lsof -i :20128
+sudo lsof -i :3778
 
 # 環境変数を確認
 pm2 env axonrouter

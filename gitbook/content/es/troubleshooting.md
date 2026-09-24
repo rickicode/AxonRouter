@@ -132,11 +132,11 @@ Problemas comunes y soluciones al usar AxonRouter.
 
 ## Connection Refused
 
-**Problema:** "ECONNREFUSED" o "Cannot connect to localhost:20128".
+**Problema:** "ECONNREFUSED" o "Cannot connect to localhost:3778".
 
 **Causas:**
 - AxonRouter no está ejecutándose
-- Puerto 20128 bloqueado
+- Puerto 3778 bloqueado
 - Firewall bloqueando la conexión
 
 **Soluciones:**
@@ -147,19 +147,19 @@ Problemas comunes y soluciones al usar AxonRouter.
    ```
    El dashboard debe abrir en http://localhost:3000
 
-2. **Verifica el puerto 20128:**
+2. **Verifica el puerto 3778:**
    ```bash
    # Verifica si el puerto está escuchando
-   lsof -i :20128
+   lsof -i :3778
    
    # O en Windows
-   netstat -ano | findstr :20128
+   netstat -ano | findstr :3778
    ```
 
 3. **Revisa el firewall:**
    - macOS: System Settings → Network → Firewall
    - Windows: Windows Defender Firewall → Allow app
-   - Linux: `sudo ufw allow 20128`
+   - Linux: `sudo ufw allow 3778`
 
 4. **Usa el endpoint en la nube:**
    Si localhost no funciona (ej. Cursor IDE):
@@ -243,7 +243,7 @@ Problemas comunes y soluciones al usar AxonRouter.
 
 3. **Lista los modelos disponibles:**
    ```bash
-   curl http://localhost:20128/v1/models \
+   curl http://localhost:3778/v1/models \
      -H "Authorization: Bearer your-api-key"
    ```
 
@@ -338,7 +338,7 @@ Problemas comunes y soluciones al usar AxonRouter.
 
 4. **Prueba la API key:**
    ```bash
-   curl http://localhost:20128/v1/models \
+   curl http://localhost:3778/v1/models \
      -H "Authorization: Bearer 9r_your_key"
    ```
 
@@ -346,6 +346,6 @@ Problemas comunes y soluciones al usar AxonRouter.
 
 ## ¿Necesitas más ayuda?
 
-- **GitHub Issues:** [github.com/decolua/axonrouter/issues](https://github.com/decolua/axonrouter/issues)
+- **GitHub Issues:** [github.com/rickicode/AxonRouter/issues](https://github.com/rickicode/AxonRouter/issues)
 - **Documentación:** [axonrouter.com/docs](https://axonrouter.com/docs)
 - **FAQ:** [faq.md](faq.md)

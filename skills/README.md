@@ -8,22 +8,22 @@ Drop-in skills for any AI agent (Claude, Cursor, ChatGPT, custom SDK). Just **co
 
 | Capability | Copy link below and paste to your AI |
 |---|---|
-| **Entry / Setup** (start here) | https://raw.githubusercontent.com/decolua/axonrouter/refs/heads/master/skills/axonrouter/SKILL.md |
-| Chat / code-gen | https://raw.githubusercontent.com/decolua/axonrouter/refs/heads/master/skills/axonrouter-chat/SKILL.md |
-| Image generation | https://raw.githubusercontent.com/decolua/axonrouter/refs/heads/master/skills/axonrouter-image/SKILL.md |
-| Video generation (xAI Grok Imagine) | https://raw.githubusercontent.com/decolua/axonrouter/refs/heads/master/skills/axonrouter-video/SKILL.md |
-| Text-to-speech | https://raw.githubusercontent.com/decolua/axonrouter/refs/heads/master/skills/axonrouter-tts/SKILL.md |
-| Speech-to-text | https://raw.githubusercontent.com/decolua/axonrouter/refs/heads/master/skills/axonrouter-stt/SKILL.md |
-| Embeddings | https://raw.githubusercontent.com/decolua/axonrouter/refs/heads/master/skills/axonrouter-embeddings/SKILL.md |
-| Web search | https://raw.githubusercontent.com/decolua/axonrouter/refs/heads/master/skills/axonrouter-web-search/SKILL.md |
-| Web fetch (URL → markdown) | https://raw.githubusercontent.com/decolua/axonrouter/refs/heads/master/skills/axonrouter-web-fetch/SKILL.md |
+| **Entry / Setup** (start here) | https://raw.githubusercontent.com/rickicode/AxonRouter/main/skills/axonrouter/SKILL.md |
+| Chat / code-gen | https://raw.githubusercontent.com/rickicode/AxonRouter/main/skills/axonrouter-chat/SKILL.md |
+| Image generation | https://raw.githubusercontent.com/rickicode/AxonRouter/main/skills/axonrouter-image/SKILL.md |
+| Video generation (xAI Grok Imagine) | https://raw.githubusercontent.com/rickicode/AxonRouter/main/skills/axonrouter-video/SKILL.md |
+| Text-to-speech | https://raw.githubusercontent.com/rickicode/AxonRouter/main/skills/axonrouter-tts/SKILL.md |
+| Speech-to-text | https://raw.githubusercontent.com/rickicode/AxonRouter/main/skills/axonrouter-stt/SKILL.md |
+| Embeddings | https://raw.githubusercontent.com/rickicode/AxonRouter/main/skills/axonrouter-embeddings/SKILL.md |
+| Web search | https://raw.githubusercontent.com/rickicode/AxonRouter/main/skills/axonrouter-web-search/SKILL.md |
+| Web fetch (URL → markdown) | https://raw.githubusercontent.com/rickicode/AxonRouter/main/skills/axonrouter-web-fetch/SKILL.md |
 
 ## How to use
 
 Paste to your AI (Claude, Cursor, ChatGPT, …):
 
 ```
-Read this skill and use it: https://raw.githubusercontent.com/decolua/axonrouter/refs/heads/master/skills/axonrouter/SKILL.md
+Read this skill and use it: https://raw.githubusercontent.com/rickicode/AxonRouter/main/skills/axonrouter/SKILL.md
 ```
 
 Then ask normally — *"generate an image of a cat"*, *"transcribe this URL"*, etc.
@@ -31,13 +31,13 @@ Then ask normally — *"generate an image of a cat"*, *"transcribe this URL"*, e
 ## Configure your shell once
 
 ```bash
-export NINEROUTER_URL="http://localhost:20128"   # local default, or your VPS / tunnel URL
-export NINEROUTER_KEY="sk-..."                   # from Dashboard → Keys (only if requireApiKey=true)
+export AXONROUTER_URL="http://localhost:3778"   # local default, or your VPS / tunnel URL
+export AXONROUTER_KEY="sk-..."                   # from Dashboard → Keys (only if requireApiKey=true)
 ```
 
-Verify: `curl $NINEROUTER_URL/api/health` → `{"ok":true}`.
+Verify: `curl $AXONROUTER_URL/api/health` → `{"ok":true}`.
 
 ## Links
 
-- Source: https://github.com/decolua/axonrouter
+- Source: https://github.com/rickicode/AxonRouter
 - Dashboard: https://axonrouter.com

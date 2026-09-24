@@ -74,7 +74,7 @@ npx axonrouter
 Clone và build từ GitHub:
 
 ```bash
-git clone https://github.com/decolua/axonrouter.git
+git clone https://github.com/rickicode/AxonRouter.git
 cd axonrouter/app
 npm install
 npm run build
@@ -97,7 +97,7 @@ axonrouter
 ```
 
 **Điều gì xảy ra:**
-1. Server khởi động tại `http://localhost:20128`
+1. Server khởi động tại `http://localhost:3778`
 2. Dashboard tự động mở trong browser
 3. Data directory được tạo tại `~/.axonrouter`
 4. API key được tạo tự động
@@ -132,7 +132,7 @@ Dashboard → Settings → API Keys
 ### Kiểm tra trạng thái Server
 
 ```bash
-curl http://localhost:20128/health
+curl http://localhost:3778/health
 ```
 
 **Phản hồi dự kiến:**
@@ -146,7 +146,7 @@ curl http://localhost:20128/health
 ### Liệt kê Model khả dụng
 
 ```bash
-curl http://localhost:20128/v1/models \
+curl http://localhost:3778/v1/models \
   -H "Authorization: Bearer your-api-key"
 ```
 
@@ -168,7 +168,7 @@ curl http://localhost:20128/v1/models \
 ### Test Chat Completion
 
 ```bash
-curl http://localhost:20128/v1/chat/completions \
+curl http://localhost:3778/v1/chat/completions \
   -H "Authorization: Bearer your-api-key" \
   -H "Content-Type: application/json" \
   -d '{
@@ -196,7 +196,7 @@ export INITIAL_PASSWORD="your-password"
 export DATA_DIR="~/.axonrouter"
 
 # Server
-export PORT="20128"
+export PORT="3778"
 export NODE_ENV="production"
 
 # Logging
@@ -224,7 +224,7 @@ axonrouter
 
 ### Cấu hình Port
 
-**Port mặc định:** `20128`
+**Port mặc định:** `3778`
 
 **Đổi port:**
 
@@ -247,14 +247,14 @@ axonrouter --port 3000
 
 **Lỗi:**
 ```
-Error: listen EADDRINUSE: address already in use :::20128
+Error: listen EADDRINUSE: address already in use :::3778
 ```
 
 **Giải pháp 1: Kill process hiện có**
 
 ```bash
-# Find process using port 20128
-lsof -i :20128
+# Find process using port 3778
+lsof -i :3778
 
 # Kill process
 kill -9 <PID>
@@ -310,7 +310,7 @@ nvm use 20
 **Giải pháp 1: Mở thủ công**
 
 ```
-http://localhost:20128
+http://localhost:3778
 ```
 
 **Giải pháp 2: Kiểm tra firewall**
@@ -404,7 +404,7 @@ pm2 startup
 docker pull axonrouter/axonrouter:latest
 
 docker run -d \
-  -p 20128:20128 \
+  -p 3778:3778 \
   -e JWT_SECRET="your-secure-secret" \
   -e INITIAL_PASSWORD="your-password" \
   -v axonrouter-data:/root/.axonrouter \
@@ -422,7 +422,7 @@ server {
     server_name your-domain.com;
 
     location / {
-        proxy_pass http://localhost:20128;
+        proxy_pass http://localhost:3778;
         proxy_http_version 1.1;
         proxy_set_header Upgrade $http_upgrade;
         proxy_set_header Connection 'upgrade';
@@ -474,5 +474,5 @@ nano ~/.bashrc  # or ~/.zshrc
 ## Cần trợ giúp?
 
 - **Website**: [axonrouter.com](https://axonrouter.com)
-- **GitHub**: [github.com/decolua/axonrouter](https://github.com/decolua/axonrouter)
-- **Issues**: [github.com/decolua/axonrouter/issues](https://github.com/decolua/axonrouter/issues)
+- **GitHub**: [github.com/rickicode/AxonRouter](https://github.com/rickicode/AxonRouter)
+- **Issues**: [github.com/rickicode/AxonRouter/issues](https://github.com/rickicode/AxonRouter/issues)

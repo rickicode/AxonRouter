@@ -30,7 +30,7 @@ axonrouter
 
 **默认配置:**
 - **仪表盘**: `http://localhost:3000`
-- **API Endpoint**: `http://localhost:20128/v1`
+- **API Endpoint**: `http://localhost:3778/v1`
 - **数据目录**: `~/.axonrouter`
 
 ---
@@ -47,7 +47,7 @@ DATA_DIR=/path/to/data axonrouter
 
 ### 自定义端口
 
-API 端口(20128)和仪表盘端口(3000)在应用中配置。如需修改,你需要改源码或使用支持的环境变量(如果有)。
+API 端口(3778)和仪表盘端口(3000)在应用中配置。如需修改,你需要改源码或使用支持的环境变量(如果有)。
 
 ---
 
@@ -96,11 +96,11 @@ npm list -g axonrouter
 
 ### 端口已被占用
 
-如果端口 20128 或 3000 已被占用:
+如果端口 3778 或 3000 已被占用:
 
 ```bash
 # 找到使用该端口的进程(macOS/Linux)
-lsof -i :20128
+lsof -i :3778
 lsof -i :3000
 
 # 杀掉进程

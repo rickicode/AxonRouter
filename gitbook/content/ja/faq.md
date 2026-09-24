@@ -172,7 +172,7 @@ Cursor Settings → Models → Advanced:
 **代替案:** パブリックドメインでVPSにセルフホスト:
 ```bash
 # VPSへデプロイ
-git clone https://github.com/decolua/axonrouter.git
+git clone https://github.com/rickicode/AxonRouter.git
 cd axonrouter/app
 npm install && npm run build
 npm start
@@ -201,12 +201,12 @@ npm start
 npm install -g axonrouter
 axonrouter
 → Dashboard: http://localhost:3000
-→ API: http://localhost:20128/v1
+→ API: http://localhost:3778/v1
 ```
 
 ### VPS/クラウド
 ```bash
-git clone https://github.com/decolua/axonrouter.git
+git clone https://github.com/rickicode/AxonRouter.git
 cd axonrouter/app
 npm install && npm run build
 
@@ -316,7 +316,7 @@ axonrouter --version
 ```
 
 **破壊的変更:**
-- [CHANGELOG.md](https://github.com/decolua/axonrouter/blob/main/CHANGELOG.md)を確認
+- [CHANGELOG.md](https://github.com/rickicode/AxonRouter/blob/main/CHANGELOG.md)を確認
 - メジャー更新前に`~/.axonrouter`をバックアップ
 - メジャーバージョンの移行ガイドを確認
 
@@ -329,11 +329,11 @@ axonrouter --version
 ### 貢献方法:
 
 1. **バグを報告:**
-   - [GitHub Issues](https://github.com/decolua/axonrouter/issues)
+   - [GitHub Issues](https://github.com/rickicode/AxonRouter/issues)
    - エラーログ、再現手順を含める
 
 2. **機能をリクエスト:**
-   - [GitHub Discussions](https://github.com/decolua/axonrouter/discussions)
+   - [GitHub Discussions](https://github.com/rickicode/AxonRouter/discussions)
    - ユースケースと利点を説明
 
 3. **コードを提出:**
@@ -375,13 +375,13 @@ axonrouter --version
 - ドキュメントを更新
 - コミットは小さく、わかりやすく
 
-詳細は[CONTRIBUTING.md](https://github.com/decolua/axonrouter/blob/main/CONTRIBUTING.md)を参照。
+詳細は[CONTRIBUTING.md](https://github.com/rickicode/AxonRouter/blob/main/CONTRIBUTING.md)を参照。
 
 ---
 
 ## さらにヘルプが必要?
 
 - **ドキュメント:** [axonrouter.com/docs](https://axonrouter.com/docs)
-- **GitHub:** [github.com/decolua/axonrouter](https://github.com/decolua/axonrouter)
-- **Issues:** [github.com/decolua/axonrouter/issues](https://github.com/decolua/axonrouter/issues)
+- **GitHub:** [github.com/rickicode/AxonRouter](https://github.com/rickicode/AxonRouter)
+- **Issues:** [github.com/rickicode/AxonRouter/issues](https://github.com/rickicode/AxonRouter/issues)
 - **トラブルシューティング:** [troubleshooting.md](troubleshooting.md)

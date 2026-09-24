@@ -31,7 +31,7 @@ AxonRouterをContinue拡張機能と統合し、Visual Studio Codeに直接AIア
       "provider": "openai",
       "model": "cc/claude-opus-4-5-20251101",
       "apiKey": "your-api-key-from-dashboard",
-      "apiBase": "http://localhost:20128/v1"
+      "apiBase": "http://localhost:3778/v1"
     }
   ]
 }
@@ -46,28 +46,28 @@ AxonRouterをContinue拡張機能と統合し、Visual Studio Codeに直接AIア
       "provider": "openai",
       "model": "cc/claude-opus-4-5-20251101",
       "apiKey": "your-api-key-from-dashboard",
-      "apiBase": "http://localhost:20128/v1"
+      "apiBase": "http://localhost:3778/v1"
     },
     {
       "title": "AxonRouter - Claude Sonnet (Balanced)",
       "provider": "openai",
       "model": "cc/claude-sonnet-4-20250514",
       "apiKey": "your-api-key-from-dashboard",
-      "apiBase": "http://localhost:20128/v1"
+      "apiBase": "http://localhost:3778/v1"
     },
     {
       "title": "AxonRouter - DeepSeek Chat (Code)",
       "provider": "openai",
       "model": "cx/deepseek-chat",
       "apiKey": "your-api-key-from-dashboard",
-      "apiBase": "http://localhost:20128/v1"
+      "apiBase": "http://localhost:3778/v1"
     },
     {
       "title": "AxonRouter - Claude Haiku (Fast)",
       "provider": "openai",
       "model": "cc/claude-haiku-4-20250514",
       "apiKey": "your-api-key-from-dashboard",
-      "apiBase": "http://localhost:20128/v1"
+      "apiBase": "http://localhost:3778/v1"
     }
   ]
 }
@@ -143,7 +143,7 @@ AxonRouterをContinue拡張機能と統合し、Visual Studio Codeに直接AIア
       "provider": "openai",
       "model": "cx/deepseek-chat",
       "apiKey": "your-api-key",
-      "apiBase": "http://localhost:20128/v1",
+      "apiBase": "http://localhost:3778/v1",
       "systemMessage": "You are an expert programmer. Always provide clean, well-documented code with best practices."
     }
   ]
@@ -162,7 +162,7 @@ AxonRouterをContinue拡張機能と統合し、Visual Studio Codeに直接AIア
       "provider": "openai",
       "model": "cc/claude-opus-4-5-20251101",
       "apiKey": "your-api-key",
-      "apiBase": "http://localhost:20128/v1",
+      "apiBase": "http://localhost:3778/v1",
       "temperature": 0.9,
       "topP": 0.95
     }
@@ -204,7 +204,7 @@ Continueがモデルに送信するコンテキストを設定:
 ## トラブルシューティング
 
 ### モデルが応答しない
-- AxonRouterが動作中か確認: `curl http://localhost:20128/health`
+- AxonRouterが動作中か確認: `curl http://localhost:3778/health`
 - config.jsonのAPIキーを確認
 - エラーについてVSCode開発者コンソールを確認: `Help` → `Toggle Developer Tools`
 

@@ -74,7 +74,7 @@ npx axonrouter
 Clona y compila desde GitHub:
 
 ```bash
-git clone https://github.com/decolua/axonrouter.git
+git clone https://github.com/rickicode/AxonRouter.git
 cd axonrouter/app
 npm install
 npm run build
@@ -97,7 +97,7 @@ axonrouter
 ```
 
 **Qué sucede:**
-1. El servidor inicia en `http://localhost:20128`
+1. El servidor inicia en `http://localhost:3778`
 2. El dashboard se abre automáticamente en el navegador
 3. Se crea el directorio de datos en `~/.axonrouter`
 4. API key generada automáticamente
@@ -132,7 +132,7 @@ Dashboard → Settings → API Keys
 ### Verifica el estado del servidor
 
 ```bash
-curl http://localhost:20128/health
+curl http://localhost:3778/health
 ```
 
 **Respuesta esperada:**
@@ -146,7 +146,7 @@ curl http://localhost:20128/health
 ### Lista los modelos disponibles
 
 ```bash
-curl http://localhost:20128/v1/models \
+curl http://localhost:3778/v1/models \
   -H "Authorization: Bearer your-api-key"
 ```
 
@@ -168,7 +168,7 @@ curl http://localhost:20128/v1/models \
 ### Prueba el chat completion
 
 ```bash
-curl http://localhost:20128/v1/chat/completions \
+curl http://localhost:3778/v1/chat/completions \
   -H "Authorization: Bearer your-api-key" \
   -H "Content-Type: application/json" \
   -d '{
@@ -196,7 +196,7 @@ export INITIAL_PASSWORD="your-password"
 export DATA_DIR="~/.axonrouter"
 
 # Server
-export PORT="20128"
+export PORT="3778"
 export NODE_ENV="production"
 
 # Logging
@@ -224,7 +224,7 @@ axonrouter
 
 ### Configuración de puerto
 
-**Puerto por defecto:** `20128`
+**Puerto por defecto:** `3778`
 
 **Cambiar puerto:**
 
@@ -247,14 +247,14 @@ axonrouter --port 3000
 
 **Error:**
 ```
-Error: listen EADDRINUSE: address already in use :::20128
+Error: listen EADDRINUSE: address already in use :::3778
 ```
 
 **Solución 1: Mata el proceso existente**
 
 ```bash
-# Encuentra proceso usando el puerto 20128
-lsof -i :20128
+# Encuentra proceso usando el puerto 3778
+lsof -i :3778
 
 # Mata el proceso
 kill -9 <PID>
@@ -310,7 +310,7 @@ nvm use 20
 **Solución 1: Abrir manualmente**
 
 ```
-http://localhost:20128
+http://localhost:3778
 ```
 
 **Solución 2: Verifica el firewall**
@@ -404,7 +404,7 @@ pm2 startup
 docker pull axonrouter/axonrouter:latest
 
 docker run -d \
-  -p 20128:20128 \
+  -p 3778:3778 \
   -e JWT_SECRET="your-secure-secret" \
   -e INITIAL_PASSWORD="your-password" \
   -v axonrouter-data:/root/.axonrouter \
@@ -422,7 +422,7 @@ server {
     server_name your-domain.com;
 
     location / {
-        proxy_pass http://localhost:20128;
+        proxy_pass http://localhost:3778;
         proxy_http_version 1.1;
         proxy_set_header Upgrade $http_upgrade;
         proxy_set_header Connection 'upgrade';
@@ -474,5 +474,5 @@ nano ~/.bashrc  # o ~/.zshrc
 ## ¿Necesitas ayuda?
 
 - **Sitio web**: [axonrouter.com](https://axonrouter.com)
-- **GitHub**: [github.com/decolua/axonrouter](https://github.com/decolua/axonrouter)
-- **Issues**: [github.com/decolua/axonrouter/issues](https://github.com/decolua/axonrouter/issues)
+- **GitHub**: [github.com/rickicode/AxonRouter](https://github.com/rickicode/AxonRouter)
+- **Issues**: [github.com/rickicode/AxonRouter/issues](https://github.com/rickicode/AxonRouter/issues)

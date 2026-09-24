@@ -74,7 +74,7 @@ npx axonrouter
 GitHubからクローンしてビルド:
 
 ```bash
-git clone https://github.com/decolua/axonrouter.git
+git clone https://github.com/rickicode/AxonRouter.git
 cd axonrouter/app
 npm install
 npm run build
@@ -97,7 +97,7 @@ axonrouter
 ```
 
 **何が起こるか:**
-1. サーバーが `http://localhost:20128` で起動
+1. サーバーが `http://localhost:3778` で起動
 2. ダッシュボードが自動的にブラウザで開く
 3. `~/.axonrouter` にデータディレクトリが作成される
 4. APIキーが自動生成される
@@ -132,7 +132,7 @@ Dashboard → Settings → API Keys
 ### サーバーステータスを確認
 
 ```bash
-curl http://localhost:20128/health
+curl http://localhost:3778/health
 ```
 
 **期待されるレスポンス:**
@@ -146,7 +146,7 @@ curl http://localhost:20128/health
 ### 利用可能なモデルを一覧表示
 
 ```bash
-curl http://localhost:20128/v1/models \
+curl http://localhost:3778/v1/models \
   -H "Authorization: Bearer your-api-key"
 ```
 
@@ -168,7 +168,7 @@ curl http://localhost:20128/v1/models \
 ### チャットコンプリーションをテスト
 
 ```bash
-curl http://localhost:20128/v1/chat/completions \
+curl http://localhost:3778/v1/chat/completions \
   -H "Authorization: Bearer your-api-key" \
   -H "Content-Type: application/json" \
   -d '{
@@ -196,7 +196,7 @@ export INITIAL_PASSWORD="your-password"
 export DATA_DIR="~/.axonrouter"
 
 # サーバー
-export PORT="20128"
+export PORT="3778"
 export NODE_ENV="production"
 
 # ロギング
@@ -224,7 +224,7 @@ axonrouter
 
 ### ポート設定
 
-**デフォルトポート:** `20128`
+**デフォルトポート:** `3778`
 
 **ポートを変更:**
 
@@ -247,14 +247,14 @@ axonrouter --port 3000
 
 **エラー:**
 ```
-Error: listen EADDRINUSE: address already in use :::20128
+Error: listen EADDRINUSE: address already in use :::3778
 ```
 
 **解決策1: 既存のプロセスを終了**
 
 ```bash
-# ポート20128を使用しているプロセスを検索
-lsof -i :20128
+# ポート3778を使用しているプロセスを検索
+lsof -i :3778
 
 # プロセスを終了
 kill -9 <PID>
@@ -310,7 +310,7 @@ nvm use 20
 **解決策1: 手動で開く**
 
 ```
-http://localhost:20128
+http://localhost:3778
 ```
 
 **解決策2: ファイアウォールを確認**
@@ -404,7 +404,7 @@ pm2 startup
 docker pull axonrouter/axonrouter:latest
 
 docker run -d \
-  -p 20128:20128 \
+  -p 3778:3778 \
   -e JWT_SECRET="your-secure-secret" \
   -e INITIAL_PASSWORD="your-password" \
   -v axonrouter-data:/root/.axonrouter \
@@ -422,7 +422,7 @@ server {
     server_name your-domain.com;
 
     location / {
-        proxy_pass http://localhost:20128;
+        proxy_pass http://localhost:3778;
         proxy_http_version 1.1;
         proxy_set_header Upgrade $http_upgrade;
         proxy_set_header Connection 'upgrade';
@@ -474,5 +474,5 @@ nano ~/.bashrc  # または ~/.zshrc
 ## ヘルプが必要?
 
 - **ウェブサイト**: [axonrouter.com](https://axonrouter.com)
-- **GitHub**: [github.com/decolua/axonrouter](https://github.com/decolua/axonrouter)
-- **Issues**: [github.com/decolua/axonrouter/issues](https://github.com/decolua/axonrouter/issues)
+- **GitHub**: [github.com/rickicode/AxonRouter](https://github.com/rickicode/AxonRouter)
+- **Issues**: [github.com/rickicode/AxonRouter/issues](https://github.com/rickicode/AxonRouter/issues)
