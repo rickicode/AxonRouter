@@ -1,0 +1,35 @@
+prompts:
+  - |
+    Tuliskan fungsi Python bernama `hitung_diskon_bertingkat(harga_total, jumlah_item)` untuk menghitung nilai diskon belanja di HIJILABStore dengan aturan:
+    1. Jika `jumlah_item` lebih dari 5, dapat diskon 10% dari `harga_total`.
+    2. Jika `jumlah_item` lebih dari 10, dapat diskon 15% dari `harga_total`.
+    3. Batas maksimal nilai diskon yang bisa didapatkan adalah Rp15.000 (tidak boleh lebih).
+    4. Jika syarat di atas tidak terpenuhi, nilai diskon adalah 0.
+
+    Kembalikan hanya kode Python di dalam blok markdown ```python ... ``` tanpa teks penjelasan apapun agar bisa dieksekusi langsung.
+
+providers:
+  - id: file:///workspaces/axonrouter-X/benchmarks/custom_provider.js
+    label: cline-free-glm-4.7-flash
+    config:
+      model: cline-free/z-ai/glm-4.7-flash
+      apiKey: sk-1913e25d85487647-bkjq1z-e0b63207
+      temperature: 0
+  - id: file:///workspaces/axonrouter-X/benchmarks/custom_provider.js
+    label: cline-free-gemma-4-26b
+    config:
+      model: cline-free/google/gemma-4-26b-a4b-it:free
+      apiKey: sk-1913e25d85487647-bkjq1z-e0b63207
+      temperature: 0
+  - id: file:///workspaces/axonrouter-X/benchmarks/custom_provider.js
+    label: cline-free-nex-n2.5-mini
+    config:
+      model: cline-free/nex-agi/nex-n2.5-mini:free
+      apiKey: sk-1913e25d85487647-bkjq1z-e0b63207
+      temperature: 0
+
+tests:
+  - description: "Uji Validasi Logika Eksekusi Kode"
+    assert:
+      - type: python
+        value: file:///workspaces/axonrouter-X/benchmarks/test_code.py

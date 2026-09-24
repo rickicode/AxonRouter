@@ -1,0 +1,131 @@
+# AxonRouter stack — new brand/ports (3777 web, 3778 api), separate from the
+# legacy 9router-x stack (10128/10129) so both can run side by side.
+# Shares NO volumes with the legacy stack (fresh data dir / own Postgres).
+services:
+  axonrouter-api:
+    build:
+      context: .
+      dockerfile: Dockerfile.gateway
+    image: axonrouter-api:latest
+    container_name: axonrouter-api
+    restart: always
+    mem_limit: 2g
+    memswap_limit: 2g
+    ports:
+      - "3778:3778"
+    volumes:
+      - axonrouter-data:/app/data
+    env_file:
+      - .env
+    environment:
+      DATA_DIR: /app/data
+      GATEWAY_PORT: "3778"
+      GATEWAY_WORKERS: "4"
+      HOSTNAME: "0.0.0.0"
+      TZ: Asia/Jakarta
+      NODE_ENV: production
+      MALLOC_ARENA_MAX: "2"
+      DATABASE_URL: ${AXON_DATABASE_URL:-postgres://axonrouter:${AXON_POSTGRES_PASSWORD:-password123}@postgres:5432/axonrouter}
+      ENCRYPTION_KEY: ${ENCRYPTION_KEY:-}
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "50m"
+        max-file: "3"
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3778/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 30s
+      timeout: 5s
+      start_period: 30s
+      retries: 3
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  axonrouter-web:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: axonrouter-web:latest
+    container_name: axonrouter-web
+    restart: always
+    mem_limit: 2500m
+    memswap_limit: 2500m
+    ports:
+      - "3777:3777"
+    volumes:
+      - axonrouter-data:/app/data
+      - ${LOG_DIR:-/opt/axonrouter/logs}:/app/data/logs
+    env_file:
+      - .env
+    environment:
+      DATA_DIR: /app/data
+      PORT: "3777"
+      HOSTNAME: "0.0.0.0"
+      TZ: Asia/Jakarta
+      NODE_ENV: production
+      MALLOC_ARENA_MAX: "2"
+      MALLOC_TRIM_THRESHOLD_: "131072"
+      PROXY_DISPATCHERS_MAX_SIZE: "128"
+      DATABASE_URL: ${AXON_DATABASE_URL:-postgres://axonrouter:${AXON_POSTGRES_PASSWORD:-password123}@postgres:5432/axonrouter}
+      ENCRYPTION_KEY: ${ENCRYPTION_KEY:-}
+      REQUEST_DETAILS_SHOW_RAW: ${REQUEST_DETAILS_SHOW_RAW:-false}
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "50m"
+        max-file: "3"
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  postgres:
+    image: postgres:17-alpine
+    container_name: axonrouter-postgres
+    restart: always
+    mem_limit: 1g
+    memswap_limit: 1g
+    ports:
+      - "5433:5432"
+    command:
+      - "postgres"
+      - "-c"
+      - "max_connections=300"
+      - "-c"
+      - "shared_buffers=256MB"
+      - "-c"
+      - "effective_cache_size=768MB"
+      - "-c"
+      - "work_mem=8MB"
+      - "-c"
+      - "maintenance_work_mem=64MB"
+      - "-c"
+      - "checkpoint_completion_target=0.9"
+      - "-c"
+      - "wal_buffers=16MB"
+      - "-c"
+      - "restart_after_crash=on"
+    environment:
+      POSTGRES_USER: ${AXON_POSTGRES_USER:-axonrouter}
+      POSTGRES_PASSWORD: ${AXON_POSTGRES_PASSWORD:-password123}
+      POSTGRES_DB: ${AXON_POSTGRES_DB:-axonrouter}
+      TZ: Asia/Jakarta
+    volumes:
+      - axonrouter-pgdata:/var/lib/postgresql/data
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "50m"
+        max-file: "3"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  axonrouter-data:
+    name: ${AXON_DATA_VOLUME:-axonrouter-data}
+    external: ${AXON_DATA_VOLUME_EXTERNAL:-false}
+  axonrouter-pgdata:
+    name: ${AXON_PGDATA_VOLUME:-axonrouter-pgdata}

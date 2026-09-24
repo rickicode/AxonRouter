@@ -1,0 +1,132 @@
+# Legacy parity stack — 9router-x naming (same images/content as axonrouter-*).
+# For deployments that must keep the OLD container/service names and OLD ports.
+# Service names: 9router-x (dashboard, 10128), 9router-api (gateway, 10129).
+# Default DB creds/volumes match the legacy 9router install.
+services:
+  9router-api:
+    build:
+      context: .
+      dockerfile: Dockerfile.gateway
+    image: 9router-api:latest
+    container_name: 9router-api
+    restart: always
+    mem_limit: 2g
+    memswap_limit: 2g
+    ports:
+      - "10129:10129"
+    volumes:
+      - 9router-data:/app/data
+    env_file:
+      - .env
+    environment:
+      DATA_DIR: /app/data
+      GATEWAY_PORT: "10129"
+      GATEWAY_WORKERS: "4"
+      HOSTNAME: "0.0.0.0"
+      TZ: Asia/Jakarta
+      NODE_ENV: production
+      MALLOC_ARENA_MAX: "2"
+      DATABASE_URL: ${DATABASE_URL:-postgres://9router:${POSTGRES_PASSWORD:-password123}@postgres:5432/9router}
+      ENCRYPTION_KEY: ${ENCRYPTION_KEY:-}
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "50m"
+        max-file: "3"
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:10129/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 30s
+      timeout: 5s
+      start_period: 30s
+      retries: 3
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  9router-x:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: 9router-x:latest
+    container_name: 9router-x
+    restart: always
+    mem_limit: 2500m
+    memswap_limit: 2500m
+    ports:
+      - "10128:10128"
+    volumes:
+      - 9router-data:/app/data
+      - ${LOG_DIR:-/opt/9router-x/logs}:/app/data/logs
+    env_file:
+      - .env
+    environment:
+      DATA_DIR: /app/data
+      PORT: "10128"
+      HOSTNAME: "0.0.0.0"
+      TZ: Asia/Jakarta
+      NODE_ENV: production
+      MALLOC_ARENA_MAX: "2"
+      MALLOC_TRIM_THRESHOLD_: "131072"
+      PROXY_DISPATCHERS_MAX_SIZE: "128"
+      DATABASE_URL: ${DATABASE_URL:-postgres://9router:${POSTGRES_PASSWORD:-password123}@postgres:5432/9router}
+      ENCRYPTION_KEY: ${ENCRYPTION_KEY:-}
+      REQUEST_DETAILS_SHOW_RAW: ${REQUEST_DETAILS_SHOW_RAW:-false}
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "50m"
+        max-file: "3"
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  postgres:
+    image: postgres:17-alpine
+    container_name: 9router-postgres
+    restart: always
+    mem_limit: 1g
+    memswap_limit: 1g
+    ports:
+      - "5432:5432"
+    command:
+      - "postgres"
+      - "-c"
+      - "max_connections=300"
+      - "-c"
+      - "shared_buffers=256MB"
+      - "-c"
+      - "effective_cache_size=768MB"
+      - "-c"
+      - "work_mem=8MB"
+      - "-c"
+      - "maintenance_work_mem=64MB"
+      - "-c"
+      - "checkpoint_completion_target=0.9"
+      - "-c"
+      - "wal_buffers=16MB"
+      - "-c"
+      - "restart_after_crash=on"
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-9router}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-password123}
+      POSTGRES_DB: ${POSTGRES_DB:-9router}
+      TZ: Asia/Jakarta
+    volumes:
+      - 9router-pgdata:/var/lib/postgresql/data
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "50m"
+        max-file: "3"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER:-9router} -d $${POSTGRES_DB:-9router}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  9router-data:
+    name: ${DATA_VOLUME:-9router-data}
+    external: ${DATA_VOLUME_EXTERNAL:-true}
+  9router-pgdata:
+    name: ${PGDATA_VOLUME:-9router-pgdata}

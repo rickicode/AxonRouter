@@ -1,0 +1,213 @@
+"use client";
+
+import { useState } from "react";
+import { useRouter } from "next/navigation";
+import Link from "next/link";
+import { Card, Button, Input, Select, Toggle } from "@/shared/components";
+import { AI_PROVIDERS, AUTH_METHODS } from "@/shared/constants/config";
+import Icon from "@/shared/components/Icon";
+
+const providerOptions = Object.values(AI_PROVIDERS).map((p) => ({
+ value: p.id,
+ label: p.name,
+}));
+
+const authMethodOptions = Object.values(AUTH_METHODS).map((m) => ({
+ value: m.id,
+ label: m.name,
+}));
+
+export default function NewProviderPage() {
+ const router = useRouter();
+ const [loading, setLoading] = useState(false);
+ const [formData, setFormData] = useState({
+ provider: "",
+ authMethod: "api_key",
+ apiKey: "",
+ displayName: "",
+ isActive: true,
+ });
+ const [errors, setErrors] = useState({});
+
+ const handleChange = (field, value) => {
+ setFormData((prev) => ({ ...prev, [field]: value }));
+ if (errors[field]) {
+ setErrors((prev) => ({ ...prev, [field]: null }));
+ }
+ };
+
+ const validate = () => {
+ const newErrors = {};
+ if (!formData.provider) newErrors.provider = "Please select a provider";
+ if (formData.authMethod === "api_key" && !formData.apiKey) {
+ newErrors.apiKey = "API Key is required";
+ }
+ setErrors(newErrors);
+ return Object.keys(newErrors).length === 0;
+ };
+
+ const handleSubmit = async (e) => {
+ e.preventDefault();
+ if (!validate()) return;
+
+ setLoading(true);
+ try {
+ const response = await fetch("/api/providers", {
+ method: "POST",
+ headers: { "Content-Type": "application/json" },
+ body: JSON.stringify(formData),
+ });
+
+ if (response.ok) {
+ router.push("/dashboard/providers");
+ } else {
+ const data = await response.json();
+ setErrors({ submit: data.error || "Failed to create provider" });
+ }
+ } catch (error) {
+ setErrors({ submit: "An error occurred. Please try again." });
+ } finally {
+ setLoading(false);
+ }
+ };
+
+ const selectedProvider = AI_PROVIDERS[formData.provider];
+
+ return (
+ <div className="flex w-full flex-col gap-3">
+ {/* Header */}
+ <div className="flex flex-col gap-2">
+ <Link
+ href="/dashboard/providers"
+className="inline-flex h-11 items-center gap-1 text-sm text-text-muted hover:text-primary w-fit sm:h-8"
+ >
+ <Icon name="arrow_back" size={18} />
+ Back to Providers
+ </Link>
+ <p className="text-sm text-text-muted">
+ Configure a new AI provider to use with your applications.
+ </p>
+ </div>
+
+ {/* Form */}
+ <Card>
+ <form onSubmit={handleSubmit} className="flex flex-col gap-3">
+ {/* Provider Selection */}
+ <Select
+ label="Provider"
+ options={providerOptions}
+ value={formData.provider}
+ onChange={(e) => handleChange("provider", e.target.value)}
+ placeholder="Select a provider"
+ error={errors.provider}
+ required
+ />
+
+ {/* Provider Info */}
+ {selectedProvider && (
+ <Card.Section className="flex items-center gap-3">
+ <div
+ className="size-8 rounded-sm flex items-center justify-center bg-bg border border-border h-8"
+ >
+ <Icon name={selectedProvider.icon} size={18} style={{ color: selectedProvider.color }} />
+ </div>
+ <div>
+ <p className="font-medium">{selectedProvider.name}</p>
+ <p className="text-sm text-text-muted">
+ Selected provider
+ </p>
+ </div>
+ </Card.Section>
+ )}
+
+ {/* Auth Method */}
+ <div className="flex flex-col gap-3">
+ <label className="font-medium text-xs text-text-muted">
+ Authentication Method <span className="text-danger">*</span>
+ </label>
+ <div className="flex gap-3">
+ {authMethodOptions.map((method) => (
+ <button
+ key={method.value}
+ type="button"
+ onClick={() => handleChange("authMethod", method.value)}
+ className={`flex-1 flex items-center justify-center gap-2 p-3 rounded-sm border ${
+ formData.authMethod === method.value
+ ? "border-primary bg-primary/10 text-primary"
+ : "border-border hover:border-primary/30"
+ }`}
+ >
+ <Icon name={method.value === "api_key" ? "key" : "lock"} />
+ <span className="font-medium">{method.label}</span>
+ </button>
+ ))}
+ </div>
+ </div>
+
+ {/* API Key Input */}
+ {formData.authMethod === "api_key" && (
+ <Input
+ label="API Key"
+ type="password"
+ placeholder="Enter your API key"
+ value={formData.apiKey}
+ onChange={(e) => handleChange("apiKey", e.target.value)}
+ error={errors.apiKey}
+ hint="Your API key will be encrypted and stored securely."
+ required
+ />
+ )}
+
+ {/* OAuth2 Button */}
+ {formData.authMethod === "oauth2" && (
+ <Card.Section>
+ <p className="text-sm text-text-muted mb-3">
+ Connect your account using OAuth2 authentication.
+ </p>
+ <Button type="button" variant="secondary" icon="link">
+ Connect with OAuth2
+ </Button>
+ </Card.Section>
+ )}
+
+ {/* Display Name */}
+ <Input
+ label="Display Name"
+ placeholder="e.g., Production API, Dev Environment"
+ value={formData.displayName}
+ onChange={(e) => handleChange("displayName", e.target.value)}
+ hint="Optional. A friendly name to identify this configuration."
+ />
+
+ {/* Active Toggle */}
+ <Toggle
+ checked={formData.isActive}
+ onChange={(checked) => handleChange("isActive", checked)}
+ label="Active"
+ description="Enable this provider for use in your applications"
+ />
+
+ {/* Error Message */}
+ {errors.submit && (
+ <div className="p-3 rounded-sm bg-danger/10 border border-danger/30 text-danger text-sm">
+ {errors.submit}
+ </div>
+ )}
+
+ {/* Actions */}
+ <div className="flex gap-3 pt-3 border-t border-border">
+ <Link href="/dashboard/providers" className="flex-1">
+ <Button type="button" variant="ghost" fullWidth>
+ Cancel
+ </Button>
+ </Link>
+ <Button type="submit" loading={loading} fullWidth className="flex-1">
+ Create Provider
+ </Button>
+ </div>
+ </form>
+ </Card>
+ </div>
+ );
+}
+

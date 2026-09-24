@@ -1,0 +1,42 @@
+export default {
+  id: "ovhcloud",
+  priority: 60,
+  alias: "ovh",
+  aliases: [
+    "ovhcloud",
+    "ovh",
+  ],
+  uiAlias: "ovh",
+  display: {
+    name: "OVHcloud AI",
+    icon: "cloud",
+    color: "#000E9C",
+    textIcon: "OV",
+    website: "https://ovhcloud.com",
+    notice: {
+      text: "EU-hosted open-weight models. 400 RPM per project per model with API key. Free tier available.",
+      apiKeyUrl: "https://www.ovhcloud.com/en/public-cloud/ai-endpoints/catalog/",
+    },
+  },
+  category: "apikey",
+  authType: "apikey",
+  authModes: ["apikey"],
+  transport: {
+    baseUrl: "https://oai.endpoints.kepler.ai.cloud.ovh.net/v1/chat/completions",
+    validateUrl: "https://oai.endpoints.kepler.ai.cloud.ovh.net/v1/models",
+  },
+  models: [
+    { id: "Qwen3.8-27B", name: "Qwen 3.8 27B", contextLength: 131072, reasoning: true, vision: true },
+    { id: "Qwen3-Coder-30B-A3B-Instruct", name: "Qwen3 Coder 30B", contextLength: 262144, reasoning: true },
+    { id: "gpt-oss-120b", name: "GPT-OSS 120B", contextLength: 131072, reasoning: true },
+    { id: "gpt-oss-20b", name: "GPT-OSS 20B", contextLength: 131072, reasoning: true },
+    { id: "Meta-Llama-3_3-70B-Instruct", name: "Llama 3.3 70B", contextLength: 131072 },
+    { id: "Qwen3-32B", name: "Qwen3 32B", contextLength: 131072, reasoning: true },
+    { id: "Qwen3.6-27B", name: "Qwen 3.6 27B", contextLength: 131072, vision: true, reasoning: true },
+    { id: "Qwen3.5-397B-A17B", name: "Qwen 3.5 397B MoE", contextLength: 131072, reasoning: true },
+    { id: "Mistral-Small-3.2-24B-Instruct-2506", name: "Mistral Small 3.2 24B", contextLength: 128000 },
+    { id: "Qwen2.5-VL-72B-Instruct", name: "Qwen 2.5 VL 72B (Vision)", contextLength: 128000, vision: true },
+  ],
+  modelsFetcher: { url: "https://oai.endpoints.kepler.ai.cloud.ovh.net/v1/models", type: "ovhcloud-free" },
+  passthroughModels: true,
+};

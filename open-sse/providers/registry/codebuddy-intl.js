@@ -1,0 +1,111 @@
+// CodeBuddy international (codebuddy.ai) — mirrors codebuddy-cn registry shape,
+// swapping the Tencent CN domain for the .ai endpoint set. All OAuth/plugin URLs
+// use the /v2/plugin prefix with platform=ide (CN uses platform=CLI).
+export default {
+  id: "codebuddy-intl",
+  alias: "cbai",
+  uiAlias: "cbai",
+  hidden: false,
+  priority: 90,
+  display: {
+    name: "CodeBuddy",
+    icon: "smart_toy",
+    color: "#006EFF",
+    website: "https://www.codebuddy.ai",
+    notice: {
+      signupUrl: "https://www.codebuddy.ai",
+    },
+  },
+  category: "oauth",
+  authModes: ["oauth", "apikey"],
+  hasOAuth: true,
+  transport: {
+    // Chat gateway is OpenAI-compatible SSE (same /v2/chat/completions path as CN).
+    baseUrl: "https://www.codebuddy.ai/v2/chat/completions",
+    forceStream: true,
+    // CodeBuddy intl speaks the same unified OpenAI reasoning_effort shape as CN.
+    thinkingFormat: "openai",
+    headers: {
+      "User-Agent": "IDE/2.108.1 CodeBuddy/2.108.1",
+      "X-Product": "SaaS",
+      "X-IDE-Type": "IDE",
+      "X-IDE-Name": "IDE",
+      "x-requested-with": "XMLHttpRequest",
+      "x-codebuddy-request": "1",
+    },
+    auth: {
+      combined: true,
+      header: "Authorization",
+      scheme: "bearer",
+    },
+    // Intl billing endpoint mirrors CN shape (data.Response.Data.Accounts[]).
+    usage: {
+      url: "https://www.codebuddy.ai/v2/billing/meter/get-user-resource",
+    },
+  },
+  // Intl catalog mirrors full CLI list; additions verified against CLI (2026-09-13).
+  models: [
+    { id: "hy3", name: "Hy3" },
+    { id: "hy3-x", name: "Hy3 X" },
+    { id: "hy4-preview", name: "Hy4 Preview" },
+    { id: "deepseek-v4.1-flash", name: "DeepSeek-V4.1-Flash" },
+    { id: "glm-5.3", name: "GLM-5.3" },
+    { id: "glm-5.3-flash", name: "GLM-5.3-Flash" },
+    { id: "glm-5.2", name: "GLM-5.2" },
+    { id: "glm-5.1", name: "GLM-5.1" },
+    { id: "glm-5.0", name: "GLM-5.0" },
+    { id: "glm-5.0-turbo", name: "GLM-5.0-Turbo" },
+    { id: "glm-5v-turbo", name: "GLM-5v-Turbo" },
+    { id: "glm-4.7", name: "GLM-4.7" },
+    { id: "minimax-m3", name: "MiniMax-M3" },
+    { id: "minimax-m2.7", name: "MiniMax-M2.7" },
+    { id: "kimi-k3-1", name: "Kimi-K3" },
+    { id: "kimi-k3", name: "Kimi-K3" },
+    { id: "kimi-k2.8-preview", name: "Kimi-K2.8-Preview" },
+    { id: "kimi-k2.7", name: "Kimi-K2.7-Code" },
+    { id: "kimi-k2.6", name: "Kimi-K2.6" },
+    { id: "kimi-k2.5", name: "Kimi-K2.5" },
+    { id: "hy3-preview", name: "Hy3 Preview" },
+    { id: "deepseek-v4-pro", name: "DeepSeek-V4-Pro" },
+    // deepseek-v4-flash replaced server-side by deepseek-v4.1-flash (same
+    // catalog as CN; the old endpoint still answers 200 but the list is the contract).
+    { id: "deepseek-v4.1-flash", name: "DeepSeek-V4.1-Flash" },
+    { id: "deepseek-v3-2-volc", name: "DeepSeek-V3.2" },
+    { id: "gpt-5.6-luna", name: "GPT-5.6-Luna" },
+    { id: "claude-opus-5", name: "Claude Opus 5" },
+    { id: "claude-sonnet-4.6", name: "Claude Sonnet 4.6" },
+  ],
+  oauth: {
+    baseUrl: "https://www.codebuddy.ai",
+    stateUrl: "https://www.codebuddy.ai/v2/plugin/auth/state",
+    tokenUrl: "https://www.codebuddy.ai/v2/plugin/auth/token",
+    refreshUrl: "https://www.codebuddy.ai/v2/plugin/auth/token/refresh",
+    userAgent: "IDE/2.63.2 CodeBuddy/2.63.2",
+    platform: "ide",
+    pollInterval: 5000,
+  },
+  features: {
+    usage: true,
+    usageApikey: true,
+  },
+  // Credit cost per model (from CodeBuddy CLI, 2026-09-13). x0.00 = free-tier quota.
+  pricing: {
+    "hy4-preview": { credit: 0 },
+    "hy3": { credit: 0 },
+    "deepseek-v4.1-flash": { credit: 0.03 },
+    "hy3-x": { credit: 0.05 },
+    "glm-5.3-flash": { credit: 0.06 },
+    "minimax-m2.7": { credit: 0.19 },
+    "minimax-m3": { credit: 0.25 },
+    "deepseek-v4-pro": { credit: 0.51 },
+    "kimi-k2.6": { credit: 0.52 },
+    "kimi-k2.7": { credit: 0.57 },
+    "glm-5v-turbo": { credit: 0.71 },
+    "kimi-k2.8-preview": { credit: 0.77 },
+    "glm-5.3": { credit: 0.79 },
+    "glm-5.2": { credit: 0.79 },
+    "glm-5.1": { credit: 0.79 },
+    "kimi-k3-1": { credit: 1.62 },
+    "kimi-k3": { credit: 1.62 },
+  },
+};

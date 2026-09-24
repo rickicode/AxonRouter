@@ -1,0 +1,706 @@
+import crypto from "crypto";
+import { NextResponse } from "next/server";
+import {
+  getProvider,
+  generateAuthData,
+  exchangeTokens,
+  requestDeviceCode,
+  pollForToken
+} from "@/lib/oauth/providers";
+import { createProviderConnection } from "@/models";
+import { readDesktopPassToken } from "open-sse/shared/mimoAccount.js";
+import {
+  startCodexProxy,
+  stopCodexProxy,
+  registerCodexSession,
+  getCodexSessionStatus,
+  clearCodexSession,
+  startXaiProxy,
+  stopXaiProxy,
+  registerXaiSession,
+  getXaiSessionStatus,
+  clearXaiSession,
+  startTraeProxy,
+  stopTraeProxy,
+  registerTraeSession,
+  getTraeSessionStatus,
+  clearTraeSession,
+  startWindsurfProxy,
+  stopWindsurfProxy,
+  registerWindsurfSession,
+  getWindsurfSessionStatus,
+  clearWindsurfSession,
+  startZedProxy,
+  stopZedProxy,
+  registerZedSession,
+  getZedSessionStatus,
+  clearZedSession,
+  startXiaomiMimoProxy,
+  stopXiaomiMimoProxy,
+  registerXiaomiMimoSession,
+  getXiaomiMimoSessionStatus,
+  clearXiaomiMimoSession,
+} from "@/lib/oauth/utils/server";
+import { detectIdeInstalled } from "@/lib/oauth/utils/ideDetect";
+import { ZED_HOSTED_CONFIG } from "@/lib/oauth/constants/oauth";
+
+async function completeXaiManualCode(code, state) {
+  const session = state ? getXaiSessionStatus(state) : null;
+  if (!session) {
+    throw new Error("xAI OAuth session not found; restart the login flow and paste the code again");
+  }
+  if (!code) throw new Error("Missing xAI authorization code");
+
+  try {
+    const tokenData = await exchangeTokens(
+      "xai",
+      code,
+      session.redirectUri,
+      session.codeVerifier,
+      state
+    );
+    const connection = await createProviderConnection({
+      provider: "xai",
+      authType: "oauth",
+      ...tokenData,
+      expiresAt: tokenData.expiresIn
+        ? new Date(Date.now() + tokenData.expiresIn * 1000).toISOString()
+        : null,
+      testStatus: "active",
+    });
+    clearXaiSession(state);
+    stopXaiProxy();
+    return {
+      id: connection.id,
+      provider: connection.provider,
+      email: connection.email,
+      displayName: connection.displayName,
+    };
+  } catch (err) {
+    clearXaiSession(state);
+    stopXaiProxy();
+    throw err;
+  }
+}
+
+/**
+ * Dynamic OAuth API Route
+ * Handles: authorize, exchange, device-code, poll
+ */
+
+// GET /api/oauth/[provider]/authorize - Generate auth URL
+// GET /api/oauth/[provider]/device-code - Request device code (for device_code flow)
+export async function GET(request, { params }) {
+  try {
+    const { provider, action } = await params;
+    const { searchParams } = new URL(request.url);
+
+    if (action === "authorize") {
+      // Xiaomi Desktop: custom ECDH flow — generate keypair, start proxy, return authorize URL
+      if (provider === "xiaomi-mimo") {
+        const { generateKeyPair, buildAuthorizeUrl, getKeyName } = await import("@/lib/oauth/providers/xiaomi-mimo");
+        const { publicKey, privateKeyDer } = generateKeyPair();
+        const state = searchParams.get("state") || crypto.randomUUID();
+
+        // Start the callback proxy (or reuse if already running)
+        const proxyResult = await startXiaomiMimoProxy();
+        if (!proxyResult.success) {
+          return NextResponse.json({ error: `Failed to start callback server: ${proxyResult.reason}` }, { status: 500 });
+        }
+
+        // Register the session with the private key for decryption
+        registerXiaomiMimoSession({ state, privateKeyDer });
+
+        const redirectUri = proxyResult.callbackUrl;
+        const authorizeUrl = buildAuthorizeUrl(publicKey, redirectUri, getKeyName());
+
+        return NextResponse.json({
+          state,
+          authorizeUrl,
+          redirectUri,
+          port: proxyResult.port,
+        });
+      }
+
+      const redirectUri = searchParams.get("redirect_uri") || "http://localhost:8080/callback";
+      // Collect provider-specific meta params (e.g. gitlab passes baseUrl, clientId, clientSecret)
+      const reservedParams = new Set(["redirect_uri"]);
+      const meta = {};
+      searchParams.forEach((value, key) => { if (!reservedParams.has(key)) meta[key] = value; });
+      // Zed: derive native_app_port from the local callback URL so the RSA keypair
+      // is bound to the port the proxy is actually listening on.
+      if (provider === "zed") {
+        try { const p = new URL(redirectUri).port; if (p) meta.nativeAppPort = p; } catch { /* ignore */ }
+      }
+      const authData = await generateAuthData(provider, redirectUri, Object.keys(meta).length ? meta : undefined);
+      return NextResponse.json(authData);
+    }
+
+    if (action === "start-proxy") {
+      // Trae/Windsurf/Zed use a dynamic-port local callback server (singleton session,
+      // state is registered separately via /register-session after /authorize).
+      if (provider === "trae") {
+        const result = await startTraeProxy();
+        return NextResponse.json(result);
+      }
+      if (provider === "windsurf") {
+        const result = await startWindsurfProxy();
+        return NextResponse.json(result);
+      }
+      if (provider === "zed") {
+        // Prefer ZED_HOSTED_CONFIG.defaultNativeAppPort (58443) so the browser redirect
+        // matches what Zed expects; falls back to a random port if it's busy.
+        const result = await startZedProxy(searchParams.get("native_app_port") || ZED_HOSTED_CONFIG.defaultNativeAppPort);
+        return NextResponse.json(result);
+      }
+      if (provider === "xiaomi-mimo") {
+        const result = await startXiaomiMimoProxy();
+        return NextResponse.json(result);
+      }
+      if (!["codex", "xai"].includes(provider)) {
+        return NextResponse.json({ error: "Proxy only supported for codex/xai/trae/windsurf/zed" }, { status: 400 });
+      }
+      const appPort = searchParams.get("app_port");
+      if (!appPort) {
+        return NextResponse.json({ error: "Missing app_port" }, { status: 400 });
+      }
+      const state = searchParams.get("state");
+      const codeVerifier = searchParams.get("code_verifier");
+      const redirectUri = searchParams.get("redirect_uri");
+      const result = provider === "xai"
+        ? await startXaiProxy(Number(appPort))
+        : await startCodexProxy(Number(appPort));
+      let serverSide = false;
+      if (result.success && state && codeVerifier && redirectUri) {
+        serverSide = provider === "xai"
+          ? registerXaiSession({ state, codeVerifier, redirectUri })
+          : registerCodexSession({ state, codeVerifier, redirectUri });
+      }
+      return NextResponse.json({ ...result, serverSide });
+    }
+
+    if (action === "poll-status") {
+      const state = searchParams.get("state");
+      if (!state) {
+        return NextResponse.json({ error: "Missing state" }, { status: 400 });
+      }
+      let session;
+      if (provider === "trae") session = getTraeSessionStatus(state);
+      else if (provider === "windsurf") session = getWindsurfSessionStatus(state);
+      else if (provider === "zed") session = getZedSessionStatus(state);
+      else if (provider === "xai") session = getXaiSessionStatus(state);
+      else if (provider === "codex") session = getCodexSessionStatus(state);
+      else if (provider === "xiaomi-mimo") session = getXiaomiMimoSessionStatus(state);
+      else return NextResponse.json({ error: "Poll only supported for codex/xai/trae/windsurf/zed/xiaomi-mimo" }, { status: 400 });
+      if (!session) return NextResponse.json({ status: "unknown" });
+      if (session.status === "done" || session.status === "error") {
+        const payload = { ...session };
+        if (provider === "xiaomi-mimo") {
+          // Unlike the others this does not auto-exchange server-side, so a
+          // finished session must survive until the client POSTs /exchange —
+          // that call clears it. A failed one is cleared here instead.
+          if (session.status === "error") {
+            clearXiaomiMimoSession(state);
+            stopXiaomiMimoProxy();
+          }
+          return NextResponse.json(payload);
+        }
+        if (provider === "trae") clearTraeSession(state);
+        else if (provider === "windsurf") clearWindsurfSession(state);
+        else if (provider === "zed") clearZedSession(state);
+        else if (provider === "xai") clearXaiSession(state);
+        else clearCodexSession(state);
+        return NextResponse.json(payload);
+      }
+      return NextResponse.json({ status: session.status });
+    }
+
+    if (action === "stop-proxy") {
+      if (provider === "trae") stopTraeProxy();
+      else if (provider === "windsurf") stopWindsurfProxy();
+      else if (provider === "zed") stopZedProxy();
+      else if (provider === "xai") stopXaiProxy();
+      else if (provider === "codex") stopCodexProxy();
+      else if (provider === "xiaomi-mimo") stopXiaomiMimoProxy();
+      else return NextResponse.json({ error: "Proxy only supported for codex/xai/trae/windsurf/zed/xiaomi-mimo" }, { status: 400 });
+      return NextResponse.json({ success: true });
+    }
+
+    if (action === "ide-status") {
+      // Detect whether the IDE is installed locally (used by import-token UX).
+      if (provider !== "trae" && provider !== "windsurf") {
+        return NextResponse.json({ error: "ide-status only supported for trae/windsurf" }, { status: 400 });
+      }
+      const status = await detectIdeInstalled(provider);
+      return NextResponse.json(status);
+    }
+
+    if (action === "device-code") {
+      const providerData = getProvider(provider);
+      if (providerData.flowType !== "device_code") {
+        return NextResponse.json({ error: "Provider does not support device code flow" }, { status: 400 });
+      }
+
+      const authData = await generateAuthData(provider, null);
+      const startUrl = searchParams.get("start_url");
+      const region = searchParams.get("region");
+      const authMethod = searchParams.get("auth_method");
+      const deviceOptions = provider === "kiro"
+        ? {
+            ...(startUrl ? { startUrl } : {}),
+            ...(region ? { region } : {}),
+            ...(authMethod ? { authMethod } : {}),
+          }
+        : undefined;
+      
+      // Providers that don't use PKCE for device code (Grok CLI HAR: plain device_code, no challenge)
+      const noPkceDeviceProviders = [
+        "github",
+        "kiro",
+        "kimi",
+        "kimi-coding",
+        "kilocode",
+        "codebuddy-cn",
+        "codebuddy-intl",
+        "workbuddy",
+        "qoder",
+        "grok-cli",
+        "freebuff",
+      ];
+      let deviceData;
+      if (noPkceDeviceProviders.includes(provider)) {
+        deviceData = await requestDeviceCode(provider, undefined, deviceOptions);
+      } else {
+        // Qwen and other PKCE providers
+        deviceData = await requestDeviceCode(provider, authData.codeChallenge, deviceOptions);
+      }
+
+      return NextResponse.json({
+        ...deviceData,
+        // Prefer the verifier the provider's requestDeviceCode generated for
+        // itself (qoder rolls its own PKCE pair); fall back to the generic one.
+        codeVerifier: deviceData.codeVerifier || authData.codeVerifier,
+      });
+    }
+
+    return NextResponse.json({ error: "Unknown action" }, { status: 400 });
+  } catch (error) {
+    console.log("OAuth GET error:", error);
+    return NextResponse.json({ error: error.message }, { status: 500 });
+  }
+}
+
+// POST /api/oauth/[provider]/exchange - Exchange code for tokens and save
+// POST /api/oauth/[provider]/poll - Poll for token (device_code flow)
+export async function POST(request, { params }) {
+  try {
+    const { provider, action } = await params;
+    let body;
+    try {
+      body = await request.json();
+    } catch {
+      return NextResponse.json({ error: "Invalid or empty request body" }, { status: 400 });
+    }
+
+    if (action === "register-session") {
+      // Register proxy session out of URL query (state) + body (codeVerifier).
+      // Zed's codeVerifier encodes the RSA private key — must stay out of URL/logs.
+      const searchParams = new URL(request.url).searchParams;
+      const state = searchParams.get("state") || body?.state;
+      if (!state) return NextResponse.json({ error: "Missing state" }, { status: 400 });
+      let ok = false;
+      if (provider === "trae") ok = registerTraeSession({ state });
+      else if (provider === "windsurf") ok = registerWindsurfSession({ state });
+      else if (provider === "zed") ok = registerZedSession({ state, codeVerifier: body?.codeVerifier, systemId: body?.systemId });
+      else return NextResponse.json({ error: "register-session only supported for trae/windsurf/zed" }, { status: 400 });
+      return NextResponse.json({ success: ok });
+    }
+
+    if (action === "exchange") {
+      const { code, redirectUri, codeVerifier, state, meta, systemId } = body;
+
+      // Xiaomi MiMo: no token exchange needed — the callback already decrypted the sk.
+      // Just read the session result and create the connection.
+      if (provider === "xiaomi-mimo") {
+        if (!state) {
+          return NextResponse.json({ error: "Missing state" }, { status: 400 });
+        }
+        const session = getXiaomiMimoSessionStatus(state);
+        if (!session || session.status !== "done" || !session.result) {
+          return NextResponse.json(
+            { error: session?.error || "OAuth session not completed. Please restart the login flow." },
+            { status: 400 },
+          );
+        }
+        const { uid, accessToken, baseUrl } = session.result;
+
+        // Desktop-exclusive Preview models authenticate with the account-session
+        // passToken, which only lives in MiMo Desktop's cookie store — attach it
+        // to the connection so those models work right after OAuth.
+        let passToken = null;
+        try {
+          passToken = await readDesktopPassToken();
+        } catch {
+          // Desktop not installed / cookie DB locked — preview models stay unavailable.
+        }
+
+        try {
+          const connection = await createProviderConnection({
+            provider: "xiaomi-mimo",
+            authType: "oauth",
+            accessToken,
+            refreshToken: null,
+            expiresAt: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString(),
+            email: uid ? `${uid}@xiaomi` : null,
+            displayName: uid ? `Xiaomi ${uid}` : "Xiaomi MiMo",
+            providerSpecificData: {
+              uid: uid || null,
+              baseUrl: baseUrl || "https://api.xiaomimimo.com/v1",
+              authMethod: "oauth",
+              mimoPassToken: passToken?.passToken || null,
+              mimoUserId: passToken?.userId || null,
+              mimoCUserId: passToken?.cUserId || null,
+            },
+            testStatus: "active",
+          });
+          clearXiaomiMimoSession(state);
+          stopXiaomiMimoProxy();
+          return NextResponse.json({
+            success: true,
+            connection: {
+              id: connection.id,
+              provider: connection.provider,
+              email: connection.email,
+              displayName: connection.displayName,
+            },
+          });
+        } catch (err) {
+          clearXiaomiMimoSession(state);
+          stopXiaomiMimoProxy();
+          return NextResponse.json({ error: err.message }, { status: 500 });
+        }
+      }
+
+      // Trae/Windsurf: code is either a raw callback URL or a pasted token.
+      // exchangeTokens() handles both paths; no PKCE, skip codex JWT extraction.
+      if (provider === "trae" || provider === "windsurf") {
+        const token = typeof code === "string" ? code.trim() : "";
+        if (!token) {
+          return NextResponse.json({ error: "Missing token or callback URL" }, { status: 400 });
+        }
+        try {
+          const tokenData = await exchangeTokens(provider, token, null, null, state);
+          const connection = await createProviderConnection({
+            provider,
+            authType: provider === "windsurf" ? "api_key" : "oauth",
+            ...tokenData,
+            expiresAt: tokenData.expiresIn
+              ? new Date(Date.now() + tokenData.expiresIn * 1000).toISOString()
+              : null,
+            testStatus: "active",
+          });
+          return NextResponse.json({
+            success: true,
+            connection: {
+              id: connection.id,
+              provider: connection.provider,
+              email: connection.email,
+              displayName: connection.displayName,
+            }
+          });
+        } catch (err) {
+          return NextResponse.json({ error: err.message }, { status: 500 });
+        }
+      }
+
+      // Detect if "code" is actually a raw JWT access token (starts with eyJ).
+      // Codex-only: this path stores ChatGPT auth claims; for any other
+      // provider the JWT would be saved as a blindly-trusted access_token.
+      if (provider !== "codex" && code && code.startsWith("eyJ") && code.includes(".")) {
+        return NextResponse.json({ error: `Raw JWT exchange is only supported for codex, not ${provider}` }, { status: 400 });
+      }
+      if (provider === "codex" && code && code.startsWith("eyJ") && code.includes(".")) {
+        const { extractCodexAccountInfo } = await import("@/lib/oauth/providers");
+        const info = extractCodexAccountInfo(code);
+
+        // Also decode JWT directly for ChatGPT website tokens which use
+        // top-level account_id/plan_type instead of nested openai auth claims
+        let directPayload = {};
+        try {
+          const b64 = code.split(".")[1].replace(/-/g, "+").replace(/_/g, "/");
+          const padded = b64 + "=".repeat((4 - b64.length % 4) % 4);
+          directPayload = JSON.parse(Buffer.from(padded, "base64").toString("utf8"));
+        } catch {}
+
+        const accountId = info.chatgptAccountId || directPayload.account_id;
+        const planType = info.chatgptPlanType || directPayload.plan_type;
+        const email = info.email || directPayload.email;
+
+        const providerSpecificData = { authMethod: "access_token" };
+        if (accountId) providerSpecificData.chatgptAccountId = accountId;
+        if (planType) providerSpecificData.chatgptPlanType = planType;
+
+        const connection = await createProviderConnection({
+          provider,
+          authType: "access_token",
+          accessToken: code,
+          email: email || null,
+          providerSpecificData,
+          testStatus: "active",
+        });
+
+        return NextResponse.json({
+          success: true,
+          connection: {
+            id: connection.id,
+            provider: connection.provider,
+            email: connection.email,
+            displayName: connection.displayName,
+          }
+        });
+      }
+
+      // Cline, Cline Free, and ClinePass use authorization_code without PKCE. Kimchi returns a browser token.
+      const noPkceExchangeProviders = ["cline", "cline-free", "clinepass", "kimchi"];
+      if (!code || !redirectUri || (!codeVerifier && !noPkceExchangeProviders.includes(provider))) {
+        return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
+      }
+
+      // Exchange code for tokens (meta carries provider-specific params, e.g. gitlab clientId/baseUrl).
+      // systemId (Zed) is merged into meta so the login attempt's own id is
+      // used instead of a freshly prepared one. Ignored by other providers.
+      const tokenData = await exchangeTokens(provider, code, redirectUri, codeVerifier, state, {
+        ...(meta || {}),
+        ...(systemId ? { systemId } : {}),
+      });
+
+      // Save to database
+      const connection = await createProviderConnection({
+        provider,
+        authType: "oauth",
+        ...tokenData,
+        expiresAt: tokenData.expiresIn 
+          ? new Date(Date.now() + tokenData.expiresIn * 1000).toISOString() 
+          : null,
+        testStatus: "active",
+      });
+
+      return NextResponse.json({ 
+        success: true, 
+        connection: {
+          id: connection.id,
+          provider: connection.provider,
+          email: connection.email,
+          displayName: connection.displayName,
+        }
+      });
+    }
+
+    if (action === "poll") {
+      const { deviceCode, codeVerifier, extraData } = body;
+
+      if (!deviceCode) {
+        return NextResponse.json({ error: "Missing device code" }, { status: 400 });
+      }
+
+      // Providers that don't use PKCE for device code
+      const noPkceProviders = ["github", "kimi", "kimi-coding", "kilocode", "codebuddy-cn", "codebuddy-intl", "workbuddy"];
+      let result;
+      if (noPkceProviders.includes(provider)) {
+        // kimi needs extraData._kimiDeviceId for stable X-Msh-Device-Id (CLIProxyAPI parity)
+        result = await pollForToken(provider, deviceCode, null, extraData);
+      } else if (provider === "kiro") {
+        // Kiro needs extraData (clientId, clientSecret) from device code response
+        result = await pollForToken(provider, deviceCode, null, extraData);
+      } else if (provider === "qoder") {
+        // Qoder needs both the PKCE verifier (codeVerifier) and the machineId
+        // captured at device-code time (extraData._qoderMachineId) so
+        // mapTokens can persist it for COSY signing.
+        if (!codeVerifier) {
+          return NextResponse.json({ error: "Missing code verifier" }, { status: 400 });
+        }
+        result = await pollForToken(provider, deviceCode, codeVerifier, extraData);
+      } else {
+        // Qwen and other PKCE providers
+        if (!codeVerifier) {
+          return NextResponse.json({ error: "Missing code verifier" }, { status: 400 });
+        }
+        result = await pollForToken(provider, deviceCode, codeVerifier);
+      }
+
+      if (result.success) {
+        // Save to database (legacy kimi-coding OAuth → dual-auth kimi)
+        const providerId = provider === "kimi-coding" ? "kimi" : provider;
+        const connection = await createProviderConnection({
+          provider: providerId,
+          authType: "oauth",
+          ...result.tokens,
+          expiresAt: result.tokens.expiresIn 
+            ? new Date(Date.now() + result.tokens.expiresIn * 1000).toISOString() 
+            : null,
+          testStatus: "active",
+        });
+
+        return NextResponse.json({ 
+          success: true, 
+          connection: {
+            id: connection.id,
+            provider: connection.provider,
+          }
+        });
+      }
+
+      // Still pending or error - don't create connection for pending states
+      const isPending = result.pending || result.error === "authorization_pending" || result.error === "slow_down";
+      
+      return NextResponse.json({
+        success: false,
+        error: result.error,
+        errorDescription: result.errorDescription,
+        pending: isPending,
+      });
+    }
+
+    if (action === "manual-code") {
+      if (provider !== "xai") {
+        return NextResponse.json({ error: "Manual code only supported for xai" }, { status: 400 });
+      }
+      const { code, state } = body;
+      const connection = await completeXaiManualCode(String(code || "").trim(), String(state || "").trim());
+      return NextResponse.json({ success: true, connection });
+    }
+
+    if (action === "bulk-jwt") {
+      const JWT_PROVIDERS = ["codebuddy-intl", "codebuddy-cn", "workbuddy"];
+      if (!JWT_PROVIDERS.includes(provider)) {
+        return NextResponse.json({ error: "Provider not supported" }, { status: 400 });
+      }
+
+      const { createProviderConnection, getProviderConnections } = await import("@/models");
+
+      function decodeJwtPayload(token) {
+        try {
+          const parts = String(token).split(".");
+          if (parts.length < 2) return null;
+          let seg = parts[1].replace(/-/g, "+").replace(/_/g, "/");
+          while (seg.length % 4) seg += "=";
+          return JSON.parse(Buffer.from(seg, "base64").toString("utf8"));
+        } catch {
+          return null;
+        }
+      }
+
+      // Parse "name|token", "email|token", "name/email|token", or bare "token".
+      // Lines are split on whitespace; the "|" separator must be inside one line.
+      function extractTokenEntries(raw) {
+        const toEntries = (list) =>
+          list
+            .map((line) => {
+              if (typeof line === "object" && line !== null) {
+                return { name: line.name || line.email || null, token: line.accessToken || line.token || line.apiKey || null };
+              }
+              const s = String(line || "").trim();
+              if (!s) return null;
+              const sep = s.lastIndexOf("|");
+              if (sep > 0) {
+                return { name: s.slice(0, sep).trim() || null, token: s.slice(sep + 1).trim() || null };
+              }
+              return { name: null, token: s };
+            })
+            .filter((e) => e && e.token && e.token.length > 3);
+
+        if (typeof raw === "string") return toEntries(raw.split(/\s*\n+\s*/).flatMap((l) => l.split(/\s{2,}|\t/)).filter(Boolean));
+        if (Array.isArray(raw)) return toEntries(raw);
+        if (raw && typeof raw === "object") {
+          if (typeof raw.text === "string") {
+            return toEntries(raw.text.split(/\s*\n+\s*/).flatMap((l) => l.split(/\s{2,}|\t/)).filter(Boolean));
+          }
+          const list = Array.isArray(raw.tokens) ? raw.tokens : [raw];
+          return toEntries(list);
+        }
+        return [];
+      }
+
+      const entries = extractTokenEntries(body);
+      if (entries.length === 0) {
+        return NextResponse.json(
+          { error: "No tokens found. Paste one token per line, optionally as name|token." },
+          { status: 400 }
+        );
+      }
+
+      let existing = [];
+      try {
+        existing = await getProviderConnections(provider);
+      } catch {
+        existing = [];
+      }
+      const existingTokenSet = new Set(
+        existing
+          .map((c) => c.apiKey || c.providerSpecificData?.accessToken || c.data?.accessToken)
+          .filter(Boolean)
+      );
+      const today = new Date();
+      const todayPrefix = `${String(today.getDate()).padStart(2, "0")}-${String(today.getMonth() + 1).padStart(2, "0")}-${today.getFullYear()}`;
+      const nameRe = new RegExp(`^${todayPrefix}-(\\d+)$`);
+      let nextIndex = existing.reduce((max, c) => {
+        const m = nameRe.exec(c.name || "");
+        return m ? Math.max(max, parseInt(m[1], 10)) : max;
+      }, 0);
+
+      const results = [];
+      let success = 0;
+      let failed = 0;
+      let skipped = 0;
+
+      // SERIAL loop — createProviderConnection reorders priorities in a transaction.
+      for (let i = 0; i < entries.length; i++) {
+        const { name: customName, token } = entries[i];
+        try {
+          if (existingTokenSet.has(token)) {
+            results.push({ index: i, ok: true, skipped: true, reason: "duplicate" });
+            skipped++;
+            continue;
+          }
+          // Track within the batch too: a repeated token inside one payload
+          // must skip on the second occurrence, not create a second row.
+          existingTokenSet.add(token);
+
+          const payload = token.startsWith("eyJ") ? decodeJwtPayload(token) : null;
+          if (token.startsWith("eyJ") && !payload) {
+            throw new Error("Invalid JWT (cannot decode payload)");
+          }
+          const exp = payload && typeof payload.exp === "number" && Number.isFinite(payload.exp) ? payload.exp : null;
+          const expMs = exp !== null ? exp * 1000 : null;
+          // Guard RangeError: NaN / out-of-Date-range exp must not crash.
+          const expiresAt = expMs !== null && expMs <= 8.64e15 ? new Date(expMs).toISOString() : null;
+          const tokenType = payload ? (payload.typ === "Offline" ? "offline-jwt" : "jwt") : "apikey";
+
+          const name = customName || `${todayPrefix}-${(nextIndex += 1)}`;
+          const created = await createProviderConnection({
+            provider,
+            authType: "apikey",
+            name,
+            apiKey: token,
+            priority: 3,
+            testStatus: "active",
+            ...(expiresAt ? { expiresAt } : {}),
+          });
+
+          results.push({ index: i, ok: true, id: created.id, name: created.name, type: tokenType });
+          success++;
+        } catch (e) {
+          results.push({ index: i, ok: false, error: e.message || "Unknown error" });
+          failed++;
+        }
+      }
+
+      return NextResponse.json({ success, failed, skipped, results });
+    }
+
+    return NextResponse.json({ error: "Unknown action" }, { status: 400 });
+  } catch (error) {
+    console.log("OAuth POST error:", error);
+    return NextResponse.json({ error: error.message }, { status: 500 });
+  }
+}

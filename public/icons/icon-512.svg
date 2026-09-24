@@ -1,0 +1,26 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512" fill="none">
+  <rect width="512" height="512" rx="100" fill="#0A0A0A"/>
+  <rect x="4" y="4" width="504" height="504" rx="96" stroke="#164E63" stroke-width="4"/>
+  <defs>
+    <linearGradient id="axon512" x1="64" y1="64" x2="448" y2="448" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#22D3EE"/>
+      <stop offset="0.5" stop-color="#06B6D4"/>
+      <stop offset="1" stop-color="#0891B2"/>
+    </linearGradient>
+    <filter id="coreGlow512" x="-30%" y="-30%" width="160%" height="160%">
+      <feGaussianBlur stdDeviation="16" result="blur"/>
+      <feComposite in="SourceGraphic" in2="blur" operator="over"/>
+    </filter>
+  </defs>
+  <!-- Synaptic Pathways -->
+  <path d="M256 96 L256 256 L400 340" stroke="url(#axon512)" stroke-width="32" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M256 256 L112 340" stroke="url(#axon512)" stroke-width="32" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M256 256 L256 416" stroke="url(#axon512)" stroke-width="26" stroke-dasharray="20 24" stroke-linecap="round"/>
+  <!-- Synaptic Target Nodes -->
+  <circle cx="256" cy="96" r="36" fill="#22D3EE"/>
+  <circle cx="400" cy="340" r="36" fill="#06B6D4"/>
+  <circle cx="112" cy="340" r="36" fill="#06B6D4"/>
+  <!-- Axon Central Body -->
+  <circle cx="256" cy="256" r="64" fill="#0A0A0A" stroke="#22D3EE" stroke-width="26" filter="url(#coreGlow512)"/>
+  <circle cx="256" cy="256" r="28" fill="#67E8F9"/>
+</svg>
