@@ -1,13 +1,9 @@
+# Production Compose file for AxonRouter using pre-built GHCR images.
+# For local building from Dockerfiles, use: docker compose -f docker-compose.build.yml up -d --build
 services:
-  # API gateway — Hono + node:cluster. Serves /v1/*, /v1beta/*, /codex,
-  # /responses. Runs SEPARATELY from the dashboard so gateway traffic never
-  # contends with the dashboard's event loop. Auto-restart via restart:always
-  # + Docker HEALTHCHECK.
+  # Standalone Hono API gateway — serves /v1/* on port 3778
   axonrouter-api:
-    build:
-      context: .
-      dockerfile: Dockerfile.gateway
-    image: axonrouter-api:latest
+    image: ghcr.io/rickicode/axonrouter-api:latest
     container_name: axonrouter-api
     restart: always
     mem_limit: 2g
@@ -43,15 +39,11 @@ services:
       postgres:
         condition: service_healthy
 
+  # Next.js web dashboard + control plane — serves on port 3777
   axonrouter-web:
-    build:
-      context: .
-      dockerfile: Dockerfile
-    image: axonrouter-web:latest
+    image: ghcr.io/rickicode/axonrouter-web:latest
     container_name: axonrouter-web
     restart: always
-    # Box max is 4GB total: app 2.5g + postgres 1g leaves ~0.5g for the
-    # host/docker. OOM kills recycle just this container (restart: always).
     mem_limit: 2500m
     memswap_limit: 2500m
     ports:
@@ -68,16 +60,11 @@ services:
       HOSTNAME: "0.0.0.0"
       TZ: Asia/Jakarta
       NODE_ENV: production
-      # RAM hygiene (4GB box, native-heavy SSE workload):
-      # - glibc arena cap + eager trim: RSS would otherwise pin freed chunks.
-      # - dispatcher cache 128 (from 512 default): fewer idle SOCKS/TLS tunnels held.
       MALLOC_ARENA_MAX: "2"
       MALLOC_TRIM_THRESHOLD_: "131072"
       PROXY_DISPATCHERS_MAX_SIZE: "128"
       DATABASE_URL: ${DATABASE_URL:-postgres://axonrouter:${POSTGRES_PASSWORD:-password123}@postgres:5432/axonrouter}
       ENCRYPTION_KEY: ${ENCRYPTION_KEY:-}
-      # Opt-in: return unredacted request-details payloads (default redacted).
-      # Only enable while dashboard login is enforced (requireLogin !== false).
       REQUEST_DETAILS_SHOW_RAW: ${REQUEST_DETAILS_SHOW_RAW:-false}
     logging:
       driver: "json-file"
@@ -88,6 +75,7 @@ services:
       postgres:
         condition: service_healthy
 
+  # PostgreSQL 17 pure ACID database
   postgres:
     image: postgres:17-alpine
     container_name: axonrouter-postgres
@@ -100,12 +88,6 @@ services:
       - "postgres"
       - "-c"
       - "max_connections=300"
-      # Memory must fit inside the 1g mem_limit above. The previous values
-      # (shared_buffers=1024MB + work_mem=32MB x 300 conns +
-      # effective_cache_size=3072MB) exceeded the container ceiling ->
-      # OOMKilled -> WAL crash recovery -> every client pool goes stale until
-      # a manual restart. Resized for 1g: shared + per-conn memory stays
-      # bounded even at max_connections.
       - "-c"
       - "shared_buffers=256MB"
       - "-c"
@@ -143,4 +125,4 @@ volumes:
     name: ${DATA_VOLUME:-axonrouter-data}
     external: ${DATA_VOLUME_EXTERNAL:-false}
   axonrouter-pgdata:
-    name: ${PGDATA_VOLUME:-9router-pgdata}
+    name: ${PGDATA_VOLUME:-axonrouter-pgdata}

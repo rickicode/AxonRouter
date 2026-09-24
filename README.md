@@ -31,9 +31,9 @@
 
 ## ⚡ AxonRouter vs 9Router
 
-AxonRouter is an enterprise-grade, high-concurrency fork of [decolua/9router (9Router)](https://github.com/decolua/9router). While 9Router targets single-user desktop tray setups using embedded SQLite (`data.sqlite`), AxonRouter is purpose-built for heavy multi-agent concurrency, containerized environments, and production deployments.
+AxonRouter is an enterprise-grade, high-concurrency fork of [decolua/9router (9Router)](https://github.com/decolua/9router). While 9Router targets local single-user developer setups using embedded SQLite (`data.sqlite`), AxonRouter is purpose-built for heavy multi-agent concurrency, containerized environments, and production deployments.
 
-> **Fork Lineage:** `decolua/9router` (desktop SQLite) → `rickicode/9router-X` → **AxonRouter** (Pure PostgreSQL 17 SSOT + Dedicated Hono Gateway cluster).
+> **Fork Lineage:** `decolua/9router` (local SQLite) → `rickicode/9router-X` → **AxonRouter** (Pure PostgreSQL 17 SSOT + Dedicated Hono Gateway cluster).
 
 | Architectural Component | 9Router Original | AxonRouter (Enterprise Edition) |
 |---|---|---|
@@ -43,7 +43,7 @@ AxonRouter is an enterprise-grade, high-concurrency fork of [decolua/9router (9R
 | **Usage Logging** | Monolithic unpartitioned tables | **Native Monthly Range Partitioning** (`usage_history`, `request_details`) with auto-rolling tables |
 | **Failover & Recovery** | Basic sequential fallback | **Combo Fusion, Difficulty Scoring & Circuit Breaker** — negative-availability memoization |
 | **Client Error Isolation** | Client 4xx errors can lock provider accounts | **Strict 4xx Error Isolation** — client errors (400, 404, 413, 499) never freeze upstream accounts |
-| **Deployment Model** | Local Desktop CLI tray app | **Docker Compose Production Stack** (Web Dashboard `3777` + Hono Gateway `3778` + PostgreSQL 17) |
+| **Deployment Model** | Local Single-User CLI / Web | **Docker Compose Production Stack** (Web Dashboard `3777` + Hono Gateway `3778` + PostgreSQL 17) |
 
 ---
 
@@ -139,13 +139,12 @@ Configure `.env` with your secure secrets (e.g. via `openssl rand -hex 32`):
 ### 3. Launch Container Stack
 
 ```bash
-# Start all containers in background:
+# Run production stack using GHCR images:
 docker compose up -d
 
-# Or build locally:
-docker compose up -d --build
+# Or build locally from source:
+docker compose -f docker-compose.build.yml up -d --build
 ```
-
 ### 4. Access Services
 - **AxonRouter Web Dashboard**: `http://localhost:3777/dashboard`
 - **Hono API Gateway Endpoint**: `http://localhost:3778/v1`
