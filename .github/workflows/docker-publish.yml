@@ -25,6 +25,9 @@ jobs:
       - name: Verify lockfile is npm-10-compatible
         run: node scripts/verify-lockfile-npm10.mjs
 
+      # QEMU binfmt — required so buildx can compile linux/arm64 on the amd64 runner
+      - uses: docker/setup-qemu-action@99012661954931238ded8c8b007157a8430204e1 # v4.4.0
+
       - uses: docker/setup-buildx-action@f7ce87c1d6bead3e36075b2ce75da1f6cc28aaca # v3.9.0
 
       - name: Log in to GHCR
@@ -62,7 +65,7 @@ jobs:
           labels: ${{ steps.meta-web.outputs.labels }}
           cache-from: type=registry,ref=${{ steps.images.outputs.web }}:buildcache
           cache-to: type=registry,ref=${{ steps.images.outputs.web }}:buildcache,mode=max
-          platforms: linux/amd64
+          platforms: linux/amd64,linux/arm64
           provenance: false
           sbom: false
 
@@ -87,6 +90,6 @@ jobs:
           labels: ${{ steps.meta-api.outputs.labels }}
           cache-from: type=registry,ref=${{ steps.images.outputs.api }}:buildcache
           cache-to: type=registry,ref=${{ steps.images.outputs.api }}:buildcache,mode=max
-          platforms: linux/amd64
+          platforms: linux/amd64,linux/arm64
           provenance: false
           sbom: false

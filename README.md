@@ -115,6 +115,8 @@ The production stack orchestrates:
 - **axonrouter-web** (Dashboard & Management Gateway): `http://localhost:3777`
 - **postgres** (PostgreSQL 17 ACID database with healthcheck): port `5432`
 
+All published GHCR images are **multi-arch** (`linux/amd64` + `linux/arm64`) — the same compose stack works on x86 servers and ARM boxes (Raspberry Pi, Graviton, Ampere).
+
 ### Option 1: One-Line Installer (Recommended)
 
 The installer does everything interactively:
@@ -145,7 +147,6 @@ curl -sSL https://get.docker.com | sh
 **2. Clone & Configure:**
 ```bash
 git clone https://github.com/rickicode/AxonRouter.git
-cd AxonRouter
 cp .env.example .env
 ```
 
