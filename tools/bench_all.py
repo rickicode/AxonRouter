@@ -57,7 +57,7 @@ PROMPTS = {
         "Return complete runnable code only."
     ),
     "code_hard": (
-        "Design and implement a robust distributed lock client in Python over Redis using Redlock principles. "
+        "Design and implement a robust distributed advisory lock client in Python over PostgreSQL using pg_locks principles. "
         "Requirements: auto-refresh heartbeat thread, monotonic fencing token, drift calculation, "
         "atomic acquire/release via Lua, crash-safe error handling, plus comprehensive tests. "
         "Return complete runnable code only."
