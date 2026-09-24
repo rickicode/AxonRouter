@@ -84,7 +84,7 @@ beforeEach(() => {
   mocks.getLkg.mockResolvedValue(null);
 });
 
-describe("selection fast paths (Redis+PG)", () => {
+describe("selection fast paths (in-memory cache + PG)", () => {
   it("dead circuit short-circuits to fast 503 without scanning PG", async () => {
     mocks.getDeadCircuit.mockResolvedValue(3);
     const res = await getProviderCredentials("openai", null, "gpt-x");

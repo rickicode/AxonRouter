@@ -117,19 +117,23 @@ The production stack orchestrates:
 
 ### Option 1: One-Line Installer (Recommended)
 
-Detects Docker; if it is missing, the installer prompts `Install Docker now? (yes/no)` and runs `curl -sSL https://get.docker.com | sh` when you answer `yes`. It then clones the repo and prepares the environment file:
+The installer does everything interactively:
+1. Detects Docker — if missing, it prompts `Install Docker now? (yes/no)` and runs `curl -sSL https://get.docker.com | sh` when you answer `yes`.
+2. Clones the repo to `./AxonRouter` (the `docker-compose.yml` lives there).
+3. Auto-generates all secrets into `.env` (`JWT_SECRET`, `API_KEY_SECRET`, `ENCRYPTION_KEY`, `POSTGRES_PASSWORD`, `INITIAL_PASSWORD`) — press Enter to accept each generated value, or type your own. **No manual `.env` editing needed.**
+4. Asks `Start the stack now? (yes/no)` and runs `docker compose up -d` from the clone directory.
 
 ```bash
 curl -sSL https://raw.githubusercontent.com/rickicode/AxonRouter/main/scripts/install.sh | sh
 ```
 
-Then edit your secrets and start everything:
+If you skipped the auto-start, launch it any time:
 
 ```bash
-cd AxonRouter
-$EDITOR .env          # set JWT_SECRET, POSTGRES_PASSWORD, etc.
-docker compose up -d  # launch the full stack from GHCR images
+cd AxonRouter && docker compose up -d
 ```
+
+Manage the stack from the same directory: `docker compose ps` / `logs -f` / `down`.
 
 ### Option 2: Manual Setup
 

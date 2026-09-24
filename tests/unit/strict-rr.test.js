@@ -137,7 +137,7 @@ describe("strict round-robin", () => {
     expect(tried).toEqual(["p/m1", "p/m1", "p/m2", "p/m2"]);
   });
 
-  it("falls back to in-memory rotation when Redis is down", async () => {
+  it("keeps in-memory rotation working when the cache is down", async () => {
     mocks.cacheDown = true;
     resetComboRotation("rr");
     const tried = [];

@@ -98,7 +98,6 @@ Response JSON:
 | **Docker Volumes** | `axonrouter-data`, `axonrouter-pgdata` | Pertahankan nama fisik volume | **JANGAN GANTI NAMA FISIK VOLUME** di prod tanpa migrasi data live |
 | **PostgreSQL Database** | `postgres://axonrouter:.../axonrouter` | Pertahankan connection string prod | Ubah label koneksi saja di docs, pertahankan kredensial live |
 | **Header Internal** | `x-axonrouter-test-request`, `x-axonrouter-connection-id` | `x-axon-test-request`, `x-axon-connection-id` | Middleware baca header baru dengan fallback header lama |
-| **Pub/Sub Redis Event** | `axonrouter:events` | `axonrouter:events` | Ubah event channel untuk isolasi pesan bersih |
 
 ---
 

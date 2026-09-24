@@ -210,7 +210,7 @@ describe("Freebuff Limited Tier (Proxy/IP Rate Limit)", () => {
   });
 
   describe("src/sse/services/auth.js markAccountUnavailable", () => {
-    it("sets 30s Redis cooldown and does NOT write model_locks to PostgreSQL", async () => {
+    it("sets 30s cooldown and does NOT write model_locks to PostgreSQL", async () => {
       mocks.getProviderConnections.mockResolvedValueOnce([
         { id: "conn-fb-1", provider: "freebuff", displayName: "FB User 1" },
       ]);

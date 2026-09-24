@@ -49,9 +49,9 @@ import {
 } from "@/lib/db/repos/proxyGroupsRepo.js";
 import { countProxyGroupBoundConnections } from "@/lib/db/repos/connectionsRepo.js";
 
-describe("Postgres & Redis L2 Architecture E2E", () => {
+describe("PostgreSQL Architecture E2E", () => {
   beforeAll(async () => {
-    // Wait for Redis connection to settle
+    // Wait for connections to settle
     await new Promise((r) => setTimeout(r, 200));
   });
 

@@ -45,7 +45,7 @@ $DATA_DIR/
 └── ...                   # runtime configs and local certificates
 ```
 
-Database is hosted via PostgreSQL 17 (see `docker-compose.yml` for production stack with PostgreSQL and Valkey).
+Database is hosted via PostgreSQL 17 (see `docker-compose.yml` for the production stack).
 
 ## Optional env vars
 
