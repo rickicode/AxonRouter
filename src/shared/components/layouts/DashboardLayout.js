@@ -6,6 +6,7 @@ import { usePathname } from "next/navigation";
 import { useNotificationStore } from "@/store/notificationStore";
 import Sidebar from "../Sidebar";
 import Header from "../Header";
+import UpdateBanner from "../UpdateBanner";
 import Icon from "@/shared/components/Icon";
 
 function getToastStyle(type) {
@@ -182,9 +183,9 @@ export default function DashboardLayout({ children }) {
  id="main-content"
  tabIndex={-1}
  className="flex flex-col flex-1 h-full min-w-0 relative isolate outline-none"
- >
- {/* Faint grid background */}
- <Header key={pathname} onMenuClick={handleOpenMenu} />
+>
+        <UpdateBanner />
+        <Header key={pathname} onMenuClick={handleOpenMenu} />
  <div className="flex-1 overflow-y-auto custom-scrollbar p-3 lg:p-3">
  <div className="w-full">{children}</div>
  </div>

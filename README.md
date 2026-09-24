@@ -114,6 +114,7 @@ The production stack orchestrates:
 - **axonrouter-api** (Dedicated High-Throughput Hono API Gateway): `http://localhost:3778`
 - **axonrouter-web** (Dashboard & Management Gateway): `http://localhost:3777`
 - **postgres** (PostgreSQL 17 ACID database with healthcheck): port `5432`
+- **watchtower** (Automated zero-touch image updater): checks GHCR every 12h
 
 All published GHCR images are **multi-arch** (`linux/amd64` + `linux/arm64`) — the same compose stack works on x86 servers and ARM boxes (Raspberry Pi, Graviton, Ampere).
 
