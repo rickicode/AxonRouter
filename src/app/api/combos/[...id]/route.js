@@ -31,11 +31,27 @@ function resetComboRotationState(name) {
 // Validate combo name: only a-z, A-Z, 0-9, -, _
 const VALID_NAME_REGEX = /^[a-zA-Z0-9_.\-/]+$/;
 
-// GET /api/combos/[id] - Get combo by ID
+// Helper to resolve id parameter from catch-all [...id] segments
+function resolveParamId(rawId) {
+  if (Array.isArray(rawId)) {
+    return rawId.map((seg) => decodeURIComponent(seg)).join("/");
+  }
+  return decodeURIComponent(rawId || "");
+}
+
+async function findCombo(identifier) {
+  if (!identifier) return null;
+  const byId = await getComboById(identifier);
+  if (byId) return byId;
+  return await getComboByName(identifier);
+}
+
+// GET /api/combos/[...id] - Get combo by ID or name
 export async function GET(request, { params }) {
   try {
-    const { id } = await params;
-    const combo = await getComboById(id);
+    const { id: rawId } = await params;
+    const id = resolveParamId(rawId);
+    const combo = await findCombo(id);
     
     if (!combo) {
       return NextResponse.json({ error: "Combo not found" }, { status: 404 });
@@ -48,12 +64,36 @@ export async function GET(request, { params }) {
   }
 }
 
-// PUT /api/combos/[id] - Update combo
+// PUT /api/combos/[...id] - Update combo by ID or name (or upsert)
 export async function PUT(request, { params }) {
   try {
-    const { id } = await params;
+    const { id: rawId } = await params;
+    const id = resolveParamId(rawId);
     const body = await request.json();
     
+    // Resolve combo by id OR by name
+    const prev = await findCombo(id);
+    if (!prev) {
+      const nameToUse = (body.name || id).trim();
+      if (!VALID_NAME_REGEX.test(nameToUse)) {
+        return NextResponse.json({ error: "Name can only contain letters, numbers, -, _, . and /" }, { status: 400 });
+      }
+      const existingName = await getComboByName(nameToUse);
+      if (existingName) {
+        return NextResponse.json({ error: "Combo name already exists" }, { status: 400 });
+      }
+      const combo = await createCombo({
+        id: id && !id.includes("/") ? id : undefined,
+        name: nameToUse,
+        models: body.models || [],
+        kind: body.kind || null,
+      });
+      resetComboRotationState(combo.name);
+      return NextResponse.json(combo, { status: 201 });
+    }
+
+    const realId = prev.id;
+
     // Validate name format if provided
     if (body.name) {
       if (!VALID_NAME_REGEX.test(body.name)) {
@@ -62,22 +102,16 @@ export async function PUT(request, { params }) {
       
       // Check if name already exists (exclude current combo)
       const existing = await getComboByName(body.name);
-      if (existing && existing.id !== id) {
+      if (existing && existing.id !== realId) {
         return NextResponse.json({ error: "Combo name already exists" }, { status: 400 });
       }
-    }
-    
-    // Capture previous name to invalidate rotation state on rename
-    const prev = await getComboById(id);
-    if (!prev) {
-      return NextResponse.json({ error: "Combo not found" }, { status: 404 });
     }
 
     if (isBuiltinCombo(prev) && body.name && body.name !== prev.name) {
       return NextResponse.json({ error: "Built-in preset combo name cannot be changed" }, { status: 400 });
     }
 
-    const combo = await updateCombo(id, body);
+    const combo = await updateCombo(realId, body);
     
     if (!combo) {
       return NextResponse.json({ error: "Combo not found" }, { status: 404 });
@@ -94,11 +128,12 @@ export async function PUT(request, { params }) {
   }
 }
 
-// DELETE /api/combos/[id] - Delete combo
+// DELETE /api/combos/[...id] - Delete combo by ID or name
 export async function DELETE(request, { params }) {
   try {
-    const { id } = await params;
-    const prev = await getComboById(id);
+    const { id: rawId } = await params;
+    const id = resolveParamId(rawId);
+    const prev = await findCombo(id);
     if (!prev) {
       return NextResponse.json({ error: "Combo not found" }, { status: 404 });
     }
@@ -107,7 +142,7 @@ export async function DELETE(request, { params }) {
       return NextResponse.json({ error: "Built-in preset combos cannot be deleted" }, { status: 403 });
     }
 
-    const success = await deleteCombo(id);
+    const success = await deleteCombo(prev.id);
     if (!success) {
       return NextResponse.json({ error: "Failed to delete combo" }, { status: 500 });
     }

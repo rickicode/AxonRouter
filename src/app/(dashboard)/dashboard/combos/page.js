@@ -215,7 +215,7 @@ function CombosContent({ activeTab }) {
 
   const handleUpdate = async (id, data, silent = false) => {
     try {
-      const res = await fetch(`/api/combos/${id}`, {
+      const res = await fetch(`/api/combos/${encodeURIComponent(id)}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(data),
@@ -248,7 +248,7 @@ function CombosContent({ activeTab }) {
       onConfirm: async () => {
         setConfirmState(null);
         try {
-          const res = await fetch(`/api/combos/${id}`, { method: "DELETE" });
+          const res = await fetch(`/api/combos/${encodeURIComponent(id)}`, { method: "DELETE" });
           if (res.ok) {
             setCombos((prev) => prev.filter((c) => c.id !== id));
             notify.success(`Deleted combo "${name}"`);

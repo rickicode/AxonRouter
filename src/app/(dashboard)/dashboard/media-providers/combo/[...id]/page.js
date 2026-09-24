@@ -50,7 +50,9 @@ function getListingHref(kind) {
 }
 
 export default function ComboDetailPage() {
- const { id } = useParams();
+ const params = useParams();
+ const rawId = params?.id;
+ const id = Array.isArray(rawId) ? rawId.map((s) => decodeURIComponent(s)).join("/") : decodeURIComponent(rawId || "");
  const router = useRouter();
  const [combo, setCombo] = useState(null);
  const [loading, setLoading] = useState(true);
@@ -72,7 +74,7 @@ export default function ComboDetailPage() {
  const fetchAll = async () => {
  try {
  const [comboRes, settingsRes, logsRes, keysRes, connsRes, aliasesRes] = await Promise.all([
- fetch(`/api/combos/${id}`, { cache: "no-store" }),
+ fetch(`/api/combos/${encodeURIComponent(id)}`, { cache: "no-store" }),
  fetch("/api/settings", { cache: "no-store" }),
  fetch("/api/usage/logs", { cache: "no-store" }),
  fetch("/api/keys", { cache: "no-store" }),
@@ -109,7 +111,7 @@ export default function ComboDetailPage() {
  };
 
  const saveCombo = async (patch) => {
- const res = await fetch(`/api/combos/${id}`, {
+ const res = await fetch(`/api/combos/${encodeURIComponent(id)}`, {
  method: "PUT",
  headers: { "Content-Type": "application/json" },
  body: JSON.stringify(patch),
@@ -175,7 +177,7 @@ export default function ComboDetailPage() {
  };
 
  const confirmDelete = async () => {
- const res = await fetch(`/api/combos/${id}`, { method: "DELETE" });
+ const res = await fetch(`/api/combos/${encodeURIComponent(id)}`, { method: "DELETE" });
  if (res.ok) router.push(getListingHref(combo.kind));
  setDeleteConfirmId(null);
  };

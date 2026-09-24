@@ -118,7 +118,7 @@ function ComboList({ combos }) {
  {combos.map((combo) => {
  const badge = getComboBadge(combo);
  return (
- <Link key={combo.id} href={`/dashboard/media-providers/combo/${combo.id}`}>
+ <Link key={combo.id} href={`/dashboard/media-providers/combo/${encodeURIComponent(combo.id)}`}>
  <Card padding="xs" className="hover:bg-surface-2 cursor-pointer">
  <div className="flex min-w-0 items-center gap-3">
  <div className={`size-8 rounded-sm flex items-center justify-center shrink-0 border ${badge.border} ${badge.bg} ${badge.text}`} title={badge.title}>
@@ -247,7 +247,7 @@ export default function MediaProviderKindPage() {
  });
  if (res.ok) {
  const created = await res.json();
- router.push(`/dashboard/media-providers/combo/${created.id}`);
+ router.push(`/dashboard/media-providers/combo/${encodeURIComponent(created.id)}`);
  } else {
  const err = await res.json();
  notify.error(err.error || "Failed to create combo");
