@@ -4,8 +4,7 @@
 # then optionally starts the stack. Requires: curl, git.
 set -e
 
-REPO_URL="https://github.com/rickicode/AxonRouter.git"
-INSTALL_DIR="${1:-$PWD/AxonRouter}"
+INSTALL_DIR="${1:-$HOME/AxonRouter}"
 
 echo "==> AxonRouter installer (Docker Compose)"
 echo "    Compose file location: $INSTALL_DIR/docker-compose.yml"

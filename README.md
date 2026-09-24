@@ -121,21 +121,62 @@ All published GHCR images are **multi-arch** (`linux/amd64` + `linux/arm64`) —
 
 The installer does everything interactively:
 1. Detects Docker — if missing, it prompts `Install Docker now? (yes/no)` and runs `curl -sSL https://get.docker.com | sh` when you answer `yes`.
-2. Clones the repo to `./AxonRouter` (the `docker-compose.yml` lives there).
-3. Auto-generates all secrets into `.env` (`JWT_SECRET`, `API_KEY_SECRET`, `ENCRYPTION_KEY`, `POSTGRES_PASSWORD`, `INITIAL_PASSWORD`) — press Enter to accept each generated value, or type your own. **No manual `.env` editing needed.**
-4. Asks `Start the stack now? (yes/no)` and runs `docker compose up -d` from the clone directory.
+2. Clones the repo, generates all secrets into `.env` (`JWT_SECRET`, `API_KEY_SECRET`, `ENCRYPTION_KEY`, `POSTGRES_PASSWORD`, `INITIAL_PASSWORD`) — press Enter to accept each generated value. **No manual `.env` editing needed.**
+3. Asks `Start the stack now? (yes/no)` and runs `docker compose up -d` from the clone directory.
 
 ```bash
 curl -sSL https://raw.githubusercontent.com/rickicode/AxonRouter/main/scripts/install.sh | sh
 ```
 
-If you skipped the auto-start, launch it any time:
+### Where does it install? (`docker-compose.yml` location)
+
+The default install path is **`~/AxonRouter`** (your home directory) — wherever you run the command. Pass an explicit path as the first argument to override it:
+
+| Environment | Command | Resulting compose file |
+|---|---|---|
+| **Default (any OS user)** | run the installer | `~/AxonRouter/docker-compose.yml` |
+| **Linux server / VPS under `/opt`** | `curl … \| sh -s -- /opt/AxonRouter` | `/opt/AxonRouter/docker-compose.yml` |
+| **Custom location** | `curl … \| sh -s -- /your/path` | `/your/path/docker-compose.yml` |
+
+Server example (system-wide install under `/opt`):
 
 ```bash
-cd AxonRouter && docker compose up -d
+curl -sSL https://raw.githubusercontent.com/rickicode/AxonRouter/main/scripts/install.sh | sh -s -- /opt/AxonRouter
 ```
 
-Manage the stack from the same directory: `docker compose ps` / `logs -f` / `down`.
+Default example (installs to `~/AxonRouter`):
+
+```bash
+curl -sSL https://raw.githubusercontent.com/rickicode/AxonRouter/main/scripts/install.sh | sh
+```
+
+### Windows
+
+The installer is a POSIX shell script — pick one:
+
+- **WSL2 (recommended):** enable WSL2 with Docker Desktop WSL integration, open the WSL terminal and run the Linux command above → compose file lands in `\\wsl$\<distro>\home\<user>\AxonRouter\docker-compose.yml`.
+- **Native PowerShell (Docker Desktop running):**
+
+```powershell
+git clone https://github.com/rickicode/AxonRouter.git
+cd AxonRouter
+Copy-Item .env.example .env
+docker compose up -d
+```
+
+Compose file: `C:\Users\<you>\AxonRouter\docker-compose.yml`
+
+### Start or manage the stack later
+
+All compose commands run **from the install directory**:
+
+```bash
+cd ~/AxonRouter          # default location (or /opt/AxonRouter / your custom path)
+docker compose up -d      # start
+docker compose ps         # status
+docker compose logs -f    # logs
+docker compose down       # stop
+```
 
 ### Option 2: Manual Setup
 
