@@ -170,7 +170,7 @@ function wrapCompression(req, res) {
 // header even though the env var is inherited by child processes. Named like x-axonrouter-cli-token
 // so the request-detail header sanitizer redacts it too.
 const PEER_TOKEN = crypto.randomBytes(24).toString("hex");
-process.env.NINEROUTER_PEER_TOKEN = PEER_TOKEN;
+process.env.AXONROUTER_PEER_TOKEN = PEER_TOKEN;
 
 let quotaCacheStarted = false;
 
