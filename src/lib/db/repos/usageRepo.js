@@ -2,7 +2,7 @@ import { EventEmitter } from "events";
 import { getAdapter } from "../driver.js";
 import { parseJson } from "../helpers/jsonCol.js";
 import { incrementInFlight, decrementInFlight, registerActiveRequest, unregisterActiveRequest, getActiveRequestsDistributed } from "@/lib/cache/client.js";
-import { getValkey, publishValkey, subscribeValkey } from "@/lib/cache/valkeyClient.js";
+import { getValkey, publishValkey, subscribeValkey, initValkey } from "@/lib/cache/valkeyClient.js";
 
 function maskApiKey(key) {
   if (!key || typeof key !== "string") return null;
@@ -163,11 +163,9 @@ async function insertHistoryChunk(tx, rows) {
     const base = params.length;
     params.push(
       r.timestamp, r.provider, r.model, r.connectionId, r.apiKey, r.endpoint,
-      r.promptTokens, r.completionTokens, r.cost, r.status, r.tokens, r.meta, r.requestId,
+      r.promptTokens, r.completionTokens, r.cost, r.status, r.tokens, r.meta, r.requestId ?? null,
     );
-    return r.requestId
-      ? `($${base + 1},$${base + 2},$${base + 3},$${base + 4},$${base + 5},$${base + 6},$${base + 7},$${base + 8},$${base + 9},$${base + 10},$${base + 11}::jsonb,$${base + 12}::jsonb,$${base + 13}::text)`
-      : `($${base + 1},$${base + 2},$${base + 3},$${base + 4},$${base + 5},$${base + 6},$${base + 7},$${base + 8},$${base + 9},$${base + 10},$${base + 11}::jsonb,$${base + 12}::jsonb,NULL)`;
+    return `($${base + 1},$${base + 2},$${base + 3},$${base + 4},$${base + 5},$${base + 6},$${base + 7},$${base + 8},$${base + 9},$${base + 10},$${base + 11}::jsonb,$${base + 12}::jsonb,$${base + 13}::text)`;
   });
   const sqlText = `INSERT INTO usage_history
      (timestamp, provider, model, connection_id, api_key, endpoint, prompt_tokens, completion_tokens, cost, status, tokens, meta, request_id)
@@ -443,6 +441,7 @@ export async function trackPendingRequest(model, provider, connectionId, started
       delete pendingTimers[timerKey];
       trackPendingRequest(model, provider, connectionId, false, true, { requestId: timerKey, forceStop: true });
     }, PENDING_TIMEOUT_MS);
+    pendingTimers[timerKey]?.unref?.();
   } else {
     clearTimeout(pendingTimers[timerKey]);
     delete pendingTimers[timerKey];
@@ -466,7 +465,7 @@ export async function getActiveRequests() {
   const localItems = [...liveActiveRequests.values()];
   let distItems = [];
   let dbItems = [];
-  const valkey = getValkey();
+  const valkey = getValkey() || (await initValkey().catch(() => null));
   if (valkey) {
     try {
       distItems = await getActiveRequestsDistributed();
@@ -602,8 +601,8 @@ export async function getActiveRequests() {
         rawApiKey: entry.apiKey || "",
         endpoint: entry.endpoint || "/v1/chat/completions",
         isStream,
-        promptTokens: tokens.prompt_tokens || tokens.input_tokens || 0,
-        completionTokens: tokens.completion_tokens || tokens.output_tokens || 0,
+        promptTokens: tokens.prompt_tokens || tokens.input_tokens || entry.promptTokens || 0,
+        completionTokens: tokens.completion_tokens || tokens.output_tokens || entry.completionTokens || 0,
        status: entry.status || (meta.failed ? "error_502" : "ok"),
         error: entry.error || meta.error || null,
       };
@@ -694,7 +693,11 @@ export async function saveFailedRequest({ provider, model, connectionId, apiKey,
 
 export async function saveRequestUsage(entry) {
   try {
-    if (!entry.timestamp) entry.timestamp = new Date().toISOString();
+    if (!entry.timestamp) {
+      entry.timestamp = new Date().toISOString();
+    } else if (typeof entry.timestamp === "number" || (entry.timestamp instanceof Date)) {
+      entry.timestamp = new Date(entry.timestamp).toISOString();
+    }
     const tokens = entry.tokens || {};
     const promptTokens = tokens.prompt_tokens || tokens.input_tokens || 0;
     const completionTokens = tokens.completion_tokens || tokens.output_tokens || 0;
@@ -1006,8 +1009,8 @@ export async function getUsageStats(period = "all") {
         rawApiKey: row.api_key || "",
         endpoint: row.endpoint || "/v1/chat/completions",
         isStream,
-        promptTokens: tokens.prompt_tokens || tokens.input_tokens || 0,
-        completionTokens: tokens.completion_tokens || tokens.output_tokens || 0,
+        promptTokens: tokens.prompt_tokens || tokens.input_tokens || row.prompt_tokens || 0,
+        completionTokens: tokens.completion_tokens || tokens.output_tokens || row.completion_tokens || 0,
         cachedTokens: tokens.cached_tokens || tokens.cache_read_input_tokens || 0,
          status: normalizedStatus,
         error: meta.error || null,

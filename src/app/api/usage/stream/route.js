@@ -67,12 +67,14 @@ export async function GET() {
             controller.enqueue(encoder.encode(`data: ${JSON.stringify(quickStats)}\n\n`));
           }
           // Full recalc is shared+coalesced across streams; update cache when done
-          scheduleSharedRecalc(() => {
+          scheduleSharedRecalc(async () => {
             if (state.closed) return;
             if (shared.lastStats) {
               state.cachedStats = shared.lastStats;
               try {
-                controller.enqueue(encoder.encode(`data: ${JSON.stringify(shared.lastStats)}\n\n`));
+                const { activeRequests, recentRequests, errorProvider } = await getActiveRequests();
+                const merged = { ...shared.lastStats, activeRequests, recentRequests, errorProvider };
+                controller.enqueue(encoder.encode(`data: ${JSON.stringify(merged)}\n\n`));
               } catch {
                 state.closed = true;
               }
@@ -88,11 +90,13 @@ export async function GET() {
 
       // Lightweight push: only refresh activeRequests + recentRequests on pending changes
       state.sendPending = async () => {
-        if (state.closed || !state.cachedStats) return;
+        if (state.closed) return;
+        const base = state.cachedStats || shared.lastStats;
+        if (!base) return;
         try {
           const { activeRequests, recentRequests, errorProvider } = await getActiveRequests();
           const last10Minutes = await getLast10Minutes();
-          const stats = { ...state.cachedStats, activeRequests, recentRequests, errorProvider, last10Minutes };
+          const stats = { ...base, activeRequests, recentRequests, errorProvider, last10Minutes };
           controller.enqueue(encoder.encode(`data: ${JSON.stringify(stats)}\n\n`));
         } catch {
           state.closed = true;

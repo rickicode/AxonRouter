@@ -1,6 +1,6 @@
 import crypto from "node:crypto";
 import { memSet, memGet, memDel, memDelPrefix, memMget, memIncr, memExpire } from "./memoryStore.js";
-import { getValkey, publishValkey, subscribeValkey } from "./valkeyClient.js";
+import { getValkey, publishValkey, subscribeValkey, initValkey } from "./valkeyClient.js";
 
 // ── Hybrid Speed Layer: Valkey (Distributed) + MemoryStore (Process-Local) ──
 // When Valkey is available (default on 127.0.0.1:6379), state is synchronized
@@ -702,7 +702,7 @@ export async function registerActiveRequest(requestId, detail) {
     expiresAt: Date.now() + ACTIVE_REQUEST_TTL_SECONDS * 1000,
   });
 
-  const valkey = getValkey();
+  const valkey = getValkey() || (await initValkey().catch(() => null));
   if (valkey) {
     try {
       await valkey.hset("axon:active_requests", requestId, payload);
@@ -721,7 +721,7 @@ export async function registerActiveRequest(requestId, detail) {
 
 export async function unregisterActiveRequest(requestId) {
   if (!requestId) return false;
-  const valkey = getValkey();
+  const valkey = getValkey() || (await initValkey().catch(() => null));
   if (valkey) {
     try {
       await valkey.hdel("axon:active_requests", requestId);
@@ -738,7 +738,7 @@ export async function unregisterActiveRequest(requestId) {
 }
 
 export async function getActiveRequestsDistributed() {
-  const valkey = getValkey();
+  const valkey = getValkey() || (await initValkey().catch(() => null));
   if (valkey) {
     try {
       const rawMap = await valkey.hgetall("axon:active_requests");
