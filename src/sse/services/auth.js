@@ -614,12 +614,11 @@ export async function getProviderCredentials(provider, excludeConnectionIds = nu
     // 3. Window scan (up to 2 windows): SQL pre-filters durable eligibility;
     // the second window covers providers whose first `candidateWindow` rows
     // are all transiently filtered (cache cooldowns / RAM quota blocks).
-    // Window-0 hits the L2 connection cache (8s TTL, invalidated by every
-    // updateProviderConnection/setModelCooldown/ban path), so repeated
-    // selections for a hot provider/model skip the PG scan entirely.
-    // Windows ≥1 always re-read PG (pagination correctness beats cache hits).
+    // Window-0 hits the L2 connection cache (60s TTL, invalidated in Valkey
+    // including the ::routing: suffix), so repeated selections for a hot
+    // provider/model skip the PG scan. Windows ≥1 always re-read PG.
     const MAX_SELECTION_WINDOWS = Math.min(10, Math.max(2, Number(process.env.ROUTING_MAX_CANDIDATE_WINDOWS) || 6));
-    const CONNECTION_CACHE_TTL_S = 8;
+    const CONNECTION_CACHE_TTL_S = 60;
     const loadWindow = async (windowIdx) => {
       if (windowIdx === 0) {
         const cached = await getCachedConnections(`${providerId}::routing:${model || "*"}`).catch(() => null);

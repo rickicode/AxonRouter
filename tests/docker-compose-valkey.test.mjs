@@ -83,9 +83,13 @@ test("valkey dependency is ordered but never blocks app boot (fail-open)", () =>
   }
 });
 
-test("base compose files stay Valkey-free so memory-only remains the safe default", () => {
-  assert.doesNotMatch(prod, /valkey/i);
-  assert.doesNotMatch(build, /valkey/i);
+test("base compose starts Valkey automatically and injects the sibling URL", () => {
+  assert.match(prod, /^  valkey:$/m, "valkey service block present in docker-compose.yml");
+  assert.match(prod, /image: valkey\/valkey:8-alpine/);
+  assert.match(prod, /container_name: axonrouter-valkey/);
+  assert.equal((prod.match(/^\s+VALKEY_URL: /gm) || []).length, 2);
+  assert.match(build, /^  valkey:$/m, "valkey service block present in docker-compose.build.yml");
+  assert.equal((build.match(/^\s+VALKEY_URL: /gm) || []).length, 2);
 });
 
 test("env example documents the VALKEY_* contract", () => {
@@ -153,7 +157,7 @@ test("resolved compose config wires Valkey into both app containers and exposes 
     t.skip("docker compose unavailable");
     return;
   }
-  const resolved = resolveCompose(["docker-compose.yml", "docker-compose.valkey.yml"]);
+  const resolved = resolveCompose(["docker-compose.yml"]);
   assert.match(resolved, /^  valkey:$/m, "valkey service present in resolved config");
   assert.match(resolved, /image: valkey\/valkey:8-alpine/);
   assert.equal(
@@ -162,13 +166,7 @@ test("resolved compose config wires Valkey into both app containers and exposes 
     "both app containers receive the sibling DNS URL"
   );
 
-  // The valkey block is last in alphabetical service order; assert nothing
-  // published inside it.
   const valkeyResolved = resolved.split(/^  valkey:$/m)[1];
   assert.ok(valkeyResolved, "resolved valkey block");
   assert.doesNotMatch(valkeyResolved, /published:/, "valkey publishes no host port");
-
-  // Baseline without the overlay must create no valkey container at all.
-  const baseline = resolveCompose(["docker-compose.yml"]);
-  assert.doesNotMatch(baseline, /valkey:6379/);
 });

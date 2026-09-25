@@ -1,4 +1,4 @@
-import { getUsageStats, statsEmitter, getActiveRequests, getLast10Minutes } from "@/lib/usageDb";
+import { getUsageStats, statsEmitter, getActiveRequests } from "@/lib/usageDb";
 
 export const dynamic = "force-dynamic";
 
@@ -54,18 +54,28 @@ export async function GET() {
       try {
         controller.enqueue(encoder.encode("retry: 3000\n\n"));
       } catch { /* client already gone */ }
+      // Live panel first. Active requests and the recent ring come from Valkey
+      // and must not wait on the full usage aggregation, which scans Aiven.
+      state.sendPending = async () => {
+        if (state.closed) return;
+        const base = state.cachedStats || shared.lastStats || {};
+        try {
+          const { activeRequests, recentRequests, errorProvider } = await getActiveRequests();
+          const stats = { ...base, activeRequests, recentRequests, errorProvider };
+          controller.enqueue(encoder.encode(`data: ${JSON.stringify(stats)}\n\n`));
+        } catch {
+          state.closed = true;
+          statsEmitter.off("update", state.send);
+          statsEmitter.off("pending", state.sendPending);
+          clearInterval(state.keepalive);
+        }
+      };
+
       // Full stats refresh (heavy) + immediate lightweight push
       state.send = async () => {
         if (state.closed) return;
         try {
-          // Push lightweight update immediately so UI reflects changes fast
-          if (state.cachedStats || shared.lastStats) {
-            state.cachedStats ??= shared.lastStats;
-            const { activeRequests, recentRequests, errorProvider } = await getActiveRequests();
-            const last10Minutes = await getLast10Minutes();
-            const quickStats = { ...state.cachedStats, activeRequests, recentRequests, errorProvider, last10Minutes };
-            controller.enqueue(encoder.encode(`data: ${JSON.stringify(quickStats)}\n\n`));
-          }
+          await state.sendPending();
           // Full recalc is shared+coalesced across streams; update cache when done
           scheduleSharedRecalc(async () => {
             if (state.closed) return;
@@ -80,24 +90,6 @@ export async function GET() {
               }
             }
           });
-        } catch {
-          state.closed = true;
-          statsEmitter.off("update", state.send);
-          statsEmitter.off("pending", state.sendPending);
-          clearInterval(state.keepalive);
-        }
-      };
-
-      // Lightweight push: only refresh activeRequests + recentRequests on pending changes
-      state.sendPending = async () => {
-        if (state.closed) return;
-        const base = state.cachedStats || shared.lastStats;
-        if (!base) return;
-        try {
-          const { activeRequests, recentRequests, errorProvider } = await getActiveRequests();
-          const last10Minutes = await getLast10Minutes();
-          const stats = { ...base, activeRequests, recentRequests, errorProvider, last10Minutes };
-          controller.enqueue(encoder.encode(`data: ${JSON.stringify(stats)}\n\n`));
         } catch {
           state.closed = true;
           statsEmitter.off("update", state.send);

@@ -168,12 +168,32 @@ export async function clearAccountCooldown(connId) {
   return setAccountCooldown(connId, 0);
 }
 
+async function deleteValkeyByPrefix(prefix) {
+  const valkey = getValkey() || (await initValkey().catch(() => null));
+  if (!valkey || !prefix) return 0;
+  const keys = [];
+  await new Promise((resolve, reject) => {
+    const stream = valkey.scanStream({ match: `${prefix}*`, count: 200 });
+    stream.on("data", (batch) => {
+      if (Array.isArray(batch) && batch.length > 0) keys.push(...batch);
+    });
+    stream.on("end", resolve);
+    stream.on("error", reject);
+  });
+  if (keys.length === 0) return 0;
+  for (let i = 0; i < keys.length; i += 200) {
+    await valkey.del(...keys.slice(i, i + 200));
+  }
+  return keys.length;
+}
+
 export async function clearBatchAccountCooldown(connIds) {
   if (!Array.isArray(connIds) || connIds.length === 0) return false;
   try {
-    const valkey = getValkey();
+    const valkey = getValkey() || (await initValkey().catch(() => null));
     if (valkey) {
       valkey.del(...connIds.map((id) => `cooldown:conn:${id}`)).catch(() => {});
+      await Promise.all(connIds.map((id) => deleteValkeyByPrefix(`cooldown:model:${id}:`).catch(() => 0)));
     }
     memDel(...connIds.map((id) => `cooldown:conn:${id}`));
     for (const id of connIds) {
@@ -561,11 +581,10 @@ export async function setCachedConnections(provider, connections, ttlSeconds = 1
 export async function invalidateCachedConnections(provider) {
   if (!provider) return false;
   const key = `cache:connections:${provider}`;
-  const valkey = getValkey();
-  if (valkey) {
-    valkey.del(key).catch(() => {});
-  }
   try {
+    await deleteValkeyByPrefix(`${key}::routing:`).catch(() => 0);
+    const valkey = getValkey();
+    if (valkey) valkey.del(key).catch(() => {});
     memDel(key);
     memDelPrefix(`cache:connections:${provider}::routing:`);
     return true;

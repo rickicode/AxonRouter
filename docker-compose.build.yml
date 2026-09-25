@@ -26,6 +26,7 @@ services:
       NODE_ENV: production
       MALLOC_ARENA_MAX: "2"
       DATABASE_URL: ${DATABASE_URL:-postgres://axonrouter:${POSTGRES_PASSWORD:-password123}@postgres:5432/axonrouter}
+      VALKEY_URL: ${VALKEY_URL:-redis://valkey:6379}
       ENCRYPTION_KEY: ${ENCRYPTION_KEY:-}
     logging:
       driver: "json-file"
@@ -41,6 +42,9 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+      valkey:
+        condition: service_started
+        required: false
 
   axonrouter-web:
     build:
@@ -68,6 +72,7 @@ services:
       MALLOC_TRIM_THRESHOLD_: "131072"
       PROXY_DISPATCHERS_MAX_SIZE: "128"
       DATABASE_URL: ${DATABASE_URL:-postgres://axonrouter:${POSTGRES_PASSWORD:-password123}@postgres:5432/axonrouter}
+      VALKEY_URL: ${VALKEY_URL:-redis://valkey:6379}
       ENCRYPTION_KEY: ${ENCRYPTION_KEY:-}
       REQUEST_DETAILS_SHOW_RAW: ${REQUEST_DETAILS_SHOW_RAW:-false}
     logging:
@@ -78,6 +83,9 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+      valkey:
+        condition: service_started
+        required: false
 
   postgres:
     image: postgres:17-alpine
@@ -119,6 +127,36 @@ services:
       test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER:-axonrouter} -d $${POSTGRES_DB:-axonrouter}"]
       interval: 5s
       timeout: 5s
+      retries: 5
+
+  valkey:
+    image: valkey/valkey:8-alpine
+    container_name: axonrouter-valkey
+    restart: always
+    mem_limit: 256m
+    memswap_limit: 256m
+    command:
+      - "valkey-server"
+      - "--save"
+      - ""
+      - "--appendonly"
+      - "no"
+      - "--maxmemory"
+      - "192mb"
+      - "--maxmemory-policy"
+      - "allkeys-lru"
+    environment:
+      TZ: Asia/Jakarta
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "2"
+    healthcheck:
+      test: ["CMD", "valkey-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      start_period: 5s
       retries: 5
 
 volumes:

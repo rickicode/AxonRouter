@@ -123,15 +123,14 @@ function pushToRing(entry) {
   if (recentRing.items.length > RING_CAP) {
     recentRing.items = recentRing.items.slice(-RING_CAP);
   }
-  const valkey = getValkey();
-  if (valkey) {
-    try {
-      const payload = JSON.stringify(entry);
-      valkey.lpush("axon:recent_requests", payload)
-        .then(() => valkey.ltrim("axon:recent_requests", 0, RING_CAP - 1))
-        .catch(() => {});
-    } catch {}
-  }
+  const write = async () => {
+    const valkey = getValkey() || (await initValkey().catch(() => null));
+    if (!valkey) return;
+    const payload = JSON.stringify(entry);
+    await valkey.lpush("axon:recent_requests", payload);
+    await valkey.ltrim("axon:recent_requests", 0, RING_CAP - 1);
+  };
+  write().catch(() => {});
 }
 
 // Usage write batcher — one DB transaction per flush window instead of one
@@ -282,19 +281,45 @@ function enqueueUsageWrite(item) {
   });
 }
 
+async function readJsonCache(key, ttlSeconds, load) {
+  const valkey = getValkey() || (await initValkey().catch(() => null));
+  if (valkey) {
+    try {
+      const cached = await valkey.get(key);
+      if (cached) return JSON.parse(cached);
+    } catch {}
+  }
+  const value = await load();
+  if (valkey && value) {
+    valkey.set(key, JSON.stringify(value), "EX", ttlSeconds).catch(() => {});
+  }
+  return value;
+}
+
 async function getConnectionMapCached() {
-  if (Date.now() - connCache.ts < CONN_CACHE_TTL_MS) return connCache.map;
+  if (Date.now() - connCache.ts < CONN_CACHE_TTL_MS && Object.keys(connCache.map).length > 0) return connCache.map;
   try {
-    const db = await getAdapter();
-    const rows = await db.all(
-      `SELECT id, name, email FROM provider_connections`
-    );
-    const map = {};
-    for (const r of rows) map[r.id] = r.name || r.email || r.id;
-    connCache.map = map;
+    const map = await readJsonCache("axon:conn_names", 60, async () => {
+      const db = await getAdapter();
+      const rows = await db.all(`SELECT id, name, email FROM provider_connections`);
+      const next = {};
+      for (const r of rows) next[r.id] = r.name || r.email || r.id;
+      return next;
+    });
+    connCache.map = map || {};
     connCache.ts = Date.now();
   } catch {}
   return connCache.map;
+}
+
+async function getApiKeyNameMap() {
+  return readJsonCache("axon:apikey_names", 60, async () => {
+    const { getApiKeys } = await import("./apiKeysRepo.js");
+    const keys = await getApiKeys();
+    const map = {};
+    for (const k of keys) map[k.key] = k.name;
+    return map;
+  }).catch(() => ({}));
 }
 
 async function ensureRingInitialized() {
@@ -451,10 +476,11 @@ export async function trackPendingRequest(model, provider, connectionId, started
     const p = provider.toLowerCase();
     lastErrorProvider.provider = p;
     lastErrorProvider.ts = Date.now();
-    const valkey = getValkey();
-    if (valkey) {
-      valkey.set("axon:last_error_provider", p, "EX", 10).catch(() => {});
-    }
+    const writeError = async () => {
+      const valkey = getValkey() || (await initValkey().catch(() => null));
+      if (valkey) await valkey.set("axon:last_error_provider", p, "EX", 10);
+    };
+    writeError().catch(() => {});
   }
 
   scheduleStatsEvent("pending");
@@ -503,13 +529,7 @@ export async function getActiveRequests() {
   const items = [...mergedMap.values()];
 
   const connectionMap = await getConnectionMapCached();
-  let allApiKeys = [];
-  try {
-    const { getApiKeys } = await import("./apiKeysRepo.js");
-    allApiKeys = await getApiKeys();
-  } catch {}
-  const apiKeyMap = {};
-  for (const k of allApiKeys) apiKeyMap[k.key] = k.name;
+  const apiKeyMap = await getApiKeyNameMap();
 
   for (const item of items) {
     const accountName = connectionMap[item.connectionId] || item.connectionId || `Unknown Account (${item.provider})`;
@@ -568,13 +588,29 @@ export async function getActiveRequests() {
   }
 
   if (rawRingItems.length === 0) {
-    await ensureRingInitialized();
-    rawRingItems = [...recentRing.items];
-    if (valkey && rawRingItems.length > 0) {
-      const serialized = rawRingItems.map((e) => JSON.stringify(e));
-      valkey.rpush("axon:recent_requests", ...serialized)
-        .then(() => valkey.ltrim("axon:recent_requests", 0, RING_CAP - 1))
-        .catch(() => {});
+    const lockKey = "axon:recent_requests:fill";
+    let locked = false;
+    if (valkey) {
+      try {
+        locked = (await valkey.set(lockKey, "1", "NX", "EX", 30)) === "OK";
+      } catch {}
+    }
+    if (!valkey || locked) {
+      await ensureRingInitialized();
+      rawRingItems = [...recentRing.items];
+      if (valkey && rawRingItems.length > 0) {
+        const serialized = rawRingItems.map((e) => JSON.stringify(e));
+        await valkey.rpush("axon:recent_requests", ...serialized)
+          .then(() => valkey.ltrim("axon:recent_requests", 0, RING_CAP - 1))
+          .catch(() => {});
+      }
+    } else if (valkey) {
+      try {
+        const list = await valkey.lrange("axon:recent_requests", 0, RING_CAP - 1);
+        rawRingItems = (list || []).map((item) => {
+          try { return JSON.parse(item); } catch { return null; }
+        }).filter(Boolean);
+      } catch {}
     }
   }
 
@@ -682,10 +718,11 @@ export async function saveFailedRequest({ provider, model, connectionId, apiKey,
       const p = provider.toLowerCase();
       lastErrorProvider.provider = p;
       lastErrorProvider.ts = Date.now();
-      const v = getValkey();
-      if (v) {
-        v.set("axon:last_error_provider", p, "EX", 10).catch(() => {});
-      }
+      const writeError = async () => {
+        const valkey = getValkey() || (await initValkey().catch(() => null));
+        if (valkey) await valkey.set("axon:last_error_provider", p, "EX", 10);
+      };
+      writeError().catch(() => {});
     }
     scheduleStatsEvent("update", 250);
   } catch (_) { /* fail-open */ }
@@ -933,9 +970,17 @@ function buildAggregatesFromDays(dayRows, connectionMap = {}, providerNodeNameMa
  * series instead of a shrinking one.
  */
 export async function getLast10Minutes(dbArg) {
-  const db = dbArg || (await getAdapter());
   const now = new Date();
   const currentMinuteStart = new Date(Math.floor(now.getTime() / 60000) * 60000);
+  const cacheKey = `axon:last10:${currentMinuteStart.getTime()}`;
+  const valkey = getValkey() || (await initValkey().catch(() => null));
+  if (!dbArg && valkey) {
+    try {
+      const cached = await valkey.get(cacheKey);
+      if (cached) return JSON.parse(cached);
+    } catch {}
+  }
+  const db = dbArg || (await getAdapter());
   const windowStart = new Date(currentMinuteStart.getTime() - 29 * 60 * 1000);
   const bucketMap = {};
   const buckets = [];
@@ -958,6 +1003,9 @@ export async function getLast10Minutes(dbArg) {
       bucketMap[minuteStart].completionTokens += row.completion_tokens || 0;
       bucketMap[minuteStart].cost += row.cost || 0;
     }
+  }
+  if (!dbArg && valkey) {
+    valkey.set(cacheKey, JSON.stringify(buckets), "EX", 60).catch(() => {});
   }
   return buckets;
 }

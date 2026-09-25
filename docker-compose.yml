@@ -3,12 +3,17 @@
 #
 # ── Database backend ──────────────────────────────────────────────────────────
 # This base file contains NO database container — it is the correct stack for an
-# EXTERNAL / managed PostgreSQL (Neon, Supabase, RDS, existing server): set
+# EXTERNAL / managed PostgreSQL (Neon, Supabase, RDS, Aiven, existing server): set
 # DATABASE_URL in .env and run `docker compose up -d` as-is.
 #
 # For the BUILT-IN Postgres container, enable the overlay via .env:
 #   COMPOSE_FILE=docker-compose.yml:docker-compose.postgres.yml
 # (the one-line installer scripts/install.sh asks and configures this for you)
+#
+# Valkey is part of this file. `docker compose up -d` starts it and both app
+# containers receive VALKEY_URL=redis://valkey:6379. Set VALKEY_URL in .env only
+# when the shared cache is an external Redis/Valkey. The app still boots if the
+# container is down and falls open to process memory.
 services:
   # Standalone Hono API gateway — serves /v1/* on port 3778
   axonrouter-api:
@@ -33,6 +38,7 @@ services:
       NODE_ENV: production
       MALLOC_ARENA_MAX: "2"
       DATABASE_URL: ${DATABASE_URL:-postgres://axonrouter:${POSTGRES_PASSWORD:-password123}@postgres:5432/axonrouter}
+      VALKEY_URL: ${VALKEY_URL:-redis://valkey:6379}
       ENCRYPTION_KEY: ${ENCRYPTION_KEY:-}
     logging:
       driver: "json-file"
@@ -45,6 +51,10 @@ services:
       timeout: 5s
       start_period: 30s
       retries: 3
+    depends_on:
+      valkey:
+        condition: service_started
+        required: false
 
   # AxonRouter web dashboard + control plane (Vite SPA + Hono) — serves on port 3777
   axonrouter-web:
@@ -70,6 +80,7 @@ services:
       MALLOC_TRIM_THRESHOLD_: "131072"
       PROXY_DISPATCHERS_MAX_SIZE: "128"
       DATABASE_URL: ${DATABASE_URL:-postgres://axonrouter:${POSTGRES_PASSWORD:-password123}@postgres:5432/axonrouter}
+      VALKEY_URL: ${VALKEY_URL:-redis://valkey:6379}
       ENCRYPTION_KEY: ${ENCRYPTION_KEY:-}
       REQUEST_DETAILS_SHOW_RAW: ${REQUEST_DETAILS_SHOW_RAW:-false}
     logging:
@@ -77,6 +88,10 @@ services:
       options:
         max-size: "50m"
         max-file: "3"
+    depends_on:
+      valkey:
+        condition: service_started
+        required: false
 
   # Auto-updater: monitors GHCR every 12 hours and restarts updated containers
   watchtower:
@@ -95,6 +110,38 @@ services:
       options:
         max-size: "10m"
         max-file: "2"
+
+  # Valkey 8. Realtime coordination only: no persistence, LRU eviction, and no
+  # host port. Reachable solely by the sibling containers on the compose network.
+  valkey:
+    image: valkey/valkey:8-alpine
+    container_name: axonrouter-valkey
+    restart: always
+    mem_limit: 256m
+    memswap_limit: 256m
+    command:
+      - "valkey-server"
+      - "--save"
+      - ""
+      - "--appendonly"
+      - "no"
+      - "--maxmemory"
+      - "192mb"
+      - "--maxmemory-policy"
+      - "allkeys-lru"
+    environment:
+      TZ: Asia/Jakarta
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "2"
+    healthcheck:
+      test: ["CMD", "valkey-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      start_period: 5s
+      retries: 5
 
 volumes:
   axonrouter-data:
