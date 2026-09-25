@@ -307,8 +307,12 @@ console.log(`[WebServer] Successfully loaded ${loadedRoutes.length} route handle
 // ── Serve Static Assets & SPA Fallback ────────────────────────────────────────
 if (fs.existsSync(DIST_DIR)) {
   console.log(`[WebServer] Serving SPA assets from ${DIST_DIR}`);
+  // High-performance caching for hashed assets (1 year immutable cache)
+  app.use("/assets/*", async (c, next) => {
+    await next();
+    c.res.headers.set("Cache-Control", "public, max-age=31536000, immutable");
+  });
   app.use("/*", serveStatic({ root: "./dist" }));
-
   // SPA fallback: any non-API route returns dist/index.html
   app.get("*", (c) => {
     const p = c.req.path;

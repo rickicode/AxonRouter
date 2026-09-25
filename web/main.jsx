@@ -5,7 +5,7 @@ import { createRoot } from "react-dom/client";
 import { BrowserRouter, Routes, Route, Navigate, useParams } from "react-router-dom";
 import { ThemeProvider } from "@/shared/components/ThemeProvider";
 import { RuntimeI18nProvider } from "@/i18n/RuntimeI18nProvider";
-import { DashboardLayout } from "@/shared/components";
+import { DashboardLayout, ErrorBoundary } from "@/shared/components";
 
 const LoginPage = lazy(() => import("@/app/login/page.js"));
 const LandingPage = lazy(() => import("@/app/landing/page.js"));
@@ -101,7 +101,9 @@ function Shell({ children }) {
   return (
     <AuthGuard>
       <DashboardLayout>
-        <Suspense fallback={<PageSpinner />}>{children}</Suspense>
+        <ErrorBoundary>
+          <Suspense fallback={<PageSpinner />}>{children}</Suspense>
+        </ErrorBoundary>
       </DashboardLayout>
     </AuthGuard>
   );

@@ -39,6 +39,7 @@ export { default as ProviderInfoCard } from "./ProviderInfoCard";
 export { default as CapacityBadges } from "./CapacityBadges";
 export { default as Icon } from "./Icon";
 export { default as UpdateBanner } from "./UpdateBanner";
+export { default as ErrorBoundary } from "./ErrorBoundary";
 
 // Layouts
 export * from "./layouts";
