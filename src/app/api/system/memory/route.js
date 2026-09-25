@@ -2,7 +2,7 @@ import { NextResponse } from "@/lib/http/response.js";
 import fs from "node:fs";
 import path from "node:path";
 import { getDataDir } from "@/lib/dataDir";
-import { getAdapter } from "@/lib/db/driver";
+import { getDatabaseSize } from "@/lib/db/repos/settingsRepo.js";
 import { poolFitnessSnapshot } from "open-sse/services/proxyPoolFitness.js";
 import { poolGeoSnapshot } from "open-sse/services/poolGeo.js";
 
@@ -39,9 +39,8 @@ export async function GET() {
     let dbSizeMB = "N/A (PostgreSQL)";
 
     try {
-      const db = await getAdapter();
-      const res = await db.get("SELECT pg_size_pretty(pg_database_size(current_database())) AS size");
-      if (res?.size) dbSizeMB = res.size;
+      const size = await getDatabaseSize();
+      if (size) dbSizeMB = size;
     } catch {
       // Fallback if db query fails
     }

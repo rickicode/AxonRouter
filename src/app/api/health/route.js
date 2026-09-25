@@ -1,5 +1,5 @@
 import { NextResponse } from "@/lib/http/response.js";
-import { getAdapter } from "@/lib/db/driver";
+import { pingDb } from "@/lib/db/repos/settingsRepo.js";
 import { memSize } from "@/lib/cache/memoryStore";
 import { getRoutingMetrics } from "open-sse/services/routingMetrics";
 
@@ -31,9 +31,8 @@ export async function GET() {
   // Check PostgreSQL
   const dbStart = Date.now();
   try {
-    const db = await getAdapter();
-    const res = await db.get("SELECT 1 as ok");
-    check.postgres = !!res?.ok;
+    const ok = await pingDb();
+    check.postgres = ok;
     check.latencyMs.postgres = Date.now() - dbStart;
   } catch (err) {
     check.postgres = false;

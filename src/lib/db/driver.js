@@ -1,5 +1,5 @@
 import { createPostgresAdapter } from "./adapters/postgresAdapter.js";
-import { PG_SCHEMA_SQL, ensureMonthlyPartitions } from "./schema.pg.js";
+import { PG_SCHEMA_SQL, ensureMonthlyPartitions, pruneStalePartitions } from "./schema.pg.js";
 import { ANALYTICS_SCHEMA_SQL } from "./analyticsSchema.js";
 
 // Singleton adapter state
@@ -22,6 +22,7 @@ async function initAdapter() {
       await tx.exec(PG_SCHEMA_SQL);
       await tx.exec(ANALYTICS_SCHEMA_SQL);
       await ensureMonthlyPartitions(tx);
+      await pruneStalePartitions(tx).catch(() => {});
     });
   } catch (err) {
     console.error(`[DB] Bootstrap schema error:`, err.message);

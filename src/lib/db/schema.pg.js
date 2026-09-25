@@ -414,5 +414,30 @@ export async function ensureMonthlyPartitions(adapter) {
      await adapter.exec(`CREATE INDEX IF NOT EXISTS idx_uh_${suffix}_lookup ON usage_history_${suffix} (timestamp DESC, id DESC);`);
      await adapter.exec(`CREATE INDEX IF NOT EXISTS idx_uh_${suffix}_status ON usage_history_${suffix} (status, timestamp DESC);`);
      await adapter.exec(`CREATE INDEX IF NOT EXISTS idx_rd_${suffix}_conn ON request_details_${suffix} (connection_id, timestamp DESC);`);
+    await adapter.exec(`CREATE INDEX IF NOT EXISTS idx_rd_${suffix}_conn ON request_details_${suffix} (connection_id, timestamp DESC);`);
+  }
+}
+
+/**
+ * Drop partitions older than retainMonths to keep PostgreSQL storage bounded.
+ */
+export async function pruneStalePartitions(adapter, retainMonths = 3) {
+  try {
+    const now = new Date();
+    const cutoffDate = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - retainMonths, 1));
+    const cutoffSuffix = `y${cutoffDate.getUTCFullYear()}m${String(cutoffDate.getUTCMonth() + 1).padStart(2, "0")}`;
+
+    const rows = await adapter.all(
+      `SELECT relname FROM pg_class WHERE relname LIKE 'request_details_y%' OR relname LIKE 'usage_history_y%'`
+    );
+
+    for (const r of (rows || [])) {
+      const match = r.relname.match(/(request_details|usage_history)_(y\d{4}m\d{2})/);
+      if (match && match[2] < cutoffSuffix) {
+        await adapter.exec(`DROP TABLE IF EXISTS ${r.relname} CASCADE;`);
+      }
+    }
+  } catch (err) {
+    // Fail-open: partition pruning should never crash startup
   }
 }

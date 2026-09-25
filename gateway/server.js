@@ -65,7 +65,30 @@ async function canAccessPublicLlmApi(c) {
   const { validateApiKey } = await import("@/lib/db/repos/apiKeysRepo.js");
   return Boolean(await validateApiKey(apiKey));
 }
+// High-performance in-memory rate limiter per remote IP (300 requests/minute window)
+const RATE_LIMIT_WINDOW_MS = 60 * 1000;
+const MAX_REQUESTS_PER_WINDOW = 300;
+const ipRequestBuckets = new Map();
 
+setInterval(() => {
+  const cutoff = Date.now() - RATE_LIMIT_WINDOW_MS;
+  for (const [ip, bucket] of ipRequestBuckets.entries()) {
+    if (bucket.resetAt < cutoff) ipRequestBuckets.delete(ip);
+  }
+}, 30 * 1000).unref?.();
+
+function isRateLimited(ip) {
+  if (!ip || ip === "127.0.0.1" || ip === "::1" || ip === "::ffff:127.0.0.1") return false;
+  const now = Date.now();
+  let bucket = ipRequestBuckets.get(ip);
+  if (!bucket || now > bucket.resetAt) {
+    bucket = { count: 1, resetAt: now + RATE_LIMIT_WINDOW_MS };
+    ipRequestBuckets.set(ip, bucket);
+    return false;
+  }
+  bucket.count++;
+  return bucket.count > MAX_REQUESTS_PER_WINDOW;
+}
 async function requireLlmAccess(c, next) {
   const pathname = c.req.path;
   if (!PUBLIC_LLM_PREFIXES.some((p) => pathname === p || pathname.startsWith(p + "/"))) return next();
@@ -76,6 +99,9 @@ async function requireLlmAccess(c, next) {
   const peer = c.env?.incoming?.socket?.remoteAddress || "";
   if (peer === "127.0.0.1" || peer === "::1" || peer === "::ffff:127.0.0.1") return next();
 
+  if (isRateLimited(peer)) {
+    return c.json({ error: "Too many requests. Please slow down." }, 429);
+  }
   if (c.req.header("x-axonrouter-cli-token")) {
     if (c.req.header("x-axonrouter-cli-token") === (await getCliToken())) return next();
   }
@@ -222,6 +248,13 @@ app.get("/api/health", async (c) => {
   } catch (e) {
     return c.json({ status: "degraded", error: e.message, timestamp: new Date().toISOString() }, 503);
   }
+});
+
+// ── Prometheus Metrics ────────────────────────────────────────────────────────
+app.get("/metrics", async (c) => {
+  const { renderPrometheusMetrics } = await import("@/lib/observability/prometheusMetrics.js");
+  const text = await renderPrometheusMetrics();
+  return c.text(text, 200, { "Content-Type": "text/plain; version=0.0.4; charset=utf-8" });
 });
 
 // 404 for unknown /v1 paths

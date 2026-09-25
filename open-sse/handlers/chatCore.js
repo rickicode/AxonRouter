@@ -29,6 +29,7 @@ import { compressWithHeadroom, formatHeadroomLog, formatHeadroomSizeLog, isHeadr
 import { compressWithPxpipe } from "../rtk/pxpipe.js";
 import { getCapabilitiesForModel } from "../providers/capabilities.js";
 import { stripUnsupportedModalities } from "../translator/concerns/modality.js";
+import { degradeRequestForCapabilities } from "../translator/concerns/capabilitiesDegradation.js";
 import { prefetchRemoteImages } from "../translator/concerns/prefetch.js";
 import { defaultClaudeToolType, shouldDefaultClaudeToolType } from "../translator/concerns/toolCall.js";
 import { resolveSessionId } from "../utils/sessionManager.js";
@@ -166,12 +167,14 @@ const passthrough = isNativePassthrough(clientTool, provider);
 // Expose raw client headers to translators/executors for session-id resolution
 if (credentials) credentials.rawHeaders = clientRawRequest?.headers || {};
 
-// Auto-strip media blocks the model can't read (vision/audio/pdf) before translation.
+// Auto-degrade request for capabilities the model cannot express
+// (modalities, tools, reasoning, parallelToolCalls, max tokens)
+const caps = getCapabilitiesForModel(provider, model);
+const { degraded, degradedCapabilities } = degradeRequestForCapabilities(body, sourceFormat, caps, { provider, model, log });
+if (degraded && degradedCapabilities.length > 0) {
+  log?.info?.("CAPABILITY", `degraded request for ${provider}/${model}: [${degradedCapabilities.join(", ")}]`);
+}
 if (!passthrough) {
-  const caps = getCapabilitiesForModel(provider, model);
-  if (stripUnsupportedModalities(body, sourceFormat, caps)) {
-    log?.debug?.("MODALITY", `stripped unsupported media for ${provider}/${model}`);
-  }
   // Convert remote image URLs to base64 for targets that can't fetch URLs.
   try {
     const n = await prefetchRemoteImages(body, sourceFormat, targetFormat, { signal: undefined });

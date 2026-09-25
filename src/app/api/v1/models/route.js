@@ -156,12 +156,44 @@ const parseOpenAIStyleModels = (data) => {
   return data?.data || data?.models || data?.results || [];
 };
 
-// In-memory cache for /v1/models. The list only changes when connections,
-// combos, custom models, or aliases change — but rebuild costs seconds (live
-// upstream catalog fetches). At 1000 req/min rebuilding per-request is fatal.
-const MODELS_CACHE_TTL_MS = 30 * 1000;
+// In-memory cache for /v1/models with Stale-While-Revalidate (SWR).
+// Responses return in <2ms. Background refresh keeps catalog up to date without
+// blocking client requests or causing client discovery timeouts.
+const MODELS_CACHE_FRESH_MS = 5 * 60 * 1000; // 5 min fresh
+const MODELS_CACHE_MAX_STALE_MS = 60 * 60 * 1000; // 1 hr stale fallback
 let modelsListCache = new Map();
+let inFlightBuild = new Map();
 
+async function refreshModelsCache(cacheKey, skipDynamicFetch) {
+  if (inFlightBuild.has(cacheKey)) {
+    return inFlightBuild.get(cacheKey);
+  }
+  const promise = (async () => {
+    try {
+      const data = await buildModelsList([LLM_KIND], { skipDynamicFetch });
+      if (Array.isArray(data) && data.length > 0) {
+        modelsListCache.set(cacheKey, {
+          data,
+          expiresAt: Date.now() + MODELS_CACHE_FRESH_MS,
+          staleUntil: Date.now() + MODELS_CACHE_MAX_STALE_MS,
+        });
+      }
+      return data;
+    } catch (err) {
+      console.log(`[ModelsCache] Background refresh failed for ${cacheKey}:`, err?.message || err);
+      return modelsListCache.get(cacheKey)?.data || [];
+    } finally {
+      inFlightBuild.delete(cacheKey);
+    }
+  })();
+  inFlightBuild.set(cacheKey, promise);
+  return promise;
+}
+
+// Pre-warm cache shortly after boot in background
+setTimeout(() => {
+  refreshModelsCache("full", false).catch(() => {});
+}, 1000).unref?.();
 // Header sent by fetchCompatibleModelIds to detect cross-instance /models fetches
 // and break recursive loops between axonrouter instances connected to each other.
 const INTERNAL_MODELS_FETCH_HEADER = "x-axonrouter-internal-models-fetch";
@@ -681,20 +713,38 @@ export async function GET(request) {
     const skipDynamicFetch = request?.headers?.get(INTERNAL_MODELS_FETCH_HEADER) === "1";
     const cacheKey = skipDynamicFetch ? "skip" : "full";
     const cached = modelsListCache.get(cacheKey);
-    if (cached && Date.now() < cached.expiresAt) {
+    const now = Date.now();
+
+    // 1. Fresh cache: serve immediately (<2ms)
+    if (cached && now < cached.expiresAt) {
       return Response.json({ object: "list", data: cached.data }, {
         headers: {
           "Access-Control-Allow-Origin": "*",
-          "Cache-Control": "public, max-age=30",
+          "Cache-Control": "public, max-age=60",
+          "x-axonrouter-cache": "HIT",
         },
       });
     }
-    const data = await buildModelsList([LLM_KIND], { skipDynamicFetch });
-    modelsListCache.set(cacheKey, { data, expiresAt: Date.now() + MODELS_CACHE_TTL_MS });
+
+    // 2. Stale-While-Revalidate: serve stale immediately (<2ms) and trigger background re-fetch
+    if (cached && now < cached.staleUntil) {
+      refreshModelsCache(cacheKey, skipDynamicFetch).catch(() => {});
+      return Response.json({ object: "list", data: cached.data }, {
+        headers: {
+          "Access-Control-Allow-Origin": "*",
+          "Cache-Control": "public, max-age=60",
+          "x-axonrouter-cache": "STALE",
+        },
+      });
+    }
+
+    // 3. Cold start: wait for in-flight build or build now
+    const data = await refreshModelsCache(cacheKey, skipDynamicFetch);
     return Response.json({ object: "list", data }, {
       headers: {
         "Access-Control-Allow-Origin": "*",
-        "Cache-Control": "public, max-age=30",
+        "Cache-Control": "public, max-age=60",
+        "x-axonrouter-cache": "MISS",
       },
     });
   } catch (error) {

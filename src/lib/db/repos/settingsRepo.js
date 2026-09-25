@@ -112,3 +112,15 @@ export async function updateSettings(updates) {
 export async function exportSettings() {
   return await readRaw();
 }
+
+export async function pingDb() {
+  const db = await getAdapter();
+  const res = await db.get("SELECT 1 as ok");
+  return !!res?.ok;
+}
+
+export async function getDatabaseSize() {
+  const db = await getAdapter();
+  const res = await db.get("SELECT pg_size_pretty(pg_database_size(current_database())) AS size");
+  return res?.size || null;
+}

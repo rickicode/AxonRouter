@@ -55,6 +55,8 @@ async function getCliToken() {
 // ── Auth Guard Constants ──────────────────────────────────────────────────────
 const PUBLIC_API_PATHS = new Set([
   "/api/health",
+  "/api/metrics",
+  "/metrics",
   "/api/init",
   "/api/locale",
   "/api/auth/login",
@@ -275,6 +277,11 @@ app.all("/v1", rewriteToApi);
 app.all("/v1/*", rewriteToApi);
 app.all("/v1beta", rewriteToApi);
 app.all("/v1beta/*", rewriteToApi);
+app.get("/metrics", async (c) => {
+  const { renderPrometheusMetrics } = await import("@/lib/observability/prometheusMetrics.js");
+  const text = await renderPrometheusMetrics();
+  return c.text(text, 200, { "Content-Type": "text/plain; version=0.0.4; charset=utf-8" });
+});
 // ── Load 141 filesystem routes from src/app/api ──────────────────────────────
 console.log("[WebServer] Loading API routes from src/app/api...");
 const loadedRoutes = await loadApiRoutes(app);
@@ -372,10 +379,22 @@ if (typeof Bun !== "undefined") {
   );
 }
 
-// Graceful shutdown
-process.on("SIGINT", () => process.exit(0));
-process.on("SIGTERM", () => process.exit(0));
-
+// Graceful shutdown with in-flight drain
+let shuttingDown = false;
+async function handleGracefulShutdown(signal) {
+  if (shuttingDown) return;
+  shuttingDown = true;
+  console.log(`[WebServer] Received ${signal}. Draining in-flight requests...`);
+  try {
+    const { drainAndShutdown } = await import("@/lib/server/gracefulDrain.js");
+    await drainAndShutdown(15000);
+  } catch (err) {
+    console.error("[WebServer] Error during drain:", err);
+  }
+  process.exit(0);
+}
+process.on("SIGINT", () => handleGracefulShutdown("SIGINT"));
+process.on("SIGTERM", () => handleGracefulShutdown("SIGTERM"));
 export default typeof Bun !== "undefined"
   ? { port: PORT, hostname: HOSTNAME, fetch: app.fetch }
   : app;
