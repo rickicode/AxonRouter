@@ -49,7 +49,8 @@ export default function Input({
           aria-invalid={error ? true : undefined}
           aria-describedby={errorId || hintId}
           className={cn(
-            "h-11 w-full border border-border bg-surface px-2 text-sm text-text-main",
+            "w-full border border-border bg-surface px-2 text-sm text-text-main",
+            !inputClassName?.includes("h-") && "h-11",
             "placeholder:text-text-subtle",
             "outline-none focus:border-primary",
             "disabled:cursor-not-allowed disabled:opacity-50",

@@ -209,14 +209,15 @@ export default function ConsoleLogClient() {
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
-            <div className="w-48 sm:w-56">
+            <div className="w-56 sm:w-64">
               <Input
                 ref={searchRef}
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Filter logs (press /)"
+                placeholder="Filter logs (press /)..."
                 icon="search"
                 aria-label="Filter console logs"
+                inputClassName="h-8 text-xs bg-[#111116] border-border focus:border-primary placeholder:text-text-muted/50 rounded-sm font-mono"
               />
             </div>
             <Button
@@ -225,7 +226,7 @@ export default function ConsoleLogClient() {
               icon={paused ? "play_arrow" : "pause"}
               onClick={() => setPaused((value) => !value)}
               aria-label={paused ? "Resume live log stream" : "Pause live log stream"}
-              className="min-h-9 sm:min-h-7"
+              className="h-8 text-xs px-3 rounded-sm border-border bg-surface hover:bg-surface-2 transition active:scale-95 flex items-center gap-1.5"
             >
               {paused ? "Resume" : "Pause"}
             </Button>
@@ -235,7 +236,7 @@ export default function ConsoleLogClient() {
               icon="delete"
               onClick={handleClear}
               aria-label="Clear console logs"
-              className="min-h-9 sm:min-h-7"
+              className="h-8 text-xs px-3 rounded-sm border-border bg-surface hover:bg-surface-2 text-text-muted hover:text-danger hover:border-danger/40 transition active:scale-95 flex items-center gap-1.5"
             >
               Clear
             </Button>
