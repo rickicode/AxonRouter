@@ -40,6 +40,7 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+        required: false
 
   # AxonRouter web dashboard + control plane (Vite SPA + Hono) — serves on port 3777
   axonrouter-web:
@@ -76,9 +77,11 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+        required: false
 
-  # PostgreSQL 17 pure ACID database
+  # PostgreSQL 17 pure ACID database — ONLY starts when COMPOSE_PROFILES=builtin-db
   postgres:
+    profiles: ["builtin-db"]
     image: postgres:17-alpine
     container_name: axonrouter-postgres
     restart: always

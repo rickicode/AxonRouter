@@ -1,14 +1,15 @@
 #!/bin/sh
 # AxonRouter — Zero-Clone One-Command Installer (Docker Compose)
-# Downloads docker-compose.yml and .env.example directly from GitHub,
-# asks interactive configuration (including Gateway Worker Mode),
-# auto-generates cryptographic secrets, and runs the stack.
-# No git clone required!
+# Downloads docker-compose.yml + .env.example from GitHub (no git clone needed),
+# asks for database backend (built-in container vs external managed Postgres),
+# gateway worker topology, generates secrets, verifies DB connectivity, starts stack.
+# Requires: curl, Docker Engine + Compose v2.20+.
 set -e
 
 INSTALL_DIR="${1:-$HOME/AxonRouter}"
 BRANCH="${BRANCH:-main}"
 RAW_BASE="${RAW_BASE:-https://raw.githubusercontent.com/rickicode/AxonRouter/$BRANCH}"
+PG_IMAGE="${PG_IMAGE:-postgres:17-alpine}"
 
 echo "==> AxonRouter Installer (Docker Compose)"
 echo "    Target directory: $INSTALL_DIR"
@@ -41,6 +42,46 @@ ask_secret() {
   set_or_append_env "$var" "$value"
 }
 
+# url_mask 'postgres://user:secret@host:5432/db' -> 'postgres://user:****@host:5432/db'
+url_mask() {
+  printf '%s' "$1" | sed -E 's#://([^/:]+):[^@]*@#://\1:****@#'
+}
+
+# verify_postgres_url URL -> runs psql SELECT 1 inside a throwaway container
+verify_postgres_url() {
+  _url="$1"
+  case "$_url" in
+    postgres://*|postgresql://*) ;;
+    *)
+      echo "    [FAIL] URL must start with postgres:// or postgresql://"
+      return 1 ;;
+  esac
+  case "$_url" in
+    *@*) ;;
+    *)
+      echo "    [FAIL] URL is missing credentials (expected postgres://user:password@host:port/dbname)"
+      return 1 ;;
+  esac
+  if ! printf '%s' "$_url" | grep -qE '@[A-Za-z0-9._-]+(:[0-9]+)?/'; then
+    echo "    [FAIL] URL is missing a host and/or database name"
+    return 1
+  fi
+
+  echo "    Verifying connection (TLS + auth + SELECT 1)..."
+  _tmpf="$(mktemp 2>/dev/null || echo .pgverify.$$)"
+  if docker run --rm -i -e PGCONNECT_TIMEOUT=15 "$PG_IMAGE" \
+      psql "$_url" -tAc "SELECT 'AXON_OK_' || current_setting('server_version')" > "$_tmpf" 2>&1; then
+    _ver="$(tr -d '\r\n' < "$_tmpf")"
+    rm -f "$_tmpf"
+    echo "    [OK] Postgres reachable — $_ver"
+    return 0
+  fi
+  echo "    [FAIL] Postgres rejected the connection:"
+  sed 's/^/           /' "$_tmpf" | head -8
+  rm -f "$_tmpf"
+  return 1
+}
+
 # ---------- 1. Docker check & auto-install ----------
 if ! command -v docker >/dev/null 2>&1; then
   echo "==> Docker is not installed on this system."
@@ -68,6 +109,16 @@ if ! docker compose version >/dev/null 2>&1; then
   exit 1
 fi
 
+# depends_on.required=false (external-DB mode) needs Compose v2.20+ / v3+
+COMPOSE_VER="$(docker compose version --short 2>/dev/null | tr -d 'vV ' || echo "")"
+COMPOSE_MAJOR="$(printf '%s' "$COMPOSE_VER" | cut -d. -f1 | tr -dc '0-9')"
+COMPOSE_MINOR="$(printf '%s' "$COMPOSE_VER" | cut -d. -f2 | tr -dc '0-9')"
+if [ -n "$COMPOSE_MAJOR" ] && [ "$COMPOSE_MAJOR" -lt 3 ] && { [ "$COMPOSE_MAJOR" -lt 2 ] || [ "${COMPOSE_MINOR:-0}" -lt 20 ]; }; then
+  echo "ERROR: Docker Compose $COMPOSE_VER is too old. AxonRouter needs v2.20+ (optional depends_on)."
+  echo "       Upgrade: https://docs.docker.com/compose/install/"
+  exit 1
+fi
+
 # ---------- 2. Prepare directory & download compose files (NO GIT CLONE) ----------
 mkdir -p "$INSTALL_DIR"
 cd "$INSTALL_DIR"
@@ -78,7 +129,6 @@ curl -fsSL "$RAW_BASE/docker-compose.yml" -o docker-compose.yml || {
   exit 1
 }
 
-# Download .env.example as baseline template if .env does not exist yet
 if [ ! -f .env ]; then
   if curl -fsSL "$RAW_BASE/.env.example" -o .env.example 2>/dev/null; then
     cp .env.example .env
@@ -87,7 +137,62 @@ if [ ! -f .env ]; then
   fi
 fi
 
-# ---------- 3. Gateway Worker Mode Selection ----------
+# ---------- 3. Database backend selection ----------
+echo ""
+echo "==> Database Backend Selection:"
+echo "    [1] Built-in PostgreSQL container (Recommended for single-server setups)"
+echo "        Runs postgres:17-alpine as part of this stack; data in a Docker volume."
+echo "    [2] External / Managed PostgreSQL (Neon, Supabase, RDS, existing server)"
+echo "        The compose stack will NOT start a local Postgres container."
+printf "    Choose database backend [1/2] (default: 1): "
+IFS= read -r db_choice 2>/dev/null </dev/tty || db_choice=""
+db_choice="${db_choice:-1}"
+
+DB_MODE="builtin"
+EXTERNAL_DATABASE_URL=""
+case "$db_choice" in
+  2|external|extern|ext)
+    DB_MODE="external"
+    ;;
+esac
+
+if [ "$DB_MODE" = "external" ]; then
+  set_or_append_env "COMPOSE_PROFILES" ""
+  attempt=1
+  while : ; do
+    printf "    External PostgreSQL connection string (attempt %s):\n    > " "$attempt"
+    IFS= read -r ext_url 2>/dev/null </dev/tty || ext_url=""
+    ext_url="$(printf '%s' "$ext_url" | tr -d ' \t')"
+    if [ -z "$ext_url" ]; then
+      echo "    [FAIL] Empty URL. Enter a full URI, e.g.:"
+      echo "           postgres://user:password@host:5432/dbname?sslmode=require"
+      attempt=$((attempt + 1))
+      if [ "$attempt" -gt 5 ]; then echo "==> Too many failed attempts. Aborting."; exit 1; fi
+      continue
+    fi
+    echo "    Target: $(url_mask "$ext_url")"
+    if verify_postgres_url "$ext_url"; then
+      EXTERNAL_DATABASE_URL="$ext_url"
+      break
+    fi
+    printf "    Retry? (yes/no) [yes]: "
+    IFS= read -r retry 2>/dev/null </dev/tty || retry=""
+    retry="${retry:-yes}"
+    case "$retry" in
+      no|NO|No|n|N) echo "==> Aborted: external database not reachable."; exit 1 ;;
+    esac
+    attempt=$((attempt + 1))
+    if [ "$attempt" -gt 5 ]; then echo "==> Too many failed attempts. Aborting."; exit 1; fi
+  done
+  set_or_append_env "DATABASE_URL" "$EXTERNAL_DATABASE_URL"
+  echo "    -> External Postgres accepted. Local Postgres container disabled."
+  echo "       NOTE: AxonRouter runs its own schema DDL on boot — the role needs CREATE rights."
+else
+  set_or_append_env "COMPOSE_PROFILES" "builtin-db"
+  echo "    -> Built-in PostgreSQL container will run inside this stack."
+fi
+
+# ---------- 4. Gateway worker mode selection ----------
 echo ""
 echo "==> Gateway Worker Mode Configuration (Port 3778 - Hono Gateway):"
 echo "    [1] Cluster Mode (Recommended) — Multiple worker processes (auto CPU cores)."
@@ -108,7 +213,7 @@ case "$mode_choice" in
     set_or_append_env "GATEWAY_CLUSTER" "true"
     printf "    Enter number of worker processes [press Enter for auto/all CPU cores]: "
     IFS= read -r worker_num 2>/dev/null </dev/tty || worker_num=""
-    if [ -n "$worker_num" ] && echo "$worker_num" | grep -q '^[0-9]\+$'; then
+    if [ -n "$worker_num" ] && printf '%s' "$worker_num" | grep -q '^[0-9][0-9]*$'; then
       set_or_append_env "GATEWAY_WORKERS" "$worker_num"
       echo "    -> Selected: Cluster Mode with $worker_num worker(s)"
     else
@@ -118,33 +223,36 @@ case "$mode_choice" in
     ;;
 esac
 
-# ---------- 4. Configure cryptographic secrets into .env ----------
+# ---------- 5. Secrets ----------
 echo ""
 echo "==> Configuring secrets in $INSTALL_DIR/.env"
 echo "    Press Enter to accept each auto-generated value, or type your own:"
 
-JWT_SECRET_DEFAULT="$(rand_hex 32)"
-API_KEY_SECRET_DEFAULT="$(rand_hex 32)"
-MACHINE_ID_SALT_DEFAULT="$(rand_hex 16)"
-ENCRYPTION_KEY_DEFAULT="$(rand_hex 32)"
-POSTGRES_PASSWORD_DEFAULT="$(rand_hex 16)"
-INITIAL_PASSWORD_DEFAULT="$(rand_hex 8)"
+ask_secret JWT_SECRET      "Dashboard session secret (JWT_SECRET)"      "$(rand_hex 32)"
+ask_secret API_KEY_SECRET  "Gateway token HMAC key (API_KEY_SECRET)"    "$(rand_hex 32)"
+ask_secret MACHINE_ID_SALT "Machine ID salt (MACHINE_ID_SALT)"          "$(rand_hex 16)"
+ask_secret ENCRYPTION_KEY  "Credential encryption key (ENCRYPTION_KEY)" "$(rand_hex 32)"
+ask_secret INITIAL_PASSWORD "Dashboard admin password (INITIAL_PASSWORD)" "$(rand_hex 8)"
 
-ask_secret JWT_SECRET        "Dashboard session secret (JWT_SECRET)"       "$JWT_SECRET_DEFAULT"
-ask_secret API_KEY_SECRET    "Gateway token HMAC key (API_KEY_SECRET)"     "$API_KEY_SECRET_DEFAULT"
-ask_secret MACHINE_ID_SALT   "Machine ID salt (MACHINE_ID_SALT)"           "$MACHINE_ID_SALT_DEFAULT"
-ask_secret ENCRYPTION_KEY    "Credential encryption key (ENCRYPTION_KEY)"   "$ENCRYPTION_KEY_DEFAULT"
-ask_secret POSTGRES_PASSWORD "PostgreSQL password (POSTGRES_PASSWORD)"     "$POSTGRES_PASSWORD_DEFAULT"
-ask_secret INITIAL_PASSWORD  "Dashboard admin password (INITIAL_PASSWORD)"  "$INITIAL_PASSWORD_DEFAULT"
-
-# Keep DATABASE_URL in sync with chosen POSTGRES_PASSWORD
-PG_PW="$(grep '^POSTGRES_PASSWORD=' .env | cut -d= -f2-)"
-awk -v pw="$PG_PW" '{ sub(/^DATABASE_URL=postgres:\/\/axonrouter:[^@]*@/, "DATABASE_URL=postgres://axonrouter:" pw "@"); print }' .env > .env.tmp
-mv .env.tmp .env
+if [ "$DB_MODE" = "builtin" ]; then
+  ask_secret POSTGRES_PASSWORD "Built-in PostgreSQL password (POSTGRES_PASSWORD)" "$(rand_hex 16)"
+  PG_PW="$(grep '^POSTGRES_PASSWORD=' .env | cut -d= -f2-)"
+  set_or_append_env "DATABASE_URL" "postgres://axonrouter:${PG_PW}@postgres:5432/axonrouter"
+  echo "    -> DATABASE_URL wired to the in-stack postgres service."
+else
+  echo "    -> Skipping POSTGRES_PASSWORD (external database in use)."
+  echo "    -> DATABASE_URL kept as the verified external connection string."
+fi
 
 echo "==> Configuration complete in $INSTALL_DIR/.env"
 
-# ---------- 5. Start Docker stack ----------
+# ---------- 6. Final config validation (compose must parse) ----------
+if ! docker compose config -q; then
+  echo "ERROR: docker compose rejected the generated configuration. Aborting."
+  exit 1
+fi
+
+# ---------- 7. Start stack ----------
 echo ""
 printf "    Start AxonRouter now? (yes/no) [yes]: "
 IFS= read -r start_now 2>/dev/null </dev/tty || start_now=""
@@ -167,6 +275,7 @@ echo ""
 echo "=========================================================="
 echo "    Compose file: $INSTALL_DIR/docker-compose.yml"
 echo "    Environment:  $INSTALL_DIR/.env"
+echo "    Database:     $DB_MODE  (COMPOSE_PROFILES=$(grep '^COMPOSE_PROFILES=' .env | cut -d= -f2-))"
 echo "    Dashboard UI: http://localhost:3777"
 echo "    Gateway API:  http://localhost:3778/v1"
 echo "    Commands:     cd $INSTALL_DIR && docker compose ps | logs -f | down"
