@@ -20,12 +20,12 @@ describe("Gateway Worker Mode Topology", () => {
     assert.equal(clamped.workers, 4);
   });
 
-  it("disables cluster mode when GATEWAY_CLUSTER=false", () => {
-    for (const val of ["false", "0", "off", "no"]) {
+  it("disables cluster mode when GATEWAY_CLUSTER is falsy and normalizes workers to 1", () => {
+    for (const val of ["false", "0", "off", "no", "FALSE", " Off "]) {
       const res = resolveGatewayMode({ GATEWAY_CLUSTER: val, GATEWAY_WORKERS: "4" }, 8);
       assert.equal(res.useCluster, false);
       assert.equal(res.mode, "standalone");
-      assert.equal(res.workers, 4);
+      assert.equal(res.workers, 1);
     }
   });
 
@@ -41,5 +41,13 @@ describe("Gateway Worker Mode Topology", () => {
     assert.equal(res.useCluster, false);
     assert.equal(res.mode, "standalone");
     assert.equal(res.workers, 1);
+  });
+
+  it("treats empty / non-numeric / auto GATEWAY_WORKERS as all cores", () => {
+    for (const raw of ["", "auto", "  ", "abc"]) {
+      const res = resolveGatewayMode({ GATEWAY_WORKERS: raw }, 6);
+      assert.equal(res.workers, 6);
+      assert.equal(res.useCluster, true);
+    }
   });
 });

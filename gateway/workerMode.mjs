@@ -25,7 +25,8 @@ export function resolveGatewayMode(env = process.env, coreCount = cpus().length)
   const raw = String(env.GATEWAY_WORKERS ?? "").trim();
   const requested = /^\d+$/.test(raw) ? Number(raw) : cores;
   const workers = Math.max(1, Math.min(requested || cores, cores));
-
   const useCluster = !clusterDisabled && workers > 1;
-  return { useCluster, workers, cores, mode: useCluster ? "cluster" : "standalone" };
+  // Standalone runs exactly one process — report that, not the requested count.
+  const effectiveWorkers = useCluster ? workers : 1;
+  return { useCluster, workers: effectiveWorkers, cores, mode: useCluster ? "cluster" : "standalone" };
 }
