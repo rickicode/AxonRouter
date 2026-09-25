@@ -345,6 +345,29 @@ async function calculateCost(provider, model, tokens) {
 
 const liveActiveRequests = new Map();
 let lastActiveRequestsPrune = 0;
+
+// Per-request write serialization for the `active_requests` table.
+// INSERT and DELETE are fired through a connection pool, so two unawaited
+// statements for the same request_id can be dispatched to different pooled
+// connections and resolve out of order. The DELETE then runs before the INSERT
+// and a stale row survives until the 120s expiry, showing phantom active
+// requests on the dashboard whenever the Valkey registry is unavailable.
+// Chaining per request_id keeps ORDER per row while allowing cross-request
+// parallelism.
+const activeRequestWrites = new Map();
+function queueActiveRequestWrite(key, fn) {
+  const previous = activeRequestWrites.get(key) || Promise.resolve();
+  const next = previous.then(fn, fn).finally(() => {
+    if (activeRequestWrites.get(key) === next) activeRequestWrites.delete(key);
+  });
+  activeRequestWrites.set(key, next);
+  return next;
+}
+
+// Test/diagnostic hook: resolves once every queued active_requests write settles.
+export function flushActiveRequestWrites() {
+  return Promise.allSettled([...activeRequestWrites.values()]);
+}
 export async function trackPendingRequest(model, provider, connectionId, started, error = false, options = {}) {
   const modelKey = provider ? `${model} (${provider})` : model;
   const timerKey = options.requestId || `${connectionId}|${modelKey}`;
@@ -361,19 +384,23 @@ export async function trackPendingRequest(model, provider, connectionId, started
     };
     liveActiveRequests.set(timerKey, entry);
     await registerActiveRequest(timerKey, entry).catch(() => {});
-    getAdapter().then((db) => {
-      db.run(
+    queueActiveRequestWrite(timerKey, async () => {
+      const db = await getAdapter();
+      await db.run(
         `INSERT INTO active_requests (request_id, model, provider, connection_id, api_key, is_stream, started_at, expires_at)
          VALUES ($1, $2, $3, $4, $5, $6, NOW(), NOW() + INTERVAL '120 seconds')
          ON CONFLICT (request_id) DO UPDATE SET expires_at = NOW() + INTERVAL '120 seconds'`,
         [timerKey, model, provider, connectionId || null, options.apiKey || null, options.isStream !== undefined ? Boolean(options.isStream) : true]
-      ).catch(() => {});
+      );
     }).catch(() => {});
   } else {
     const wasActive = liveActiveRequests.delete(timerKey);
     await unregisterActiveRequest(timerKey).catch(() => {});
-    getAdapter().then((db) => {
-      db.run(`DELETE FROM active_requests WHERE request_id = $1`, [timerKey]).catch(() => {});
+    // Chained after the INSERT for this request_id so the DELETE cannot win the
+    // pool race and leave a ghost row behind.
+    queueActiveRequestWrite(timerKey, async () => {
+      const db = await getAdapter();
+      await db.run(`DELETE FROM active_requests WHERE request_id = $1`, [timerKey]);
     }).catch(() => {});
     // Completion/error callbacks can race with the stale-request watchdog.
     // Do not decrement counters twice when the watchdog already finalized it.
