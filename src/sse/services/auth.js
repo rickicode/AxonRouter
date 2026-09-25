@@ -39,6 +39,7 @@ import {
   setProviderDead,
   incrModelFailCount,
   resetModelFailCount,
+  incrSharedCounter,
 } from "@/lib/cache/client.js";
 import { providerAllowsAccountExhausted, isCreditQuotaErrorText, isAccountFullyExhausted } from "./accountExhaustionPolicy.js";
 import * as log from "../utils/logger.js";
@@ -912,51 +913,20 @@ export async function getProviderCredentials(provider, excludeConnectionIds = nu
     if (connection) {
       // skip strategy
     } else if (strategy === "round-robin") {
-      const stickyLimit = providerOverride.stickyRoundRobinLimit || settings.stickyRoundRobinLimit || 3;
-
-      // Sort by lastUsed (most recent first) to find current candidate
-      const byRecency = [...availableConnections].sort((a, b) => {
-        if (!a.lastUsedAt && !b.lastUsedAt) return (a.priority || 999) - (b.priority || 999);
-        if (!a.lastUsedAt) return 1;
-        if (!b.lastUsedAt) return -1;
-        return new Date(b.lastUsedAt) - new Date(a.lastUsedAt);
+      const stickyLimit = Math.max(1, Number(providerOverride.stickyRoundRobinLimit || settings.stickyRoundRobinLimit || 3));
+      const ordered = [...availableConnections].sort((a, b) => {
+        const priorityDelta = (a.priority || 999) - (b.priority || 999);
+        if (priorityDelta !== 0) return priorityDelta;
+        return String(a.id).localeCompare(String(b.id));
       });
-
-      const current = byRecency[0];
-      const currentCount = current?.consecutiveUseCount || 0;
-
-      if (current && current.lastUsedAt && currentCount < stickyLimit) {
-        // Stay with current account
-        connection = current;
-        // Fire-and-forget: cheap last_used_at-only UPDATE (no transaction, no
-        // row lock, no full-row rewrite) — same durability contract as the
-        // fill-first branch. consecutiveUseCount is in-memory only until the
-        // account rotates.
-        if (connection?.id) {
-          try {
-            const touch = localDb.touchAccountLastUsed(connection.id);
-            if (touch && typeof touch.catch === "function") touch.catch(() => {});
-          } catch {}
-        }
-      } else {
-        // Pick the least recently used (excluding current if possible)
-        const sortedByOldest = [...availableConnections].sort((a, b) => {
-          if (!a.lastUsedAt && !b.lastUsedAt) return (a.priority || 999) - (b.priority || 999);
-          if (!a.lastUsedAt) return -1;
-          if (!b.lastUsedAt) return 1;
-          return new Date(a.lastUsedAt) - new Date(b.lastUsedAt);
-        });
-
-        connection = sortedByOldest[0];
-
-        // Fire-and-forget touch (same cheap UPDATE as the sticky branch);
-        // persistence of the rotation state rides on last_used_at itself.
-        if (connection?.id) {
-          try {
-            const touch = localDb.touchAccountLastUsed(connection.id);
-            if (touch && typeof touch.catch === "function") touch.catch(() => {});
-          } catch {}
-        }
+      const sequence = await incrSharedCounter(`rr:account:${provider}:${model || "*"}`);
+      const start = Math.floor(Math.max(0, Number(sequence || 1) - 1) / stickyLimit) % ordered.length;
+      connection = ordered[start];
+      if (connection?.id) {
+        try {
+          const touch = localDb.touchAccountLastUsed(connection.id);
+          if (touch && typeof touch.catch === "function") touch.catch(() => {});
+        } catch {}
       }
     } else {
       // Default: fill-first with Top-5 Fair-Share Jitter (Decision #6)

@@ -1,6 +1,10 @@
 import { v4 as uuidv4 } from "uuid";
 import { getAdapter } from "../driver.js";
 import { parseJson } from "../helpers/jsonCol.js";
+import { getCatalog, invalidateCatalog } from "@/lib/cache/client.js";
+
+const COMBO_LIST_KEY = "axon:catalog:combos";
+const COMBO_TTL_S = 300;
 
 function rowToCombo(row) {
   if (!row) return null;
@@ -17,21 +21,21 @@ function rowToCombo(row) {
 }
 
 export async function getCombos() {
-  const db = await getAdapter();
-  const rows = await db.all("SELECT * FROM combos ORDER BY created_at ASC");
-  return rows.map(rowToCombo);
+  return getCatalog(COMBO_LIST_KEY, COMBO_TTL_S, async () => {
+    const db = await getAdapter();
+    const rows = await db.all("SELECT * FROM combos ORDER BY created_at ASC");
+    return rows.map(rowToCombo);
+  });
 }
 
 export async function getComboById(id) {
-  const db = await getAdapter();
-  const row = await db.get("SELECT * FROM combos WHERE id = $1", [id]);
-  return rowToCombo(row);
+  const combos = await getCombos();
+  return combos.find((combo) => combo.id === id) || null;
 }
 
 export async function getComboByName(name) {
-  const db = await getAdapter();
-  const row = await db.get("SELECT * FROM combos WHERE name = $1", [name]);
-  return rowToCombo(row);
+  const combos = await getCombos();
+  return combos.find((combo) => combo.name === name) || null;
 }
 
 export async function createCombo(data) {
@@ -53,6 +57,7 @@ export async function createCombo(data) {
      VALUES($1, $2, $3, $4::jsonb, $5, $6, $7, $8)`,
     [combo.id, combo.name, combo.kind, combo.models || [], combo.contextWindow, combo.maxTokens, combo.createdAt, combo.updatedAt],
   );
+  invalidateCatalog(COMBO_LIST_KEY).catch(() => {});
   return combo;
 }
 
@@ -85,11 +90,13 @@ export async function updateCombo(id, data) {
     result = merged;
   });
 
+  invalidateCatalog(COMBO_LIST_KEY).catch(() => {});
   return result;
 }
 
 export async function deleteCombo(id) {
   const db = await getAdapter();
   const result = await db.run("DELETE FROM combos WHERE id = $1", [id]);
+  invalidateCatalog(COMBO_LIST_KEY).catch(() => {});
   return (result?.changes ?? 0) > 0;
 }

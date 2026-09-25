@@ -1,8 +1,10 @@
 import { getAdapter } from "../driver.js";
 import { parseJson } from "../helpers/jsonCol.js";
+import { getCatalog, invalidateCatalog } from "@/lib/cache/client.js";
 
 const MODEL_ALIASES_SCOPE = "modelAliases";
 const CUSTOM_MODELS_SCOPE = "customModels";
+const ALIAS_CACHE_KEY = "axon:catalog:aliases";
 
 async function getAll(scope) {
   const db = await getAdapter();
@@ -37,15 +39,17 @@ async function removeValue(scope, key) {
 }
 
 export async function getModelAliases() {
-  return await getAll(MODEL_ALIASES_SCOPE);
+  return getCatalog(ALIAS_CACHE_KEY, 300, () => getAll(MODEL_ALIASES_SCOPE));
 }
 
 export async function setModelAlias(alias, model) {
   await setValue(MODEL_ALIASES_SCOPE, alias, model);
+  invalidateCatalog(ALIAS_CACHE_KEY).catch(() => {});
 }
 
 export async function deleteModelAlias(alias) {
   await removeValue(MODEL_ALIASES_SCOPE, alias);
+  invalidateCatalog(ALIAS_CACHE_KEY).catch(() => {});
 }
 
 function customKey(providerAlias, id, type) {

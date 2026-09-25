@@ -1,5 +1,6 @@
 import { getAdapter } from "../driver.js";
 import { parseJson } from "../helpers/jsonCol.js";
+import { getCatalog, invalidateCatalog } from "@/lib/cache/client.js";
 
 
 const DEFAULT_SETTINGS = {
@@ -51,20 +52,15 @@ const DEFAULT_SETTINGS = {
   usagePartitionRetainMonths: 2,
 };
 
-let cachedSettings = null;
-let cachedSettingsExpiresAt = 0;
-const SETTINGS_CACHE_TTL_MS = 5000; // 5s in-memory cache
+const SETTINGS_CACHE_KEY = "axon:catalog:settings";
+const SETTINGS_CACHE_TTL_S = 30;
 
 async function readRaw() {
-  const now = Date.now();
-  if (cachedSettings && now < cachedSettingsExpiresAt) {
-    return cachedSettings;
-  }
-  const db = await getAdapter();
-  const row = await db.get("SELECT data FROM settings WHERE id = 1");
-  cachedSettings = row ? parseJson(row.data, {}) : {};
-  cachedSettingsExpiresAt = now + SETTINGS_CACHE_TTL_MS;
-  return cachedSettings;
+  return getCatalog(SETTINGS_CACHE_KEY, SETTINGS_CACHE_TTL_S, async () => {
+    const db = await getAdapter();
+    const row = await db.get("SELECT data FROM settings WHERE id = 1");
+    return row ? parseJson(row.data, {}) : {};
+  });
 }
 
 export function mergeWithDefaults(raw) {
@@ -107,8 +103,7 @@ export async function updateSettings(updates) {
     );
   });
 
-  cachedSettings = next;
-  cachedSettingsExpiresAt = Date.now() + SETTINGS_CACHE_TTL_MS;
+  invalidateCatalog(SETTINGS_CACHE_KEY).catch(() => {});
   return mergeWithDefaults(next);
 }
 

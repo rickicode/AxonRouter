@@ -1,6 +1,9 @@
 import { v4 as uuidv4 } from "uuid";
 import { getAdapter } from "../driver.js";
 import { parseJson } from "../helpers/jsonCol.js";
+import { getCatalog, invalidateCatalog } from "@/lib/cache/client.js";
+
+const NODE_CACHE_KEY = "axon:catalog:nodes";
 
 function rowToNode(row) {
   if (!row) return null;
@@ -42,18 +45,13 @@ async function upsert(db, node) {
 }
 
 export async function getProviderNodes(filter = {}) {
-  const db = await getAdapter();
-  const where = [];
-  const params = [];
-
-  if (filter.type) {
-    where.push(`type = $${params.length + 1}`);
-    params.push(filter.type);
-  }
-
-  const sql = `SELECT * FROM provider_nodes${where.length ? ` WHERE ${where.join(" AND ")}` : ""}`;
-  const rows = await db.all(sql, params);
-  return rows.map(rowToNode);
+  const nodes = await getCatalog(NODE_CACHE_KEY, 300, async () => {
+    const db = await getAdapter();
+    const rows = await db.all("SELECT * FROM provider_nodes");
+    return rows.map(rowToNode);
+  });
+  if (!filter.type) return nodes;
+  return nodes.filter((node) => node.type === filter.type);
 }
 
 export async function getProviderNodeById(id) {
@@ -75,6 +73,7 @@ export async function createProviderNode(data) {
   };
 
   await upsert(db, node);
+  invalidateCatalog(NODE_CACHE_KEY).catch(() => {});
   return node;
 }
 
@@ -91,6 +90,7 @@ export async function updateProviderNode(id, data) {
     result = merged;
   });
 
+  invalidateCatalog(NODE_CACHE_KEY).catch(() => {});
   return result;
 }
 
@@ -106,5 +106,6 @@ export async function deleteProviderNode(id) {
     await tx.run("DELETE FROM provider_nodes WHERE id = $1", [id]);
   });
 
+  invalidateCatalog(NODE_CACHE_KEY).catch(() => {});
   return removed;
 }

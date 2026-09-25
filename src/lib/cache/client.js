@@ -872,3 +872,35 @@ export async function deleteCachedQuota(connId) {
   }
 }
 
+export async function getCatalog(key, ttlSeconds, load) {
+  if (!key || typeof load !== "function") return null;
+  const valkey = getValkey() || (await initValkey().catch(() => null));
+  if (valkey) {
+    try {
+      const cached = await valkey.get(key);
+      if (cached !== null) return JSON.parse(cached);
+    } catch {}
+  } else {
+    try {
+      const cached = memGet(key);
+      if (cached !== null && cached !== undefined) return JSON.parse(cached);
+    } catch {}
+  }
+  const value = await load();
+  const payload = JSON.stringify(value ?? null);
+  if (valkey) {
+    valkey.set(key, payload, "EX", Math.max(1, ttlSeconds || 60)).catch(() => {});
+  }
+  try { memSet(key, payload, Math.max(1, ttlSeconds || 60)); } catch {}
+  return value ?? null;
+}
+
+export async function invalidateCatalog(...keys) {
+  const present = keys.filter(Boolean);
+  if (present.length === 0) return false;
+  const valkey = getValkey() || (await initValkey().catch(() => null));
+  if (valkey) valkey.del(...present).catch(() => {});
+  try { memDel(...present); } catch {}
+  return true;
+}
+

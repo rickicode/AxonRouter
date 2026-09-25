@@ -1,6 +1,6 @@
 import { v4 as uuidv4 } from "uuid";
 import { getAdapter } from "../driver.js";
-import { invalidateCachedConnections, setAccountCooldown, clearBatchAccountCooldown } from "@/lib/cache/client.js";
+import { invalidateCachedConnections, setAccountCooldown, clearBatchAccountCooldown, getCatalog, invalidateCatalog } from "@/lib/cache/client.js";
 
 const MODEL_LOCK_PREFIX = "modelLock_";
 const MODEL_LOCK_ALL = "__all";
@@ -572,17 +572,19 @@ export async function countProviderConnections(filter = {}) {
 }
 
 export async function getProviderConnectionById(id) {
-  const db = await getAdapter();
-  const row = await db.get(
-    `SELECT id, provider, auth_type, name, email, priority, is_active, test_status,
-            locked_all_until, rate_limited_until, locked_to_model, locked_to_model_until,
-            token_expires_at, last_used_at, model_locks, last_error, error_code,
-            last_error_at, data, created_at, updated_at
-       FROM provider_connections
-      WHERE id = $1`,
-    [id],
-  );
-  return rowToConnection(row);
+  return getCatalog(`axon:connection:${id}`, 15, async () => {
+    const db = await getAdapter();
+    const row = await db.get(
+      `SELECT id, provider, auth_type, name, email, priority, is_active, test_status,
+              locked_all_until, rate_limited_until, locked_to_model, locked_to_model_until,
+              token_expires_at, last_used_at, model_locks, last_error, error_code,
+              last_error_at, data, created_at, updated_at
+         FROM provider_connections
+        WHERE id = $1`,
+      [id],
+    );
+    return rowToConnection(row);
+  });
 }
 
 export async function getProviderSummaryStats() {
@@ -876,6 +878,7 @@ export async function setModelCooldown(id, model, untilIso) {
     [id, model, untilIso],
   );
   if (row?.provider) invalidateCachedConnections(row.provider).catch(() => {});
+  invalidateCatalog(`axon:connection:${id}`).catch(() => {});
   return Boolean(row);
 }
 
@@ -890,6 +893,7 @@ export async function clearModelCooldown(id, model) {
     [id, model],
   );
   if (row?.provider) invalidateCachedConnections(row.provider).catch(() => {});
+  invalidateCatalog(`axon:connection:${id}`).catch(() => {});
   return Boolean(row);
 }
 
@@ -951,6 +955,7 @@ export async function createProviderConnection(data = {}) {
       };
       const saved = await writeConnection(tx, merged, { createdAt: existing.createdAt });
       invalidateCachedConnections(input.provider).catch(() => {});
+      invalidateCatalog(`axon:connection:${saved.id}`).catch(() => {});
       return saved;
     }
 
@@ -1013,6 +1018,7 @@ export async function updateProviderConnection(id, data = {}) {
     };
     const updated = await writeConnection(tx, merged, { createdAt: existing.createdAt });
     invalidateCachedConnections(existing.provider).catch(() => {});
+    invalidateCatalog(`axon:connection:${id}`).catch(() => {});
     if (patch.priority !== undefined) {
       await reorderInTransaction(tx, existing.provider);
       return rowToConnection(await tx.get(`SELECT * FROM provider_connections WHERE id = $1`, [id]));
@@ -1103,6 +1109,7 @@ export async function setConnectionsActiveByIds(ids, isActive) {
   for (const provider of affected) {
     invalidateCachedConnections(provider).catch(() => {});
   }
+  invalidateCatalog(...ids.map((connectionId) => `axon:connection:${connectionId}`)).catch(() => {});
   return rows.length;
 }
 
@@ -1113,6 +1120,7 @@ export async function deleteProviderConnection(id) {
     if (!row) return false;
     await tx.run(`DELETE FROM provider_connections WHERE id = $1`, [id]);
     invalidateCachedConnections(row.provider).catch(() => {});
+    invalidateCatalog(`axon:connection:${id}`).catch(() => {});
     return true;
   });
 }
@@ -1128,6 +1136,7 @@ export async function deleteProviderConnectionsByIds(ids) {
   for (const p of affected) {
     invalidateCachedConnections(p).catch(() => {});
   }
+  invalidateCatalog(...ids.map((connectionId) => `axon:connection:${connectionId}`)).catch(() => {});
   return rows.length;
 }
 
@@ -1149,6 +1158,7 @@ export async function lockAccountToModel(connectionId, model, durationMs = 36000
   if (row?.provider) {
     invalidateCachedConnections(row.provider).catch(() => {});
   }
+  invalidateCatalog(`axon:connection:${connectionId}`).catch(() => {});
   return rowToConnection(row);
 }
 
@@ -1169,6 +1179,7 @@ export async function unlockAccountModel(connectionId) {
   if (row?.provider) {
     invalidateCachedConnections(row.provider).catch(() => {});
   }
+  invalidateCatalog(`axon:connection:${connectionId}`).catch(() => {});
   return rowToConnection(row);
 }
 
@@ -1250,6 +1261,7 @@ export async function bulkResetProviderConnectionsStatus({ provider, ids } = {})
   }
 
   clearBatchAccountCooldown(rows.map((r) => r.id)).catch(() => {});
+  invalidateCatalog(...rows.map((row) => `axon:connection:${row.id}`)).catch(() => {});
 
   return { ok: true, count: rows.length };
 }
@@ -1276,6 +1288,7 @@ export async function autoRecoverExpiredExhaustedConnections() {
     for (const p of affectedProviders) {
       invalidateCachedConnections(p).catch(() => {});
     }
+    invalidateCatalog(...rows.map((row) => `axon:connection:${row.id}`)).catch(() => {});
     clearBatchAccountCooldown(rows.map((r) => r.id)).catch(() => {});
   }
   return Number(rows?.length || 0);
@@ -1426,6 +1439,7 @@ export async function bulkUpdateProviderProxy({
   for (const p of affectedProviders) {
     invalidateCachedConnections(p).catch(() => {});
   }
+  invalidateCatalog(...rows.map((row) => `axon:connection:${row.id}`)).catch(() => {});
 
   return { ok: true, updatedCount: rows.length };
 }
