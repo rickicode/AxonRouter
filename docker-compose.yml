@@ -10,6 +10,7 @@ services:
     memswap_limit: 2g
     ports:
       - "3778:3778"
+      - "10129:3778"
     volumes:
       - axonrouter-data:/app/data
     env_file:
