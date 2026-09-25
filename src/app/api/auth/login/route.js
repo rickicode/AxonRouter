@@ -1,5 +1,5 @@
 import { NextResponse } from "@/lib/http/response.js";
-import { getSettings } from "@/lib/localDb";
+import { getSettings, updateSettings } from "@/lib/localDb";
 import bcrypt from "bcryptjs";
 import { cookies } from "@/lib/http/headers.js";
 import { setDashboardAuthCookie, createDashboardAuthToken, shouldUseSecureCookie } from "@/lib/auth/dashboardSession";
