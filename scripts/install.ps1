@@ -108,9 +108,20 @@ if ($DbMode -eq "2") {
         Write-Host ""
         Write-Host "    Enter your external PostgreSQL connection string:"
         Write-Host "    (example: postgres://user:password@host:5432/db?sslmode=require)"
+        Write-Host "    NOTE: Must be a direct connection. DO NOT use transaction poolers / PgBouncer." -ForegroundColor Yellow
+        Write-Host "          (For Neon: select Direct connection without '-pooler'; Supabase: use port 5432)" -ForegroundColor Yellow
         $DbUrl = (Read-Host "    >").Trim()
     }
     if ($DbUrl -notmatch '^postgres(ql)?://') { Write-Host "ERROR: URL must start with postgres://" -ForegroundColor Red; exit 1 }
+
+    # Automatic Neon pooler conversion & generic transaction pooler rejection
+    if ($DbUrl -match 'neon\.tech' -and $DbUrl -match '-pooler') {
+        $DbUrl = $DbUrl -replace '-pooler(\.[a-zA-Z0-9.-]+\.neon\.tech|\.neon\.tech)', '$1'
+        Write-Host "==> Detected Neon pooler URL. Automatically converted to direct compute endpoint (removed '-pooler') for persistent worker cluster compatibility." -ForegroundColor Yellow
+    } elseif ($DbUrl -match 'pooler\.supabase\.com:6543|:6543/|\.pgbouncer\.|-pooler') {
+        Write-Host "ERROR: Transaction poolers (PgBouncer port 6543 / pooler mode) are not supported. AxonRouter uses an internal connection pool across Hono workers and requires a direct connection (port 5432 / direct session endpoint)." -ForegroundColor Red
+        exit 1
+    }
 
     # Ping port
     if (-not (Test-PortPing $DbUrl)) {

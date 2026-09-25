@@ -152,6 +152,8 @@ if [ "$DB_MODE" = "2" ]; then
   if [ -z "$DBURL" ]; then
     printf '\n    Enter your external PostgreSQL connection string:\n'
     printf '    (example: postgres://user:password@host:5432/db?sslmode=require)\n'
+    printf '    %sNOTE: Must be a direct connection. DO NOT use transaction poolers / PgBouncer.%s\n' "$YLW$B" "$R"
+    printf '    %s      (For Neon: select Direct connection without "-pooler"; Supabase: use port 5432)%s\n' "$YLW" "$R"
     printf '    > '
     DBURL="$(read_input)"
   fi
@@ -160,6 +162,14 @@ if [ "$DB_MODE" = "2" ]; then
     postgres://*|postgresql://*) ;;
     *) die "Invalid URL, it must start with postgres:// or postgresql://" ;;
   esac
+
+  # Automatic Neon pooler conversion & generic transaction pooler rejection
+  if printf '%s' "$DBURL" | grep -qE 'neon\.tech' && printf '%s' "$DBURL" | grep -qE -- '-pooler'; then
+    DBURL="$(printf '%s' "$DBURL" | sed -E 's/-pooler(\.[a-zA-Z0-9.-]+\.neon\.tech|\.neon\.tech)/\1/g')"
+    warn "Detected Neon pooler URL. Automatically converted to direct compute endpoint (removed '-pooler') for persistent worker cluster compatibility."
+  elif printf '%s' "$DBURL" | grep -qE 'pooler\.supabase\.com:6543|:6543/|\.pgbouncer\.|-pooler\b'; then
+    die "Transaction poolers (PgBouncer port 6543 / pooler mode) are not supported. AxonRouter uses an internal connection pool across Hono workers and requires a direct connection (port 5432 / direct session endpoint)."
+  fi
 
   # Fast lightweight TCP ping (instant, zero apt-get/dnf/pacman)
   ping_db_port "$DBURL"
