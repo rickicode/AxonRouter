@@ -412,10 +412,10 @@ export default function ProviderTopology({ providers = [], activeRequests = [], 
   for (const key of usedSnapshot) used.add(key);
   return used;
   }, [rawActiveSet, usedSnapshot]);
- const visibleProviders = useMemo(
- () => providers.filter((p) => usedProviderSet.has(String(p.provider || "").toLowerCase())),
- [providers, usedProviderSet],
- );
+  const visibleProviders = useMemo(() => {
+    const active = providers.filter((p) => usedProviderSet.has(String(p.provider || "").toLowerCase()));
+    return active.length > 0 ? active : providers;
+  }, [providers, usedProviderSet]);
 
  useEffect(() => {
   const now = Date.now();

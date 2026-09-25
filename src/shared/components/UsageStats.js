@@ -146,7 +146,7 @@ function RecentRequests({ requests = [] }) {
  <td className="py-2 h-8 px-3 text-sm">
  <span className={`block w-1.5 h-1.5 rounded-full ${ok ? "bg-success" : "bg-danger"}`} />
  </td>
-        <td className="py-2 font-mono truncate max-w-[160px] sm:max-w-[200px] lg:max-w-[320px] xl:max-w-[420px] h-8 px-3 text-sm" title={r.model}>{r.model}</td>
+        <td className="py-2 font-mono truncate max-w-[160px] sm:max-w-[240px] lg:max-w-[260px] xl:max-w-[280px] h-8 px-3 text-sm" title={r.model}>{r.model}</td>
         <td className="py-2 text-right whitespace-nowrap h-8 px-3 text-sm">
           <span className="text-primary" title={`In: ${Number(r.promptTokens || 0).toLocaleString("en-US")}`}>{formatTokens(r.promptTokens)}↑</span>
           {" "}

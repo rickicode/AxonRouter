@@ -156,6 +156,19 @@ CREATE TABLE IF NOT EXISTS settings (
   data JSONB NOT NULL,
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
+-- Distributed Active Requests (cross-worker, cross-container shared state)
+CREATE TABLE IF NOT EXISTS active_requests (
+  request_id VARCHAR(128) PRIMARY KEY,
+  model VARCHAR(128) NOT NULL,
+  provider VARCHAR(64) NOT NULL,
+  connection_id VARCHAR(64),
+  api_key VARCHAR(128),
+  is_stream BOOLEAN DEFAULT true,
+  started_at TIMESTAMPTZ DEFAULT NOW(),
+  expires_at TIMESTAMPTZ DEFAULT (NOW() + INTERVAL '120 seconds')
+);
+CREATE INDEX IF NOT EXISTS idx_active_requests_expires ON active_requests (expires_at);
+
 
 -- Auto-seed default settings & master password (12345677) on initial install
 INSERT INTO settings (id, data, updated_at)

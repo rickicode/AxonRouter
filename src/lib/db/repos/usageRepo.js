@@ -318,25 +318,31 @@ export async function trackPendingRequest(model, provider, connectionId, started
   const timerKey = options.requestId || `${connectionId}|${modelKey}`;
 
   if (started) {
-    liveActiveRequests.set(timerKey, {
+    const entry = {
+      requestId: timerKey,
       model,
       provider,
       connectionId,
       apiKey: options.apiKey || null,
       isStream: options.isStream !== undefined ? Boolean(options.isStream) : true,
       startedAt: new Date().toISOString(),
-    });
-    registerActiveRequest(timerKey, {
-      model,
-      provider,
-      connectionId,
-      apiKey: options.apiKey || null,
-      isStream: options.isStream !== undefined ? Boolean(options.isStream) : true,
-      startedAt: new Date().toISOString(),
+    };
+    liveActiveRequests.set(timerKey, entry);
+    registerActiveRequest(timerKey, entry).catch(() => {});
+    getAdapter().then((db) => {
+      db.run(
+        `INSERT INTO active_requests (request_id, model, provider, connection_id, api_key, is_stream, started_at, expires_at)
+         VALUES ($1, $2, $3, $4, $5, $6, NOW(), NOW() + INTERVAL '120 seconds')
+         ON CONFLICT (request_id) DO UPDATE SET expires_at = NOW() + INTERVAL '120 seconds'`,
+        [timerKey, model, provider, connectionId || null, options.apiKey || null, options.isStream !== undefined ? Boolean(options.isStream) : true]
+      ).catch(() => {});
     }).catch(() => {});
   } else {
     const wasActive = liveActiveRequests.delete(timerKey);
     unregisterActiveRequest(timerKey).catch(() => {});
+    getAdapter().then((db) => {
+      db.run(`DELETE FROM active_requests WHERE request_id = $1`, [timerKey]).catch(() => {});
+    }).catch(() => {});
     // Completion/error callbacks can race with the stale-request watchdog.
     // Do not decrement counters twice when the watchdog already finalized it.
     if (!wasActive && !options.forceStop) {
@@ -393,11 +399,32 @@ export async function trackPendingRequest(model, provider, connectionId, started
 
 export async function getActiveRequests() {
   const activeRequests = [];
-  // Single-node: prefer in-memory map (instantly accurate, 0 stale).
-  // Memory map is authoritative single-container; PG is durable fallback.
   const localItems = [...liveActiveRequests.values()];
-  const distributed = localItems.length ? [] : await getActiveRequestsDistributed();
-  const items = localItems.length ? localItems : distributed;
+  let dbItems = [];
+  try {
+    const db = await getAdapter();
+    const rows = await db.all(
+      `SELECT request_id, model, provider, connection_id, api_key, is_stream, started_at
+       FROM active_requests
+       WHERE expires_at > NOW()
+       ORDER BY started_at DESC LIMIT 100`
+    );
+    dbItems = (rows || []).map((r) => ({
+      requestId: r.request_id,
+      model: r.model,
+      provider: r.provider,
+      connectionId: r.connection_id,
+      apiKey: r.api_key,
+      isStream: r.is_stream,
+      startedAt: r.started_at instanceof Date ? r.started_at.toISOString() : String(r.started_at),
+    }));
+  } catch {}
+
+  const mergedMap = new Map();
+  for (const item of localItems) mergedMap.set(item.requestId || `${item.connectionId}|${item.model}`, item);
+  for (const item of dbItems) mergedMap.set(item.requestId, item);
+  const items = [...mergedMap.values()];
+
   const connectionMap = await getConnectionMapCached();
   let allApiKeys = [];
   try {
@@ -407,7 +434,7 @@ export async function getActiveRequests() {
   const apiKeyMap = {};
   for (const k of allApiKeys) apiKeyMap[k.key] = k.name;
 
-  for (const item of localItems) {
+  for (const item of items) {
     const accountName = connectionMap[item.connectionId] || item.connectionId || `Unknown Account (${item.provider})`;
     const keyName = apiKeyMap[item.apiKey] || (item.apiKey ? maskApiKey(item.apiKey) : "Default Key");
     activeRequests.push({
