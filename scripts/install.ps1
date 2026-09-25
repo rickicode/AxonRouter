@@ -164,11 +164,29 @@ Write-Host "==> Menjalankan stack (docker compose up -d) ..." -ForegroundColor C
 docker compose up -d
 
 Write-Host ""
-Write-Host "====================================================" -ForegroundColor Cyan
-Write-Host "    Lokasi:      $DisplayPath"
-Write-Host "    Database:    $(if ($DbMode -eq '2') { 'external' } else { 'built-in' })"
-Write-Host "    Dashboard:   http://localhost:3777"
-Write-Host "    Password:    $AdminPass  (login hanya butuh password)" -ForegroundColor Green
-Write-Host "    Gateway API: http://localhost:3778/v1"
-Write-Host "    Kelola:      cd $DisplayPath; docker compose ps"
-Write-Host "====================================================" -ForegroundColor Cyan
+Write-Host "========================================================================" -ForegroundColor Cyan
+Write-Host "  ✓ AxonRouter Berhasil Terpasang & Berjalan!" -ForegroundColor Green
+Write-Host "========================================================================" -ForegroundColor Cyan
+Write-Host "  • Direktori Stack : $DisplayPath"
+Write-Host "  • Mode Database   : $(if ($DbMode -eq '2') { 'External PostgreSQL (Neon / Managed)' } else { 'Built-in PostgreSQL 17 Container' })"
+Write-Host "  • Dashboard Web   : http://localhost:3777" -ForegroundColor Cyan
+Write-Host "  • Password Login  : $AdminPass  (login hanya perlu password, tanpa username)" -ForegroundColor Green
+Write-Host ""
+Write-Host "  [INFO PORT & GATEWAY API]" -ForegroundColor Yellow
+Write-Host "  • Port 3777       : Dashboard Control Plane, Web UI, & Admin Settings"
+Write-Host "  • Port 3778       : Dedicated High-Throughput Hono API Gateway (/v1)"
+Write-Host "    - OpenAI API    : http://localhost:3778/v1/chat/completions"
+Write-Host "    - Claude / Anth : http://localhost:3778/v1/messages"
+Write-Host "    - Model List    : http://localhost:3778/v1/models"
+Write-Host "    - Base URL Klien: http://localhost:3778/v1  (masukkan ke Cursor, Claude Code, Cline, dll)" -ForegroundColor Cyan
+Write-Host ""
+Write-Host "  [CARA RESET PASSWORD]" -ForegroundColor Yellow
+Write-Host "  • Jalankan perintah ini kapan saja jika lupa password:"
+Write-Host "    irm https://raw.githubusercontent.com/rickicode/AxonRouter/main/scripts/reset-password.ps1 | iex" -ForegroundColor Green
+Write-Host "    (atau ganti password di Dashboard: Settings -> Security)"
+Write-Host ""
+Write-Host "  [MANAJEMEN CONTAINER]" -ForegroundColor Cyan
+Write-Host "  • Cek status      : cd $DisplayPath; docker compose ps"
+Write-Host "  • Lihat log       : cd $DisplayPath; docker compose logs -f"
+Write-Host "  • Matikan stack   : cd $DisplayPath; docker compose down"
+Write-Host "========================================================================" -ForegroundColor Cyan

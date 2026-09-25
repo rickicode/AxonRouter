@@ -210,11 +210,26 @@ set_env INITIAL_PASSWORD "$ADMIN_PASS"
 info "Menjalankan stack (docker compose up -d) ..."
 docker compose up -d </dev/null
 
-printf '\n%s====================================================%s\n' "$CYN$B" "$R"
-printf '    Lokasi:      %s\n' "$DISPLAY_DIR"
-printf '    Database:    %s\n' "$([ "$DB_MODE" = "2" ] && echo external || echo built-in)"
-printf '    Dashboard:   %shttp://localhost:3777%s\n' "$B" "$R"
-printf '    Password:    %s%s%s  (login hanya butuh password)\n' "$GRN$B" "$ADMIN_PASS" "$R"
-printf '    Gateway API: %shttp://localhost:3778/v1%s\n' "$B" "$R"
-printf '    Kelola:      cd %s && docker compose ps | logs -f | down\n' "$DISPLAY_DIR"
-printf '%s====================================================%s\n' "$CYN$B" "$R"
+printf '\n%s========================================================================%s\n' "$CYN$B" "$R"
+printf '  %s✓ AxonRouter Berhasil Terpasang & Berjalan!%s\n' "$GRN$B" "$R"
+printf '========================================================================\n'
+printf '  • Direktori Stack : %s%s%s\n' "$B" "$DISPLAY_DIR" "$R"
+printf '  • Mode Database   : %s%s%s\n' "$B" "$([ "$DB_MODE" = "2" ] && echo "External PostgreSQL (Neon / Managed)" || echo "Built-in PostgreSQL 17 Container")" "$R"
+printf '  • Dashboard Web   : %shttp://localhost:3777%s\n' "$CYN$B" "$R"
+printf '  • Password Login  : %s%s%s  (login hanya perlu password, tanpa username)\n' "$GRN$B" "$ADMIN_PASS" "$R"
+printf '\n  %s[INFO PORT & GATEWAY API]%s\n' "$YLW$B" "$R"
+printf '  • Port 3777       : Dashboard Control Plane, Web UI, & Admin Settings\n'
+printf '  • Port 3778       : Dedicated High-Throughput Hono API Gateway (/v1)\n'
+printf '    - OpenAI API    : %shttp://localhost:3778/v1/chat/completions%s\n' "$B" "$R"
+printf '    - Claude / Anth : %shttp://localhost:3778/v1/messages%s\n' "$B" "$R"
+printf '    - Model List    : %shttp://localhost:3778/v1/models%s\n' "$B" "$R"
+printf '    - Base URL Klien: %shttp://localhost:3778/v1%s  (pakai ini di Cursor, Claude Code, Cline, dsb)\n' "$CYN$B" "$R"
+printf '\n  %s[CARA RESET PASSWORD]%s\n' "$YLW$B" "$R"
+printf '  • Jalankan perintah 1-baris ini kapan saja jika lupa password:\n'
+printf '    %scurl -sSL https://raw.githubusercontent.com/rickicode/AxonRouter/main/scripts/reset-password.sh | sh%s\n' "$GRN" "$R"
+printf '    (atau ganti password di Dashboard: Settings -> Security)\n'
+printf '\n  %s[MANAJEMEN CONTAINER]%s\n' "$CYN$B" "$R"
+printf '  • Cek status      : cd %s && docker compose ps\n' "$DISPLAY_DIR"
+printf '  • Lihat log       : cd %s && docker compose logs -f\n' "$DISPLAY_DIR"
+printf '  • Matikan stack   : cd %s && docker compose down\n' "$DISPLAY_DIR"
+printf '========================================================================%s\n' "$R"

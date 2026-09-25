@@ -157,6 +157,32 @@ irm https://raw.githubusercontent.com/rickicode/AxonRouter/main/scripts/install.
 - Custom location: `& ([scriptblock]::Create((irm https://raw.githubusercontent.com/rickicode/AxonRouter/main/scripts/install.ps1))) -Path D:\AxonRouter`
 - Alternative (WSL2): run the Linux one-liner inside WSL → `\\wsl$\<distro>\home\<user>\AxonRouter\docker-compose.yml`
 
+### 🔑 Port & Endpoint Reference
+
+| Port | Service | Deskripsi & Contoh URL |
+|---|---|---|
+| **`3777`** | **Web Dashboard & Control Plane** | `http://localhost:3777` (manajemen router, provider API keys, proxy pool, metrics) |
+| **`3778`** | **High-Throughput Hono API Gateway (`/v1`)** | Endpoint cepat multi-worker untuk AI agent (Cursor, Claude Code, Cline):<br>• `http://localhost:3778/v1/chat/completions` (OpenAI format)<br>• `http://localhost:3778/v1/messages` (Anthropic format)<br>• `http://localhost:3778/v1/models` (Daftar model aktif) |
+
+> **Base URL Klien**: Untuk menghubungkan Cursor, Claude Code, Cline, atau SDK OpenAI, arahkan Base URL ke: **`http://localhost:3778/v1`**
+
+### 🔄 Reset Password Dashboard
+
+Jika Anda lupa password dashboard, Anda bisa meresetnya kapan saja dengan perintah satu baris:
+
+- **Linux / macOS**:
+  ```bash
+  # Reset ke default (12345677):
+  curl -sSL https://raw.githubusercontent.com/rickicode/AxonRouter/main/scripts/reset-password.sh | sh
+  
+  # Atau reset ke password baru pilihan Anda:
+  curl -sSL https://raw.githubusercontent.com/rickicode/AxonRouter/main/scripts/reset-password.sh | sh -s -- "password_baru_anda"
+  ```
+- **Windows (PowerShell)**:
+  ```powershell
+  irm https://raw.githubusercontent.com/rickicode/AxonRouter/main/scripts/reset-password.ps1 | iex
+  ```
+
 ### Start or manage the stack later
 
 All compose commands run **from the install directory**:
