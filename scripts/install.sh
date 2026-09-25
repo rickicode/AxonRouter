@@ -85,12 +85,12 @@ ping_db_port() {
   _port="$(printf '%s' "$_hp" | cut -s -d: -f2)"
   _port="${_port:-5432}"
 
-  info "Mengetes koneksi TCP ke $_host:$_port ..."
+  info "Testing TCP connection to $_host:$_port ..."
 
   # Method 1: bash /dev/tcp (if bash available)
   if command -v bash >/dev/null 2>&1; then
     if timeout 5 bash -c "(echo > /dev/tcp/$_host/$_port) >/dev/null 2>&1" 2>/dev/null; then
-      ok "Port $_host:$_port terbuka dan merespons."
+      ok "Port $_host:$_port is open and responding."
       return 0
     fi
   fi
@@ -98,7 +98,7 @@ ping_db_port() {
   # Method 2: nc (netcat)
   if command -v nc >/dev/null 2>&1; then
     if nc -z -w 5 "$_host" "$_port" 2>/dev/null; then
-      ok "Port $_host:$_port terbuka dan merespons."
+      ok "Port $_host:$_port is open and responding."
       return 0
     fi
   fi
@@ -106,7 +106,7 @@ ping_db_port() {
   # Method 3: python3 (pre-installed on Ubuntu, Debian, RHEL, Arch)
   if command -v python3 >/dev/null 2>&1; then
     if python3 -c "import socket; s = socket.socket(); s.settimeout(5); s.connect(('$_host', int('$_port'))); s.close()" 2>/dev/null; then
-      ok "Port $_host:$_port terbuka dan merespons."
+      ok "Port $_host:$_port is open and responding."
       return 0
     fi
   fi
@@ -114,7 +114,7 @@ ping_db_port() {
   # Method 4: perl
   if command -v perl >/dev/null 2>&1; then
     if perl -MIO::Socket::INET -e "exit(!IO::Socket::INET->new(PeerAddr=>'$_host', PeerPort=>'$_port', Timeout=>5))" 2>/dev/null; then
-      ok "Port $_host:$_port terbuka dan merespons."
+      ok "Port $_host:$_port is open and responding."
       return 0
     fi
   fi
@@ -122,13 +122,13 @@ ping_db_port() {
   # Method 5: node (if available)
   if command -v node >/dev/null 2>&1; then
     if node -e "const net = require('net'); const s = net.createConnection({host: '$_host', port: Number('$_port'), timeout: 5000}, () => { s.end(); process.exit(0); }); s.on('error', () => process.exit(1)); s.on('timeout', () => process.exit(1));" 2>/dev/null; then
-      ok "Port $_host:$_port terbuka dan merespons."
+      ok "Port $_host:$_port is open and responding."
       return 0
     fi
   fi
 
-  warn "Tidak ada TCP ping utility yang tersedia (atau port diblokir firewall)."
-  warn "Lanjut proses; koneksi database akan diverifikasi saat container dijalankan."
+  warn "No TCP ping utility available (or the port is blocked by a firewall)."
+  warn "Continuing anyway; the database connection will be verified when the container boots."
   return 0
 }
 
@@ -138,10 +138,10 @@ DBURL="${EXTERNAL_DATABASE_URL:-}"
 if [ -n "$DBURL" ]; then
   DB_MODE="2"
 elif [ "$HAS_TTY" = "1" ]; then
-  printf '%s==>%s Mau pakai PostgreSQL yang mana?\n' "$CYN$B" "$R"
-  printf '    %s[1]%s PostgreSQL bawaan (container Docker, otomatis) %s[default]%s\n' "$GRN$B" "$R" "$CYN" "$R"
-  printf '    %s[2]%s PostgreSQL external (Neon / Supabase / RDS / server lain)\n' "$YLW$B" "$R"
-  printf '    Pilih [1/2] (Enter = 1): '
+  printf '%s==>%s Which PostgreSQL backend do you want to use?\n' "$CYN$B" "$R"
+  printf '    %s[1]%s Built-in PostgreSQL (Docker container, automatic) %s[default]%s\n' "$GRN$B" "$R" "$CYN" "$R"
+  printf '    %s[2]%s External PostgreSQL (Neon / Supabase / RDS / any server)\n' "$YLW$B" "$R"
+  printf '    Choose [1/2] (Enter = 1): '
   case "$(read_input)" in
     2|external|ext) DB_MODE="2" ;;
     *) DB_MODE="1" ;;
@@ -150,15 +150,15 @@ fi
 
 if [ "$DB_MODE" = "2" ]; then
   if [ -z "$DBURL" ]; then
-    printf '\n    Masukkan URL PostgreSQL external:\n'
-    printf '    (contoh: postgres://user:password@host:5432/db?sslmode=require)\n'
+    printf '\n    Enter your external PostgreSQL connection string:\n'
+    printf '    (example: postgres://user:password@host:5432/db?sslmode=require)\n'
     printf '    > '
     DBURL="$(read_input)"
   fi
   DBURL="$(printf '%s' "$DBURL" | tr -d ' \t')"
   case "$DBURL" in
     postgres://*|postgresql://*) ;;
-    *) die "URL tidak valid, harus diawali dengan postgres:// atau postgresql://" ;;
+    *) die "Invalid URL, it must start with postgres:// or postgresql://" ;;
   esac
 
   # Fast lightweight TCP ping (instant, zero apt-get/dnf/pacman)
@@ -166,14 +166,14 @@ if [ "$DB_MODE" = "2" ]; then
 
   set_env COMPOSE_FILE "docker-compose.yml"
   set_env DATABASE_URL "$DBURL"
-  ok "PostgreSQL external dipakai (container PostgreSQL lokal TIDAK dijalankan)."
-  warn "Pastikan role PostgreSQL punya hak CREATE (skema dibuat otomatis saat boot)."
+  ok "External PostgreSQL selected (the local Postgres container will NOT run)."
+  warn "Make sure the PostgreSQL role has CREATE rights (the schema is applied on boot)."
 else
   set_env COMPOSE_FILE "docker-compose.yml:docker-compose.postgres.yml"
   set_env POSTGRES_PASSWORD "$(rand_hex 16)"
   PG_PW="$(grep '^POSTGRES_PASSWORD=' .env | cut -d= -f2-)"
   set_env DATABASE_URL "postgres://axonrouter:${PG_PW}@postgres:5432/axonrouter"
-  ok "Menggunakan PostgreSQL bawaan (container postgres:17-alpine aktif)."
+  ok "Using built-in PostgreSQL (postgres:17-alpine container enabled)."
 fi
 
 # ---------- 5. Gateway workers (max = CPU cores) ----------
@@ -190,15 +190,15 @@ fi
 if [ "$GATEWAY_CLUSTER" = "false" ] || [ "$WORKERS" -le 1 ]; then
   set_env GATEWAY_CLUSTER "false"
   set_env GATEWAY_WORKERS "1"
-  ok "Gateway: standalone (1 proses, hemat RAM)"
+  ok "Gateway: standalone (single process, lowest memory footprint)"
 else
   set_env GATEWAY_CLUSTER "true"
   set_env GATEWAY_WORKERS "$WORKERS"
-  ok "Gateway: cluster ($WORKERS workers, maksimum $CORES core CPU)"
+  ok "Gateway: cluster ($WORKERS workers, capped at $CORES CPU cores)"
 fi
 
 # ---------- 6. Secrets ----------
-info "Menyiapkan secrets ..."
+info "Generating secrets ..."
 set_env JWT_SECRET       "$(rand_hex 32)"
 set_env API_KEY_SECRET   "$(rand_hex 32)"
 set_env MACHINE_ID_SALT  "$(rand_hex 16)"
@@ -207,29 +207,29 @@ ADMIN_PASS="${INITIAL_PASSWORD:-12345677}"
 set_env INITIAL_PASSWORD "$ADMIN_PASS"
 
 # ---------- 7. Start ----------
-info "Menjalankan stack (docker compose up -d) ..."
+info "Starting stack (docker compose up -d) ..."
 docker compose up -d </dev/null
 
 printf '\n%s========================================================================%s\n' "$CYN$B" "$R"
-printf '  %s✓ AxonRouter Berhasil Terpasang & Berjalan!%s\n' "$GRN$B" "$R"
+printf '  %s✓ AxonRouter installed successfully and running!%s\n' "$GRN$B" "$R"
 printf '========================================================================\n'
-printf '  • Direktori Stack : %s%s%s\n' "$B" "$DISPLAY_DIR" "$R"
-printf '  • Mode Database   : %s%s%s\n' "$B" "$([ "$DB_MODE" = "2" ] && echo "External PostgreSQL (Neon / Managed)" || echo "Built-in PostgreSQL 17 Container")" "$R"
-printf '  • Dashboard Web   : %shttp://localhost:3777%s\n' "$CYN$B" "$R"
-printf '  • Password Login  : %s%s%s  (login hanya perlu password, tanpa username)\n' "$GRN$B" "$ADMIN_PASS" "$R"
-printf '\n  %s[INFO PORT & GATEWAY API]%s\n' "$YLW$B" "$R"
-printf '  • Port 3777       : Dashboard Control Plane, Web UI, & Admin Settings\n'
-printf '  • Port 3778       : Dedicated High-Throughput Hono API Gateway (/v1)\n'
+printf '  • Stack directory : %s%s%s\n' "$B" "$DISPLAY_DIR" "$R"
+printf '  • Database mode   : %s%s%s\n' "$B" "$([ "$DB_MODE" = "2" ] && echo "External PostgreSQL (Neon / managed)" || echo "Built-in PostgreSQL 17 container")" "$R"
+printf '  • Dashboard       : %shttp://localhost:3777%s\n' "$CYN$B" "$R"
+printf '  • Login password  : %s%s%s  (password only, no username)\n' "$GRN$B" "$ADMIN_PASS" "$R"
+printf '\n  %s[PORTS & GATEWAY API]%s\n' "$YLW$B" "$R"
+printf '  • Port 3777       : Dashboard control plane, web UI & admin settings\n'
+printf '  • Port 3778       : Dedicated high-throughput Hono API gateway (/v1)\n'
 printf '    - OpenAI API    : %shttp://localhost:3778/v1/chat/completions%s\n' "$B" "$R"
-printf '    - Claude / Anth : %shttp://localhost:3778/v1/messages%s\n' "$B" "$R"
-printf '    - Model List    : %shttp://localhost:3778/v1/models%s\n' "$B" "$R"
-printf '    - Base URL Klien: %shttp://localhost:3778/v1%s  (pakai ini di Cursor, Claude Code, Cline, dsb)\n' "$CYN$B" "$R"
-printf '\n  %s[CARA RESET PASSWORD]%s\n' "$YLW$B" "$R"
-printf '  • Jalankan perintah 1-baris ini kapan saja jika lupa password:\n'
+printf '    - Claude/Anthrop: %shttp://localhost:3778/v1/messages%s\n' "$B" "$R"
+printf '    - Model list    : %shttp://localhost:3778/v1/models%s\n' "$B" "$R"
+printf '    - Client base URL: %shttp://localhost:3778/v1%s  (use in Cursor, Claude Code, Cline, etc.)\n' "$CYN$B" "$R"
+printf '\n  %s[RESET PASSWORD]%s\n' "$YLW$B" "$R"
+printf '  • Run this one-liner anytime if you forget your password:\n'
 printf '    %scurl -sSL https://raw.githubusercontent.com/rickicode/AxonRouter/main/scripts/reset-password.sh | sh%s\n' "$GRN" "$R"
-printf '    (atau ganti password di Dashboard: Settings -> Security)\n'
-printf '\n  %s[MANAJEMEN CONTAINER]%s\n' "$CYN$B" "$R"
-printf '  • Cek status      : cd %s && docker compose ps\n' "$DISPLAY_DIR"
-printf '  • Lihat log       : cd %s && docker compose logs -f\n' "$DISPLAY_DIR"
-printf '  • Matikan stack   : cd %s && docker compose down\n' "$DISPLAY_DIR"
+printf '    (or change it in the dashboard: Settings -> Security)\n'
+printf '\n  %s[MANAGE CONTAINERS]%s\n' "$CYN$B" "$R"
+printf '  • Status          : cd %s && docker compose ps\n' "$DISPLAY_DIR"
+printf '  • Logs            : cd %s && docker compose logs -f\n' "$DISPLAY_DIR"
+printf '  • Stop the stack  : cd %s && docker compose down\n' "$DISPLAY_DIR"
 printf '========================================================================%s\n' "$R"

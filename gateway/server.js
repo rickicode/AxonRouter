@@ -24,6 +24,7 @@ import crypto from "node:crypto";
 import { Hono } from "hono";
 import { serve } from "@hono/node-server";
 import { resolveGatewayMode } from "./workerMode.mjs";
+import { renderGatewayLandingHtml } from "./landingPage.mjs";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 // ── Config ────────────────────────────────────────────────────────────────────
@@ -242,6 +243,14 @@ app.post("/v1/web/fetch", async (c) => {
   return handleFetch(c.req.raw);
 });
 
+// ── Root Landing Page (Informative Non-Generic UI for Browser Visitors) ───────
+app.get("/", (c) => {
+  const html = renderGatewayLandingHtml({ mode: MODE, workers: WORKERS, port: PORT });
+  return c.html(html, 200, {
+    "Content-Type": "text/html; charset=utf-8",
+    "Cache-Control": "no-cache, no-store, must-revalidate",
+  });
+});
 // ── Health ────────────────────────────────────────────────────────────────────
 app.get("/api/health", async (c) => {
   try {
