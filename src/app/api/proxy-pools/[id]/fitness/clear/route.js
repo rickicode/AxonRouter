@@ -1,4 +1,4 @@
-import { NextResponse } from "next/server";
+import { NextResponse } from "@/lib/http/response.js";
 import { clearPoolUnfit, ensurePoolFitnessHydrated } from "open-sse/services/proxyPoolFitness.js";
 
 // POST /api/proxy-pools/[id]/fitness/clear

@@ -12,7 +12,7 @@ const mocks = vi.hoisted(() => ({
   verifyDashboardAuthToken: vi.fn(),
 }));
 
-vi.mock("next/server", () => ({
+vi.mock("@/lib/http/response.js", () => ({
   NextResponse: {
     next: vi.fn(() => mocks.nextResponse),
     json: mocks.jsonResponse,
@@ -48,7 +48,7 @@ function request(pathname, headers = {}) {
   };
 }
 
-// A request that actually came through custom-server.js: peer IP stamped from the TCP
+// A request that actually came through server.js: peer IP stamped from the TCP
 // socket and proven by the per-process secret.
 function localRequest(pathname, headers = {}) {
   return request(pathname, { "x-axonrouter-peer-token": PEER_TOKEN, "x-axonrouter-real-ip": "127.0.0.1", ...headers });

@@ -1,5 +1,5 @@
-import { NextResponse } from "next/server";
-import { cookies } from "next/headers";
+import { NextResponse } from "@/lib/http/response.js";
+import { cookies } from "@/lib/http/headers.js";
 import { clearDashboardAuthCookie } from "@/lib/auth/dashboardSession";
 
 export async function POST() {

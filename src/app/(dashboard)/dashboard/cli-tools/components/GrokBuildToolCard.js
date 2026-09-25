@@ -4,7 +4,7 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import { Card, Button, ModelSelectModal, ManualConfigModal } from "@/shared/components";
 import Icon from "@/shared/components/Icon";
 import { useModelCaps } from "@/shared/hooks/useModelCaps";
-import Image from "next/image";
+import Image from "@/lib/ui/image.jsx";
 import BaseUrlSelect from "./BaseUrlSelect";
 import { rememberEndpoint } from "./cliEndpointPresets";
 import ApiKeySelect from "./ApiKeySelect";

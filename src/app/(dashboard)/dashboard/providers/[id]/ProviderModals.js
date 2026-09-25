@@ -1,6 +1,6 @@
 "use client";
 
-import dynamic from "next/dynamic";
+import dynamic from "@/lib/ui/dynamic.jsx";
 
 const ModalSkeleton = () => null;
 const OAuthModal = dynamic(() => import("@/shared/components/OAuthModal"), { ssr: false, loading: ModalSkeleton });

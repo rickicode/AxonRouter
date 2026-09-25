@@ -1,4 +1,4 @@
-import { NextResponse } from "next/server";
+import { NextResponse } from "@/lib/http/response.js";
 import { testSingleConnection } from "./testUtils.js";
 
 // POST /api/providers/[id]/test - Test connection

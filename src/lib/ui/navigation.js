@@ -1,5 +1,11 @@
 import { createElement } from "react";
-import { useNavigate, useLocation, useParams as rrUseParams, useSearchParams as rrUseSearchParams, Navigate } from "react-router-dom";
+import {
+  useNavigate,
+  useLocation,
+  useParams as rrUseParams,
+  useSearchParams as rrUseSearchParams,
+  Navigate,
+} from "react-router-dom";
 
 export function useRouter() {
   const navigate = useNavigate();

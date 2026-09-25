@@ -5,9 +5,12 @@
   "private": true,
   "scripts": {
     "dev": "vite",
+    "dev:bun": "bun run --bun vite",
     "build": "vite build",
-    "start": "node src/server/webServer.mjs",
-    "server": "node src/server/webServer.mjs",
+    "build:bun": "bun x vite build",
+    "start": "node server.js",
+    "start:bun": "bun run server.js",
+    "server": "node server.js",
     "verify:lockfile": "node scripts/verify-lockfile-npm10.mjs",
     "lockfile:regen": "npx -y npm@10.9.8 install --package-lock-only"
   },
@@ -46,6 +49,8 @@
     "zustand": "^5.0.10"
   },
   "optionalDependencies": {
+    "@emnapi/core": "^1.11.3",
+    "@emnapi/runtime": "^1.11.3",
     "better-sqlite3": "^12.6.2"
   },
   "devDependencies": {

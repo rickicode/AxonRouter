@@ -1,7 +1,7 @@
 "use client";
 
 import PropTypes from "prop-types";
-import Link from "next/link";
+import Link from "@/lib/ui/link.jsx";
 import { formatTokens, formatTokensExact } from "@/shared/utils/formatTokens";
 import Icon from "@/shared/components/Icon";
 

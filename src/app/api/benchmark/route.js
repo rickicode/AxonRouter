@@ -1,4 +1,4 @@
-import { NextResponse } from "next/server";
+import { NextResponse } from "@/lib/http/response.js";
 import { getBenchmarkJob, listBenchmarkJobs, requestBenchmarkAdvice, startBenchmark, cancelBenchmark, deleteBenchmarkJob } from "@/lib/benchmark/runner.js";
 
 export const dynamic = "force-dynamic";

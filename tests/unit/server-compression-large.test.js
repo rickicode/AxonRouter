@@ -46,7 +46,7 @@ function get(port, headers) {
 }
 
 beforeAll(async () => {
-  require("../../custom-server.js");
+  require("../../server.js");
 });
 
 afterAll(async () => {

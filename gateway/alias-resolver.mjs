@@ -9,14 +9,6 @@ import { statSync } from "node:fs";
 const projectRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 
 export async function resolve(specifier, context, nextResolve) {
-  if (specifier === "next/server") {
-    const target = path.join(projectRoot, "shims", "next", "server.js");
-    return { url: pathToFileURL(target).href, shortCircuit: true };
-  }
-  if (specifier === "next/headers") {
-    const target = path.join(projectRoot, "shims", "next", "headers.js");
-    return { url: pathToFileURL(target).href, shortCircuit: true };
-  }
   if (specifier.startsWith("@/")) {
     const target = path.join(projectRoot, "src", specifier.slice(2));
     const candidates = [

@@ -1,8 +1,8 @@
 "use client";
 
 import { Suspense, useState, useEffect, useCallback, useMemo } from "react";
-import { useSearchParams, useRouter } from "next/navigation";
-import dynamic from "next/dynamic";
+import { useSearchParams, useRouter } from "@/lib/ui/navigation.js";
+import dynamic from "@/lib/ui/dynamic.jsx";
 import {
   DndContext,
   closestCenter,

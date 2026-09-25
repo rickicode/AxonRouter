@@ -1,4 +1,4 @@
-import { NextResponse } from "next/server";
+import { NextResponse } from "@/lib/http/response.js";
 import { getAdapter } from "@/lib/db/driver";
 import { memSize } from "@/lib/cache/memoryStore";
 import { getRoutingMetrics } from "open-sse/services/routingMetrics";

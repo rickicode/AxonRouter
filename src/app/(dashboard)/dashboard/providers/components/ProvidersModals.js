@@ -1,7 +1,7 @@
 "use client";
 
 import PropTypes from "prop-types";
-import dynamic from "next/dynamic";
+import dynamic from "@/lib/ui/dynamic.jsx";
 import { ConfirmModal } from "@/shared/components";
 import Icon from "@/shared/components/Icon";
 import ProviderTestResultsView from "./ProviderTestResultsView";

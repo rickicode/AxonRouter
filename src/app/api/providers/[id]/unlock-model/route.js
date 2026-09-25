@@ -1,4 +1,4 @@
-import { NextResponse } from "next/server";
+import { NextResponse } from "@/lib/http/response.js";
 import { getProviderConnectionById, unlockAccountModel } from "@/models";
 
 // POST /api/providers/[id]/unlock-model - Release model affinity lock on account

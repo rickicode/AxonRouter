@@ -1,5 +1,5 @@
 import { VOICE_FETCHERS } from "open-sse/handlers/ttsCore.js";
-import { NextResponse } from "next/server";
+import { NextResponse } from "@/lib/http/response.js";
 
 // Map locale code → country name
 const LOCALE_NAMES = new Intl.DisplayNames(["en"], { type: "region" });

@@ -1,6 +1,6 @@
 "use client";
 
-import Link from "next/link";
+import Link from "@/lib/ui/link.jsx";
 import { CardSkeleton } from "@/shared/components";
 import { useProviderDetail } from "./useProviderDetail";
 import ProviderHeader from "./ProviderHeader";

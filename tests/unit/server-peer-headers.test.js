@@ -1,4 +1,4 @@
-// custom-server.js is the only thing that makes x-axonrouter-real-ip trustworthy. Boot a real
+// server.js is the only thing that makes x-axonrouter-real-ip trustworthy. Boot a real
 // HTTP server through it and confirm a client cannot smuggle its own peer headers in.
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import { createRequire } from "node:module";
@@ -12,7 +12,7 @@ let baseUrl;
 let seenHeaders;
 
 beforeAll(async () => {
-  require("../../custom-server.js");
+  require("../../server.js");
   server = http.createServer((req, res) => {
     seenHeaders = req.headers;
     res.end("ok");
@@ -30,7 +30,7 @@ async function get(headers = {}) {
   return seenHeaders;
 }
 
-describe("custom-server peer header sanitizing", () => {
+describe("server.js peer header sanitizing", () => {
   it("generates a peer trust token at boot", () => {
     expect(process.env.AXONROUTER_PEER_TOKEN).toMatch(/^[0-9a-f]{48}$/);
   });

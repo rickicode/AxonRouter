@@ -47,7 +47,7 @@ export function recordSuccess(ip) {
 }
 
 export function getClientIp(request) {
-  // Trusted only when custom-server.js proves it stamped the header from the TCP socket;
+  // Trusted only when server.js proves it stamped the header from the TCP socket;
   // otherwise a client could rotate the value to escape its own lockout bucket.
   if (hasTrustedPeerHeaders(request)) {
     const realIp = request.headers.get("x-axonrouter-real-ip");
@@ -58,7 +58,7 @@ export function getClientIp(request) {
     const xff = request.headers.get("x-forwarded-for");
     if (xff) return xff.split(",")[0].trim();
   }
-  // Direct exposure without custom-server: single bucket so spoofed XFF
+  // Direct exposure without server: single bucket so spoofed XFF
   // rotation cannot escape the limiter.
   return "unknown";
 }

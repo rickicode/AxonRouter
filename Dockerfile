@@ -44,7 +44,7 @@ COPY --from=builder /app/public ./public
 COPY --from=builder /app/src ./src
 COPY --from=builder /app/open-sse ./open-sse
 COPY --from=builder /app/gateway ./gateway
-COPY --from=builder /app/shims ./shims
+COPY --from=builder /app/server.js ./server.js
 COPY --from=builder /app/node_modules/node-machine-id ./node_modules/node-machine-id
 
 RUN mkdir -p /app/data /app/data-home && chown -R node:node /app/data /app/data-home && \

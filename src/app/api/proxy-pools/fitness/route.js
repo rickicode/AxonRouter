@@ -1,4 +1,4 @@
-import { NextResponse } from "next/server";
+import { NextResponse } from "@/lib/http/response.js";
 import { ensurePoolFitnessHydrated, poolFitnessSnapshot } from "open-sse/services/proxyPoolFitness.js";
 
 // GET /api/proxy-pools/fitness — in-memory snapshot of pool fitness marks.

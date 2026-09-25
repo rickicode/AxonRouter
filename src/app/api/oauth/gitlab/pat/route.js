@@ -1,4 +1,4 @@
-import { NextResponse } from "next/server";
+import { NextResponse } from "@/lib/http/response.js";
 import { createProviderConnection } from "@/models";
 
 const GITLAB_DEFAULT_BASE = "https://gitlab.com";

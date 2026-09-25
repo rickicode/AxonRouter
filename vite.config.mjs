@@ -31,10 +31,6 @@ export default defineConfig({
     alias: {
       "@": path.join(root, "src"),
       "open-sse": path.join(root, "open-sse"),
-      "next/navigation": path.join(root, "shims/next/navigation.js"),
-      "next/link": path.join(root, "shims/next/link.jsx"),
-      "next/image": path.join(root, "shims/next/image.jsx"),
-      "next/dynamic": path.join(root, "shims/next/dynamic.jsx"),
     },
   },
   define: {

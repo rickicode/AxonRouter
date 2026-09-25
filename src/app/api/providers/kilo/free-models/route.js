@@ -1,4 +1,4 @@
-import { NextResponse } from "next/server";
+import { NextResponse } from "@/lib/http/response.js";
 
 const KILO_MODELS_URL = "https://api.kilo.ai/api/gateway/models";
 

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
-import Link from "next/link";
+import Link from "@/lib/ui/link.jsx";
 import { Button } from "@/shared/components";
 import Icon from "@/shared/components/Icon";
 import { useCopyToClipboard } from "@/shared/hooks/useCopyToClipboard";

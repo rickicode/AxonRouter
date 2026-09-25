@@ -1,4 +1,4 @@
-import { NextResponse } from "next/server";
+import { NextResponse } from "@/lib/http/response.js";
 import { getCombos, createCombo, getComboByName } from "@/lib/localDb";
 import { seedDefaultCombos } from "@/lib/seed/seedDefaultCombos";
 

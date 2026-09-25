@@ -1,4 +1,4 @@
-import { NextResponse } from "next/server";
+import { NextResponse } from "@/lib/http/response.js";
 import { getAnalyticsSummary } from "@/lib/db/repos/analyticsRepo";
 import { validateAnalyticsFilters } from "@/lib/analyticsFilters";
 

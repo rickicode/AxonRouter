@@ -1,4 +1,4 @@
-import { NextResponse } from "next/server";
+import { NextResponse } from "@/lib/http/response.js";
 import { testProxyUrl } from "@/lib/network/proxyTest";
 
 export async function POST(request) {

@@ -192,7 +192,7 @@ app.use("*", async (c, next) => {
 // ── Rewrites for /v1/* -> /api/v1/* ──────────────────────────────────────────
 const chatHandler = async (c) => {
   const { handleChat } = await import("@/sse/handlers/chat.js");
-  const { runWithRequestContext } = await import("next/headers");
+  const { runWithRequestContext } = await import("@/lib/http/headers.js");
   return runWithRequestContext(c.req.raw, () => handleChat(c.req.raw));
 };
 
@@ -305,21 +305,28 @@ async function initBackgroundServices() {
   }
 }
 
-// ── Start HTTP Server ────────────────────────────────────────────────────────
-const server = serve(
-  {
-    fetch: app.fetch,
-    port: PORT,
-    hostname: HOSTNAME,
-  },
-  (info) => {
-    console.log(`[WebServer] AxonRouter Hono Server listening on http://${info.address}:${info.port}`);
-    initBackgroundServices().catch((err) => console.error("[WebServer] Background services error:", err));
-  }
-);
+// ── Start HTTP Server (Node.js & Bun compatible) ─────────────────────────────
+if (typeof Bun !== "undefined") {
+  console.log(`[WebServer] AxonRouter Hono Server running on Bun engine (http://${HOSTNAME}:${PORT})`);
+  initBackgroundServices().catch((err) => console.error("[WebServer] Background services error:", err));
+} else {
+  serve(
+    {
+      fetch: app.fetch,
+      port: PORT,
+      hostname: HOSTNAME,
+    },
+    (info) => {
+      console.log(`[WebServer] AxonRouter Hono Server listening on http://${info.address}:${info.port}`);
+      initBackgroundServices().catch((err) => console.error("[WebServer] Background services error:", err));
+    }
+  );
+}
 
 // Graceful shutdown
 process.on("SIGINT", () => process.exit(0));
 process.on("SIGTERM", () => process.exit(0));
 
-export default app;
+export default typeof Bun !== "undefined"
+  ? { port: PORT, hostname: HOSTNAME, fetch: app.fetch }
+  : app;

@@ -1,4 +1,4 @@
-import { NextResponse } from "next/server";
+import { NextResponse } from "@/lib/http/response.js";
 import { bulkResetProviderConnectionsStatus } from "@/models";
 import { clearBatchAntigravityConnectionCache } from "@/sse/services/antigravityQuota";
 import {

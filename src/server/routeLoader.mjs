@@ -67,7 +67,7 @@ export async function loadApiRoutes(app) {
     for (const method of methods) {
       const handler = mod[method];
       app.on(method, honoPath, async (c) => {
-        const { runWithRequestContext } = await import("next/headers");
+        const { runWithRequestContext } = await import("@/lib/http/headers.js");
         const params = buildParamsObject(c.req.param(), honoPath);
         return runWithRequestContext(c.req.raw, () =>
           handler(c.req.raw, { params: Promise.resolve(params) })

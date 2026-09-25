@@ -1,4 +1,4 @@
-import { NextResponse } from "next/server";
+import { NextResponse } from "@/lib/http/response.js";
 import { getSettings } from "@/lib/localDb";
 
 export async function GET() {

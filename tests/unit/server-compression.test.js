@@ -11,7 +11,7 @@ let server;
 let baseUrl;
 
 beforeAll(async () => {
-  require("../../custom-server.js");
+  require("../../server.js");
   server = http.createServer((req, res) => {
     if (req.url === "/static.js") {
       res.setHeader("content-type", "application/javascript; charset=UTF-8");
@@ -55,7 +55,7 @@ function rawGet(path, headers) {
   });
 }
 
-describe("custom-server wrapCompression", () => {
+describe("server.js wrapCompression", () => {
   it("gzips JS with Content-Encoding and valid stream", async () => {
     const { headers, body } = await rawGet("/static.js", { "accept-encoding": "gzip" });
     expect(headers["content-encoding"]).toBe("gzip");

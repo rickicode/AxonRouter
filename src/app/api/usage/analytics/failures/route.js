@@ -1,4 +1,4 @@
-import { NextResponse } from "next/server";
+import { NextResponse } from "@/lib/http/response.js";
 import { getFailureAnalytics } from "@/lib/usageDb";
 
 export const dynamic = "force-dynamic";

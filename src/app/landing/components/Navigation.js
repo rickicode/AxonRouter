@@ -1,6 +1,6 @@
 "use client";
 import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter } from "@/lib/ui/navigation.js";
 import Icon from "@/shared/components/Icon";
 
 export default function Navigation() {

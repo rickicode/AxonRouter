@@ -1,4 +1,4 @@
-import { NextResponse } from "next/server";
+import { NextResponse } from "@/lib/http/response.js";
 import { bulkUpdateProviderProxy } from "@/models";
 
 export async function POST(request) {

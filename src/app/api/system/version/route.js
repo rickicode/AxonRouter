@@ -1,4 +1,4 @@
-import { NextResponse } from "next/server";
+import { NextResponse } from "@/lib/http/response.js";
 import { getAppVersion } from "@/lib/db/version.js";
 
 // Cache check result in memory for 6 hours so we don't spam GitHub API

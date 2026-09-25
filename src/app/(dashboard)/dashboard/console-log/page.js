@@ -1,6 +1,6 @@
 "use client";
 
-import dynamic from "next/dynamic";
+import dynamic from "@/lib/ui/dynamic.jsx";
 import { CardSkeleton } from "@/shared/components";
 
 const ConsoleLogClient = dynamic(() => import("./ConsoleLogClient"), {

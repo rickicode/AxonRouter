@@ -1,5 +1,5 @@
-import { cookies } from "next/headers";
-import { NextResponse } from "next/server";
+import { cookies } from "@/lib/http/headers.js";
+import { NextResponse } from "@/lib/http/response.js";
 import { LOCALE_COOKIE, normalizeLocale, isSupportedLocale } from "@/i18n/config";
 
 export async function POST(request) {

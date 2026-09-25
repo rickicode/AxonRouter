@@ -1,4 +1,4 @@
-import { NextResponse } from "next/server";
+import { NextResponse } from "@/lib/http/response.js";
 import { createProxyPool } from "@/models";
 
 const VERCEL_API = "https://api.vercel.com";

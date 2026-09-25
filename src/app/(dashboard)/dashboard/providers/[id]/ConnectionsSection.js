@@ -1,7 +1,7 @@
 "use client";
 
 import { Card, Button, Toggle, SegmentedControl } from "@/shared/components";
-import dynamic from "next/dynamic";
+import dynamic from "@/lib/ui/dynamic.jsx";
 import ConnectionRow from "./ConnectionRow";
 import { translate } from "@/i18n/runtime";
 const NoAuthProxyCard = dynamic(() => import("@/shared/components/NoAuthProxyCard"), { ssr: false, loading: () => <div className="flex flex-col gap-3"><div className="h-40 animate-pulse rounded-sm bg-surface-2" /></div> });

@@ -1,7 +1,7 @@
 "use client";
 
 import { Suspense, useEffect, useMemo, useRef, useState } from "react";
-import { useSearchParams, useRouter } from "next/navigation";
+import { useSearchParams, useRouter } from "@/lib/ui/navigation.js";
 import { Badge, Button, Card, Combobox, ConfirmModal, Input, Modal, SegmentedControl } from "@/shared/components";
 import BenchmarkResults from "./components/BenchmarkResults";
 import BenchmarkLogs from "./components/BenchmarkLogs";

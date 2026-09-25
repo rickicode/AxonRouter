@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useMemo, useCallback, useRef } from "react";
-import { useSearchParams, useRouter } from "next/navigation";
+import { useSearchParams, useRouter } from "@/lib/ui/navigation.js";
 import { FREE_PROVIDERS, AI_PROVIDERS } from "@/shared/constants/providers";
 import { buildUsageProviderList } from "@/shared/utils/usageProviders";
 
@@ -18,7 +18,7 @@ import { OVERVIEW_SUBTABS, resolveActiveSubTab } from "@/lib/usageOverview";
 export { OVERVIEW_SUBTABS, resolveActiveSubTab };
 import OverviewCards from "@/app/(dashboard)/dashboard/usage/components/OverviewCards";
 import UsageTable, { fmt, fmtTime } from "@/app/(dashboard)/dashboard/usage/components/UsageTable";
-import dynamic from "next/dynamic";
+import dynamic from "@/lib/ui/dynamic.jsx";
 import RealtimeRequestsCard from "@/app/(dashboard)/dashboard/usage/components/RealtimeRequestsCard";
 import Icon from "@/shared/components/Icon";
 

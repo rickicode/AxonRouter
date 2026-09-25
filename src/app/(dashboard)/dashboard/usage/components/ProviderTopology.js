@@ -2,7 +2,7 @@
 
 import { useMemo, useState, useEffect, useCallback, useRef, memo } from "react";
 import PropTypes from "prop-types";
-import Image from "next/image";
+import Image from "@/lib/ui/image.jsx";
 import {
  ReactFlow,
  Handle,

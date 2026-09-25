@@ -1,3 +1,5 @@
+// Server-side AsyncLocalStorage cookie and header context.
+// Replaces next/headers without any Next runtime dependency.
 import { AsyncLocalStorage } from "node:async_hooks";
 
 export const requestContextStorage = new AsyncLocalStorage();
@@ -44,7 +46,9 @@ class CookieJar {
     else cookieStr += "; Path=/";
 
     if (options.maxAge !== undefined) cookieStr += `; Max-Age=${options.maxAge}`;
-    if (options.expires) cookieStr += `; Expires=${options.expires.toUTCString ? options.expires.toUTCString() : options.expires}`;
+    if (options.expires) {
+      cookieStr += `; Expires=${options.expires.toUTCString ? options.expires.toUTCString() : options.expires}`;
+    }
     if (options.domain) cookieStr += `; Domain=${options.domain}`;
     if (options.secure) cookieStr += "; Secure";
     if (options.httpOnly) cookieStr += "; HttpOnly";
@@ -61,7 +65,9 @@ class CookieJar {
 
   delete(name) {
     this._parsed.delete(name);
-    this._setCookies.push(`${encodeURIComponent(name)}=; Path=/; Expires=Thu, 01 Jan 1970 00:00:00 GMT; Max-Age=0`);
+    this._setCookies.push(
+      `${encodeURIComponent(name)}=; Path=/; Expires=Thu, 01 Jan 1970 00:00:00 GMT; Max-Age=0`
+    );
     return this;
   }
 
@@ -108,9 +114,4 @@ export function runWithRequestContext(request, fn) {
   });
 }
 
-export default {
-  cookies,
-  headers,
-  runWithRequestContext,
-  requestContextStorage,
-};
+export default { cookies, headers, runWithRequestContext, requestContextStorage };

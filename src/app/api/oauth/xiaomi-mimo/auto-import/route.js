@@ -1,4 +1,4 @@
-import { NextResponse } from "next/server";
+import { NextResponse } from "@/lib/http/response.js";
 import { readFile, access, constants } from "fs/promises";
 import { homedir } from "os";
 import { join } from "path";

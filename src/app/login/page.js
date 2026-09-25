@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import Image from "next/image";
+import Image from "@/lib/ui/image.jsx";
 import { Card, Button, Input } from "@/shared/components";
 
 export default function LoginPage() {

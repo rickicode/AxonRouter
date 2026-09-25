@@ -1,8 +1,8 @@
 "use client";
 
-import { useParams, notFound, useRouter } from "next/navigation";
+import { useParams, notFound, useRouter } from "@/lib/ui/navigation.js";
 import { useEffect, useState } from "react";
-import Link from "next/link";
+import Link from "@/lib/ui/link.jsx";
 import { Card, Button, Input, Toggle, ModelSelectModal } from "@/shared/components";
 import { ConfirmModal } from "@/shared/components/Modal";
 import { useNotificationStore } from "@/store/notificationStore";

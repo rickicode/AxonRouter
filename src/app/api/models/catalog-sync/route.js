@@ -1,4 +1,4 @@
-import { NextResponse } from "next/server";
+import { NextResponse } from "@/lib/http/response.js";
 import fs from "node:fs";
 import { getSyncState, syncModelCatalog } from "@/lib/modelCatalog/sync.js";
 import { CATALOG_FILE } from "open-sse/providers/catalogOverride.js";

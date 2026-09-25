@@ -1,4 +1,4 @@
-import { NextResponse } from "next/server";
+import { NextResponse } from "@/lib/http/response.js";
 import { getRecentLogs } from "@/lib/usageDb";
 
 export async function GET() {

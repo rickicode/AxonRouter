@@ -1,8 +1,8 @@
 "use client";
 
-import Link from "next/link";
+import Link from "@/lib/ui/link.jsx";
 import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter } from "@/lib/ui/navigation.js";
 import { useNotificationStore } from "@/store/notificationStore";
 import { Card, Badge, Button } from "@/shared/components";
 import ProviderIcon from "@/shared/components/ProviderIcon";

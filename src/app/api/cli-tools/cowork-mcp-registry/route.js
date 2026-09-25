@@ -1,6 +1,6 @@
 "use server";
 
-import { NextResponse } from "next/server";
+import { NextResponse } from "@/lib/http/response.js";
 
 const REGISTRY_URL = "https://api.anthropic.com/mcp-registry/v0/servers";
 const VISIBILITY = "commercial,gsuite,gsuite-google";

@@ -1,7 +1,7 @@
-import { NextResponse } from "next/server";
+import { NextResponse } from "@/lib/http/response.js";
 import { getSettings } from "@/lib/localDb";
 import bcrypt from "bcryptjs";
-import { cookies } from "next/headers";
+import { cookies } from "@/lib/http/headers.js";
 import { setDashboardAuthCookie } from "@/lib/auth/dashboardSession";
 import { isOidcConfigured } from "@/lib/auth/oidc";
 import { isSamlConfigured } from "@/lib/auth/saml.js";

@@ -2,8 +2,8 @@
 
 import { Suspense, useState, useEffect, useCallback, useRef, useSyncExternalStore } from "react";
 import PropTypes from "prop-types";
-import { useSearchParams, useRouter, usePathname } from "next/navigation";
-import dynamic from "next/dynamic";
+import { useSearchParams, useRouter, usePathname } from "@/lib/ui/navigation.js";
+import dynamic from "@/lib/ui/dynamic.jsx";
 import { Button, CardSkeleton, SegmentedControl } from "@/shared/components";
 import OverviewTab from "../components/OverviewTab";
 

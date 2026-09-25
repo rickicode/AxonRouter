@@ -1,4 +1,4 @@
-import { NextResponse } from "next/server";
+import { NextResponse } from "@/lib/http/response.js";
 import { createProxyPool, getProxyPoolBoundCounts, getProxyPools, deleteDisabledProxyPools } from "@/models";
 import { getPoolGeo } from "open-sse/services/poolGeo.js";
 

@@ -1,7 +1,7 @@
 "use client";
 
 import PropTypes from "prop-types";
-import dynamic from "next/dynamic";
+import dynamic from "@/lib/ui/dynamic.jsx";
 import { useLayoutEffect, useEffect, useRef, useState } from "react";
 import { Button } from "@/shared/components";
 import { MemoProviderCard, MemoApiKeyProviderCard } from "./BaseProviderCard";

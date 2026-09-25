@@ -1,4 +1,4 @@
-import { NextResponse } from "next/server";
+import { NextResponse } from "@/lib/http/response.js";
 import { createProxyPool } from "@/models";
 
 // Relay worker source code deployed to Cloudflare

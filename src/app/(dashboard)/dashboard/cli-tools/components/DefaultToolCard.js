@@ -5,7 +5,7 @@ import { Card, ModelSelectModal } from "@/shared/components";
 import Icon from "@/shared/components/Icon";
 import { getProviderIconSrc, markProviderIconMissing } from "@/shared/utils/providerIcon";
 import { useCopyToClipboard } from "@/shared/hooks/useCopyToClipboard";
-import Image from "next/image";
+import Image from "@/lib/ui/image.jsx";
 import ApiKeySelect from "./ApiKeySelect";
 import HostSetupCommand from "./HostSetupCommand";
 import { TOOL_TEMPLATES } from "@/shared/constants/cliToolTemplates";

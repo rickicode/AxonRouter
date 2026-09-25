@@ -17,13 +17,13 @@ test('runtime deps stay independent of app source and build output', () => {
 });
 
 test('runner entrypoint, health check, traced dependencies and npm cache remain', () => {
-  for (const path of ['public', '.next/static', '.next/standalone', 'custom-server.js', 'open-sse', 'node_modules/next', 'node_modules/node-machine-id']) {
+  for (const path of ['dist', 'public', 'src', 'open-sse', 'gateway', 'server.js', 'node_modules/node-machine-id']) {
     assert.ok(runner.includes(`COPY --from=builder /app/${path} `), path);
   }
   assert.doesNotMatch(runner, /src\/mitm|node-forge/);
   assert.match(runner, /ENTRYPOINT \["\/entrypoint\.sh"\]/);
-  assert.match(runner, /EXPOSE 10128/);
-  assert.match(runner, /127\.0\.0\.1:10128\/api\/health/);
-  assert.match(runner, /CMD \["node", "--max-old-space-size=4096", "--disable-warning=MODULE_TYPELESS_PACKAGE_JSON", "custom-server\.js"\]/);
+  assert.match(runner, /EXPOSE 3777/);
+  assert.match(runner, /127\.0\.0\.1:3777\/api\/health/);
+  assert.match(runner, /CMD \["node", "--max-old-space-size=1024", "--disable-warning=MODULE_TYPELESS_PACKAGE_JSON", "src\/server\/webServer\.mjs"\]/);
   assert.match(dockerfile, /--mount=type=cache,target=\/root\/\.npm/);
 });

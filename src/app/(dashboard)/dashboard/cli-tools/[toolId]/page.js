@@ -1,4 +1,4 @@
-import { notFound } from "next/navigation";
+import { notFound } from "@/lib/ui/navigation.js";
 import { CLI_TOOLS } from "@/shared/constants/cliTools";
 import { getMachineId } from "@/shared/utils/machine";
 import ToolDetailClient from "./ToolDetailClient";

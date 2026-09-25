@@ -1,4 +1,4 @@
-import { NextResponse } from "next/server";
+import { NextResponse } from "@/lib/http/response.js";
 import { createProxyPool } from "@/models";
 
 const DENO_V2_API = "https://api.deno.com/v2";

@@ -2,7 +2,7 @@
 
 import { useState, useMemo, useSyncExternalStore } from "react";
 import PropTypes from "prop-types";
-import Link from "next/link";
+import Link from "@/lib/ui/link.jsx";
 import { Card, Button, Badge, Modal, CardSkeleton } from "@/shared/components";
 import Icon from "@/shared/components/Icon";
 import ProviderIcon from "@/shared/components/ProviderIcon";

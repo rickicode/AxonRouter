@@ -5,8 +5,8 @@ const test = require("node:test");
 
 test("serves h2c POST requests as HTTP/1.1", async () => {
   const originalCreateServer = http.createServer;
-  delete require.cache[require.resolve("../../custom-server.js")];
-  require("../../custom-server.js");
+  delete require.cache[require.resolve("../../server.js")];
+  require("../../server.js");
 
   const server = http.createServer(async (req, res) => {
     assert.equal(req.url, "/v1/chat/completions");

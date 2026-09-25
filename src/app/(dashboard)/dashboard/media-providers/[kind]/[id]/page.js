@@ -1,7 +1,7 @@
 "use client";
 
-import { useParams, notFound, useRouter } from "next/navigation";
-import Link from "next/link";
+import { useParams, notFound, useRouter } from "@/lib/ui/navigation.js";
+import Link from "@/lib/ui/link.jsx";
 import { useState, useEffect } from "react";
 import { Card, Badge, Button, AddCustomEmbeddingModal, NoAuthProxyCard, ProviderInfoCard } from "@/shared/components";
 import Icon from "@/shared/components/Icon";

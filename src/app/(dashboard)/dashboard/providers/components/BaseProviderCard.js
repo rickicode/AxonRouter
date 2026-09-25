@@ -2,7 +2,7 @@
 
 import { memo } from "react";
 import PropTypes from "prop-types";
-import Link from "next/link";
+import Link from "@/lib/ui/link.jsx";
 import { Card, Badge, Toggle } from "@/shared/components";
 import Icon from "@/shared/components/Icon";
 import ProviderIcon from "@/shared/components/ProviderIcon";

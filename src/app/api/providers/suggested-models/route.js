@@ -1,4 +1,4 @@
-import { NextResponse } from "next/server";
+import { NextResponse } from "@/lib/http/response.js";
 import { FILTERS } from "./filters.js";
 
 export const dynamic = "force-dynamic";

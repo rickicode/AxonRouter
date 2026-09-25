@@ -1,4 +1,4 @@
-import { NextResponse } from "next/server";
+import { NextResponse } from "@/lib/http/response.js";
 import { getBatchProviderQuotas } from "@/lib/db/repos/usageSnapshotsRepo.js";
 import { autoHealConnectionOnQuotaRestored } from "@/sse/services/accountExhaustionPolicy.js";
 import { setQuotaCache, isQuotaMapExhausted } from "@/domain/quotaCache.js";

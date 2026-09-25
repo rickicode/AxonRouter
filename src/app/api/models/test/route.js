@@ -1,4 +1,4 @@
-import { NextResponse } from "next/server";
+import { NextResponse } from "@/lib/http/response.js";
 import { pingModelByKind } from "./ping";
 
 // POST /api/models/test - Ping a single model via internal completions or embeddings

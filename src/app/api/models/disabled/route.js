@@ -1,4 +1,4 @@
-import { NextResponse } from "next/server";
+import { NextResponse } from "@/lib/http/response.js";
 import { getDisabledModels, disableModels, enableModels } from "@/lib/disabledModelsDb";
 
 export const dynamic = "force-dynamic";

@@ -1,7 +1,7 @@
 "use client";
 
-import Link from "next/link";
-import Image from "next/image";
+import Link from "@/lib/ui/link.jsx";
+import Image from "@/lib/ui/image.jsx";
 import { getProviderIconSrc, markProviderIconMissing } from "@/shared/utils/providerIcon";
 import { Card, Button } from "@/shared/components";
 import Icon from "@/shared/components/Icon";

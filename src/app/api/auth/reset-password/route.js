@@ -1,4 +1,4 @@
-import { NextResponse } from "next/server";
+import { NextResponse } from "@/lib/http/response.js";
 import { updateSettings } from "@/lib/localDb";
 
 // Reset dashboard password to default by clearing the stored hash.
