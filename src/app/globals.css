@@ -263,6 +263,13 @@ input, textarea {
   -webkit-mask-size: 100% 100%;
 }
 
+@media (min-width: 640px) {
+  .tab-scroll-fade {
+    mask-image: none !important;
+    -webkit-mask-image: none !important;
+  }
+}
+
 /* Touch-driven horizontal strips: snap each tab so a clipped strip lands on a
    whole destination instead of cutting one in half. */
 .scroll-snap-align-start {

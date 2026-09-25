@@ -189,8 +189,8 @@ export default function RealtimeRequestsCard({
 
  {/* Control Bar: Filter Pills & Search */}
         <div className="flex min-w-0 max-w-full flex-col justify-between gap-3 pt-1 sm:flex-row sm:items-center">
-          <div className="tab-scroll-fade w-full min-w-0 overflow-x-auto no-scrollbar py-1 sm:w-auto">
-            <div className="flex min-w-max items-center gap-1.5">
+          <div className="w-full min-w-0 overflow-x-auto no-scrollbar py-1 sm:w-auto">
+            <div className="flex min-w-max items-center gap-1.5 pr-2 sm:pr-0">
               {filterPills.map((pill) => (
                 <button
                   key={pill.id}
