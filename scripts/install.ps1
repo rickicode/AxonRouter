@@ -3,9 +3,6 @@
 #   irm https://raw.githubusercontent.com/rickicode/AxonRouter/main/scripts/install.ps1 | iex
 #   # unattended, external Postgres:
 #   $env:EXTERNAL_DATABASE_URL='postgres://u:p@host:5432/db?sslmode=require'; irm .../install.ps1 | iex
-#
-# No psql needed on Windows: the connection string is written to .env and the
-# containers validate it themselves on first boot.
 param(
     [string]$Path = (Join-Path $HOME "AxonRouter"),
     [string]$Branch = "main"
@@ -30,6 +27,34 @@ function Set-EnvKey([string]$Key, [string]$Value) {
     }
     if (-not $found) { $lines += "$Key=$Value" }
     Set-Content -Path $envFile -Value $lines -Encoding ascii
+}
+
+function Test-PortPing([string]$Url) {
+    # Extract host and port using regex
+    if ($Url -match '^postgres(ql)?://(?:[^@]+@)?(?<host>[^:/]+)(?::(?<port>\d+))?') {
+        $targetHost = $Matches['host']
+        $targetPort = if ($Matches['port']) { [int]$Matches['port'] } else { 5432 }
+        Write-Host "==> Mengetes koneksi TCP ke $targetHost`:$targetPort ..." -ForegroundColor Cyan
+        try {
+            $tcp = New-Object System.Net.Sockets.TcpClient
+            $connect = $tcp.BeginConnect($targetHost, $targetPort, $null, $null)
+            $wait = $connect.AsyncWaitHandle.WaitOne(5000, $false)
+            if ($wait -and $tcp.Connected) {
+                $tcp.EndConnect($connect)
+                $tcp.Close()
+                Write-Host "    [ok] Port $targetHost`:$targetPort terbuka dan merespons." -ForegroundColor Green
+                return $true
+            } else {
+                $tcp.Close()
+                Write-Host "    [FAIL] Port $targetHost`:$targetPort tidak merespons (Timeout 5s)." -ForegroundColor Red
+                return $false
+            }
+        } catch {
+            Write-Host "    [FAIL] Gagal menghubungi $targetHost`:$targetPort : $($_.Exception.Message)" -ForegroundColor Red
+            return $false
+        }
+    }
+    return $true
 }
 
 Write-Host ""
@@ -86,6 +111,13 @@ if ($DbMode -eq "2") {
         $DbUrl = (Read-Host "    >").Trim()
     }
     if ($DbUrl -notmatch '^postgres(ql)?://') { Write-Host "ERROR: URL harus diawali postgres://" -ForegroundColor Red; exit 1 }
+
+    # Ping port
+    if (-not (Test-PortPing $DbUrl)) {
+        Write-Host "ERROR: Host/port database tidak dapat dijangkau. Cek koneksi Anda." -ForegroundColor Red
+        exit 1
+    }
+
     Set-EnvKey "COMPOSE_FILE" "docker-compose.yml"
     Set-EnvKey "DATABASE_URL" $DbUrl
     Write-Host "==> PostgreSQL external dipakai (container PostgreSQL lokal TIDAK dijalankan)." -ForegroundColor Green

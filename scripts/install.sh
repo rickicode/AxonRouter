@@ -5,13 +5,6 @@
 #   # unattended, external Postgres:
 #   EXTERNAL_DATABASE_URL='postgres://user:pass@host:5432/db?sslmode=require' \
 #     curl -sSL .../install.sh | sh
-#
-# Runs start-to-finish without stopping. When stdin is not a terminal (e.g. CI
-# or a pipe without a TTY) it takes the defaults and never blocks:
-# built-in postgres container + workers = CPU cores.
-#
-# stdin discipline: the script arrives on stdin via `curl | sh`, so NOTHING may
-# read stdin. Prompts read /dev/tty explicitly; external tools get </dev/null.
 set -e
 
 TARGET_DIR="${1:-$HOME/AxonRouter}"
@@ -38,14 +31,11 @@ rand_hex() {
   else head -c "$1" /dev/urandom | od -An -tx1 | tr -d ' \n'; fi
 }
 
-# Interactive input, read ONLY from the controlling terminal.
-# Never falls back to stdin: stdin is the installer script itself when piped.
-# No TTY (unattended) → returns empty so callers apply their default.
 HAS_TTY=0
 if [ -c /dev/tty ]; then
-  # subshell: a failed redirect of a POSIX special builtin would kill the shell
   if sh -c ": </dev/tty" 2>/dev/null; then HAS_TTY=1; fi
 fi
+
 read_input() {
   _val=""
   if [ "$HAS_TTY" = "1" ]; then
@@ -85,25 +75,61 @@ set_env() {
   fi
 }
 
-# ---------- 3. PostgreSQL client (host-side, for connection check) ----------
-install_pg_client() {
-  [ "$(id -u)" = "0" ] || command -v sudo >/dev/null 2>&1 || return 1
-  SUDO=""; [ "$(id -u)" = "0" ] || SUDO="sudo"
-  if command -v apt-get >/dev/null 2>&1; then
-    $SUDO apt-get update -qq </dev/null >/dev/null 2>&1 || true
-    $SUDO apt-get install -y -qq postgresql-client </dev/null >/dev/null 2>&1
-  elif command -v dnf >/dev/null 2>&1; then
-    $SUDO dnf install -y -q postgresql </dev/null >/dev/null 2>&1
-  elif command -v yum >/dev/null 2>&1; then
-    $SUDO yum install -y -q postgresql </dev/null >/dev/null 2>&1
-  elif command -v apk >/dev/null 2>&1; then
-    $SUDO apk add --no-cache postgresql-client </dev/null >/dev/null 2>&1
-  elif command -v pacman >/dev/null 2>&1; then
-    $SUDO pacman -Sy --noconfirm postgresql </dev/null >/dev/null 2>&1
-  else
-    return 1
+# ---------- 3. Fast TCP Port ping (Zero apt-get / dnf / pacman overhead) ----------
+# Ping host & port using built-in /dev/tcp, nc, python3, or perl (No package installation needed)
+ping_db_port() {
+  _url="$1"
+  # Extract host and port
+  _hp="$(printf '%s' "$_url" | sed -E 's#^postgres(ql)?://([^@]+@)?([^/?#]+).*#\3#')"
+  _host="$(printf '%s' "$_hp" | cut -d: -f1)"
+  _port="$(printf '%s' "$_hp" | cut -s -d: -f2)"
+  _port="${_port:-5432}"
+
+  info "Mengetes koneksi TCP ke $_host:$_port ..."
+
+  # Method 1: bash /dev/tcp (if bash available)
+  if command -v bash >/dev/null 2>&1; then
+    if timeout 5 bash -c "(echo > /dev/tcp/$_host/$_port) >/dev/null 2>&1" 2>/dev/null; then
+      ok "Port $_host:$_port terbuka dan merespons."
+      return 0
+    fi
   fi
-  command -v psql >/dev/null 2>&1
+
+  # Method 2: nc (netcat)
+  if command -v nc >/dev/null 2>&1; then
+    if nc -z -w 5 "$_host" "$_port" 2>/dev/null; then
+      ok "Port $_host:$_port terbuka dan merespons."
+      return 0
+    fi
+  fi
+
+  # Method 3: python3 (pre-installed on Ubuntu, Debian, RHEL, Arch)
+  if command -v python3 >/dev/null 2>&1; then
+    if python3 -c "import socket; s = socket.socket(); s.settimeout(5); s.connect(('$_host', int('$_port'))); s.close()" 2>/dev/null; then
+      ok "Port $_host:$_port terbuka dan merespons."
+      return 0
+    fi
+  fi
+
+  # Method 4: perl
+  if command -v perl >/dev/null 2>&1; then
+    if perl -MIO::Socket::INET -e "exit(!IO::Socket::INET->new(PeerAddr=>'$_host', PeerPort=>'$_port', Timeout=>5))" 2>/dev/null; then
+      ok "Port $_host:$_port terbuka dan merespons."
+      return 0
+    fi
+  fi
+
+  # Method 5: node (if available)
+  if command -v node >/dev/null 2>&1; then
+    if node -e "const net = require('net'); const s = net.createConnection({host: '$_host', port: Number('$_port'), timeout: 5000}, () => { s.end(); process.exit(0); }); s.on('error', () => process.exit(1)); s.on('timeout', () => process.exit(1));" 2>/dev/null; then
+      ok "Port $_host:$_port terbuka dan merespons."
+      return 0
+    fi
+  fi
+
+  warn "Tidak ada TCP ping utility yang tersedia (atau port diblokir firewall)."
+  warn "Lanjut proses; koneksi database akan diverifikasi saat container dijalankan."
+  return 0
 }
 
 # ---------- 4. Database backend selection ----------
@@ -120,8 +146,6 @@ elif [ "$HAS_TTY" = "1" ]; then
     2|external|ext) DB_MODE="2" ;;
     *) DB_MODE="1" ;;
   esac
-else
-  info "No TTY — defaulting to built-in PostgreSQL (set EXTERNAL_DATABASE_URL for external)."
 fi
 
 if [ "$DB_MODE" = "2" ]; then
@@ -137,22 +161,8 @@ if [ "$DB_MODE" = "2" ]; then
     *) die "URL tidak valid, harus diawali dengan postgres:// atau postgresql://" ;;
   esac
 
-  info "Memverifikasi koneksi $(printf '%s' "$DBURL" | sed -E 's#://([^/:]+):[^@]*@#://\1:****@#') ..."
-  if ! command -v psql >/dev/null 2>&1; then
-    info "psql tidak ditemukan — memasang PostgreSQL client ..."
-    install_pg_client || true
-  fi
-  if command -v psql >/dev/null 2>&1; then
-    if PGCONNECT_TIMEOUT=15 psql "$DBURL" -tAc \
-         "SELECT 'PostgreSQL reachable, server_version=' || current_setting('server_version')" </dev/null; then
-      ok "PostgreSQL external terverifikasi."
-    else
-      die "Koneksi ke PostgreSQL external gagal. Periksa URL, kredensial, dan firewall."
-    fi
-  else
-    warn "PostgreSQL client tidak bisa dipasang — verifikasi koneksi dilewati."
-    warn "Sistem akan mencoba koneksi saat container pertama kali dijalankan."
-  fi
+  # Fast lightweight TCP ping (instant, zero apt-get/dnf/pacman)
+  ping_db_port "$DBURL"
 
   set_env COMPOSE_FILE "docker-compose.yml"
   set_env DATABASE_URL "$DBURL"
