@@ -295,4 +295,12 @@ if (cluster.isPrimary) {
   console.log(`[Gateway] worker ${process.pid} listening on ${PORT} (node ${process.version})`);
   // Pipeline warm-up in the background so the first client request is fast.
   ensureInitialized().catch(() => {});
+  // Pre-warm the /v1/models SWR cache in every worker: without this each
+  // worker pays the full live-catalog build once on its first client call.
+  setTimeout(async () => {
+    try {
+      await mod.GET(new Request("http://127.0.0.1/v1/models"));
+      await mod.GET(new Request("http://127.0.0.1/v1/models", { headers: { "x-axonrouter-internal-models-fetch": "1" } }));
+    } catch { /* best-effort warm */ }
+  }, 1500).unref?.();
 }
