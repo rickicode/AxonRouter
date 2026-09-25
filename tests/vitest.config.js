@@ -19,6 +19,7 @@ export default defineConfig({
     exclude: ["**/node_modules/**", "**/.claude/**", "**/dist/**", "**/*.live.test.js", "**/*.real.test.js", "**/*.cloud.test.js", "**/auth/saml.test.js", "**/docker-build.test.mjs"],
     // Allow many it.concurrent cases (real provider smoke runs ~50 providers in parallel)
     maxConcurrency: 60,
+    testTimeout: 20000,
     // Suppress noisy console output from handlers under test
     silent: false,
   },

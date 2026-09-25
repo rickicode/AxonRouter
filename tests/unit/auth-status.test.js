@@ -11,11 +11,11 @@ const mocks = vi.hoisted(() => ({
   getDashboardAuthSession: vi.fn(),
 }));
 
-vi.mock("next/server", () => ({
+vi.mock("@/lib/http/response.js", () => ({
   NextResponse: { json: mocks.json },
 }));
 
-vi.mock("next/headers", () => ({
+vi.mock("@/lib/http/headers.js", () => ({
   cookies: mocks.cookies,
 }));
 

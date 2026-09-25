@@ -115,12 +115,18 @@ async function requireLlmAccess(c, next) {
 
 // ── Handlers (imported from the existing pipeline — untouched) ───────────────
 const srcSse = "@/sse/handlers";
-let translatorsInitialized = false;
+let pipelineInitialized = false;
 async function ensureInitialized() {
-  if (translatorsInitialized) return;
+  if (pipelineInitialized) return;
+  try {
+    const { initValkey } = await import("@/lib/cache/valkeyClient.js");
+    await initValkey();
+  } catch (e) {
+    console.warn("[Gateway] Valkey init failed:", e.message);
+  }
   const { initTranslators } = await import("open-sse/translator/index.js");
   await initTranslators();
-  translatorsInitialized = true;
+  pipelineInitialized = true;
 }
 
 function cors(extra = {}) {

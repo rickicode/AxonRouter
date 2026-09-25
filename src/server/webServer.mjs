@@ -333,6 +333,13 @@ if (fs.existsSync(DIST_DIR)) {
 // ── Background Services & Watchdogs ──────────────────────────────────────────
 async function initBackgroundServices() {
   try {
+    const { initValkey } = await import("@/lib/cache/valkeyClient.js");
+    await initValkey();
+  } catch (e) {
+    console.warn("[WebServer] Valkey init failed:", e.message);
+  }
+
+  try {
     const { initConsoleLogCapture } = await import("@/lib/consoleLogBuffer");
     initConsoleLogCapture();
   } catch (e) {

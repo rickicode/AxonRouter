@@ -2,6 +2,7 @@ import { EventEmitter } from "events";
 import { getAdapter } from "../driver.js";
 import { parseJson } from "../helpers/jsonCol.js";
 import { incrementInFlight, decrementInFlight, registerActiveRequest, unregisterActiveRequest, getActiveRequestsDistributed } from "@/lib/cache/client.js";
+import { getValkey, publishValkey, subscribeValkey } from "@/lib/cache/valkeyClient.js";
 
 function maskApiKey(key) {
   if (!key || typeof key !== "string") return null;
@@ -38,12 +39,29 @@ const usageWriteQueue = global._usageWriteQueue;
 
 export const statsEmitter = global._statsEmitter;
 
+if (!global._statsSubscribed) {
+  global._statsSubscribed = true;
+  subscribeValkey("axon:events:stats", (raw) => {
+    try {
+      const msg = JSON.parse(raw);
+      if (msg.event && msg.originPid !== process.pid) {
+        statsEmitter.emit(msg.event);
+      }
+    } catch {}
+  }).catch(() => {});
+}
+
 function scheduleStatsEvent(event, delayMs = 150) {
   const key = event === "update" ? "update" : "pending";
   if (statsEmitTimers[key]) return;
   statsEmitTimers[key] = setTimeout(() => {
     statsEmitTimers[key] = null;
     statsEmitter.emit(event);
+    publishValkey("axon:events:stats", {
+      event,
+      originPid: process.pid,
+      ts: Date.now(),
+    }).catch(() => {});
   }, delayMs);
   statsEmitTimers[key]?.unref?.();
 }
@@ -104,6 +122,15 @@ function pushToRing(entry) {
   recentRing.items.push(entry);
   if (recentRing.items.length > RING_CAP) {
     recentRing.items = recentRing.items.slice(-RING_CAP);
+  }
+  const valkey = getValkey();
+  if (valkey) {
+    try {
+      const payload = JSON.stringify(entry);
+      valkey.lpush("axon:recent_requests", payload)
+        .then(() => valkey.ltrim("axon:recent_requests", 0, RING_CAP - 1))
+        .catch(() => {});
+    } catch {}
   }
 }
 
@@ -333,7 +360,7 @@ export async function trackPendingRequest(model, provider, connectionId, started
       startedAt: new Date().toISOString(),
     };
     liveActiveRequests.set(timerKey, entry);
-    registerActiveRequest(timerKey, entry).catch(() => {});
+    await registerActiveRequest(timerKey, entry).catch(() => {});
     getAdapter().then((db) => {
       db.run(
         `INSERT INTO active_requests (request_id, model, provider, connection_id, api_key, is_stream, started_at, expires_at)
@@ -344,7 +371,7 @@ export async function trackPendingRequest(model, provider, connectionId, started
     }).catch(() => {});
   } else {
     const wasActive = liveActiveRequests.delete(timerKey);
-    unregisterActiveRequest(timerKey).catch(() => {});
+    await unregisterActiveRequest(timerKey).catch(() => {});
     getAdapter().then((db) => {
       db.run(`DELETE FROM active_requests WHERE request_id = $1`, [timerKey]).catch(() => {});
     }).catch(() => {});
@@ -395,8 +422,13 @@ export async function trackPendingRequest(model, provider, connectionId, started
   }
 
   if (!started && error && provider) {
-    lastErrorProvider.provider = provider.toLowerCase();
+    const p = provider.toLowerCase();
+    lastErrorProvider.provider = p;
     lastErrorProvider.ts = Date.now();
+    const valkey = getValkey();
+    if (valkey) {
+      valkey.set("axon:last_error_provider", p, "EX", 10).catch(() => {});
+    }
   }
 
   scheduleStatsEvent("pending");
@@ -405,33 +437,42 @@ export async function trackPendingRequest(model, provider, connectionId, started
 export async function getActiveRequests() {
   const activeRequests = [];
   const localItems = [...liveActiveRequests.values()];
+  let distItems = [];
   let dbItems = [];
-  try {
-    const db = await getAdapter();
-    const now = Date.now();
-    if (now - lastActiveRequestsPrune > 30000) {
-      lastActiveRequestsPrune = now;
-      db.run("DELETE FROM active_requests WHERE expires_at <= NOW()").catch(() => {});
-    }
-    const rows = await db.all(
-      `SELECT request_id, model, provider, connection_id, api_key, is_stream, started_at
-       FROM active_requests
-       WHERE expires_at > NOW()
-       ORDER BY started_at DESC LIMIT 100`
-    );
-    dbItems = (rows || []).map((r) => ({
-      requestId: r.request_id,
-      model: r.model,
-      provider: r.provider,
-      connectionId: r.connection_id,
-      apiKey: r.api_key,
-      isStream: r.is_stream,
-      startedAt: r.started_at instanceof Date ? r.started_at.toISOString() : String(r.started_at),
-    }));
-  } catch {}
+  const valkey = getValkey();
+  if (valkey) {
+    try {
+      distItems = await getActiveRequestsDistributed();
+    } catch {}
+  } else {
+    try {
+      const db = await getAdapter();
+      const now = Date.now();
+      if (now - lastActiveRequestsPrune > 30000) {
+        lastActiveRequestsPrune = now;
+        db.run("DELETE FROM active_requests WHERE expires_at <= NOW()").catch(() => {});
+      }
+      const rows = await db.all(
+        `SELECT request_id, model, provider, connection_id, api_key, is_stream, started_at
+         FROM active_requests
+         WHERE expires_at > NOW()
+         ORDER BY started_at DESC LIMIT 100`
+      );
+      dbItems = (rows || []).map((r) => ({
+        requestId: r.request_id,
+        model: r.model,
+        provider: r.provider,
+        connectionId: r.connection_id,
+        apiKey: r.api_key,
+        isStream: r.is_stream,
+        startedAt: r.started_at instanceof Date ? r.started_at.toISOString() : String(r.started_at),
+      }));
+    } catch {}
+  }
 
   const mergedMap = new Map();
   for (const item of localItems) mergedMap.set(item.requestId || `${item.connectionId}|${item.model}`, item);
+  for (const item of distItems) mergedMap.set(item.requestId || `${item.connectionId}|${item.model}`, item);
   for (const item of dbItems) mergedMap.set(item.requestId, item);
   const items = [...mergedMap.values()];
 
@@ -484,9 +525,35 @@ export async function getActiveRequests() {
     }
   }
 
-  await ensureRingInitialized();
+  let rawRingItems = [];
+  if (valkey) {
+    try {
+      const list = await valkey.lrange("axon:recent_requests", 0, RING_CAP - 1);
+      if (list && list.length > 0) {
+        rawRingItems = list.map((item) => {
+          try {
+            return JSON.parse(item);
+          } catch {
+            return null;
+          }
+        }).filter(Boolean);
+      }
+    } catch {}
+  }
+
+  if (rawRingItems.length === 0) {
+    await ensureRingInitialized();
+    rawRingItems = [...recentRing.items];
+    if (valkey && rawRingItems.length > 0) {
+      const serialized = rawRingItems.map((e) => JSON.stringify(e));
+      valkey.rpush("axon:recent_requests", ...serialized)
+        .then(() => valkey.ltrim("axon:recent_requests", 0, RING_CAP - 1))
+        .catch(() => {});
+    }
+  }
+
   const seen = new Set();
-  const recentRequests = [...recentRing.items]
+  const recentRequests = rawRingItems
     .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp))
     .map((entry) => {
       const rawTokens = entry.tokens || {};
@@ -529,7 +596,13 @@ export async function getActiveRequests() {
     })
     .slice(0, 30);
 
-  const errorProvider = (Date.now() - lastErrorProvider.ts < 10000) ? lastErrorProvider.provider : "";
+  let errorProvider = (Date.now() - lastErrorProvider.ts < 10000) ? lastErrorProvider.provider : "";
+  if (!errorProvider && valkey) {
+    try {
+      const v = await valkey.get("axon:last_error_provider");
+      if (v) errorProvider = v;
+    } catch {}
+  }
   return { activeRequests, recentRequests, errorProvider };
 }
 
@@ -578,6 +651,16 @@ export async function saveFailedRequest({ provider, model, connectionId, apiKey,
       isStream: isStreamBool,
       error: errorMsg,
     });
+
+    if (provider) {
+      const p = provider.toLowerCase();
+      lastErrorProvider.provider = p;
+      lastErrorProvider.ts = Date.now();
+      const v = getValkey();
+      if (v) {
+        v.set("axon:last_error_provider", p, "EX", 10).catch(() => {});
+      }
+    }
     scheduleStatsEvent("update", 250);
   } catch (_) { /* fail-open */ }
 }

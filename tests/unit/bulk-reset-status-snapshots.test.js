@@ -11,7 +11,7 @@ const mocks = vi.hoisted(() => ({
   clearBatchCache: vi.fn(),
 }));
 
-vi.mock("next/server", () => ({
+vi.mock("@/lib/http/response.js", () => ({
   NextResponse: { json: mocks.json },
 }));
 

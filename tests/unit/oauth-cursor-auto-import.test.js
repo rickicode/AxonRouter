@@ -1,8 +1,8 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import * as fsPromises from "fs/promises";
 
-// Mock next/server
-vi.mock("next/server", () => ({
+// Mock lib/http/response.js
+vi.mock("@/lib/http/response.js", () => ({
   NextResponse: {
     json: vi.fn((body, init) => ({
       status: init?.status || 200,
