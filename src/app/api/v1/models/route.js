@@ -415,6 +415,14 @@ export async function buildModelsList(kindFilter, options = {}) {
     };
     if (combo.kind === "webSearch" || combo.kind === "webFetch") {
       entry.kind = combo.kind;
+    } else {
+      entry.capabilities = {
+        tools: true,
+        vision: true,
+        reasoning: true,
+      };
+      entry.context_length = combo.contextWindow || 250000;
+      entry.max_completion_tokens = combo.maxTokens || 32768;
     }
     models.push(entry);
   }

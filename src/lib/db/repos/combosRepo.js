@@ -9,6 +9,8 @@ function rowToCombo(row) {
     name: row.name,
     kind: row.kind,
     models: parseJson(row.models, []),
+    contextWindow: row.context_window !== undefined && row.context_window !== null ? Number(row.context_window) : 250000,
+    maxTokens: row.max_tokens !== undefined && row.max_tokens !== null ? Number(row.max_tokens) : 32768,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };
@@ -40,14 +42,16 @@ export async function createCombo(data) {
     name: data.name,
     kind: data.kind || null,
     models: data.models || [],
+    contextWindow: Number(data.contextWindow ?? data.context_window) || 250000,
+    maxTokens: Number(data.maxTokens ?? data.max_tokens) || 32768,
     createdAt: now,
     updatedAt: now,
   };
 
   await db.run(
-    `INSERT INTO combos(id, name, kind, models, created_at, updated_at)
-     VALUES($1, $2, $3, $4::jsonb, $5, $6)`,
-    [combo.id, combo.name, combo.kind, combo.models || [], combo.createdAt, combo.updatedAt],
+    `INSERT INTO combos(id, name, kind, models, context_window, max_tokens, created_at, updated_at)
+     VALUES($1, $2, $3, $4::jsonb, $5, $6, $7, $8)`,
+    [combo.id, combo.name, combo.kind, combo.models || [], combo.contextWindow, combo.maxTokens, combo.createdAt, combo.updatedAt],
   );
   return combo;
 }
@@ -60,12 +64,23 @@ export async function updateCombo(id, data) {
     const row = await tx.get("SELECT * FROM combos WHERE id = $1", [id]);
     if (!row) return;
 
-    const merged = { ...rowToCombo(row), ...data, updatedAt: new Date().toISOString() };
+    const existing = rowToCombo(row);
+    const merged = {
+      ...existing,
+      ...data,
+      contextWindow: data.contextWindow !== undefined ? (Number(data.contextWindow) || 250000)
+        : data.context_window !== undefined ? (Number(data.context_window) || 250000)
+        : existing.contextWindow,
+      maxTokens: data.maxTokens !== undefined ? (Number(data.maxTokens) || 32768)
+        : data.max_tokens !== undefined ? (Number(data.max_tokens) || 32768)
+        : existing.maxTokens,
+      updatedAt: new Date().toISOString(),
+    };
     await tx.run(
       `UPDATE combos
-       SET name = $1, kind = $2, models = $3::jsonb, updated_at = $4
-       WHERE id = $5`,
-      [merged.name, merged.kind ?? null, merged.models || [], merged.updatedAt, id],
+       SET name = $1, kind = $2, models = $3::jsonb, context_window = $4, max_tokens = $5, updated_at = $6
+       WHERE id = $7`,
+      [merged.name, merged.kind ?? null, merged.models || [], merged.contextWindow, merged.maxTokens, merged.updatedAt, id],
     );
     result = merged;
   });

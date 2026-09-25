@@ -64,6 +64,30 @@ export async function GET() {
       });
     }
 
+    // Include combos so dashboard tools and model selectors see auto/coding etc.
+    try {
+      const { getCombos } = await import("@/lib/localDb");
+      const combos = await getCombos();
+      for (const combo of combos) {
+        if (combo.kind && combo.kind !== "llm") continue;
+        models.push({
+          provider: "combo",
+          model: combo.name,
+          name: combo.name,
+          fullModel: combo.name,
+          routedModel: combo.name,
+          alias: combo.name,
+          caps: {
+            vision: true,
+            search: false,
+            reasoning: true,
+            contextWindow: combo.contextWindow || 250000,
+            maxOutput: combo.maxTokens || 32768,
+          },
+        });
+      }
+    } catch {}
+
     return NextResponse.json({ models });
   } catch (error) {
     console.log("Error fetching models:", error);

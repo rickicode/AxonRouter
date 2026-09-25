@@ -146,6 +146,8 @@ CREATE TABLE IF NOT EXISTS combos (
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 CREATE INDEX IF NOT EXISTS idx_combos_name ON combos (name);
+ALTER TABLE combos ADD COLUMN IF NOT EXISTS context_window INTEGER DEFAULT 250000;
+ALTER TABLE combos ADD COLUMN IF NOT EXISTS max_tokens INTEGER DEFAULT 32768;
 
 -- Settings
 CREATE TABLE IF NOT EXISTS settings (
@@ -164,7 +166,6 @@ CREATE TABLE IF NOT EXISTS active_requests (
   started_at TIMESTAMPTZ DEFAULT NOW(),
   expires_at TIMESTAMPTZ DEFAULT (NOW() + INTERVAL '120 seconds')
 );
-CREATE INDEX IF NOT EXISTS idx_active_requests_expires ON active_requests (expires_at);
 CREATE INDEX IF NOT EXISTS idx_active_requests_lookup ON active_requests (expires_at, started_at DESC);
 
 

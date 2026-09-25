@@ -787,11 +787,21 @@ function ComboCard({
                     <span className="size-1.5 rounded-full bg-rose-400"></span>
                     Hard: {hardCount}
                   </span>
+                  <span className="text-text-muted/30">•</span>
+                  <span className="inline-flex items-center gap-1 rounded bg-surface-2 px-1.5 py-0.5 text-[10px] font-mono text-text-muted border border-border/60">
+                    {(combo.contextWindow || 250000) >= 1000000 ? `${(combo.contextWindow || 250000) / 1000000}M` : `${Math.round((combo.contextWindow || 250000) / 1000)}k`} ctx • {Math.round((combo.maxTokens || 32768) / 1000)}k out
+                  </span>
                 </div>
               ) : (
-                <span>
-                  {combo.models.length} model(s) in pool
-                </span>
+                <div className="flex items-center gap-2">
+                  <span>
+                    {combo.models.length} model(s) in pool
+                  </span>
+                  <span className="text-text-muted/30">•</span>
+                  <span className="inline-flex items-center gap-1 rounded bg-surface-2 px-1.5 py-0.5 text-[10px] font-mono text-text-muted border border-border/60">
+                    {(combo.contextWindow || 250000) >= 1000000 ? `${(combo.contextWindow || 250000) / 1000000}M` : `${Math.round((combo.contextWindow || 250000) / 1000)}k`} ctx • {Math.round((combo.maxTokens || 32768) / 1000)}k out
+                  </span>
+                </div>
               )}
             </div>
           </div>
@@ -1090,6 +1100,8 @@ function ComboFormModal({
 }) {
   const [name, setName] = useState(combo?.name || "");
   const [models, setModels] = useState(combo?.models || []);
+  const [contextWindow, setContextWindow] = useState(combo?.contextWindow || 250000);
+  const [maxTokens, setMaxTokens] = useState(combo?.maxTokens || 32768);
   const [showModelSelect, setShowModelSelect] = useState(false);
   const [saving, setSaving] = useState(false);
   const [nameError, setNameError] = useState("");
@@ -1179,7 +1191,12 @@ function ComboFormModal({
   const handleSave = async () => {
     if (!validateName(name)) return;
     setSaving(true);
-    await onSave({ name: name.trim(), models });
+    await onSave({
+      name: name.trim(),
+      models,
+      contextWindow: Number(contextWindow) || 250000,
+      maxTokens: Number(maxTokens) || 32768,
+    });
     setSaving(false);
   };
 
@@ -1239,6 +1256,74 @@ function ComboFormModal({
             </div>
           )}
 
+          {/* Token Limits: Context Window & Max Output */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 p-3 rounded-md bg-surface-2/40 border border-border">
+            <div>
+              <div className="flex items-center justify-between mb-1">
+                <label className="font-semibold text-xs text-text-main">
+                  Context Window (Tokens)
+                </label>
+                <span className="text-[10px] text-text-muted font-mono">
+                  {contextWindow >= 1000000 ? `${contextWindow / 1000000}M` : `${Math.round(contextWindow / 1000)}k`}
+                </span>
+              </div>
+              <Input
+                type="number"
+                value={contextWindow}
+                onChange={(e) => setContextWindow(Number(e.target.value) || 0)}
+                placeholder="250000"
+              />
+              <div className="flex items-center gap-1 mt-1.5 flex-wrap">
+                {[128000, 200000, 250000, 500000, 1000000].map((v) => (
+                  <button
+                    key={v}
+                    type="button"
+                    onClick={() => setContextWindow(v)}
+                    className={`px-1.5 py-0.5 text-[10px] font-mono rounded border transition-colors ${
+                      contextWindow === v
+                        ? "bg-primary/20 text-primary border-primary/40 font-bold"
+                        : "bg-surface text-text-muted border-border hover:bg-surface-2"
+                    }`}
+                  >
+                    {v >= 1000000 ? `${v / 1000000}M` : `${v / 1000}k`}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div>
+              <div className="flex items-center justify-between mb-1">
+                <label className="font-semibold text-xs text-text-main">
+                  Max Output Tokens
+                </label>
+                <span className="text-[10px] text-text-muted font-mono">
+                  {Math.round(maxTokens / 1000)}k
+                </span>
+              </div>
+              <Input
+                type="number"
+                value={maxTokens}
+                onChange={(e) => setMaxTokens(Number(e.target.value) || 0)}
+                placeholder="32768"
+              />
+              <div className="flex items-center gap-1 mt-1.5 flex-wrap">
+                {[8192, 16384, 32768, 65536, 128000].map((v) => (
+                  <button
+                    key={v}
+                    type="button"
+                    onClick={() => setMaxTokens(v)}
+                    className={`px-1.5 py-0.5 text-[10px] font-mono rounded border transition-colors ${
+                      maxTokens === v
+                        ? "bg-primary/20 text-primary border-primary/40 font-bold"
+                        : "bg-surface text-text-muted border-border hover:bg-surface-2"
+                    }`}
+                  >
+                    {v >= 1000000 ? `${v / 1000000}M` : `${Math.round(v / 1000)}k`}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
           {/* Models */}
           <div>
             <div className="flex items-center justify-between mb-2">

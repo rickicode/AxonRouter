@@ -170,11 +170,13 @@ app.post("/v1/responses/compact", async (c) => {
 app.post("/v1/api/chat", chatHandler);            // Ollama-compat
 
 // ── Models ────────────────────────────────────────────────────────────────────
-app.get("/v1/models", async (c) => {
+const modelsHandler = async (c) => {
   await ensureInitialized();
   const mod = await import("@/app/api/v1/models/route.js");
   return mod.GET(c.req.raw);
-});
+};
+app.get("/v1/models", modelsHandler);
+app.get("/models", modelsHandler);
 app.get("/v1/models/info", async (c) => {
   const mod = await import("@/app/api/v1/models/info/route.js");
   return mod.GET(c.req.raw);

@@ -87,6 +87,8 @@ export async function PUT(request, { params }) {
         name: nameToUse,
         models: body.models || [],
         kind: body.kind || null,
+        contextWindow: body.contextWindow,
+        maxTokens: body.maxTokens,
       });
       resetComboRotationState(combo.name);
       return NextResponse.json(combo, { status: 201 });
