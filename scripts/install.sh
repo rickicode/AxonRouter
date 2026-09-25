@@ -207,8 +207,10 @@ else
   ok "Gateway: cluster ($WORKERS workers, capped at $CORES CPU cores)"
 fi
 
-# ---------- 6. Secrets ----------
-info "Generating secrets ..."
+# ---------- 6. Secrets & Base Configuration ----------
+info "Configuring environment & generating secrets ..."
+set_env BASE_URL         "${BASE_URL:-http://localhost:3777}"
+set_env CLOUD_URL        "${CLOUD_URL:-}"
 set_env JWT_SECRET       "$(rand_hex 32)"
 set_env API_KEY_SECRET   "$(rand_hex 32)"
 set_env MACHINE_ID_SALT  "$(rand_hex 16)"

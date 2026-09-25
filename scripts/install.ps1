@@ -161,8 +161,11 @@ if ($env:GATEWAY_CLUSTER -eq "false" -or $workers -le 1) {
     Write-Host "==> Gateway: cluster ($workers workers, capped at $cores CPU cores)" -ForegroundColor Green
 }
 
-# ---------- 5. Secrets ----------
-Write-Host "==> Generating secrets ..." -ForegroundColor Cyan
+# ---------- 5. Secrets & Base Configuration ----------
+Write-Host "==> Generating secrets & environment ..." -ForegroundColor Cyan
+$baseUrl = if ($env:BASE_URL) { $env:BASE_URL } else { "http://localhost:3777" }
+Set-EnvKey "BASE_URL"         $baseUrl
+Set-EnvKey "CLOUD_URL"        (if ($env:CLOUD_URL) { $env:CLOUD_URL } else { "" })
 Set-EnvKey "JWT_SECRET"       (New-RandomHex 32)
 Set-EnvKey "API_KEY_SECRET"   (New-RandomHex 32)
 Set-EnvKey "MACHINE_ID_SALT"  (New-RandomHex 16)
