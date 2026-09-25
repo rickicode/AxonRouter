@@ -1,6 +1,6 @@
 import postgres from "postgres";
 
-// Singleton pool to survive Next.js dev server hot-reload
+// Singleton pool on global so re-imports (dev, tests) don't open a second pool
 if (!global._pgSql) {
   const connectionString = process.env.DATABASE_URL || "postgres://axonrouter:password123@localhost:5432/axonrouter";
   // Postgres crashes (OOM-kill, host restart) leave idle pooled connections

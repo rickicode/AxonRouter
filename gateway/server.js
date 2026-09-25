@@ -3,8 +3,8 @@
  * axonrouter API Gateway — Hono + @hono/node-server, framework-free.
  *
  * Serves the public LLM API (/v1/*, /v1beta/*, /codex, /responses) in a
- * SEPARATE process from the Next.js dashboard so gateway traffic never
- * contends with the dashboard's event loop.
+ * SEPARATE process from the dashboard (src/server/webServer.mjs) so gateway
+ * traffic never contends with the dashboard's event loop.
  *
  * The chat pipeline (src/sse/handlers/*, open-sse/*) is 100% web-standard
  * Request/Response — Hono passes c.req.raw straight into handleChat().

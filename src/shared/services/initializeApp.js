@@ -5,7 +5,7 @@ process.setMaxListeners(20);
 // Defer heavy startup work so the first HTTP request isn't starved
 const STARTUP_DEFER_MS = 2000;
 
-// Survive Next.js hot reload
+// Guard against multiple module imports in tests and re-runs
 const g = (global.__appSingleton ??= {
   initialized: false,
 });

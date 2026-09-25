@@ -68,7 +68,7 @@ describe("[axonrouter-X usage] P1 distill overview sub-tabs + lazy topology/char
   });
 
   describe("2. Lazy Loading Topology & Chart for LCP Optimization", () => {
-    it("UsageChart is dynamically imported to keep recharts out of initial bundle", () => {
+    it("UsageChart is dynamically imported to keep heavy chart chunks out of initial bundle", () => {
       const src = readSrc("src/shared/components/UsageStats.js");
 
       // Must not statically import UsageChart

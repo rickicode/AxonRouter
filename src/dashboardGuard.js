@@ -35,7 +35,7 @@ const PUBLIC_API_PATHS = [
 ];
 
 // Public top-level prefixes (LLM API endpoints with their own API key auth).
-// Keep root-level rewrites here too: middleware runs before Next.js rewrites.
+// Keep the root-level prefixes here too: this guard runs before webServer.mjs rewrites /v1/* to /api/v1/*.
 const PUBLIC_PREFIXES = ["/v1", "/v1beta", "/api/v1", "/api/v1beta", "/codex", "/responses"];
 
 // Always require JWT token regardless of requireLogin setting
@@ -125,8 +125,8 @@ function isLoopbackPeer(request) {
   if (hasTrustedPeerHeaders(request)) {
     return isLoopbackHostname(request.headers.get("x-axonrouter-real-ip"));
   }
-  // Bare `next dev` forks its server, so the wrapper never loads and no peer address
-  // reaches us. Host is spoofable, so this stays confined to development.
+  // Requests that reach webServer.mjs without the server.js wrapper carry no
+  // trusted peer stamp. Host is spoofable, so this stays confined to development.
   if (process.env.NODE_ENV === "development") {
     return isLoopbackHostname(request.headers.get("host"));
   }

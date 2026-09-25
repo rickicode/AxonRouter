@@ -50,8 +50,8 @@ describe("kimchi registry entry", () => {
 });
 
 // ── Pure-function clones of the service logic (tested in isolation so
-//     node --test works without resolving the Next.js Webpack "open-sse"
-//     alias that src/lib/oauth/services/kimchi.js's dependency imports). ──
+//     node --test works without resolving the "open-sse" / "@/..." aliases
+//     that src/lib/oauth/services/kimchi.js's dependency imports). ──
 
 function buildKimchiAuthUrl(callbackUrl, state) {
   const params = new URLSearchParams({ callback: callbackUrl, state });

@@ -17,7 +17,7 @@ import { handleComboChat, getComboModelsFromData } from "open-sse/services/combo
 import { assertPublicUrlResolved } from "@/shared/utils/ssrfGuard.js";
 
 /**
- * Handle web fetch (URL extraction) request for the SSE/Next.js server.
+ * Handle web fetch (URL extraction) request for the gateway (src/sse) server.
  * Provider IS the model. Mirrors handleEmbeddings auth + fallback flow.
  *
  * @param {Request} request

@@ -16,7 +16,7 @@ import { updateProviderCredentials, checkAndRefreshToken } from "../services/tok
 import { handleComboChat, getComboModelsFromData } from "open-sse/services/combo.js";
 
 /**
- * Handle web search request for the SSE/Next.js server.
+ * Handle web search request for the gateway (src/sse) server.
  * Provider IS the model (no model field). Mirrors handleEmbeddings auth + fallback flow.
  *
  * @param {Request} request

@@ -8,7 +8,7 @@
 
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 
-// Mock the heavy Next.js-dependent imports BEFORE importing ping.js
+// Mock the heavy DB/config imports BEFORE importing ping.js
 // (same pattern as tests/unit/ping-reasoning-models-3010.test.js).
 vi.mock("@/lib/localDb", () => ({ getApiKeys: vi.fn(async () => [{ key: "test-key", isActive: true }]) }));
 vi.mock("@/shared/constants/config", () => ({ UPDATER_CONFIG: { appPort: 20127 } }));

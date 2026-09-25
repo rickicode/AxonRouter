@@ -108,7 +108,7 @@ export default function EndpointUrlsCard({
           </div>
 
           <p className="text-xs text-text-muted leading-relaxed">
-            Direct route through the Next.js application server. Convenient for single-port deployments or reverse proxies that forward to port 3777.
+            Direct route through the Hono application server. Convenient for single-port deployments or reverse proxies that forward to port 3777.
           </p>
 
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 rounded-sm border border-border bg-bg p-2.5 sm:px-3 sm:py-2">

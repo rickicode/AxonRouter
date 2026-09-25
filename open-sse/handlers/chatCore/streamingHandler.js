@@ -60,8 +60,8 @@ export async function handleStreamingResponse({ providerResponse, provider, mode
   };
 
   // When upstream returns HTML/text instead of SSE (e.g. Cloudflare 5xx error
-  // page), piping it through the SSE transform stream causes Next.js
-  // "failed to pipe response" and crashes the chat router. Read the body,
+  // page), piping it through the SSE transform stream fails the in-flight HTTP
+  // response and breaks the chat router. Read the body,
   // pull a short human-readable message from the <title>, sanitize it, and
   // return a clean JSON error instead. The message is stripped of HTML tags
   // and clamped so untrusted upstream text never reaches the client verbatim

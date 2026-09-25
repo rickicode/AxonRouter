@@ -53,7 +53,7 @@ The public LLM API (`/v1/*`) runs in a **dedicated Hono gateway process** (`axon
 
 - **Fast path routing**: `/v1/chat/completions`, `/v1/messages`, `/v1/models`, `/v1/embeddings`, audio/video endpoints.
 - **Cluster mode**: Spawns worker processes (`GATEWAY_WORKERS=4`) across CPU cores.
-- **Path alias resolution**: Integrated `@/...` module alias resolver without Next.js webpack build overhead.
+- **Path alias resolution**: Integrated `@/...` module alias resolver (`gateway/alias-resolver.mjs`, registered at boot) with no bundler/webpack pass.
 
 ---
 
@@ -78,7 +78,7 @@ Incoming Request (Claude Code, Cursor, Codex, OpenClaw, Cline...)
                ▼
 ┌─────────────────────────────────────────────────────────────┐
 │  Port 3778: Dedicated Hono API Gateway (Cluster Mode)       │
-│  or Port 3777: Next.js Standalone Reverse Proxy Rewrites    │
+│  or Port 3777: Standalone Hono server (Vite SPA build)      │
 └─────────────────────────────────────────────────────────────┘
                │
                ▼
@@ -209,8 +209,8 @@ AxonRouter intentionally separates the web dashboard and the public LLM API into
 
 | Aspect | Dashboard (Port 3777) | API Gateway (Port 3778) |
 |---|---|---|
-| **Process** | Next.js standalone server | Standalone Hono multi-worker cluster |
-| **Entry** | `custom-server.js` | `gateway/server.js` |
+| **Process** | Hono server serving the Vite SPA (`dist/`) | Standalone Hono multi-worker cluster |
+| **Entry** | `server.js` → `src/server/webServer.mjs` | `gateway/server.js` |
 | **Purpose** | Management UI, settings, live observability | High-throughput `/v1/*` inference routing |
 | **Concurrency** | Single Node event loop | Node cluster across CPU cores (`GATEWAY_WORKERS`) |
 | **Failure isolation** | Dashboard restart never drops live agent streams | Gateway crash never kills the dashboard |
@@ -255,7 +255,8 @@ cp .env.example .env
 # Set DATABASE_URL=postgres://axonrouter:password123@localhost:5432/axonrouter
 
 # 3. Start development servers
-npm run dev               # Web Dashboard on port 3777
+npm run server            # Web + API server on port 3777 (run `npm run build` first)
+npm run dev               # Vite dev UI on port 5173, proxying /api and /v1 to :3777
 node gateway/server.js    # Standalone Hono Gateway on port 3778
 ```
 

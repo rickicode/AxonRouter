@@ -4,17 +4,18 @@ This document provides mandatory guidance for AI agents and developers working o
 
 ## What this is
 
-AxonRouter (`axonrouter`) — enterprise-grade AI routing gateway + Next.js dashboard. It exposes an OpenAI-compatible endpoint (`/v1/*`) and routes traffic across 40+ upstream providers with format translation, model-combo fallback, multi-account rotation, credential management, token refresh, and monthly partitioned usage tracking.
+AxonRouter (`axonrouter`) — enterprise-grade AI routing gateway + React web dashboard (Vite SPA). It exposes an OpenAI-compatible endpoint (`/v1/*`) and routes traffic across 40+ upstream providers with format translation, model-combo fallback, multi-account rotation, credential management, token refresh, and monthly partitioned usage tracking.
 
 Published artifacts and layout:
-- **Web Dashboard & Gateway**: Root Next.js standalone app (`src/`, `custom-server.js` on port `3777`).
+- **Web Dashboard & Gateway**: root server on port `3777` — CommonJS `server.js` (socket peer sanitization, untrusted `X-Forwarded-For` strip, gzip) boots Hono in `src/server/webServer.mjs`, which serves the Vite build from `dist/` and mounts `src/app/api/**/route.js` via `src/server/routeLoader.mjs`.
 - **Dedicated Hono API Gateway**: High-throughput Node cluster (`gateway/` on port `3778`).
 - **Routing Engine**: Agnostic translation & execution pipeline (`open-sse/`).
 - **Test Suite**: Vitest and Node test suites (`tests/`).
+- **Docs Site**: `gitbook/` — separate Next.js 16 app (own `package.json`, port `3001`, Cloudflare Pages). The only Next.js left in this repository.
 
 ## Stack & Architecture
 
-- **Runtime**: Node.js 22+ (ES modules only, no CommonJS `require`), Next.js 15 App Router (`--webpack`).
+- **Runtime**: Node.js 22+; no Next.js in the app. UI = Vite 7 SPA (`npm run build` → `dist/`); API keeps only the App Router file convention (`src/app/api/**/route.js` exporting `GET`/`POST`/…) and is mounted on Hono by `src/server/routeLoader.mjs` (`[id]` → `:id`, `[...slug]` → `*slug`, `/v1/*` → `/api/v1/*`). Source is ESM syntax; `server.js` alone is CommonJS.
 - **Primary Database (SSOT)**: Pure PostgreSQL 17 via `postgres` package (`src/lib/db/driver.js`, `src/lib/db/adapters/postgresAdapter.js`).
   - SQLite runtime is completely removed from application storage.
   - `src/lib/localDb.js` is a backward-compatible shim re-exporting from `@/lib/db/index.js`.
@@ -24,9 +25,10 @@ Published artifacts and layout:
 
 ## Commands
 
-- Dev Server: `npm run dev` (port 3777)
-- Build: `npm run build`
-- Production Start: `npm start` (port 3777)
+- Dev UI: `npm run dev` (Vite on port `5173`; proxies `/api`, `/v1`, `/v1beta` to `127.0.0.1:3777`)
+- API/Web Server: `npm run server` (port `3777`; serves `dist/` + `src/app/api` — build first)
+- Production Start: `npm start` (port `3777`; same entry as `npm run server`)
+- Build: `npm run build` (Vite → `dist/`)
 - Headless API Gateway: `node gateway/server.js` (port 3778)
 - Test Suite: `cd tests && npx vitest run` or `node --test tests/unit/<file>.mjs`
 - Graph Navigation: `graft ask "<query>"`, `graft grep "<pattern>"`, `graft skeleton <file>`, `graft build`
@@ -44,7 +46,7 @@ A `graft/` context graph is maintained at repository root. Code search MUST prio
 
 1. **Module System & Style**:
    - Plain JavaScript with ES Modules (`import`/`export`). No TypeScript.
-   - Use path aliases: `@/*` maps to `src/*` and `open-sse/*` maps to `open-sse/*`.
+   - Use path aliases: `@/*` maps to `src/*` and `open-sse/*` maps to `open-sse/*`; resolved at boot by `gateway/alias-resolver.mjs` (registered in `src/server/webServer.mjs` and `gateway/server.js`) — no bundler/webpack alias.
    - Conventional Commits for commit messages (`feat(...)`, `fix(...)`, `chore(...)`).
 
 2. **Database & Repositories**:
@@ -65,5 +67,5 @@ A `graft/` context graph is maintained at repository root. Code search MUST prio
    - For `opencode-zen`, billing and entitlement errors are model-scoped (`opencodeZenModelOnlyError`); only explicit invalid API keys lock the account.
 
 5. **Security & Deployment**:
-   - `custom-server.js` enforces socket IP validation and strips untrusted `X-Forwarded-For` headers from non-loopback proxies.
+   - `server.js` (mirrored by `src/server/httpWrapper.js`) enforces socket peer-token validation and strips untrusted `X-Forwarded-For` headers from non-loopback proxies.
    - Never commit `.env` or sensitive credentials (`DATABASE_URL`, `JWT_SECRET`, `API_KEY_SECRET`, `ENCRYPTION_KEY`).

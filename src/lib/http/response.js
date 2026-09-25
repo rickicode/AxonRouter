@@ -1,4 +1,4 @@
-// HTTP Response helpers replacing Next.js NextResponse across API routes.
+// HTTP Response helpers shared by API routes; class name kept from the pre-Hono era.
 // Standards-compliant: returns native Web API Response.
 
 export class HttpNextResponse extends Response {

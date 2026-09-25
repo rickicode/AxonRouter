@@ -40,7 +40,7 @@ services:
       postgres:
         condition: service_healthy
 
-  # Next.js web dashboard + control plane — serves on port 3777
+  # AxonRouter web dashboard + control plane (Vite SPA + Hono) — serves on port 3777
   axonrouter-web:
     image: ghcr.io/rickicode/axonrouter-web:latest
     container_name: axonrouter-web

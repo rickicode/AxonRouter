@@ -46,7 +46,7 @@ function estimateEmbeddingTokens(input) {
 }
 
 /**
- * Handle embeddings request for the SSE/Next.js server.
+ * Handle embeddings request for the gateway (src/sse) server.
  * Follows the same auth + fallback pattern as handleChat.
  *
  * @param {Request} request

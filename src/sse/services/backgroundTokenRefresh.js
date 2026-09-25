@@ -36,18 +36,7 @@ function isTruthyEnv(value) {
 }
 
 export function isNonServerRuntime() {
-  if (typeof window !== "undefined") return true;
-  const phase = process.env.NEXT_PHASE || "";
-  if (
-    phase === "phase-production-build" ||
-    phase === "phase-export" ||
-    phase === "phase-static"
-  ) {
-    return true;
-  }
-  // Next.js build / static generation markers
-  if (process.env.NEXT_RUNTIME === "edge") return true;
-  return false;
+  return typeof window !== "undefined";
 }
 
 /**
