@@ -26,7 +26,7 @@
    AxonRouter palette — adopted from 9remote_private/web
    Brand cyan, cool slate bases
    ============================================================ */
-::root, :root {
+:root {
   /* Force dark mode only - remove light mode */
   /* Brand scale (cyan) - now primary throughout */
   --color-brand-50: #ECFEFF;

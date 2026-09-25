@@ -13,7 +13,23 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  build-and-push:
+  verify:
+    name: Verify Lockfile & Build Contracts
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Verify lockfile is npm-10-compatible
+        run: node scripts/verify-lockfile-npm10.mjs
+
+  build-web:
+    name: Build & Push axonrouter-web
+    needs: verify
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -22,10 +38,6 @@ jobs:
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
 
-      - name: Verify lockfile is npm-10-compatible
-        run: node scripts/verify-lockfile-npm10.mjs
-
-      # QEMU binfmt — required so buildx can compile linux/arm64 on the amd64 runner
       - uses: docker/setup-qemu-action@99012661954931238ded8c8b007157a8430204e1 # v4.4.0
 
       - uses: docker/setup-buildx-action@f7ce87c1d6bead3e36075b2ce75da1f6cc28aaca # v3.9.0
@@ -37,19 +49,17 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Resolve image names
-        id: images
+      - name: Resolve web image name
+        id: image
         run: |
           owner="$(printf '%s' '${{ github.repository_owner }}' | tr '[:upper:]' '[:lower:]')"
-          echo "web=ghcr.io/${owner}/axonrouter-web" >> "$GITHUB_OUTPUT"
-          echo "api=ghcr.io/${owner}/axonrouter-api" >> "$GITHUB_OUTPUT"
+          echo "name=ghcr.io/${owner}/axonrouter-web" >> "$GITHUB_OUTPUT"
 
-      # --- Build & Push axonrouter-web ---
       - name: Extract metadata (axonrouter-web)
-        id: meta-web
+        id: meta
         uses: docker/metadata-action@318604b99e75e41977312d83839a89be02ca4893 # v5.9.0
         with:
-          images: ${{ steps.images.outputs.web }}
+          images: ${{ steps.image.outputs.name }}
           tags: |
             type=raw,value=latest,enable=${{ github.ref == 'refs/heads/main' }}
             type=semver,pattern={{version}}
@@ -61,20 +71,47 @@ jobs:
           context: .
           file: ./Dockerfile
           push: true
-          tags: ${{ steps.meta-web.outputs.tags }}
-          labels: ${{ steps.meta-web.outputs.labels }}
-          cache-from: type=registry,ref=${{ steps.images.outputs.web }}:buildcache
-          cache-to: type=registry,ref=${{ steps.images.outputs.web }}:buildcache,mode=max
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=registry,ref=${{ steps.image.outputs.name }}:buildcache
+          cache-to: type=registry,ref=${{ steps.image.outputs.name }}:buildcache,mode=max
           platforms: linux/amd64,linux/arm64
           provenance: false
           sbom: false
 
-      # --- Build & Push axonrouter-api (Standalone Hono Gateway) ---
+  build-api:
+    name: Build & Push axonrouter-api (Standalone Hono Gateway)
+    needs: verify
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+
+      - uses: docker/setup-qemu-action@99012661954931238ded8c8b007157a8430204e1 # v4.4.0
+
+      - uses: docker/setup-buildx-action@f7ce87c1d6bead3e36075b2ce75da1f6cc28aaca # v3.9.0
+
+      - name: Log in to GHCR
+        uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3.7.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Resolve api image name
+        id: image
+        run: |
+          owner="$(printf '%s' '${{ github.repository_owner }}' | tr '[:upper:]' '[:lower:]')"
+          echo "name=ghcr.io/${owner}/axonrouter-api" >> "$GITHUB_OUTPUT"
+
       - name: Extract metadata (axonrouter-api)
-        id: meta-api
+        id: meta
         uses: docker/metadata-action@318604b99e75e41977312d83839a89be02ca4893 # v5.9.0
         with:
-          images: ${{ steps.images.outputs.api }}
+          images: ${{ steps.image.outputs.name }}
           tags: |
             type=raw,value=latest,enable=${{ github.ref == 'refs/heads/main' }}
             type=semver,pattern={{version}}
@@ -86,10 +123,10 @@ jobs:
           context: .
           file: ./Dockerfile.gateway
           push: true
-          tags: ${{ steps.meta-api.outputs.tags }}
-          labels: ${{ steps.meta-api.outputs.labels }}
-          cache-from: type=registry,ref=${{ steps.images.outputs.api }}:buildcache
-          cache-to: type=registry,ref=${{ steps.images.outputs.api }}:buildcache,mode=max
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=registry,ref=${{ steps.image.outputs.name }}:buildcache
+          cache-to: type=registry,ref=${{ steps.image.outputs.name }}:buildcache,mode=max
           platforms: linux/amd64,linux/arm64
           provenance: false
           sbom: false
