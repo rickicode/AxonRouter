@@ -13,5 +13,6 @@ CREATE TABLE IF NOT EXISTS analytics_events (
   CHECK ((success AND error_category IS NULL) OR (NOT success AND error_category IS NOT NULL))
 );
 CREATE INDEX IF NOT EXISTS idx_analytics_time ON analytics_events (timestamp);
+CREATE INDEX IF NOT EXISTS idx_analytics_time_id ON analytics_events (timestamp ASC, id ASC);
 CREATE INDEX IF NOT EXISTS idx_analytics_provider_model_time ON analytics_events (provider, model, timestamp);
 `;

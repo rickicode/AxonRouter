@@ -52,9 +52,6 @@ CREATE TABLE IF NOT EXISTS provider_connections (
 ALTER TABLE provider_connections ADD COLUMN IF NOT EXISTS locked_to_model TEXT;
 ALTER TABLE provider_connections ADD COLUMN IF NOT EXISTS locked_to_model_until TIMESTAMPTZ;
 
-CREATE INDEX IF NOT EXISTS idx_pc_routing ON provider_connections (provider, priority, last_used_at NULLS FIRST)
-WHERE is_active = true;
-
 CREATE INDEX IF NOT EXISTS idx_pc_model_locks ON provider_connections USING GIN (model_locks);
 CREATE INDEX IF NOT EXISTS idx_pc_token_refresh ON provider_connections (provider, token_expires_at)
 WHERE is_active = true AND token_expires_at IS NOT NULL;
@@ -168,6 +165,7 @@ CREATE TABLE IF NOT EXISTS active_requests (
   expires_at TIMESTAMPTZ DEFAULT (NOW() + INTERVAL '120 seconds')
 );
 CREATE INDEX IF NOT EXISTS idx_active_requests_expires ON active_requests (expires_at);
+CREATE INDEX IF NOT EXISTS idx_active_requests_lookup ON active_requests (expires_at, started_at DESC);
 
 
 -- Auto-seed default settings & master password (12345677) on initial install
@@ -302,84 +300,97 @@ CREATE TABLE IF NOT EXISTS usage_daily (
   date_key DATE PRIMARY KEY,
   data JSONB NOT NULL
 );
-
--- Auto-repair legacy / imported scalar strings into valid JSONB objects.
--- Runs after every CREATE TABLE: on an empty database the target tables
--- would not exist yet and the whole bootstrap transaction would fail.
-UPDATE provider_connections
-   SET data = safe_input_jsonb(data #>> '{}')
- WHERE jsonb_typeof(data) = 'string'
-   AND (data #>> '{}') LIKE '{%'
-   AND safe_input_jsonb(data #>> '{}') IS NOT NULL;
-
-UPDATE provider_connections
-   SET model_locks = safe_input_jsonb(model_locks #>> '{}')
- WHERE jsonb_typeof(model_locks) = 'string'
-   AND (model_locks #>> '{}') LIKE '{%'
-   AND safe_input_jsonb(model_locks #>> '{}') IS NOT NULL;
-UPDATE combos
-   SET models = safe_input_jsonb(models #>> '{}')
- WHERE jsonb_typeof(models) = 'string'
-   AND (models #>> '{}') LIKE '[%'
-   AND safe_input_jsonb(models #>> '{}') IS NOT NULL;
-UPDATE proxy_groups
-   SET pool_ids = safe_input_jsonb(pool_ids #>> '{}')
- WHERE jsonb_typeof(pool_ids) = 'string'
-   AND (pool_ids #>> '{}') LIKE '[%'
-   AND safe_input_jsonb(pool_ids #>> '{}') IS NOT NULL;
-
-UPDATE proxy_groups
-   SET data = safe_input_jsonb(data #>> '{}')
- WHERE jsonb_typeof(data) = 'string'
-   AND (data #>> '{}') LIKE '{%'
-   AND safe_input_jsonb(data #>> '{}') IS NOT NULL;
-
-UPDATE settings
-   SET data = safe_input_jsonb(data #>> '{}')
- WHERE jsonb_typeof(data) = 'string'
-   AND (data #>> '{}') LIKE '{%'
-   AND safe_input_jsonb(data #>> '{}') IS NOT NULL;
-
-UPDATE provider_nodes
-   SET data = safe_input_jsonb(data #>> '{}')
- WHERE jsonb_typeof(data) = 'string'
-   AND (data #>> '{}') LIKE '{%'
-   AND safe_input_jsonb(data #>> '{}') IS NOT NULL;
-
-UPDATE proxy_pools
-   SET data = safe_input_jsonb(data #>> '{}')
- WHERE jsonb_typeof(data) = 'string'
-   AND (data #>> '{}') LIKE '{%'
-   AND safe_input_jsonb(data #>> '{}') IS NOT NULL;
-
-UPDATE usage_snapshots
-   SET quotas = safe_input_jsonb(quotas #>> '{}')
- WHERE jsonb_typeof(quotas) = 'string'
-   AND (quotas #>> '{}') LIKE '{%'
-   AND safe_input_jsonb(quotas #>> '{}') IS NOT NULL;
-
-UPDATE usage_snapshots
-   SET rate_limits = NULL
- WHERE rate_limits = '"null"'::jsonb OR rate_limits = to_jsonb('null'::text);
-
-UPDATE request_details
-   SET data = safe_input_jsonb(data #>> '{}')
- WHERE jsonb_typeof(data) = 'string'
-   AND (data #>> '{}') LIKE '{%'
-   AND safe_input_jsonb(data #>> '{}') IS NOT NULL;
-
-UPDATE usage_history
-   SET tokens = safe_input_jsonb(tokens #>> '{}')
- WHERE jsonb_typeof(tokens) = 'string'
-   AND (tokens #>> '{}') LIKE '{%'
-   AND safe_input_jsonb(tokens #>> '{}') IS NOT NULL;
-
-UPDATE usage_history
-   SET meta = safe_input_jsonb(meta #>> '{}')
- WHERE jsonb_typeof(meta) = 'string'
-   AND (meta #>> '{}') LIKE '{%'
-   AND safe_input_jsonb(meta #>> '{}') IS NOT NULL;
 `;
+
+/**
+ * One-time repair for legacy / imported scalar strings into valid JSONB objects.
+ * Version-gated via _meta to prevent table-wide scans on every bootstrap.
+ */
+export async function repairLegacyJsonbOnce(adapter) {
+  const migrated = await adapter.get("SELECT value FROM _meta WHERE key = 'legacy_jsonb_repaired'");
+  if (migrated?.value === "true") return;
+
+  await adapter.exec(`
+    UPDATE provider_connections
+       SET data = safe_input_jsonb(data #>> '{}')
+     WHERE jsonb_typeof(data) = 'string'
+       AND (data #>> '{}') LIKE '{%'
+       AND safe_input_jsonb(data #>> '{}') IS NOT NULL;
+
+    UPDATE provider_connections
+       SET model_locks = safe_input_jsonb(model_locks #>> '{}')
+     WHERE jsonb_typeof(model_locks) = 'string'
+       AND (model_locks #>> '{}') LIKE '{%'
+       AND safe_input_jsonb(model_locks #>> '{}') IS NOT NULL;
+
+    UPDATE combos
+       SET models = safe_input_jsonb(models #>> '{}')
+     WHERE jsonb_typeof(models) = 'string'
+       AND (models #>> '{}') LIKE '[%'
+       AND safe_input_jsonb(models #>> '{}') IS NOT NULL;
+
+    UPDATE proxy_groups
+       SET pool_ids = safe_input_jsonb(pool_ids #>> '{}')
+     WHERE jsonb_typeof(pool_ids) = 'string'
+       AND (pool_ids #>> '{}') LIKE '[%'
+       AND safe_input_jsonb(pool_ids #>> '{}') IS NOT NULL;
+
+    UPDATE proxy_groups
+       SET data = safe_input_jsonb(data #>> '{}')
+     WHERE jsonb_typeof(data) = 'string'
+       AND (data #>> '{}') LIKE '{%'
+       AND safe_input_jsonb(data #>> '{}') IS NOT NULL;
+
+    UPDATE settings
+       SET data = safe_input_jsonb(data #>> '{}')
+     WHERE jsonb_typeof(data) = 'string'
+       AND (data #>> '{}') LIKE '{%'
+       AND safe_input_jsonb(data #>> '{}') IS NOT NULL;
+
+    UPDATE provider_nodes
+       SET data = safe_input_jsonb(data #>> '{}')
+     WHERE jsonb_typeof(data) = 'string'
+       AND (data #>> '{}') LIKE '{%'
+       AND safe_input_jsonb(data #>> '{}') IS NOT NULL;
+
+    UPDATE proxy_pools
+       SET data = safe_input_jsonb(data #>> '{}')
+     WHERE jsonb_typeof(data) = 'string'
+       AND (data #>> '{}') LIKE '{%'
+       AND safe_input_jsonb(data #>> '{}') IS NOT NULL;
+
+    UPDATE usage_snapshots
+       SET quotas = safe_input_jsonb(quotas #>> '{}')
+     WHERE jsonb_typeof(quotas) = 'string'
+       AND (quotas #>> '{}') LIKE '{%'
+       AND safe_input_jsonb(quotas #>> '{}') IS NOT NULL;
+
+    UPDATE usage_snapshots
+       SET rate_limits = NULL
+     WHERE rate_limits = '"null"'::jsonb OR rate_limits = to_jsonb('null'::text);
+
+    UPDATE request_details
+       SET data = safe_input_jsonb(data #>> '{}')
+     WHERE jsonb_typeof(data) = 'string'
+       AND (data #>> '{}') LIKE '{%'
+       AND safe_input_jsonb(data #>> '{}') IS NOT NULL;
+
+    UPDATE usage_history
+       SET tokens = safe_input_jsonb(tokens #>> '{}')
+     WHERE jsonb_typeof(tokens) = 'string'
+       AND (tokens #>> '{}') LIKE '{%'
+       AND safe_input_jsonb(tokens #>> '{}') IS NOT NULL;
+
+    UPDATE usage_history
+       SET meta = safe_input_jsonb(meta #>> '{}')
+     WHERE jsonb_typeof(meta) = 'string'
+       AND (meta #>> '{}') LIKE '{%'
+       AND safe_input_jsonb(meta #>> '{}') IS NOT NULL;
+
+    INSERT INTO _meta (key, value) VALUES ('legacy_jsonb_repaired', 'true')
+    ON CONFLICT (key) DO UPDATE SET value = 'true';
+  `);
+}
 
 /**
  * Ensure a rolling UTC partition window exists. The one-month lookback keeps
@@ -388,20 +399,33 @@ UPDATE usage_history
 export async function ensureMonthlyPartitions(adapter) {
   const dates = [];
   const now = new Date();
-  const month = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1);
+  const year = now.getUTCFullYear();
+  const month = now.getUTCMonth();
   for (let i = -1; i <= 6; i += 1) {
-    const date = new Date(month);
-    date.setUTCMonth(date.getUTCMonth() + i);
-    dates.push(date);
+    dates.push(new Date(Date.UTC(year, month + i, 1)));
   }
+
+  // Existing partitions carry the deployment's boundary timezone (+07 on the
+  // self-hosted stack, +00 on Neon). New bounds must reuse that exact
+  // time+offset, otherwise the chain gets a 7-hour gap/overlap and inserts
+  // fail with "no partition found" / "would be overlapped".
+  const existing = await adapter.get(
+    `SELECT pg_get_expr(c.relpartbound, c.oid) AS bound
+       FROM pg_class c
+       JOIN pg_inherits i ON i.inhrelid = c.oid
+      WHERE i.inhparent = 'public.usage_history'::regclass
+      ORDER BY c.relname DESC
+      LIMIT 1`
+  );
+  const upperMatch = existing?.bound?.match(/TO \('\d{4}-\d{2}-\d{2} ([^']+)'\)/);
+  const timePart = upperMatch ? upperMatch[1] : "00:00:00+00";
 
   for (let i = 0; i < dates.length - 1; i++) {
     const start = dates[i];
     const end = dates[i + 1];
-    const suffix = `y${start.getFullYear()}m${String(start.getMonth() + 1).padStart(2, "0")}`;
-    const startStr = `${start.getFullYear()}-${String(start.getMonth() + 1).padStart(2, "0")}-01`;
-    const endStr = `${end.getFullYear()}-${String(end.getMonth() + 1).padStart(2, "0")}-01`;
-
+    const suffix = `y${start.getUTCFullYear()}m${String(start.getUTCMonth() + 1).padStart(2, "0")}`;
+    const startStr = `${start.getUTCFullYear()}-${String(start.getUTCMonth() + 1).padStart(2, "0")}-01 ${timePart}`;
+    const endStr = `${end.getUTCFullYear()}-${String(end.getUTCMonth() + 1).padStart(2, "0")}-01 ${timePart}`;
     const rdSql = `CREATE TABLE IF NOT EXISTS request_details_${suffix} PARTITION OF request_details FOR VALUES FROM ('${startStr}') TO ('${endStr}');`;
     const uhSql = `CREATE TABLE IF NOT EXISTS usage_history_${suffix} PARTITION OF usage_history FOR VALUES FROM ('${startStr}') TO ('${endStr}');`;
 
@@ -411,9 +435,10 @@ export async function ensureMonthlyPartitions(adapter) {
     // Performance indexes per partition for high-speed dashboard analytics
     await adapter.exec(`CREATE INDEX IF NOT EXISTS idx_rd_${suffix}_ts ON request_details_${suffix} (timestamp DESC);`);
     await adapter.exec(`CREATE INDEX IF NOT EXISTS idx_rd_${suffix}_prov ON request_details_${suffix} (provider, timestamp DESC);`);
-     await adapter.exec(`CREATE INDEX IF NOT EXISTS idx_uh_${suffix}_lookup ON usage_history_${suffix} (timestamp DESC, id DESC);`);
-     await adapter.exec(`CREATE INDEX IF NOT EXISTS idx_uh_${suffix}_status ON usage_history_${suffix} (status, timestamp DESC);`);
-     await adapter.exec(`CREATE INDEX IF NOT EXISTS idx_rd_${suffix}_conn ON request_details_${suffix} (connection_id, timestamp DESC);`);
+    await adapter.exec(`CREATE INDEX IF NOT EXISTS idx_uh_${suffix}_lookup ON usage_history_${suffix} (timestamp DESC, id DESC);`);
+    await adapter.exec(`CREATE INDEX IF NOT EXISTS idx_uh_${suffix}_status ON usage_history_${suffix} (status, timestamp DESC);`);
+    await adapter.exec(`CREATE INDEX IF NOT EXISTS idx_uh_${suffix}_prov ON usage_history_${suffix} (provider, timestamp DESC);`);
+    await adapter.exec(`CREATE INDEX IF NOT EXISTS idx_uh_${suffix}_model ON usage_history_${suffix} (model, timestamp DESC);`);
     await adapter.exec(`CREATE INDEX IF NOT EXISTS idx_rd_${suffix}_conn ON request_details_${suffix} (connection_id, timestamp DESC);`);
   }
 }
@@ -428,7 +453,12 @@ export async function pruneStalePartitions(adapter, retainMonths = 3) {
     const cutoffSuffix = `y${cutoffDate.getUTCFullYear()}m${String(cutoffDate.getUTCMonth() + 1).padStart(2, "0")}`;
 
     const rows = await adapter.all(
-      `SELECT relname FROM pg_class WHERE relname LIKE 'request_details_y%' OR relname LIKE 'usage_history_y%'`
+      `SELECT c.relname
+         FROM pg_class c
+         JOIN pg_namespace n ON n.oid = c.relnamespace
+        WHERE c.relkind = 'r'
+          AND n.nspname = current_schema()
+          AND (c.relname LIKE 'request_details_y%' OR c.relname LIKE 'usage_history_y%')`
     );
 
     for (const r of (rows || [])) {
@@ -441,3 +471,4 @@ export async function pruneStalePartitions(adapter, retainMonths = 3) {
     // Fail-open: partition pruning should never crash startup
   }
 }
+

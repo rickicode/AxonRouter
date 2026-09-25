@@ -142,16 +142,16 @@ function ConnectionsList({
  onMoveUp={() => handleSwapPriority(index, index - 1)}
  onMoveDown={() => handleSwapPriority(index, index + 1)}
  onToggleActive={(isActive) => handleUpdateConnectionStatus(conn.id, isActive)}
- autoPing={autoPingEnabled && conn.authType === "oauth" ? {
- on: autoPing.connections[conn.id] === true,
- onToggle: (on) => handleAutoPingConnection(conn.id, on),
- provider: providerId,
- } : null}
+          autoPing={autoPingEnabled && conn.authType === "oauth" ? {
+            on: autoPing?.connections?.[conn.id] === true,
+            onToggle: (on) => handleAutoPingConnection?.(conn.id, on),
+            provider: providerId,
+          } : null}
  onUpdateProxy={(proxyConfig) => handleConnectionProxyUpdate(conn.id, proxyConfig)}
  onEdit={() => { setSelectedConnection(conn); setShowEditModal(true); }}
  onDelete={() => handleDelete(conn.id)}
  onResetStatus={handleResetConnectionStatus}
- oneByOneStatus={oneByOneResults[conn.id] || null}
+          oneByOneStatus={oneByOneResults?.[conn.id] || null}
  onUnlockModel={providerId === "freebuff" ? () => handleUnlockModel(conn.id) : null}
  />
  </div>

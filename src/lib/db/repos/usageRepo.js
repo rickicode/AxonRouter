@@ -179,6 +179,11 @@ export async function flushUsageQueue() {
         byDate.get(dateKey).push(item);
       }
       for (const [dateKey, items] of byDate) {
+        // Guarantee row exists before FOR UPDATE to serialize concurrent workers on new dates
+        await tx.run(
+          `INSERT INTO usage_daily (date_key, data) VALUES ($1, '{}'::jsonb) ON CONFLICT (date_key) DO NOTHING`,
+          [dateKey],
+        );
         const row = await tx.get(`SELECT data FROM usage_daily WHERE date_key = $1 FOR UPDATE`, [dateKey]);
         const rawData = row?.data;
         const day = (typeof rawData === "string" ? parseJson(rawData, null) : rawData) ?? {
@@ -312,7 +317,7 @@ async function calculateCost(provider, model, tokens) {
 }
 
 const liveActiveRequests = new Map();
-
+let lastActiveRequestsPrune = 0;
 export async function trackPendingRequest(model, provider, connectionId, started, error = false, options = {}) {
   const modelKey = provider ? `${model} (${provider})` : model;
   const timerKey = options.requestId || `${connectionId}|${modelKey}`;
@@ -403,6 +408,11 @@ export async function getActiveRequests() {
   let dbItems = [];
   try {
     const db = await getAdapter();
+    const now = Date.now();
+    if (now - lastActiveRequestsPrune > 30000) {
+      lastActiveRequestsPrune = now;
+      db.run("DELETE FROM active_requests WHERE expires_at <= NOW()").catch(() => {});
+    }
     const rows = await db.all(
       `SELECT request_id, model, provider, connection_id, api_key, is_stream, started_at
        FROM active_requests

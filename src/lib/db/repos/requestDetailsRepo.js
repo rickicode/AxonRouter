@@ -141,7 +141,8 @@ let cachedConfigTs = 0;
 let writeBuffer = [];
 let flushTimer = null;
 let isFlushing = false;
-
+let lastPruneTs = 0;
+const PRUNE_INTERVAL_MS = 60 * 1000;
 function normalizeJson(value, fallback = null) {
   if (value === undefined || value === null) return fallback;
   return typeof value === "string" ? parseJson(value, fallback) : value;
@@ -287,16 +288,20 @@ async function flushToDatabase() {
           );
         }
 
-        // Fast partition-pruned cleanup: find timestamp cutoff instead of unindexed composite IN subquery
-         const countRow = await tx.get(`SELECT COUNT(*) AS total FROM request_details`);
-         const excess = Number(countRow?.total || 0) - config.maxRecords;
-        if (excess > 0) {
-          const cutoffRow = await tx.get(
-             `SELECT timestamp, id FROM request_details ORDER BY timestamp ASC, id ASC OFFSET $1 LIMIT 1`,
-            [excess],
-          );
-          if (cutoffRow?.timestamp) {
-             await tx.run(`DELETE FROM request_details WHERE (timestamp, id) < ($1, $2)`, [cutoffRow.timestamp, cutoffRow.id]);
+        // Throttled cleanup: avoid expensive table-wide COUNT(*) on every batch flush
+        const now = Date.now();
+        if (now - lastPruneTs > PRUNE_INTERVAL_MS) {
+          lastPruneTs = now;
+          const countRow = await tx.get(`SELECT COUNT(*) AS total FROM request_details`);
+          const excess = Number(countRow?.total || 0) - config.maxRecords;
+          if (excess > 0) {
+            const cutoffRow = await tx.get(
+              `SELECT timestamp, id FROM request_details ORDER BY timestamp ASC, id ASC OFFSET $1 LIMIT 1`,
+              [excess],
+            );
+            if (cutoffRow?.timestamp) {
+              await tx.run(`DELETE FROM request_details WHERE (timestamp, id) < ($1, $2)`, [cutoffRow.timestamp, cutoffRow.id]);
+            }
           }
         }
       });

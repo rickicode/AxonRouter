@@ -32,7 +32,7 @@ export function getConnectionLabel(connection) {
 }
 
 export function getConnectionQuotaRemaining(connection, quotaData) {
- const quota = quotaData[connection.id]?.quotas?.[0];
+ const quota = quotaData?.[connection.id]?.quotas?.[0];
  if (!quota) return Number.POSITIVE_INFINITY;
  if (typeof quota.remaining === "number") return quota.remaining;
  if (typeof quota.remainingPercentage === "number") return quota.remainingPercentage;
@@ -79,7 +79,7 @@ export function sortVisibleConnections(
  if (!expiringFirst) return groupByProviderStable(items);
 
  const getEarliestResetTime = (connection) => {
- const resetTimes = (quotaData[connection.id]?.quotas || [])
+ const resetTimes = (quotaData?.[connection.id]?.quotas || [])
  .map((quota) =>
  quota.resetAt
  ? new Date(quota.resetAt).getTime()

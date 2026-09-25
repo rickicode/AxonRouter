@@ -29,8 +29,7 @@ export function makeKv(scope) {
     async setMany(obj) {
       const db = await getAdapter();
        await db.transaction(async (tx) => {
-         for (const [k, v] of Object.entries(obj)) {
-           await tx.get("SELECT value FROM kv WHERE scope = $1 AND key = $2 FOR UPDATE", [scope, k]);
+        for (const [k, v] of Object.entries(obj)) {
           const rawValue = typeof v === "string" && (v.startsWith("{") || v.startsWith("["))
             ? parseJson(v, v)
             : (v ?? null);
