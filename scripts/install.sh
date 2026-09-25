@@ -2,15 +2,21 @@
 # AxonRouter — One-Command Installer (Docker Compose, no git clone)
 #
 #   curl -sSL https://raw.githubusercontent.com/rickicode/AxonRouter/main/scripts/install.sh | sh
-#   # or unattended external Postgres:
+#   # unattended, external Postgres:
 #   EXTERNAL_DATABASE_URL='postgres://user:pass@host:5432/db?sslmode=require' \
 #     curl -sSL .../install.sh | sh
+#
+# Runs start-to-finish without stopping. When stdin is not a terminal (e.g. CI
+# or a pipe without a TTY) it takes the defaults and never blocks:
+# built-in postgres container + workers = CPU cores.
+#
+# stdin discipline: the script arrives on stdin via `curl | sh`, so NOTHING may
+# read stdin. Prompts read /dev/tty explicitly; external tools get </dev/null.
 set -e
 
-# Default directory: use ~/AxonRouter format for display, resolve for cd
 TARGET_DIR="${1:-$HOME/AxonRouter}"
 DISPLAY_DIR="$(printf '%s' "$TARGET_DIR" | sed "s|^$HOME|~|")"
-RAW="https://raw.githubusercontent.com/rickicode/AxonRouter/main"
+RAW="${RAW:-https://raw.githubusercontent.com/rickicode/AxonRouter/main}"
 
 # ---------- colors (off when stdout is not a TTY, or NO_COLOR is set) ----------
 if [ -t 1 ] && [ -z "${NO_COLOR:-}" ] && [ "${TERM:-dumb}" != "dumb" ]; then
@@ -32,13 +38,18 @@ rand_hex() {
   else head -c "$1" /dev/urandom | od -An -tx1 | tr -d ' \n'; fi
 }
 
-# Helper to read from /dev/tty reliably even inside a pipe
+# Interactive input, read ONLY from the controlling terminal.
+# Never falls back to stdin: stdin is the installer script itself when piped.
+# No TTY (unattended) → returns empty so callers apply their default.
+HAS_TTY=0
+if [ -c /dev/tty ]; then
+  # subshell: a failed redirect of a POSIX special builtin would kill the shell
+  if sh -c ": </dev/tty" 2>/dev/null; then HAS_TTY=1; fi
+fi
 read_input() {
   _val=""
-  if [ -c /dev/tty ]; then
+  if [ "$HAS_TTY" = "1" ]; then
     IFS= read -r _val </dev/tty 2>/dev/null || _val=""
-  else
-    IFS= read -r _val 2>/dev/null || _val=""
   fi
   printf '%s' "$_val"
 }
@@ -48,20 +59,22 @@ if ! command -v docker >/dev/null 2>&1; then
   printf '%s==>%s Docker not found. Install now? (yes/no) [yes]: ' "$CYN$B" "$R"
   a="$(read_input)"
   case "${a:-yes}" in
-    y|Y|yes|YES) info "Installing Docker Engine via get.docker.com ..."; curl -sSL https://get.docker.com | sh ;;
+    y|Y|yes|YES)
+      info "Installing Docker Engine via get.docker.com ..."
+      curl -sSL https://get.docker.com | sh </dev/null ;;
     *) die "Docker is required." ;;
   esac
 fi
-docker compose version >/dev/null 2>&1 || die "Docker Compose plugin is required."
+docker compose version >/dev/null 2>&1 </dev/null || die "Docker Compose plugin is required."
 
 # ---------- 2. Download compose files ----------
 mkdir -p "$TARGET_DIR"
 cd "$TARGET_DIR"
 info "Downloading compose files ..."
-curl -fsSL "$RAW/docker-compose.yml" -o docker-compose.yml
-curl -fsSL "$RAW/docker-compose.postgres.yml" -o docker-compose.postgres.yml
+curl -fsSL "$RAW/docker-compose.yml" -o docker-compose.yml </dev/null
+curl -fsSL "$RAW/docker-compose.postgres.yml" -o docker-compose.postgres.yml </dev/null
 if [ ! -f .env ]; then
-  curl -fsSL "$RAW/.env.example" -o .env.example && cp .env.example .env || : > .env
+  curl -fsSL "$RAW/.env.example" -o .env.example </dev/null && cp .env.example .env || : > .env
 fi
 
 set_env() {
@@ -72,21 +85,43 @@ set_env() {
   fi
 }
 
-# ---------- 3. Database backend selection ----------
-DB_MODE=""
-if [ -n "$EXTERNAL_DATABASE_URL" ]; then
+# ---------- 3. PostgreSQL client (host-side, for connection check) ----------
+install_pg_client() {
+  [ "$(id -u)" = "0" ] || command -v sudo >/dev/null 2>&1 || return 1
+  SUDO=""; [ "$(id -u)" = "0" ] || SUDO="sudo"
+  if command -v apt-get >/dev/null 2>&1; then
+    $SUDO apt-get update -qq </dev/null >/dev/null 2>&1 || true
+    $SUDO apt-get install -y -qq postgresql-client </dev/null >/dev/null 2>&1
+  elif command -v dnf >/dev/null 2>&1; then
+    $SUDO dnf install -y -q postgresql </dev/null >/dev/null 2>&1
+  elif command -v yum >/dev/null 2>&1; then
+    $SUDO yum install -y -q postgresql </dev/null >/dev/null 2>&1
+  elif command -v apk >/dev/null 2>&1; then
+    $SUDO apk add --no-cache postgresql-client </dev/null >/dev/null 2>&1
+  elif command -v pacman >/dev/null 2>&1; then
+    $SUDO pacman -Sy --noconfirm postgresql </dev/null >/dev/null 2>&1
+  else
+    return 1
+  fi
+  command -v psql >/dev/null 2>&1
+}
+
+# ---------- 4. Database backend selection ----------
+DB_MODE="1"
+DBURL="${EXTERNAL_DATABASE_URL:-}"
+if [ -n "$DBURL" ]; then
   DB_MODE="2"
-  DBURL="$EXTERNAL_DATABASE_URL"
-else
+elif [ "$HAS_TTY" = "1" ]; then
   printf '%s==>%s Mau pakai PostgreSQL yang mana?\n' "$CYN$B" "$R"
-  printf '    %s[1]%s PostgreSQL bawaan (Docker container otomatis) %s[default]%s\n' "$GRN$B" "$R" "$CYN" "$R"
+  printf '    %s[1]%s PostgreSQL bawaan (container Docker, otomatis) %s[default]%s\n' "$GRN$B" "$R" "$CYN" "$R"
   printf '    %s[2]%s PostgreSQL external (Neon / Supabase / RDS / server lain)\n' "$YLW$B" "$R"
-  printf '    Pilih [1/2] (tekan Enter untuk 1): '
-  db_choice="$(read_input)"
-  case "${db_choice:-1}" in
+  printf '    Pilih [1/2] (Enter = 1): '
+  case "$(read_input)" in
     2|external|ext) DB_MODE="2" ;;
     *) DB_MODE="1" ;;
   esac
+else
+  info "No TTY — defaulting to built-in PostgreSQL (set EXTERNAL_DATABASE_URL for external)."
 fi
 
 if [ "$DB_MODE" = "2" ]; then
@@ -97,22 +132,32 @@ if [ "$DB_MODE" = "2" ]; then
     DBURL="$(read_input)"
   fi
   DBURL="$(printf '%s' "$DBURL" | tr -d ' \t')"
-
   case "$DBURL" in
     postgres://*|postgresql://*) ;;
     *) die "URL tidak valid, harus diawali dengan postgres:// atau postgresql://" ;;
   esac
 
   info "Memverifikasi koneksi $(printf '%s' "$DBURL" | sed -E 's#://([^/:]+):[^@]*@#://\1:****@#') ..."
-  if docker run --rm -i -e PGCONNECT_TIMEOUT=15 postgres:17-alpine \
-       psql "$DBURL" -tAc "SELECT 'PostgreSQL reachable, server_version=' || current_setting('server_version')"; then
-    set_env COMPOSE_FILE "docker-compose.yml"
-    set_env DATABASE_URL "$DBURL"
-    ok "PostgreSQL external terverifikasi & diterima! (Container PostgreSQL lokal dimatikan)"
-    warn "Pastikan user PostgreSQL memiliki hak CREATE (tabel akan dibuat otomatis)."
-  else
-    die "Koneksi ke PostgreSQL external gagal. Cek kembali URL, credential, dan firewall Anda."
+  if ! command -v psql >/dev/null 2>&1; then
+    info "psql tidak ditemukan — memasang PostgreSQL client ..."
+    install_pg_client || true
   fi
+  if command -v psql >/dev/null 2>&1; then
+    if PGCONNECT_TIMEOUT=15 psql "$DBURL" -tAc \
+         "SELECT 'PostgreSQL reachable, server_version=' || current_setting('server_version')" </dev/null; then
+      ok "PostgreSQL external terverifikasi."
+    else
+      die "Koneksi ke PostgreSQL external gagal. Periksa URL, kredensial, dan firewall."
+    fi
+  else
+    warn "PostgreSQL client tidak bisa dipasang — verifikasi koneksi dilewati."
+    warn "Sistem akan mencoba koneksi saat container pertama kali dijalankan."
+  fi
+
+  set_env COMPOSE_FILE "docker-compose.yml"
+  set_env DATABASE_URL "$DBURL"
+  ok "PostgreSQL external dipakai (container PostgreSQL lokal TIDAK dijalankan)."
+  warn "Pastikan role PostgreSQL punya hak CREATE (skema dibuat otomatis saat boot)."
 else
   set_env COMPOSE_FILE "docker-compose.yml:docker-compose.postgres.yml"
   set_env POSTGRES_PASSWORD "$(rand_hex 16)"
@@ -121,7 +166,7 @@ else
   ok "Menggunakan PostgreSQL bawaan (container postgres:17-alpine aktif)."
 fi
 
-# ---------- 4. Gateway workers (dibatasi maksimal core CPU) ----------
+# ---------- 5. Gateway workers (max = CPU cores) ----------
 CORES="$(nproc 2>/dev/null || getconf _NPROCESSORS_ONLN 2>/dev/null || echo 1)"
 REQ_WORKERS="${GATEWAY_WORKERS:-$CORES}"
 if [ "$REQ_WORKERS" -gt "$CORES" ] 2>/dev/null; then
@@ -135,15 +180,15 @@ fi
 if [ "$GATEWAY_CLUSTER" = "false" ] || [ "$WORKERS" -le 1 ]; then
   set_env GATEWAY_CLUSTER "false"
   set_env GATEWAY_WORKERS "1"
-  ok "Gateway: standalone mode (1 proses, hemat RAM, 1 CPU core)"
+  ok "Gateway: standalone (1 proses, hemat RAM)"
 else
   set_env GATEWAY_CLUSTER "true"
   set_env GATEWAY_WORKERS "$WORKERS"
-  ok "Gateway: cluster mode ($WORKERS workers, dibatasi maksimal $CORES core CPU)"
+  ok "Gateway: cluster ($WORKERS workers, maksimum $CORES core CPU)"
 fi
 
-# ---------- 5. Secrets (auto-generated) ----------
-info "Menyiapkan token keamanan & secrets otomatis ..."
+# ---------- 6. Secrets ----------
+info "Menyiapkan secrets ..."
 set_env JWT_SECRET       "$(rand_hex 32)"
 set_env API_KEY_SECRET   "$(rand_hex 32)"
 set_env MACHINE_ID_SALT  "$(rand_hex 16)"
@@ -151,14 +196,15 @@ set_env ENCRYPTION_KEY   "$(rand_hex 32)"
 ADMIN_PASS="$(rand_hex 8)"
 set_env INITIAL_PASSWORD "$ADMIN_PASS"
 
-# ---------- 6. Start ----------
-info "Menjalankan container Docker (docker compose up -d) ..."
-docker compose up -d
+# ---------- 7. Start ----------
+info "Menjalankan stack (docker compose up -d) ..."
+docker compose up -d </dev/null
 
 printf '\n%s====================================================%s\n' "$CYN$B" "$R"
 printf '    Lokasi:      %s\n' "$DISPLAY_DIR"
+printf '    Database:    %s\n' "$([ "$DB_MODE" = "2" ] && echo external || echo built-in)"
 printf '    Dashboard:   %shttp://localhost:3777%s\n' "$B" "$R"
-printf '    Password:    %s%s%s  (login hanya butuh password, tanpa username)\n' "$GRN$B" "$ADMIN_PASS" "$R"
+printf '    Password:    %s%s%s  (login hanya butuh password)\n' "$GRN$B" "$ADMIN_PASS" "$R"
 printf '    Gateway API: %shttp://localhost:3778/v1%s\n' "$B" "$R"
-printf '    Kelola:      docker compose ps | logs -f | down\n'
+printf '    Kelola:      cd %s && docker compose ps | logs -f | down\n' "$DISPLAY_DIR"
 printf '%s====================================================%s\n' "$CYN$B" "$R"
