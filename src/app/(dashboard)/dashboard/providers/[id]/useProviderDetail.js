@@ -54,9 +54,10 @@ export function useProviderDetail() {
  const [modelAliases, setModelAliases] = useState({});
  const [customModels, setCustomModels] = useState([]);
  const [headerImgError, setHeaderImgError] = useState(false);
- const [modelTestResults, setModelTestResults] = useState({});
- const [modelsTestError, setModelsTestError] = useState("");
- const [testingModelIds, setTestingModelIds] = useState(() => new Set());
+  const [modelTestResults, setModelTestResults] = useState({});
+  const [modelTestErrors, setModelTestErrors] = useState({});
+  const [modelsTestError, setModelsTestError] = useState("");
+  const [testingModelIds, setTestingModelIds] = useState(() => new Set());
  const [showAddCustomModel, setShowAddCustomModel] = useState(false);
  const [selectedConnectionIds, setSelectedConnectionIds] = useState([]);
  const [bulkProxyPoolId, setBulkProxyPoolId] = useState("__none__");
@@ -1123,13 +1124,15 @@ export function useProviderDetail() {
  headers: { "Content-Type": "application/json" },
  body: JSON.stringify({ model: `${providerStorageAlias}/${modelId}` }),
  });
- const data = await res.json();
- setModelTestResults((prev) => ({ ...prev, [modelId]: data.ok ? "ok" : "error" }));
- setModelsTestError(data.ok ? "" : (data.error || "Model not reachable"));
- } catch {
- setModelTestResults((prev) => ({ ...prev, [modelId]: "error" }));
- setModelsTestError("Network error");
- } finally {
+    const data = await res.json();
+    setModelTestResults((prev) => ({ ...prev, [modelId]: data.ok ? "ok" : "error" }));
+    setModelTestErrors((prev) => ({ ...prev, [modelId]: data.ok ? null : (data.error || "Model not reachable") }));
+    setModelsTestError(data.ok ? "" : (data.error || "Model not reachable"));
+  } catch (err) {
+    setModelTestResults((prev) => ({ ...prev, [modelId]: "error" }));
+    setModelTestErrors((prev) => ({ ...prev, [modelId]: err?.message || "Network error" }));
+    setModelsTestError("Network error");
+  } finally {
  setTestingModelIds((prev) => { const n = new Set(prev); n.delete(modelId); return n; });
  }
  };
@@ -1147,12 +1150,11 @@ export function useProviderDetail() {
  showBulkImportCodex, setShowBulkImportCodex, showBulkImportGrokCli, setShowBulkImportGrokCli,
  showBulkImportJwt, setShowBulkImportJwt, showEditModal, setShowEditModal, showEditNodeModal,
  setShowEditNodeModal, showBulkProxyModal, setShowBulkProxyModal, selectedConnection, setSelectedConnection,
- modelAliases, customModels, headerImgError, setHeaderImgError, modelTestResults, testingModelIds, modelsTestError,
- showAddCustomModel, setShowAddCustomModel, selectedConnectionIds, setSelectedConnectionIds,
- bulkProxyPoolId, bulkProxyRotationStrategy, setBulkProxyRotationStrategy, bulkUpdatingProxy,
- suggestedModels, disabledModelIds, confirmState, setConfirmState, showAgRiskModal, setShowAgRiskModal,
- oneByOneRunning, oneByOneStopping, oneByOneCurrentConnectionId, oneByOneResults, oneByOneSummary,
- importingQoderModels, importingClineModels, importingLiveModels, models, kiloFreeModels, liveModels,
+    modelAliases, customModels, headerImgError, setHeaderImgError, modelTestResults, modelTestErrors,
+    modelsTestError, testingModelIds, showAddCustomModel, setShowAddCustomModel, selectedConnectionIds, setSelectedConnectionIds,
+    bulkProxyPoolId, bulkProxyRotationStrategy, setBulkProxyRotationStrategy, bulkUpdatingProxy,
+    suggestedModels, disabledModelIds, confirmState, setConfirmState, showAgRiskModal, setShowAgRiskModal,
+    importingQoderModels, importingClineModels, importingLiveModels, models, kiloFreeModels, liveModels,
  oauthConnectionLabel, apiKeyConnectionLabel, getCaps, copied, copy, notify,
  openOAuthConnection, triggerOAuthConnection, triggerApiKeyConnection, triggerAddConnection,
  handleAgRiskConfirm, handleRoundRobinToggle, handleStickyLimitChange, handleThinkingModeChange,

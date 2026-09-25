@@ -7,9 +7,9 @@ import { Card, Button } from "@/shared/components";
 import Icon from "@/shared/components/Icon";
 
 export default function ProviderHeader({
- providerInfo, providerId, providerNode, isCompatible, isOpenAICompatible, isAnthropicCompatible,
- headerImgError, setHeaderImgError, connectionCount, setAddConnectionError, setShowAddApiKeyModal,
- setShowEditNodeModal, setConfirmState, router,
+  providerInfo, providerId, providerNode, isCompatible, isOpenAICompatible, isAnthropicCompatible,
+  headerImgError, setHeaderImgError, connectionCount, setAddConnectionError, setShowAddApiKeyModal,
+  setShowEditNodeModal, setConfirmState, router, isFreeNoAuth,
 }) {
  const getHeaderIconPath = () => {
  if (isOpenAICompatible && providerInfo.apiType) {
@@ -72,9 +72,11 @@ className="text-xs text-primary hover:underline inline-flex min-h-11 items-cente
  </a>
  )}
  </div>
- <p className="text-text-muted">
- {connectionCount} connection{connectionCount === 1 ? "" : "s"}
- </p>
+          <p className="text-text-muted text-xs">
+            {isFreeNoAuth
+              ? "No authentication required • Public Direct Routing"
+              : `${connectionCount} connection${connectionCount === 1 ? "" : "s"}`}
+          </p>
  </div>
  </div>
  </div>

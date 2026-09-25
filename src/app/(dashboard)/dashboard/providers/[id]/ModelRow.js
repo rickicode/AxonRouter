@@ -12,9 +12,11 @@ export default function ModelRow({
   copied,
   onCopy,
   testStatus,
+  testError,
   isCustom,
   isFree,
   onDeleteAlias,
+  onSetAlias,
   onTest,
   isTesting,
   onDisable,
@@ -61,7 +63,7 @@ export default function ModelRow({
               testStatus === "ok"
                 ? "Verified"
                 : testStatus === "error"
-                ? "Failed test"
+                ? `Failed: ${testError || "Model not reachable"}`
                 : isTesting
                 ? "Testing..."
                 : "Ready"
@@ -97,14 +99,16 @@ export default function ModelRow({
             </span>
           )}
 
-          {alias && (
-            <span
-              className="shrink-0 rounded bg-primary/10 px-1 py-px text-[9px] font-mono text-primary border border-primary/20"
-              title={`Alias: ${alias}`}
+          {alias ? (
+            <button
+              type="button"
+              onClick={() => onSetAlias?.(model.id, alias)}
+              className="shrink-0 rounded bg-primary/10 px-1 py-px text-[9px] font-mono text-primary border border-primary/20 hover:border-primary/50 transition-colors cursor-pointer"
+              title={`Alias: ${alias} — Click to edit`}
             >
               {alias}
-            </span>
-          )}
+            </button>
+          ) : null}
         </div>
 
         {/* Action icons cluster: hanya test & disable/remove */}
@@ -125,6 +129,20 @@ export default function ModelRow({
                 size={13}
                 style={isTesting ? { animation: "spin 1s linear infinite" } : undefined}
               />
+            </button>
+          )}
+          {onSetAlias && (
+            <button
+              type="button"
+              onClick={() => onSetAlias(model.id, alias)}
+              aria-label={`Set alias for ${model.id}`}
+              title={alias ? `Edit alias (${alias})` : "Set model alias"}
+              className={cn(
+                "inline-flex size-6 items-center justify-center rounded text-text-muted hover:bg-surface-2 hover:text-primary transition-colors cursor-pointer",
+                alias && "text-primary"
+              )}
+            >
+              <Icon name="label" size={12} />
             </button>
           )}
 
@@ -181,6 +199,11 @@ export default function ModelRow({
           )}
         </div>
       </div>
+      {testStatus === "error" && testError && (
+        <p className="mt-1 truncate text-[9px] text-danger border-t border-danger/20 pt-0.5 font-mono" title={testError}>
+          {testError}
+        </p>
+      )}
     </div>
   );
 }
@@ -195,9 +218,11 @@ ModelRow.propTypes = {
   copied: PropTypes.string,
   onCopy: PropTypes.func.isRequired,
   testStatus: PropTypes.oneOf(["ok", "error", null, undefined]),
+  testError: PropTypes.string,
   isCustom: PropTypes.bool,
   isFree: PropTypes.bool,
   onDeleteAlias: PropTypes.func,
+  onSetAlias: PropTypes.func,
   onTest: PropTypes.func,
   isTesting: PropTypes.bool,
   onDisable: PropTypes.func,

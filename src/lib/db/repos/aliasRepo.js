@@ -8,7 +8,7 @@ async function getAll(scope) {
   const db = await getAdapter();
   const rows = await db.all("SELECT key, value FROM kv WHERE scope = $1", [scope]);
   const result = {};
-  for (const row of rows) result[row.key] = parseJson(row.value);
+  for (const row of rows) result[row.key] = parseJson(row.value, row.value);
   return result;
 }
 

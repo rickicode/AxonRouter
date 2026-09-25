@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Card, Button, SegmentedControl, Input } from "@/shared/components";
+import { Card, Button, SegmentedControl, Input, Modal } from "@/shared/components";
 import { getModelKind } from "@/shared/constants/models";
 import { getProviderCustomModelRows } from "@/shared/utils/providerCustomModels";
 import { isFreeModel, sortModelsByFree } from "@/shared/utils/modelHelpers";
@@ -13,16 +13,18 @@ import Icon from "@/shared/components/Icon";
 export default function ModelsSection(d) {
   const {
     providerId, providerStorageAlias, providerDisplayAlias, providerThinkingLevels, thinkingMode,
-    models, kiloFreeModels, customModels, disabledModelIds, modelAliases, connections, copied,
-    modelTestResults, testingModelIds, isFreeNoAuth, handleThinkingModeChange, handleDisableAll,
+    models = [], kiloFreeModels = [], customModels = [], disabledModelIds = [], modelAliases = {}, connections = [], copied,
+    modelTestResults, modelTestErrors = {}, testingModelIds, isFreeNoAuth, handleThinkingModeChange, handleDisableAll,
     handleEnableAll, handleDisableModel, handleEnableModel, handleAddCustomModel, handleDeleteCustomModel,
     handleSetAlias, handleDeleteAlias, handleTestModel, handleImportQoderModels, handleImportLiveModels,
     handleImportClineModels, setShowAddCustomModel, importingQoderModels,
-    importingClineModels, importingLiveModels, suggestedModels, getCaps, copy, resolveThinkingSuffix,
+    importingClineModels, importingLiveModels, suggestedModels = [], getCaps, copy, resolveThinkingSuffix,
     isCompatible, isAnthropicCompatible,
   } = d;
 
   const [query, setQuery] = useState("");
+  const [aliasModal, setAliasModal] = useState(null);
+  const [newAliasValue, setNewAliasValue] = useState("");
 
   const q = query.trim().toLowerCase();
   const matchesQuery = (...fields) =>
@@ -92,47 +94,81 @@ export default function ModelsSection(d) {
 
   return (
     <Card>
-      <div className="mb-3 flex flex-wrap items-center gap-2 sm:gap-3">
-        <div className="flex items-center gap-2">
-          <h2 className="text-sm font-semibold">Available Models</h2>
-          <span className="rounded-sm border border-border bg-surface-2 px-1.5 py-0.5 text-[11px] font-medium tabular-nums text-text-muted">
-            {activeIds.length}
-            {disabledModelIds.length > 0 && (
-              <span className="text-text-subtle"> / {allModels.length}</span>
+      <div className="mb-3 flex flex-col gap-2.5 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex flex-wrap items-center justify-between gap-2 sm:justify-start sm:gap-3">
+          <div className="flex items-center gap-2">
+            <h2 className="text-sm font-semibold">Available Models</h2>
+            <span className="rounded-sm border border-border bg-surface-2 px-1.5 py-0.5 text-[11px] font-medium tabular-nums text-text-muted">
+              {activeIds.length}
+              {disabledModelIds.length > 0 && (
+                <span className="text-text-subtle"> / {allModels.length}</span>
+              )}
+            </span>
+          </div>
+
+          {/* Action buttons on mobile sit at top-right */}
+          <div className="flex items-center gap-1.5 sm:hidden">
+            <Button size="xs" variant="primary" icon="add" onClick={() => setShowAddCustomModel(true)}>
+              Add
+            </Button>
+            {activeIds.length > 0 && (
+              <Button size="xs" variant="secondary" icon="block" onClick={() => handleDisableAll(disableTargets)}>
+                Disable
+              </Button>
             )}
-          </span>
+          </div>
         </div>
 
-        <div className="order-3 w-full sm:order-none sm:w-56">
-          <Input
-            icon="search"
-            placeholder="Search models…"
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            aria-label="Search models"
-            inputClassName="h-9 text-xs"
-            className="w-full"
-          />
-        </div>
-
-        {providerThinkingLevels && (
-          <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar">
-            <span className="hidden text-xs text-text-muted sm:inline">Thinking:</span>
-            <SegmentedControl
-              options={providerThinkingLevels.map((opt) => ({
-                value: opt,
-                label: opt.charAt(0).toUpperCase() + opt.slice(1),
-              }))}
-              value={thinkingMode}
-              onChange={handleThinkingModeChange}
-              size="touch"
-              snap
-              aria-label="Thinking level"
+        {/* Search & Thinking Controls */}
+        <div className="flex items-center gap-2 flex-1 sm:max-w-md lg:max-w-lg">
+          <div className="flex-1">
+            <Input
+              icon="search"
+              placeholder="Search models…"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              aria-label="Search models"
+              inputClassName="h-8 text-xs"
+              className="w-full"
             />
           </div>
-        )}
 
-        <div className="ml-auto flex flex-wrap items-center gap-2">
+          {providerThinkingLevels && (
+            <div className="shrink-0 flex items-center gap-1.5">
+              <span className="hidden lg:inline text-xs text-text-muted">Thinking:</span>
+              <div className="sm:hidden">
+                <select
+                  value={thinkingMode}
+                  onChange={(e) => handleThinkingModeChange(e.target.value)}
+                  className="h-8 rounded border border-border bg-surface px-2 text-xs text-text-main outline-none focus:border-primary"
+                  aria-label="Thinking level"
+                >
+                  {providerThinkingLevels.map((opt) => (
+                    <option key={opt} value={opt}>
+                      {opt.charAt(0).toUpperCase() + opt.slice(1)}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div className="hidden sm:block">
+                <SegmentedControl
+                  options={providerThinkingLevels.map((opt) => ({
+                    value: opt,
+                    label: opt.charAt(0).toUpperCase() + opt.slice(1),
+                  }))}
+                  value={thinkingMode}
+                  onChange={handleThinkingModeChange}
+                  size="sm"
+                  snap
+                  aria-label="Thinking level"
+                />
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Desktop actions cluster */}
+        <div className="hidden sm:flex flex-wrap items-center gap-2 shrink-0">
           <Button size="sm" variant="primary" icon="add" onClick={() => setShowAddCustomModel(true)}>
             Add Model
           </Button>
@@ -186,7 +222,15 @@ export default function ModelsSection(d) {
                 handleDeleteAlias(model.alias);
               }
             }}
+            onSetAlias={() => {
+              setAliasModal({
+                modelId: model.id,
+                currentAlias: model.alias || "",
+              });
+              setNewAliasValue(model.alias || "");
+            }}
             testStatus={modelTestResults[model.id]}
+            testError={modelTestErrors[model.id]}
             onTest={connections.length > 0 || isFreeNoAuth ? () => handleTestModel(model.id) : undefined}
             isTesting={testingModelIds.has(model.id)}
             isCustom
@@ -210,9 +254,16 @@ export default function ModelsSection(d) {
               alias={existingAlias}
               copied={copied}
               onCopy={copy}
-              onSetAlias={(alias) => handleSetAlias(model.id, alias, providerStorageAlias)}
+              onSetAlias={() => {
+                setAliasModal({
+                  modelId: model.id,
+                  currentAlias: existingAlias || "",
+                });
+                setNewAliasValue(existingAlias || "");
+              }}
               onDeleteAlias={() => handleDeleteAlias(existingAlias)}
               testStatus={modelTestResults[model.id]}
+              testError={modelTestErrors[model.id]}
               onTest={connections.length > 0 || isFreeNoAuth ? () => handleTestModel(model.id) : undefined}
               isTesting={testingModelIds.has(model.id)}
               isFree={isFreeModel(model, providerId) || model.id.toLowerCase().includes("free") || model.name?.toLowerCase().includes("free")}
@@ -291,6 +342,66 @@ export default function ModelsSection(d) {
           </div>
         )}
       </div>
+      {/* Set Alias Modal */}
+      {aliasModal && (
+        <Modal
+          isOpen={!!aliasModal}
+          onClose={() => setAliasModal(null)}
+          title={`Model Alias: ${aliasModal.modelId}`}
+          size="sm"
+        >
+          <div className="flex flex-col gap-3 py-2">
+            <p className="text-xs text-text-muted">
+              Map a friendly alias name (e.g. <code className="text-primary font-mono">gpt-4o</code> or <code className="text-primary font-mono">claude-3-7-sonnet</code>) directly to this model.
+            </p>
+            <Input
+              label="Alias Name"
+              placeholder="e.g. gpt-4o, my-model"
+              value={newAliasValue}
+              onChange={(e) => setNewAliasValue(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && newAliasValue.trim()) {
+                  handleSetAlias(aliasModal.modelId, newAliasValue.trim(), providerStorageAlias);
+                  setAliasModal(null);
+                }
+              }}
+              autoFocus
+            />
+            <div className="flex items-center justify-between gap-2 pt-2 border-t border-border/40">
+              {aliasModal.currentAlias ? (
+                <Button
+                  size="sm"
+                  variant="danger"
+                  onClick={() => {
+                    handleDeleteAlias(aliasModal.currentAlias);
+                    setAliasModal(null);
+                  }}
+                >
+                  Remove Alias
+                </Button>
+              ) : (
+                <div />
+              )}
+              <div className="flex items-center gap-2">
+                <Button size="sm" variant="secondary" onClick={() => setAliasModal(null)}>
+                  Cancel
+                </Button>
+                <Button
+                  size="sm"
+                  variant="primary"
+                  disabled={!newAliasValue.trim() || newAliasValue.trim() === aliasModal.currentAlias}
+                  onClick={() => {
+                    handleSetAlias(aliasModal.modelId, newAliasValue.trim(), providerStorageAlias);
+                    setAliasModal(null);
+                  }}
+                >
+                  Save Alias
+                </Button>
+              </div>
+            </div>
+          </div>
+        </Modal>
+      )}
     </Card>
   );
 }
