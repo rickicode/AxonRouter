@@ -35,9 +35,6 @@ const PROVIDER_RETENTION_MS = 5 * 60 * 1000;
 const FE_ACTIVE_TICK_MS = 3000; // Throttled from 1000ms to reduce unneeded layout/render cycles
 const RESIZE_DEBOUNCE_MS = 160;
 
-// Kame + electric particles along active edges
-const KAME_PARTICLE_COUNT = 6;
-const SPARK_COUNT = 5;
 
 // ── Single shared feTurbulence filter (static — not animated).
 // One <defs> node is enough; every active edge points to url(#topo-electric-shared).
@@ -67,8 +64,7 @@ const ProviderNode = memo(function ProviderNode({ data }) {
  }), [active, color]);
  const iconStyle = useMemo(() => ({ backgroundColor: `${color}15` }), [color]);
  const iconCharStyle = useMemo(() => ({ color }), [color]);
- const labelStyle = useMemo(() => ({ color: active ? color : "var(--color-text)" }), [active, color]);
- const pingStyle = useMemo(() => ({ backgroundColor: color }), [color]);
+  const labelStyle = useMemo(() => ({ color: active ? color : "var(--color-text)" }), [active, color]);
  return (
  <div
  className="flex items-center gap-2 px-3 h-8 rounded-sm border border-border bg-surface focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
@@ -115,13 +111,7 @@ const ProviderNode = memo(function ProviderNode({ data }) {
  {label}
  </span>
 
- {/* Active indicator (hidden under prefers-reduced-motion) */}
- {active && motionOK && (
- <span className="relative flex h-2 w-2 shrink-0">
- <span className="animate-ping absolute inline-flex h-full w-full rounded-sm opacity-75" style={pingStyle} />
- <span className="relative inline-flex rounded-sm h-2 w-2" style={pingStyle} />
- </span>
- )}
+
  </div>
  );
 });
@@ -133,42 +123,42 @@ ProviderNode.propTypes = {
 // Center AxonRouter node — pulse/glow on card only (no expanding rings) — memoized
 const RouterNode = memo(function RouterNode({ data }) {
  const powering = (data.activeCount || 0) > 0;
- return (
- <div
- className={`relative z-[1] flex items-center justify-center px-3 py-3 rounded-sm border-2 border-border min-w-[130px] ${
- powering
- ? "topology-router-core border-warning bg-gradient-to-br from-primary/30 via-warning/20 to-info/25"
- : "border-primary bg-primary/10 "
- }`}
- >
- <Handle type="source" position={Position.Top} id="top" className="!bg-transparent !border-0 !w-0 !h-0" />
- <Handle type="source" position={Position.Bottom} id="bottom" className="!bg-transparent !border-0 !w-0 !h-0" />
- <Handle type="source" position={Position.Left} id="left" className="!bg-transparent !border-0 !w-0 !h-0" />
- <Handle type="source" position={Position.Right} id="right" className="!bg-transparent !border-0 !w-0 !h-0" />
+  return (
+    <div
+      className={`relative z-[1] flex items-center justify-center px-3 py-3 rounded-sm border-2 min-w-[130px] ${
+        powering
+          ? "border-warning bg-gradient-to-br from-primary/20 via-warning/10 to-info/15"
+          : "border-primary/50 bg-primary/5"
+      }`}
+    >
+      <Handle type="source" position={Position.Top} id="top" className="!bg-transparent !border-0 !w-0 !h-0" />
+      <Handle type="source" position={Position.Bottom} id="bottom" className="!bg-transparent !border-0 !w-0 !h-0" />
+      <Handle type="source" position={Position.Left} id="left" className="!bg-transparent !border-0 !w-0 !h-0" />
+      <Handle type="source" position={Position.Right} id="right" className="!bg-transparent !border-0 !w-0 !h-0" />
 
- <Image
- src="/favicon.svg"
-      alt="AxonRouter"
- width={24}
- height={24}
- className={`w-6 h-6 mr-2 ${powering ? "topology-router-icon" : ""}`}
- loading="lazy"
- decoding="async"
- />
- <span className={`text-sm font-semibold ${powering ? "topology-router-label text-warning" : "text-primary"}`}>
-      AxonRouter
- </span>
- {data.activeCount > 0 && (
- <span
- className="ml-2 px-1.5 py-1 rounded-sm bg-warning text-bg text-xs font-medium topology-router-badge"
- aria-label={`${data.activeCount} active requests`}
- role="status"
- >
- {data.activeCount}
- </span>
- )}
- </div>
- );
+      <Image
+        src="/favicon.svg"
+        alt="AxonRouter"
+        width={24}
+        height={24}
+        className="w-6 h-6 mr-2"
+        loading="lazy"
+        decoding="async"
+      />
+      <span className={`text-sm font-semibold ${powering ? "text-warning" : "text-primary"}`}>
+        AxonRouter
+      </span>
+      {data.activeCount > 0 && (
+        <span
+          className="ml-2 px-1.5 py-1 rounded-sm bg-warning text-bg text-xs font-medium"
+          aria-label={`${data.activeCount} active requests`}
+          role="status"
+        >
+          {data.activeCount}
+        </span>
+      )}
+    </div>
+  );
 });
 
 RouterNode.propTypes = {
@@ -176,7 +166,7 @@ RouterNode.propTypes = {
 };
 
 // Shared dispMap style for SMIL-gated electric halo — reuse across edges to avoid per-edge filter alloc
-const ORB_SHADOW = { filter: "drop-shadow(0 0 4px #22d3ee)" };
+
 const CORE_EDGE_STYLE = { stroke: "#f8fafc", strokeWidth: 2.2, opacity: 1 };
 
 // Active: electric kame beam (multi-layer stroke + sparks). Idle/last/error: solid BaseEdge.
@@ -238,46 +228,7 @@ function TopologyEdge({
  style={CORE_EDGE_STYLE}
  className="topology-edge-kame"
  />
- {/* Energy orbs (motion-only; static orbs remain when reduced-motion) */}
- {Array.from({ length: reducedMotion ? 0 : KAME_PARTICLE_COUNT }, (_, i) => (
- <circle
- key={`${id}-p-${i}`}
- r={i % 2 === 0 ? 4 : 2.5}
- fill={i % 3 === 0 ? "#fde047" : i % 3 === 1 ? "#67e8f9" : "#fff"}
- opacity={0.95}
- style={ORB_SHADOW}
- >
- <animateMotion
- dur={`${0.4 + i * 0.08}s`}
- repeatCount="indefinite"
- path={edgePath}
- begin={`${i * 0.09}s`}
- />
- </circle>
- ))}
- {/* Electric sparks (short-lived blink along path) */}
- {Array.from({ length: reducedMotion ? 0 : SPARK_COUNT }, (_, i) => (
- <circle
- key={`${id}-s-${i}`}
- r={1.8}
- fill="#e0f2fe"
- opacity={0}
- >
- <animate
- attributeName="opacity"
- values="0;1;0;0;1;0"
- dur={`${0.35 + (i % 3) * 0.1}s`}
- begin={`${i * 0.07}s`}
- repeatCount="indefinite"
- />
- <animateMotion
- dur={`${0.28 + i * 0.05}s`}
- repeatCount="indefinite"
- path={edgePath}
- begin={`${i * 0.11}s`}
- />
- </circle>
- ))}
+
  </g>
  );
 }
@@ -321,13 +272,23 @@ function buildLayout(providers, activeSet, lastSet, errorSet, totalActiveCount =
  const nodes = [];
  const edges = [];
 
- nodes.push({
- id: "router",
- type: "router",
- position: { x: -routerW / 2, y: -routerH / 2 },
- data: { activeCount: totalActiveCount },
- draggable: false,
- });
+  const maxExtentX = rx + nodeW / 2;
+  const maxExtentY = ry + nodeH / 2;
+
+  // Symmetric invisible boundary anchors to guarantee ReactFlow fitView centers router at (0, 0)
+  nodes.push(
+    { id: "bound-top", position: { x: 0, y: -maxExtentY }, style: { width: 1, height: 1, opacity: 0, pointerEvents: "none" }, data: {}, draggable: false, selectable: false },
+    { id: "bound-bottom", position: { x: 0, y: maxExtentY }, style: { width: 1, height: 1, opacity: 0, pointerEvents: "none" }, data: {}, draggable: false, selectable: false },
+    { id: "bound-left", position: { x: -maxExtentX, y: 0 }, style: { width: 1, height: 1, opacity: 0, pointerEvents: "none" }, data: {}, draggable: false, selectable: false },
+    { id: "bound-right", position: { x: maxExtentX, y: 0 }, style: { width: 1, height: 1, opacity: 0, pointerEvents: "none" }, data: {}, draggable: false, selectable: false },
+    {
+      id: "router",
+      type: "router",
+      position: { x: -routerW / 2, y: -routerH / 2 },
+      data: { activeCount: totalActiveCount },
+      draggable: false,
+    }
+  );
 
  const edgeStyle = (active, last, error) => {
  if (error) return { stroke: "var(--color-danger)", strokeWidth: 2.5, opacity: 0.9 };
@@ -587,30 +548,7 @@ export default function ProviderTopology({ providers = [], activeRequests = [], 
  </ReactFlow>
  )}
  </div>
- {/* Edge status legend: active/last/error/idle edge colors */}
- <div
- className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-text-muted"
- aria-label="Edge status legend"
- data-testid="topology-legend"
- role="list"
- >
- <span role="listitem" className="inline-flex items-center gap-1.5">
- <span aria-hidden="true" className="inline-block h-1 w-6 rounded-sm bg-info" />
- Active
- </span>
- <span role="listitem" className="inline-flex items-center gap-1.5">
- <span aria-hidden="true" className="inline-block h-1 w-6 rounded-sm bg-warning" />
- Last used
- </span>
- <span role="listitem" className="inline-flex items-center gap-1.5">
- <span aria-hidden="true" className="inline-block h-1 w-6 rounded-sm bg-danger" />
- Error
- </span>
- <span role="listitem" className="inline-flex items-center gap-1.5">
- <span aria-hidden="true" className="inline-block h-1 w-6 rounded-sm bg-border" />
- Idle
- </span>
- </div>
+
  {/* AT fallback: offscreen text table (outside role=img so screen readers reach it) */}
  {visibleProviders.length > 0 && (
  <table className="sr-only" aria-label="Provider connection status" data-testid="topology-status-table">
