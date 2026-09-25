@@ -203,7 +203,7 @@ set_env JWT_SECRET       "$(rand_hex 32)"
 set_env API_KEY_SECRET   "$(rand_hex 32)"
 set_env MACHINE_ID_SALT  "$(rand_hex 16)"
 set_env ENCRYPTION_KEY   "$(rand_hex 32)"
-ADMIN_PASS="$(rand_hex 8)"
+ADMIN_PASS="${INITIAL_PASSWORD:-12345677}"
 set_env INITIAL_PASSWORD "$ADMIN_PASS"
 
 # ---------- 7. Start ----------

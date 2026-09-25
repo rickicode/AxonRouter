@@ -156,7 +156,7 @@ Set-EnvKey "JWT_SECRET"       (New-RandomHex 32)
 Set-EnvKey "API_KEY_SECRET"   (New-RandomHex 32)
 Set-EnvKey "MACHINE_ID_SALT"  (New-RandomHex 16)
 Set-EnvKey "ENCRYPTION_KEY"   (New-RandomHex 32)
-$AdminPass = New-RandomHex 8
+$AdminPass = if ($env:INITIAL_PASSWORD) { $env:INITIAL_PASSWORD } else { "12345677" }
 Set-EnvKey "INITIAL_PASSWORD" $AdminPass
 
 # ---------- 6. Start ----------
