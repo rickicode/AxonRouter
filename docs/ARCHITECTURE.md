@@ -36,7 +36,7 @@ Primary runtime model:
 
 ### Out of Scope
 
-- Cloud service implementation behind `NEXT_PUBLIC_CLOUD_URL`
+- Cloud service implementation behind `CLOUD_URL`
 - Provider SLA/control plane outside local process
 - External CLI binaries themselves (Claude CLI, Codex CLI, etc.)
 
@@ -67,7 +67,7 @@ flowchart LR
     end
 
     subgraph Cloud[Optional Cloud Sync]
-        CLOUD[Cloud Sync Endpoint\nNEXT_PUBLIC_CLOUD_URL]
+        CLOUD[Cloud Sync Endpoint\nCLOUD_URL]
     end
 
     C1 --> API
@@ -536,7 +536,7 @@ Environment variables actively used by code:
 - Storage: `DATA_DIR`
 - Security hashing: `API_KEY_SECRET`, `MACHINE_ID_SALT`
 - Logging: `ENABLE_REQUEST_LOGS`
-- Sync/cloud URLing: `NEXT_PUBLIC_BASE_URL`, `NEXT_PUBLIC_CLOUD_URL`
+- Sync/cloud URLing: `BASE_URL`, `CLOUD_URL`
 - Outbound proxy: `HTTP_PROXY`, `HTTPS_PROXY`, `ALL_PROXY`, `NO_PROXY` and lowercase variants
 - Platform/runtime helpers (not app-specific config): `APPDATA`, `NODE_ENV`, `PORT`, `HOSTNAME`
 
@@ -545,7 +545,7 @@ Environment variables actively used by code:
 1. `usageDb` currently stores under `~/.axonrouter` and does not follow `DATA_DIR`.
 2. `/api/v1/route.js` returns a static model list and is not the main models source used by `/v1/models`.
 3. Request logger writes full headers/body when enabled; treat log directory as sensitive.
-4. Cloud behavior depends on correct `NEXT_PUBLIC_BASE_URL` and cloud endpoint reachability.
+4. Cloud behavior depends on correct `BASE_URL` and cloud endpoint reachability.
 
 ## Operational Verification Checklist
 

@@ -64,9 +64,7 @@ export function getSamlBaseUrl(request, settings) {
   const configuredBaseUrl =
     (settings?.baseUrl || "").trim() ||
     process.env.BASE_URL ||
-    process.env.NEXT_PUBLIC_BASE_URL ||
     "";
-
   if (configuredBaseUrl) {
     return trimTrailingSlashes(configuredBaseUrl);
   }

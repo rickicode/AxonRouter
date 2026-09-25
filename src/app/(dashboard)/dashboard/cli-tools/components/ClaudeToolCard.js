@@ -11,7 +11,7 @@ import { matchKnownEndpoint } from "./cliEndpointMatch";
 import HostSetupCommand from "./HostSetupCommand";
 import { stripModelContextMarker } from "open-sse/utils/modelMarkers.js";
 
-const CLOUD_URL = process.env.NEXT_PUBLIC_CLOUD_URL;
+const CLOUD_URL = process.env.CLOUD_URL;
 
 // Auto-compact window presets (CLAUDE_CODE_AUTO_COMPACT_WINDOW, valid 100K–1M).
 // UI shows the round number; the value written is nudged down 2K to stay safely

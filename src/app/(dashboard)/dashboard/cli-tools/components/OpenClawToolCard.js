@@ -10,7 +10,7 @@ import ApiKeySelect from "./ApiKeySelect";
 import { matchKnownEndpoint } from "./cliEndpointMatch";
 import HostSetupCommand from "./HostSetupCommand";
 
-const CLOUD_URL = process.env.NEXT_PUBLIC_CLOUD_URL;
+const CLOUD_URL = process.env.CLOUD_URL;
 
 export default function OpenClawToolCard({
  tool,

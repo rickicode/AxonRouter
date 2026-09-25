@@ -13,7 +13,7 @@ import {
  JcodeToolCard, GrokBuildToolCard,
 } from "../components";
 
-const CLOUD_URL = process.env.NEXT_PUBLIC_CLOUD_URL;
+const CLOUD_URL = process.env.CLOUD_URL;
 
 export default function ToolDetailClient({ toolId, machineId }) {
  const tool = CLI_TOOLS[toolId];
