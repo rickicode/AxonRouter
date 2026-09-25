@@ -1,14 +1,40 @@
 import postgres from "postgres";
 
+export function normalizeDatabaseUrl(rawUrl) {
+  if (!rawUrl || typeof rawUrl !== "string") return rawUrl;
+  // If user passes a Neon pooled endpoint, switch to direct compute endpoint
+  // unless explicitly disabled with NEON_FORCE_POOLER=true.
+  // Persistent Node/Hono worker clusters maintain their own pool; putting PgBouncer
+  // in front adds double-pooling latency and breaks session-level Postgres features.
+  if (process.env.NEON_FORCE_POOLER !== "true" && rawUrl.includes("neon.tech") && rawUrl.includes("-pooler")) {
+    try {
+      const parsed = new URL(rawUrl);
+      if (parsed.hostname && parsed.hostname.endsWith(".neon.tech") && parsed.hostname.includes("-pooler")) {
+        parsed.hostname = parsed.hostname.replace("-pooler", "");
+        return parsed.toString();
+      }
+    } catch {
+      return rawUrl.replace(/-pooler(\.[a-zA-Z0-9.-]+\.neon\.tech|\.neon\.tech)/gi, "$1");
+    }
+  }
+  return rawUrl;
+}
+
 // Singleton pool on global so re-imports (dev, tests) don't open a second pool
 if (!global._pgSql) {
-  const connectionString = process.env.DATABASE_URL || "postgres://axonrouter:password123@localhost:5432/axonrouter";
+  const rawConnectionString = process.env.DATABASE_URL || "postgres://axonrouter:password123@localhost:5432/axonrouter";
+  const connectionString = normalizeDatabaseUrl(rawConnectionString);
+  const isPooler = connectionString.includes("-pooler") || connectionString.includes(":6543") || connectionString.includes("pgbouncer");
+  if (connectionString !== rawConnectionString && process.env.NODE_ENV !== "test") {
+    console.log("[DB] Neon URL detected with pooler: automatically converted to direct compute endpoint.");
+  }
   // Postgres crashes (OOM-kill, host restart) leave idle pooled connections
   // half-dead; postgres.js only detects them on next use. A short idle
   // timeout + connection lifetime bound recovers the pool without a manual
   // app restart. max_lifetime < 30min keeps the pool churning through a
   // server reboot within one lifecycle.
   global._pgSql = postgres(connectionString, {
+    prepare: !isPooler,
     // Tunable to match MAX_CONCURRENT_UPSTREAM: a 128-wide upstream semaphore
     // behind a 25-connection pool queues inside the DB layer at peak.
     max: Number(process.env.PG_POOL_MAX) || 25,
