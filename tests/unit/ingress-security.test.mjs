@@ -4,6 +4,7 @@ import {
   generateCsrfToken,
   validateCsrfToken,
   assertBoundedJsonDepth,
+  assertBoundedJsonTextDepth,
   MAX_JSON_DEPTH,
 } from "../../src/lib/security/ingressSecurity.js";
 
@@ -44,6 +45,22 @@ describe("Ingress Security Primitives", () => {
         () => assertBoundedJsonDepth(current, 0, MAX_JSON_DEPTH),
         /JSON depth limit exceeded/
       );
+    });
+    it("assertBoundedJsonTextDepth rejects deep raw text without parsing", () => {
+      let raw = '{"a":';
+      for (let i = 0; i < 35; i++) raw += '{"b":';
+      raw += '"leaf"';
+      for (let i = 0; i < 35; i++) raw += "}";
+      raw += "}";
+      assert.throws(
+        () => assertBoundedJsonTextDepth(raw, MAX_JSON_DEPTH),
+        /JSON depth limit exceeded/
+      );
+    });
+
+    it("assertBoundedJsonTextDepth ignores braces inside string literals", () => {
+      const raw = JSON.stringify({ note: "brace-heavy string {{}{}{}{}{}" });
+      assert.doesNotThrow(() => assertBoundedJsonTextDepth(raw, MAX_JSON_DEPTH));
     });
   });
 });

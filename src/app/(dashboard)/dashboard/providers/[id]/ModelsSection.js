@@ -170,7 +170,7 @@ export default function ModelsSection(d) {
         <p className="mb-3 break-words text-xs text-danger">{d.modelsTestError}</p>
       )}
 
-      <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2 xl:grid-cols-3">
+      <div className="grid grid-cols-1 gap-1.5 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4">
         {customModelRows.map((model) => (
           <ModelRow
             key={`${model.source}-${model.fullModel}`}

@@ -55,3 +55,36 @@ export function assertBoundedJsonDepth(value, depth = 0, maxDepth = MAX_JSON_DEP
     }
   }
 }
+
+/**
+ * Cheap raw-text depth scan: counts `{`/`[` nesting outside string literals.
+ * Used on ingress so a deeply nested payload is rejected before JSON.parse
+ * ever recurses over it (avoids the stack blow-up we are guarding against).
+ * @param {string} raw - Raw request body text
+ * @param {number} [maxDepth=MAX_JSON_DEPTH]
+ * @throws {Error} If depth exceeds maxDepth
+ */
+export function assertBoundedJsonTextDepth(raw, maxDepth = MAX_JSON_DEPTH) {
+  if (typeof raw !== "string" || raw.length === 0) return;
+  let depth = 0;
+  let inString = false;
+  let escaped = false;
+  for (let i = 0; i < raw.length; i++) {
+    const ch = raw[i];
+    if (inString) {
+      if (escaped) escaped = false;
+      else if (ch === "\\") escaped = true;
+      else if (ch === '"') inString = false;
+      continue;
+    }
+    if (ch === '"') inString = true;
+    else if (ch === "{" || ch === "[") {
+      depth += 1;
+      if (depth > maxDepth) {
+        throw new Error(`JSON depth limit exceeded: depth > ${maxDepth}`);
+      }
+    } else if (ch === "}" || ch === "]") {
+      depth -= 1;
+    }
+  }
+}

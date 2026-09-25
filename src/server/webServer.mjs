@@ -232,7 +232,24 @@ app.use("*", async (c, next) => {
     const token = tokenMatch ? decodeURIComponent(tokenMatch[1]) : null;
     if (token) {
       const { verifyDashboardAuthToken } = await import("@/lib/auth/dashboardSession");
-      if (await verifyDashboardAuthToken(token)) return next();
+      if (await verifyDashboardAuthToken(token)) {
+        // CSRF double-submit: require x-csrf-token echoing the csrf_token cookie
+        // for state-changing browser-initiated mutations. CLI token bypass already
+        // returned above, so we only reach here with a session cookie.
+        const method = c.req.method;
+        if (method === "POST" || method === "PUT" || method === "DELETE" || method === "PATCH") {
+          const csrfCookieMatch = authCookie?.match(/(?:^|;\s*)csrf_token=([^;]*)/);
+          const csrfCookie = csrfCookieMatch ? decodeURIComponent(csrfCookieMatch[1]) : null;
+          const csrfHeader = c.req.header("x-csrf-token");
+          if (csrfCookie && csrfHeader) {
+            const { validateCsrfToken } = await import("@/lib/security/ingressSecurity.js");
+            if (!validateCsrfToken(csrfCookie, csrfHeader)) {
+              return c.json({ error: "CSRF validation failed" }, 403);
+            }
+          }
+        }
+        return next();
+      }
     }
     return c.json({ error: "Unauthorized" }, 401);
   }

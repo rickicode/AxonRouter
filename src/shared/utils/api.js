@@ -6,6 +6,16 @@ const DEFAULT_HEADERS = {
   "Content-Type": "application/json",
 };
 
+// Double-submit CSRF: the server sets a readable `csrf_token` cookie at login and
+// requires it echoed in `x-csrf-token` on state-changing dashboard mutations.
+// Sent only when the cookie exists, so API-key/CLI callers are unaffected.
+function withCsrf(headers) {
+  if (typeof document === "undefined") return headers;
+  const match = document.cookie.match(/(?:^|;\s*)csrf_token=([^;]*)/);
+  if (!match) return headers;
+  return { ...headers, "x-csrf-token": decodeURIComponent(match[1]) };
+}
+
 /**
  * Make a GET request
  * @param {string} url - API endpoint
@@ -31,7 +41,7 @@ export async function get(url, options = {}) {
 export async function post(url, data, options = {}) {
   const response = await fetch(url, {
     method: "POST",
-    headers: { ...DEFAULT_HEADERS, ...options.headers },
+    headers: withCsrf({ ...DEFAULT_HEADERS, ...options.headers }),
     body: JSON.stringify(data),
     ...options,
   });
@@ -48,7 +58,7 @@ export async function post(url, data, options = {}) {
 export async function put(url, data, options = {}) {
   const response = await fetch(url, {
     method: "PUT",
-    headers: { ...DEFAULT_HEADERS, ...options.headers },
+    headers: withCsrf({ ...DEFAULT_HEADERS, ...options.headers }),
     body: JSON.stringify(data),
     ...options,
   });
@@ -64,7 +74,7 @@ export async function put(url, data, options = {}) {
 export async function del(url, options = {}) {
   const response = await fetch(url, {
     method: "DELETE",
-    headers: { ...DEFAULT_HEADERS, ...options.headers },
+    headers: withCsrf({ ...DEFAULT_HEADERS, ...options.headers }),
     ...options,
   });
   return handleResponse(response);
@@ -90,4 +100,3 @@ async function handleResponse(response) {
 
 const api = { get, post, put, del };
 export default api;
-

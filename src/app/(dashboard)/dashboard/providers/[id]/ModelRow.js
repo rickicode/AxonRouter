@@ -25,105 +25,99 @@ export default function ModelRow({
   const isCopied = copied === `model-${model.id}`;
   const displayName = model.name && model.name !== model.id ? model.name : null;
 
-  // Active capabilities
+  // Active capabilities as compact icons with tooltips
   const activeCaps = caps ? Object.keys(CAPACITY_META).filter((k) => caps[k]) : [];
 
-  // Status mapping
   const statusBorder =
     testStatus === "ok"
-      ? "border-success/40 hover:border-success/70"
+      ? "border-success/40 bg-surface/90"
       : testStatus === "error"
-      ? "border-danger/40 hover:border-danger/70"
-      : "border-border/80 hover:border-primary/50";
+      ? "border-danger/40 bg-surface/90"
+      : "border-border/70 bg-surface/70 hover:border-primary/40 hover:bg-surface";
 
   return (
     <div
       className={cn(
-        "group relative flex flex-col justify-between rounded-lg border bg-surface/80 p-3.5",
-        "transition-all duration-160 ease-out hover:bg-surface hover:shadow-sm",
+        "group relative flex flex-col justify-between rounded-md border p-2 transition-all duration-150 shadow-xs",
         statusBorder
       )}
     >
-      {/* Top row: Avatar + Title & Badges + Quick Action Buttons */}
-      <div className="flex items-start justify-between gap-2.5">
-        <div className="flex min-w-0 items-start gap-2.5 flex-1">
-          {/* Status / Model avatar */}
-          <div
+      {/* Baris 1: Status dot + Nama Model (klik untuk copy) + Badges + Action Buttons */}
+      <div className="flex items-center justify-between gap-1.5 min-w-0">
+        <div className="flex items-center gap-1.5 min-w-0 flex-1">
+          {/* Status dot indicator */}
+          <span
             className={cn(
-              "flex size-8 shrink-0 items-center justify-center rounded-md border text-xs",
-              "transition-colors duration-150",
+              "size-2 shrink-0 rounded-full",
               testStatus === "ok"
-                ? "border-success/30 bg-success/10 text-success"
+                ? "bg-success"
                 : testStatus === "error"
-                ? "border-danger/30 bg-danger/10 text-danger"
+                ? "bg-danger"
                 : isTesting
-                ? "border-primary/30 bg-primary/10 text-primary animate-pulse"
-                : "border-border/80 bg-surface-2 text-text-muted group-hover:border-primary/30 group-hover:text-primary"
+                ? "bg-primary animate-pulse"
+                : "bg-text-subtle/50"
             )}
+            title={
+              testStatus === "ok"
+                ? "Verified"
+                : testStatus === "error"
+                ? "Failed test"
+                : isTesting
+                ? "Testing..."
+                : "Ready"
+            }
+          />
+
+          {/* Klik nama model untuk langsung copy (tanpa icon copy terpisah) */}
+          <button
+            type="button"
+            onClick={() => onCopy(displayModel, `model-${model.id}`)}
+            title={isCopied ? "Copied!" : `Click to copy: ${displayModel}`}
+            className="truncate font-mono text-xs font-medium text-text-main group-hover:text-primary transition-colors text-left cursor-pointer"
           >
-            <Icon
-              name={
-                testStatus === "ok"
-                  ? "check_circle"
-                  : testStatus === "error"
-                  ? "cancel"
-                  : isTesting
-                  ? "progress_activity"
-                  : "smart_toy"
-              }
-              size={15}
-              style={isTesting ? { animation: "spin 1s linear infinite" } : undefined}
-            />
-          </div>
-
-          {/* Model Name and Badges */}
-          <div className="flex min-w-0 flex-1 flex-col">
-            <div className="flex items-center gap-1.5">
-              <span
-                className="truncate text-xs font-semibold text-text-main transition-colors group-hover:text-primary"
-                title={displayName || model.id}
-              >
-                {displayName || model.id}
+            {isCopied ? (
+              <span className="text-success inline-flex items-center gap-1 font-sans text-[11px]">
+                <Icon name="check" size={12} /> Copied!
               </span>
+            ) : (
+              model.id
+            )}
+          </button>
 
-              {isFree && (
-                <span className="shrink-0 inline-flex items-center rounded-full border border-emerald-500/30 bg-emerald-500/10 px-1.5 py-px text-[9px] font-semibold tracking-wider text-emerald-400">
-                  FREE
-                </span>
-              )}
+          {/* Small pills */}
+          {isFree && (
+            <span className="shrink-0 rounded bg-emerald-500/10 px-1 py-px text-[9px] font-semibold text-emerald-400 border border-emerald-500/20">
+              FREE
+            </span>
+          )}
 
-              {isCustom && (
-                <span className="shrink-0 inline-flex items-center rounded-full border border-purple-500/30 bg-purple-500/10 px-1.5 py-px text-[9px] font-semibold tracking-wider text-purple-400">
-                  CUSTOM
-                </span>
-              )}
+          {isCustom && (
+            <span className="shrink-0 rounded bg-purple-500/10 px-1 py-px text-[9px] font-semibold text-purple-400 border border-purple-500/20">
+              CUSTOM
+            </span>
+          )}
 
-              {alias && (
-                <span
-                  className="shrink-0 inline-flex items-center gap-1 rounded-full border border-primary/30 bg-primary/10 px-1.5 py-px text-[9px] font-medium text-primary"
-                  title={`Alias: ${alias}`}
-                >
-                  <span className="opacity-60">alias:</span>
-                  {alias}
-                </span>
-              )}
-            </div>
-          </div>
+          {alias && (
+            <span
+              className="shrink-0 rounded bg-primary/10 px-1 py-px text-[9px] font-mono text-primary border border-primary/20"
+              title={`Alias: ${alias}`}
+            >
+              {alias}
+            </span>
+          )}
         </div>
 
-        {/* Action button cluster */}
-        <div className="flex items-center gap-1 shrink-0 -mr-1">
+        {/* Action icons cluster: hanya test & disable/remove */}
+        <div className="flex items-center gap-0.5 shrink-0 opacity-80 group-hover:opacity-100 transition-opacity">
           {onTest && (
             <button
               onClick={onTest}
               disabled={isTesting}
-              aria-label={isTesting ? `Testing ${displayModel}` : `Test ${displayModel}`}
-              title={isTesting ? "Testing connectivity..." : "Test model"}
+              aria-label={`Test ${model.id}`}
+              title={isTesting ? "Testing..." : "Test model"}
               className={cn(
-                "inline-flex size-7 items-center justify-center rounded border border-border/40 bg-surface-2 text-text-muted",
-                "hover:border-primary/40 hover:bg-primary/10 hover:text-primary active:scale-95",
-                "transition-[background-color,border-color,color,transform] duration-150 ease-out",
-                isTesting && "opacity-100 border-primary/40 text-primary bg-primary/10"
+                "inline-flex size-6 items-center justify-center rounded text-text-muted hover:bg-surface-2 hover:text-primary transition-colors cursor-pointer",
+                isTesting && "text-primary"
               )}
             >
               <Icon
@@ -134,30 +128,12 @@ export default function ModelRow({
             </button>
           )}
 
-          <button
-            onClick={() => onCopy(displayModel, `model-${model.id}`)}
-            aria-label={`Copy model ID ${displayModel}`}
-            title={isCopied ? "Copied!" : "Copy model ID"}
-            className={cn(
-              "inline-flex size-7 items-center justify-center rounded border border-border/40 bg-surface-2 text-text-muted",
-              "hover:border-primary/40 hover:bg-primary/10 hover:text-primary active:scale-95",
-              "transition-[background-color,border-color,color,transform] duration-150 ease-out",
-              isCopied && "border-success/40 bg-success/10 text-success hover:border-success/40 hover:bg-success/10 hover:text-success"
-            )}
-          >
-            <Icon name={isCopied ? "check" : "content_copy"} size={13} />
-          </button>
-
           {isCustom ? (
             <button
               onClick={onDeleteAlias}
               aria-label={`Remove custom model ${model.id}`}
               title="Remove custom model"
-              className={cn(
-                "inline-flex size-7 items-center justify-center rounded border border-border/40 bg-surface-2 text-text-muted",
-                "hover:border-danger/40 hover:bg-danger/10 hover:text-danger active:scale-95",
-                "transition-[background-color,border-color,color,transform] duration-150 ease-out"
-              )}
+              className="inline-flex size-6 items-center justify-center rounded text-text-muted hover:bg-danger/10 hover:text-danger transition-colors cursor-pointer"
             >
               <Icon name="close" size={13} />
             </button>
@@ -166,11 +142,7 @@ export default function ModelRow({
               onClick={onDisable}
               aria-label={`Disable model ${model.id}`}
               title="Disable this model"
-              className={cn(
-                "inline-flex size-7 items-center justify-center rounded border border-border/40 bg-surface-2 text-text-muted",
-                "hover:border-danger/40 hover:bg-danger/10 hover:text-danger active:scale-95",
-                "transition-[background-color,border-color,color,transform] duration-150 ease-out"
-              )}
+              className="inline-flex size-6 items-center justify-center rounded text-text-muted hover:bg-danger/10 hover:text-danger transition-colors cursor-pointer"
             >
               <Icon name="close" size={13} />
             </button>
@@ -178,81 +150,34 @@ export default function ModelRow({
         </div>
       </div>
 
-      {/* Middle row: Endpoint ID pill (clickable for quick copy) */}
-      <button
-        type="button"
-        onClick={() => onCopy(displayModel, `model-${model.id}`)}
-        title={isCopied ? "Copied to clipboard!" : `Click to copy: ${displayModel}`}
-        className={cn(
-          "mt-2.5 flex w-full items-center justify-between gap-1.5 rounded px-2 py-1 text-left",
-          "border border-border/50 bg-surface-2/90",
-          "hover:border-primary/40 hover:bg-surface-2 active:scale-[0.99]",
-          "transition-[border-color,background-color,transform] duration-150 ease-out cursor-pointer",
-          isCopied && "border-success/40 bg-success/10 text-success"
-        )}
-      >
-        <code className="truncate font-mono text-[11px] text-text-muted hover:text-text-main">
+      {/* Baris 2: Subtitle alias/full path (klik untuk copy) + Capability icons */}
+      <div className="mt-1 flex items-center justify-between gap-1.5 border-t border-border/40 pt-1 text-[10px]">
+        <button
+          type="button"
+          onClick={() => onCopy(displayModel, `model-${model.id}`)}
+          title={`Click to copy: ${displayModel}`}
+          className="truncate font-mono text-[10px] text-text-subtle hover:text-text-main text-left cursor-pointer max-w-[70%]"
+        >
           {displayModel}
-        </code>
-        <div className="flex items-center gap-1 shrink-0">
-          {thinkingSuffix && (
-            <span className="rounded bg-primary/10 border border-primary/20 px-1 text-[9px] font-mono text-primary">
-              {thinkingSuffix}
-            </span>
-          )}
-          <Icon
-            name={isCopied ? "check" : "content_copy"}
-            size={11}
-            className={isCopied ? "text-success" : "text-text-subtle"}
-          />
-        </div>
-      </button>
+        </button>
 
-      {/* Bottom row: Capabilities badges & Status */}
-      <div className="mt-2.5 flex items-center justify-between gap-2 pt-2 border-t border-border/40 text-[11px]">
-        {/* Capabilities labeled pills */}
-        <div className="flex items-center gap-1 flex-wrap">
+        {/* Compact capability icons with tooltips */}
+        <div className="flex items-center gap-1 shrink-0">
           {activeCaps.length > 0 ? (
             activeCaps.map((k) => {
               const meta = CAPACITY_META[k];
               return (
                 <span
                   key={k}
-                  className="inline-flex items-center gap-1 rounded bg-surface-3/80 px-1.5 py-0.5 text-[10px] text-text-muted border border-border/60"
-                  title={`${meta.label} — ${meta.desc}`}
+                  className="inline-flex items-center justify-center text-text-muted hover:text-text-main"
+                  title={`${meta.label}: ${meta.desc}`}
                 >
                   <Icon name={meta.icon} size={11} className={meta.color} />
-                  <span>{meta.label}</span>
                 </span>
               );
             })
           ) : (
-            <span className="text-[10px] text-text-subtle font-mono">llm · chat</span>
-          )}
-        </div>
-
-        {/* Live test status */}
-        <div className="shrink-0">
-          {testStatus === "ok" && (
-            <span className="inline-flex items-center gap-1 text-[10px] font-medium text-success">
-              <span className="size-1.5 rounded-full bg-success animate-pulse" />
-              Verified
-            </span>
-          )}
-          {testStatus === "error" && (
-            <span className="inline-flex items-center gap-1 text-[10px] font-medium text-danger">
-              <span className="size-1.5 rounded-full bg-danger" />
-              Failed
-            </span>
-          )}
-          {isTesting && (
-            <span className="inline-flex items-center gap-1 text-[10px] font-medium text-primary">
-              <span className="size-1.5 rounded-full bg-primary animate-pulse" />
-              Testing
-            </span>
-          )}
-          {!testStatus && !isTesting && (
-            <span className="text-[10px] text-text-subtle">Ready</span>
+            <span className="text-[9px] text-text-subtle">chat</span>
           )}
         </div>
       </div>
@@ -269,7 +194,7 @@ ModelRow.propTypes = {
   alias: PropTypes.string,
   copied: PropTypes.string,
   onCopy: PropTypes.func.isRequired,
-  testStatus: PropTypes.oneOf(["ok", "error"]),
+  testStatus: PropTypes.oneOf(["ok", "error", null, undefined]),
   isCustom: PropTypes.bool,
   isFree: PropTypes.bool,
   onDeleteAlias: PropTypes.func,

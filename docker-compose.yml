@@ -83,8 +83,6 @@ services:
     restart: always
     mem_limit: 1g
     memswap_limit: 1g
-    ports:
-      - "5432:5432"
     command:
       - "postgres"
       - "-c"

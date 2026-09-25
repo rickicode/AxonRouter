@@ -2,6 +2,13 @@
 
 ## Features
 - **WorkBuddy**: add Tencent WorkBuddy (workbuddy.ai) as a provider — shares the CodeBuddy Intl OpenAI-compatible gateway (`/v2/chat/completions`) but on its own host/brand. Device-code OAuth (Google/GitHub upstream), forced stream, OpenAI `reasoning_effort`/`reasoning_summary` mirroring, `passthroughModels`, and usage via the shared CodeBuddy billing handler. Catalog mirrors CodeBuddy-Intl (`wb` alias).
+- **Capability-aware degradation**: derive required capabilities (`tools`, `reasoning`, `parallelToolCalls`, modalities, `search`) from every request and degrade in place when the target model cannot express one — tool catalogs become transcript text (`[Tool Call: …]` / `[Tool Result: …]`) across OpenAI/Claude/Gemini/Responses wire shapes, reasoning/thinking fields are dropped, `max_tokens` clamps to the model ceiling; combo auto-switch now ranks `tools` as a hard capability. Replaces upstream 400s with a working degraded answer.
+- **Prometheus `/metrics`**: public text-format (0.0.4) endpoint on both the dashboard web server (3777) and the Hono gateway (3778) — process uptime/RSS/heap, speed-layer cache keys, Postgres up/down, and the full routing counter set (`upstream_attempts`, `circuit_trips`, `lkg_hits`, combo skips, …).
+- **Graceful drain**: `SIGINT`/`SIGTERM` now stop accepting new connections and wait up to 15s for in-flight SSE streams before exit — on 3777 via `drainAndShutdown()`, on 3778 the cluster primary stops respawning and each worker closes idle sockets. Restarting no longer cuts live agent streams.
+- **CSRF double-submit**: login issues a readable `csrf_token` cookie; state-changing dashboard mutations (POST/PUT/DELETE/PATCH on `/api/*`) must echo it in `x-csrf-token`, compared in constant time. CLI-token and API-key callers bypass it.
+- **JSON depth guard**: control-plane JSON bodies are depth-scanned (limit 32) before `JSON.parse`, closing a deeply-nested-JSON DoS path.
+- **`PAYLOAD_STORAGE_MODE`**: `bounded` (default) clamps prompt/response text to 32KB and redacts bearer/api-key patterns, `none` stores metadata only, `full` keeps legacy raw capture. Configured in `.env.example`.
+- **Architecture contract tests**: `tests/architecture/contracts.test.mjs` enforces — no raw SQL in API routes, no `next` imports anywhere in `src/`/`open-sse/`, every registry provider exports an id/name, zero CommonJS `require()` in API routes.
 
 # v0.5.75 (2026-09-10)
 

@@ -2,8 +2,8 @@
 // Emits standard Prometheus text exposition format (version 0.0.4)
 // covering process resources, speed-layer cache, Postgres status, and routing counters.
 
-import { memSize } from "@/lib/cache/memoryStore.js";
-import { getRoutingMetrics } from "open-sse/services/routingMetrics.js";
+import { memSize } from "../cache/memoryStore.js";
+import { getRoutingMetrics } from "../../../open-sse/services/routingMetrics.js";
 
 /**
  * Format a Prometheus metric block with HELP and TYPE headers.
@@ -60,7 +60,7 @@ export async function renderPrometheusMetrics() {
   // 3. Database Connectivity Check
   let pgUp = 0;
   try {
-    const { getAdapter } = await import("@/lib/db/driver.js");
+    const { getAdapter } = await import("../db/driver.js");
     const db = await getAdapter();
     const res = await db.get("SELECT 1 as ok");
     if (res?.ok) pgUp = 1;

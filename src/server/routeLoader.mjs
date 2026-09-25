@@ -87,11 +87,39 @@ export async function loadApiRoutes(app) {
 
     for (const method of methods) {
       const handler = mod[method];
+      const hasBody = method !== "GET" && method !== "HEAD";
       app.on(method, honoPath, async (c) => {
         const { runWithRequestContext } = await import("@/lib/http/headers.js");
         const params = buildParamsObject(c.req.param(), honoPath);
+
+        let request = c.req.raw;
+        // Depth guard on JSON bodies for the dashboard/control-plane routes.
+        // Hot-path /api/v1 (LLM) payloads are excluded: they are large, legitimate,
+        // and already size-capped — buffering them here would cost memory for no gain.
+        if (hasBody && !honoPath.startsWith("/api/v1") && !honoPath.startsWith("/api/v1beta")) {
+          const ctype = c.req.header("content-type") || "";
+          if (ctype.includes("application/json")) {
+            try {
+              const raw = await c.req.text();
+              const { assertBoundedJsonTextDepth } = await import("@/lib/security/ingressSecurity.js");
+              assertBoundedJsonTextDepth(raw);
+              request = new Request(c.req.url, {
+                method,
+                headers: c.req.raw.headers,
+                body: raw,
+                duplex: "half",
+              });
+            } catch (err) {
+              if (String(err?.message || "").includes("JSON depth limit exceeded")) {
+                return c.json({ error: err.message }, 400);
+              }
+              throw err;
+            }
+          }
+        }
+
         const res = await runWithRequestContext(c.req.raw, () =>
-          handler(c.req.raw, { params: Promise.resolve(params) })
+          handler(request, { params: Promise.resolve(params) })
         );
         if (res && res.headers) {
           const setCookies = res.headers.getSetCookie ? res.headers.getSetCookie() : [];

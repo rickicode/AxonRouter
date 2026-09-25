@@ -274,10 +274,21 @@ if (cluster.isPrimary) {
   // Primary only orchestrates — it must NOT bind the port (workers do).
   console.log(`[Gateway] primary ${process.pid} forking ${WORKERS} worker(s)`);
   for (let i = 0; i < WORKERS; i++) cluster.fork();
+  let shuttingDown = false;
   cluster.on("exit", (worker, code, signal) => {
+    if (shuttingDown) return;
     console.error(`[Gateway] worker ${worker.process.pid} died (${signal || code}) — respawning`);
     cluster.fork();
   });
+  const primaryShutdown = (signal) => {
+    if (shuttingDown) return;
+    shuttingDown = true;
+    console.log(`[Gateway] primary received ${signal} — signaling workers to drain`);
+    for (const id in cluster.workers) cluster.workers[id].process.kill(signal);
+    setTimeout(() => process.exit(0), 16_000).unref?.();
+  };
+  process.on("SIGINT", () => primaryShutdown("SIGINT"));
+  process.on("SIGTERM", () => primaryShutdown("SIGTERM"));
 } else {
   // Timeouts come from SERVER_TIMEOUTS: a stalled upstream (free-tier queue,
   // dead proxy) must not hold a worker socket forever. requestTimeout is the
@@ -303,4 +314,26 @@ if (cluster.isPrimary) {
       await mod.GET(new Request("http://127.0.0.1/v1/models"));
     } catch { /* best-effort warm */ }
   }, 1500).unref?.();
+
+  // Graceful drain: stop accepting new sockets, let in-flight SSE streams
+  // finish (agent traffic must not be cut mid-response), then exit.
+  let workerShuttingDown = false;
+  const workerShutdown = (signal) => {
+    if (workerShuttingDown) return;
+    workerShuttingDown = true;
+    console.log(`[Gateway] worker ${process.pid} received ${signal} — draining`);
+    const deadline = setTimeout(() => {
+      console.warn(`[Gateway] worker ${process.pid} drain timed out — forcing exit`);
+      process.exit(0);
+    }, 15_000);
+    deadline.unref?.();
+    server.close(() => {
+      console.log(`[Gateway] worker ${process.pid} drained — exiting`);
+      process.exit(0);
+    });
+    // Idle keep-alive sockets would hold close(); drop them so close() fires.
+    if (typeof server.closeIdleConnections === "function") server.closeIdleConnections();
+  };
+  process.on("SIGINT", () => workerShutdown("SIGINT"));
+  process.on("SIGTERM", () => workerShutdown("SIGTERM"));
 }

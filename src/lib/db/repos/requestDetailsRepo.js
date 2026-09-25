@@ -8,6 +8,133 @@ const DEFAULT_FLUSH_INTERVAL_MS = 5000;
 const DEFAULT_MAX_JSON_SIZE = 5 * 1024;
 const MAX_BUFFER_SIZE = 5000;
 const CONFIG_CACHE_TTL_MS = 5000;
+export const BOUNDED_MAX_BYTES = 32 * 1024; // 32 KB per payload
+
+const PAYLOAD_FIELDS = [
+  "prompt",
+  "request",
+  "response",
+  "providerRequest",
+  "providerResponse",
+  "messages",
+  "body",
+];
+
+const AUTH_FIELD_RE = /authorization|x-api-key|api[-_]?key|token|bearer|cookie|auth|secret|password/i;
+const BEARER_RE = /Bearer\s+[a-zA-Z0-9_\-\.]+/gi;
+const API_KEY_STRING_RE = /[a-zA-Z0-9_\-]{20,}/g;
+const TEXT_AUTH_HEADER_RE = /(authorization|x-api-key|api[-_]?key|token)\s*[:=]\s*["']?([a-zA-Z0-9_\-]{20,})["']?/gi;
+const JSON_AUTH_FIELD_RE = /"(authorization|x-api-key|api[-_]?key|token)"\s*:\s*"([a-zA-Z0-9_\-]{20,})"/gi;
+
+export function resolvePayloadStorageMode(mode) {
+  const raw = mode !== undefined ? mode : process.env.PAYLOAD_STORAGE_MODE;
+  if (!raw || typeof raw !== "string") return "bounded";
+  const normalized = raw.trim().toLowerCase();
+  if (normalized === "full") return "full";
+  if (normalized === "none") return "none";
+  return "bounded";
+}
+
+function redactString(str, isAuthField = false) {
+  if (typeof str !== "string") return str;
+  let out = str;
+  if (isAuthField) {
+    if (/Bearer\s+/i.test(out)) {
+      out = out.replace(BEARER_RE, "Bearer [REDACTED]");
+    }
+    out = out.replace(API_KEY_STRING_RE, "[REDACTED]");
+  } else {
+    out = out.replace(BEARER_RE, "Bearer [REDACTED]");
+    out = out.replace(TEXT_AUTH_HEADER_RE, (match, prefix) => `${prefix}: [REDACTED]`);
+    out = out.replace(JSON_AUTH_FIELD_RE, (match, key) => `"${key}": "[REDACTED]"`);
+  }
+  return out;
+}
+
+export function redactSensitivePatterns(value, isAuthField = false, seen = new WeakSet(), depth = 0) {
+  if (value === null || value === undefined) return value;
+  if (typeof value === "string") {
+    return redactString(value, isAuthField);
+  }
+  if (typeof value !== "object" || depth > 10) {
+    if (isAuthField && typeof value !== "object") return "[REDACTED]";
+    return value;
+  }
+  if (seen.has(value)) return value;
+  seen.add(value);
+
+  if (Array.isArray(value)) {
+    return value.map((item) => redactSensitivePatterns(item, isAuthField, seen, depth + 1));
+  }
+
+  const out = {};
+  for (const [key, val] of Object.entries(value)) {
+    const isAuth = isAuthField || AUTH_FIELD_RE.test(key);
+    out[key] = redactSensitivePatterns(val, isAuth, seen, depth + 1);
+  }
+  return out;
+}
+
+function clampText(str, maxSize = BOUNDED_MAX_BYTES) {
+  if (typeof str !== "string") return str;
+  return str.length <= maxSize ? str : str.slice(0, maxSize);
+}
+
+export function clampPayload(value, maxSize = BOUNDED_MAX_BYTES, seen = new WeakSet(), depth = 0) {
+  if (value === null || value === undefined) return value;
+  if (typeof value === "string") return clampText(value, maxSize);
+  if (typeof value !== "object" || depth > 10) return value;
+  if (seen.has(value)) return value;
+  seen.add(value);
+
+  if (Array.isArray(value)) {
+    return value.map((item) => clampPayload(item, maxSize, seen, depth + 1));
+  }
+
+  const out = {};
+  for (const [k, v] of Object.entries(value)) {
+    if (typeof v === "string") {
+      out[k] = clampText(v, maxSize);
+    } else if (v && typeof v === "object") {
+      out[k] = clampPayload(v, maxSize, seen, depth + 1);
+    } else {
+      out[k] = v;
+    }
+  }
+  return out;
+}
+
+export function applyPayloadStorageMode(detail, mode = resolvePayloadStorageMode()) {
+  if (!detail || typeof detail !== "object") return detail;
+  const effectiveMode = resolvePayloadStorageMode(mode);
+
+  if (effectiveMode === "full") {
+    return detail;
+  }
+
+  if (effectiveMode === "none") {
+    for (const field of PAYLOAD_FIELDS) {
+      if (field in detail) {
+        detail[field] = null;
+      }
+    }
+    return detail;
+  }
+
+  // "bounded" mode (DEFAULT if not full)
+  for (const field of PAYLOAD_FIELDS) {
+    if (field in detail && detail[field] !== null && detail[field] !== undefined) {
+      let val = redactSensitivePatterns(detail[field]);
+      val = clampPayload(val, BOUNDED_MAX_BYTES);
+      detail[field] = val;
+    }
+  }
+  if ("headers" in detail && detail.headers) {
+    detail.headers = redactSensitivePatterns(detail.headers, true);
+  }
+
+  return detail;
+}
 
 let cachedConfig = null;
 let cachedConfigTs = 0;
@@ -28,10 +155,24 @@ function sanitizeHeaders(headers) {
   );
 }
 
-export const __test__ = { sanitizeHeaders };
+export const __test__ = {
+  sanitizeHeaders,
+  resolvePayloadStorageMode,
+  redactSensitivePatterns,
+  clampPayload,
+  applyPayloadStorageMode,
+  BOUNDED_MAX_BYTES,
+  getWriteBuffer: () => writeBuffer,
+  clearWriteBuffer: () => { writeBuffer = []; },
+  clearFlushTimer: () => {
+    clearTimeout(flushTimer);
+    flushTimer = null;
+  },
+};
 
 function truncateField(value, maxSize) {
-  if (value === undefined || value === null) return {};
+  if (value === undefined || value === null) return value ?? null;
+  if (maxSize === Infinity) return value;
   const serialized = JSON.stringify(value);
   if (serialized.length <= maxSize) return value;
   return {
@@ -69,12 +210,16 @@ async function getObservabilityConfig() {
       maxJsonSize: Number(settings.observabilityMaxJsonSize || process.env.OBSERVABILITY_MAX_JSON_SIZE || 5) * 1024,
     };
   } catch {
+    const envRequestLogs = process.env.ENABLE_REQUEST_LOGS;
+    const enabled = envRequestLogs !== undefined
+      ? envRequestLogs.toLowerCase() === "true"
+      : process.env.OBSERVABILITY_ENABLED !== "false";
     cachedConfig = {
-      enabled: false,
-      maxRecords: DEFAULT_MAX_RECORDS,
-      batchSize: DEFAULT_BATCH_SIZE,
-      flushIntervalMs: DEFAULT_FLUSH_INTERVAL_MS,
-      maxJsonSize: DEFAULT_MAX_JSON_SIZE,
+      enabled,
+      maxRecords: Number(process.env.OBSERVABILITY_MAX_RECORDS || DEFAULT_MAX_RECORDS),
+      batchSize: Number(process.env.OBSERVABILITY_BATCH_SIZE || DEFAULT_BATCH_SIZE),
+      flushIntervalMs: Number(process.env.OBSERVABILITY_FLUSH_INTERVAL_MS || DEFAULT_FLUSH_INTERVAL_MS),
+      maxJsonSize: Number(process.env.OBSERVABILITY_MAX_JSON_SIZE || 5) * 1024,
     };
   }
   cachedConfigTs = Date.now();
@@ -104,6 +249,8 @@ async function flushToDatabase() {
             detail.request = { ...detail.request, headers: sanitizeHeaders(detail.request.headers) };
           }
 
+          const mode = resolvePayloadStorageMode();
+          const effectiveMaxSize = mode === "full" ? Infinity : config.maxJsonSize;
           const record = {
             ...detail,
             provider: detail.provider || null,
@@ -112,10 +259,10 @@ async function flushToDatabase() {
             status: detail.status || null,
             latency: detail.latency || {},
             tokens: detail.tokens || {},
-            request: truncateField(detail.request, config.maxJsonSize),
-            providerRequest: truncateField(detail.providerRequest, config.maxJsonSize),
-            providerResponse: truncateField(detail.providerResponse, config.maxJsonSize),
-            response: truncateField(detail.response, config.maxJsonSize),
+            request: truncateField(detail.request, effectiveMaxSize),
+            providerRequest: truncateField(detail.providerRequest, effectiveMaxSize),
+            providerResponse: truncateField(detail.providerResponse, effectiveMaxSize),
+            response: truncateField(detail.response, effectiveMaxSize),
             pxpipe: detail.pxpipe,
           };
 
@@ -163,15 +310,20 @@ async function flushToDatabase() {
 }
 
 export async function saveRequestDetail(detail) {
+  if (!detail || typeof detail !== "object") return;
+
+  const mode = resolvePayloadStorageMode();
+  applyPayloadStorageMode(detail, mode);
+
   const config = await getObservabilityConfig();
-  if (!config.enabled || !detail || typeof detail !== "object") return;
+  if (!config.enabled) return detail;
 
   writeBuffer.push(detail);
   if (writeBuffer.length >= config.batchSize) {
-    if (flushTimer) clearTimeout(flushTimer);
+    clearTimeout(flushTimer);
     flushTimer = null;
     await flushToDatabase();
-    return;
+    return detail;
   }
   if (!flushTimer) {
     flushTimer = setTimeout(() => {
@@ -180,6 +332,7 @@ export async function saveRequestDetail(detail) {
     }, config.flushIntervalMs);
     flushTimer.unref?.();
   }
+  return detail;
 }
 
 export async function getRequestDetails(filter = {}) {
@@ -521,7 +674,7 @@ export async function getComboAnalytics({ timeFrom, timeTo } = {}) {
 }
 
 async function flushOnShutdown() {
-  if (flushTimer) clearTimeout(flushTimer);
+  clearTimeout(flushTimer);
   flushTimer = null;
   await flushToDatabase();
 }
