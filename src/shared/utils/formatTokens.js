@@ -1,11 +1,9 @@
 /**
  * Canonical token/count formatting for the dashboard.
  *
- * Values are normalised to the largest sensible unit and rendered WITHOUT
- * decimals so a token count never sprawls across a metric card:
- * 1200 -> `1K`, 12345 -> `12K`, 999999 -> `1M`, 1542000 -> `2M`.
- * Thousands are grouped with `.` (Indonesian style); exact values live in
- * formatTokensExact tooltips, so these are read for magnitude, not digits.
+ * Values are normalised to the largest sensible unit with up to two decimals:
+ * 1000 -> `1K`, 1200 -> `1,2K`, 1542000 -> `1,54M`. Integer part is grouped
+ * with `.` and decimals with `,` (Indonesian style).
  */
 
 const UNITS = [
@@ -14,32 +12,37 @@ const UNITS = [
   { suffix: "K", divisor: 1_000 },
 ];
 
-function group(intPart) {
-  return intPart.replace(/\B(?=(\d{3})+(?!\d))/g, ".");
+function formatInt(num) {
+  return Number(num || 0).toLocaleString("id-ID");
 }
 
 /**
- * Format a token count, shrinking to K/M/B with no decimals.
+ * Format a token count, shrinking to K/M/B with up to two decimals,
+ * trailing zeros trimmed: 1000 -> `1K`, 1200 -> `1,2K`, 1542000 -> `1,54M`.
  * Below 1,000 the exact integer is returned with grouping.
  */
 export function formatTokens(value) {
   const num = Number(value) || 0;
+  if (isNaN(num)) return "0";
   const sign = num < 0 ? "-" : "";
   const abs = Math.abs(num);
 
-  if (abs < 1000) return `${sign}${group(String(Math.round(abs)))}`;
+  if (abs < 1000) return `${sign}${formatInt(Math.round(abs))}`;
 
   for (const { suffix, divisor } of UNITS) {
     if (abs < divisor) continue;
-    const scaled = Math.round(abs / divisor);
-    // Rounding must not promote the value past its own unit: 999,999 rounds
-    // to 1000K, which would read as a unit error - hand it to M instead.
-    if (scaled >= 1000 && suffix !== "B") continue;
-    return `${sign}${group(String(scaled))}${suffix}`;
+    const scaled = abs / divisor;
+    const [whole, frac] = scaled.toFixed(2).split(".");
+    if (Number(whole) >= 1000 && suffix !== "B") continue;
+    const formattedWhole = formatInt(whole);
+    const cleanFrac = frac ? frac.replace(/0+$/, "") : "";
+    return `${sign}${formattedWhole}${cleanFrac ? `,${cleanFrac}` : ""}${suffix}`;
   }
 
-  // Only reachable when rounding pushes K into M (999,500 - 999,999).
-  return `${sign}${group(String(Math.round(abs / 1_000_000)))}M`;
+  const [whole, frac] = (abs / 1_000_000).toFixed(2).split(".");
+  const formattedWhole = formatInt(whole);
+  const cleanFrac = frac ? frac.replace(/0+$/, "") : "";
+  return `${sign}${formattedWhole}${cleanFrac ? `,${cleanFrac}` : ""}M`;
 }
 
 /**
@@ -48,7 +51,8 @@ export function formatTokens(value) {
  */
 export function formatTokensExact(value) {
   const num = Number(value) || 0;
-  return group(String(Math.round(num)));
+  if (isNaN(num)) return "0";
+  return formatInt(Math.round(num));
 }
 
 export default formatTokens;

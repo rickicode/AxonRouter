@@ -4,6 +4,7 @@ import { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import { useSearchParams, useRouter } from "@/lib/ui/navigation.js";
 import { FREE_PROVIDERS, AI_PROVIDERS } from "@/shared/constants/providers";
 import { buildUsageProviderList } from "@/shared/utils/usageProviders";
+import { formatTokens } from "@/shared/utils/formatTokens";
 
 // Keep providers without serviceKinds (default LLM) or with "llm" in serviceKinds
 function isLLMProvider(id) {
@@ -48,11 +49,24 @@ const UsageChart = dynamic(
 );
 
 function timeAgo(timestamp) {
- const diff = Math.floor((Date.now() - new Date(timestamp)) / 1000);
- if (diff < 60) return `${diff}s ago`;
- if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
- if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`;
- return `${Math.floor(diff / 86400)}d ago`;
+  if (!timestamp) return "-";
+  const ms = new Date(timestamp).getTime();
+  if (Number.isNaN(ms)) return "-";
+  const diff = Math.max(0, Math.floor((Date.now() - ms) / 1000));
+  if (diff < 60) return `${diff}s`;
+  if (diff < 3600) {
+    const mins = Math.floor(diff / 60);
+    const secs = diff % 60;
+    return secs > 0 ? `${mins}m ${secs}s` : `${mins}m`;
+  }
+  if (diff < 86400) {
+    const hours = Math.floor(diff / 3600);
+    const mins = Math.floor((diff % 3600) / 60);
+    return mins > 0 ? `${hours}h ${mins}m` : `${hours}h`;
+  }
+  const days = Math.floor(diff / 86400);
+  const hours = Math.floor((diff % 86400) / 3600);
+  return hours > 0 ? `${days}d ${hours}h` : `${days}d`;
 }
 
 // Auto-update time display every 30 seconds without re-rendering parent (throttled from 1s to reduce CPU/battery drain)
@@ -103,10 +117,10 @@ function RecentRequests({ requests = [] }) {
  <span className={`size-2 shrink-0 rounded-full ${ok ? "bg-success" : "bg-danger"}`} />
  <div className="min-w-0 flex-1">
  <p className="truncate font-mono text-xs text-text-main" title={r.model}>{r.model}</p>
- <p className="mt-0.5 font-mono text-[11px] tabular-nums">
- <span className="text-primary">{fmt(r.promptTokens)}↑</span>{" "}
- <span className="text-success">{fmt(r.completionTokens)}↓</span>
- </p>
+        <p className="mt-0.5 font-mono text-[11px] tabular-nums">
+          <span className="text-primary" title={`In: ${Number(r.promptTokens || 0).toLocaleString("en-US")}`}>{formatTokens(r.promptTokens)}↑</span>{" "}
+          <span className="text-success" title={`Out: ${Number(r.completionTokens || 0).toLocaleString("en-US")}`}>{formatTokens(r.completionTokens)}↓</span>
+        </p>
  </div>
  <span className="shrink-0 text-[11px] text-text-muted"><TimeAgo timestamp={r.timestamp} /></span>
  </div>
@@ -132,12 +146,12 @@ function RecentRequests({ requests = [] }) {
  <td className="py-2 h-8 px-3 text-sm">
  <span className={`block w-1.5 h-1.5 rounded-full ${ok ? "bg-success" : "bg-danger"}`} />
  </td>
- <td className="py-2 font-mono truncate max-w-[120px] h-8 px-3 text-sm" title={r.model}>{r.model}</td>
- <td className="py-2 text-right whitespace-nowrap h-8 px-3 text-sm">
- <span className="text-primary">{fmt(r.promptTokens)}↑</span>
- {" "}
- <span className="text-success">{fmt(r.completionTokens)}↓</span>
- </td>
+        <td className="py-2 font-mono truncate max-w-[160px] sm:max-w-[200px] lg:max-w-[320px] xl:max-w-[420px] h-8 px-3 text-sm" title={r.model}>{r.model}</td>
+        <td className="py-2 text-right whitespace-nowrap h-8 px-3 text-sm">
+          <span className="text-primary" title={`In: ${Number(r.promptTokens || 0).toLocaleString("en-US")}`}>{formatTokens(r.promptTokens)}↑</span>
+          {" "}
+          <span className="text-success" title={`Out: ${Number(r.completionTokens || 0).toLocaleString("en-US")}`}>{formatTokens(r.completionTokens)}↓</span>
+        </td>
  <td className="py-2 text-right text-text-muted whitespace-nowrap h-8 px-3 text-sm"><TimeAgo timestamp={r.timestamp} /></td>
  </tr>
  );

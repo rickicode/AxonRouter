@@ -53,8 +53,29 @@ function buildParamsObject(honoParams, honoPath) {
   return params;
 }
 
+function getRouteScore(file) {
+  const honoPath = toHonoPath(file);
+  const segments = honoPath.split("/").filter(Boolean);
+  let score = 0;
+  for (const seg of segments) {
+    if (seg.startsWith("*")) {
+      score += 10000;
+    } else if (seg.startsWith(":")) {
+      score += 100;
+    } else {
+      score += 1;
+    }
+  }
+  return score;
+}
+
 export async function loadApiRoutes(app) {
   const routeFiles = walkForRouteFiles(API_ROOT);
+  routeFiles.sort((a, b) => {
+    const diff = getRouteScore(a) - getRouteScore(b);
+    if (diff !== 0) return diff;
+    return toHonoPath(b).length - toHonoPath(a).length;
+  });
   const loaded = [];
 
   for (const file of routeFiles) {
