@@ -30,10 +30,11 @@ function Set-EnvKey([string]$Key, [string]$Value) {
 }
 
 function Test-PortPing([string]$Url) {
-    # Extract host and port using regex
-    if ($Url -match '^postgres(ql)?://(?:[^@]+@)?(?<host>[^:/]+)(?::(?<port>\d+))?') {
+    # Extract host and port using regex (postgres://, postgresql://, redis://, rediss://)
+    if ($Url -match '^(?:postgres(ql)?|redis(s)?|valkey)://(?:[^@]+@)?(?<host>[^:/]+)(?::(?<port>\d+))?') {
         $targetHost = $Matches['host']
-        $targetPort = if ($Matches['port']) { [int]$Matches['port'] } else { 5432 }
+        $defaultPort = if ($Url -match '^redis(s)?://') { 6379 } else { 5432 }
+        $targetPort = if ($Matches['port']) { [int]$Matches['port'] } else { $defaultPort }
         Write-Host "==> Testing TCP connection to $targetHost`:$targetPort ..." -ForegroundColor Cyan
         try {
             $tcp = New-Object System.Net.Sockets.TcpClient
@@ -81,6 +82,8 @@ Set-Location $Path
 Write-Host "==> Downloading docker compose files ..." -ForegroundColor Cyan
 Invoke-WebRequest -Uri "$Raw/docker-compose.yml"          -OutFile "docker-compose.yml"
 Invoke-WebRequest -Uri "$Raw/docker-compose.postgres.yml" -OutFile "docker-compose.postgres.yml"
+try { Invoke-WebRequest -Uri "$Raw/docker-compose.valkey.yml" -OutFile "docker-compose.valkey.yml" }
+catch { Write-Host "    [!!] Could not download docker-compose.valkey.yml; the built-in Valkey option will fall back to memory-only." -ForegroundColor Yellow }
 if (-not (Test-Path ".env")) {
     try {
         Invoke-WebRequest -Uri "$Raw/.env.example" -OutFile ".env.example"
@@ -108,19 +111,22 @@ if ($DbMode -eq "2") {
         Write-Host ""
         Write-Host "    Enter your external PostgreSQL connection string:"
         Write-Host "    (example: postgres://user:password@host:5432/db?sslmode=require)"
-        Write-Host "    NOTE: Must be a direct connection. DO NOT use transaction poolers / PgBouncer." -ForegroundColor Yellow
-        Write-Host "          (For Neon: select Direct connection without '-pooler'; Supabase: use port 5432)" -ForegroundColor Yellow
+        Write-Host "    TIP: Prefer a DIRECT connection (fastest). Transaction poolers are supported" -ForegroundColor Yellow
+        Write-Host "          but add a hop (Neon: omit '-pooler'; Supabase: session pooler or port 5432)." -ForegroundColor Yellow
         $DbUrl = (Read-Host "    >").Trim()
     }
     if ($DbUrl -notmatch '^postgres(ql)?://') { Write-Host "ERROR: URL must start with postgres://" -ForegroundColor Red; exit 1 }
 
-    # Automatic Neon pooler conversion & generic transaction pooler rejection
+    # Neon pooler -> prefer direct compute (one less hop, no double pooling).
+    # Generic transaction poolers (Supabase 6543 / PgBouncer) are SUPPORTED at
+    # runtime: postgresAdapter sets prepare=false so prepared statements don't
+    # collide across pooled sessions. Locks stay xact-scoped advisory + row
+    # FOR UPDATE (no LISTEN/NOTIFY, temp tables, or session GUCs).
     if ($DbUrl -match 'neon\.tech' -and $DbUrl -match '-pooler') {
         $DbUrl = $DbUrl -replace '-pooler(\.[a-zA-Z0-9.-]+\.neon\.tech|\.neon\.tech)', '$1'
-        Write-Host "==> Detected Neon pooler URL. Automatically converted to direct compute endpoint (removed '-pooler') for persistent worker cluster compatibility." -ForegroundColor Yellow
-    } elseif ($DbUrl -match 'pooler\.supabase\.com:6543|:6543/|\.pgbouncer\.|-pooler') {
-        Write-Host "ERROR: Transaction poolers (PgBouncer port 6543 / pooler mode) are not supported. AxonRouter uses an internal connection pool across Hono workers and requires a direct connection (port 5432 / direct session endpoint)." -ForegroundColor Red
-        exit 1
+        Write-Host "==> Detected Neon pooler URL. Automatically switched to the direct compute endpoint (faster, one less hop). Set NEON_FORCE_POOLER=true to keep the pooler." -ForegroundColor Yellow
+    } elseif ($DbUrl -match 'pooler\.supabase\.com:6543|:6543/|\.pgbouncer\.') {
+        Write-Host "==> Transaction pooler detected. AxonRouter supports it (prepared statements auto-disabled), but a direct/session endpoint is faster. Continuing with the pooler." -ForegroundColor Yellow
     }
 
     # Ping port
@@ -129,17 +135,74 @@ if ($DbMode -eq "2") {
         exit 1
     }
 
-    Set-EnvKey "COMPOSE_FILE" "docker-compose.yml"
+    $ComposeOverlays = "docker-compose.yml"
     Set-EnvKey "DATABASE_URL" $DbUrl
     Write-Host "==> External PostgreSQL selected (the local Postgres container will NOT run)." -ForegroundColor Green
     Write-Host "    (Connection & schema are validated by the container on first boot)" -ForegroundColor Yellow
 } else {
-    Set-EnvKey "COMPOSE_FILE" "docker-compose.yml:docker-compose.postgres.yml"
+    $ComposeOverlays = "docker-compose.yml:docker-compose.postgres.yml"
     $pgPw = New-RandomHex 16
     Set-EnvKey "POSTGRES_PASSWORD" $pgPw
     Set-EnvKey "DATABASE_URL" "postgres://axonrouter:${pgPw}@postgres:5432/axonrouter"
     Write-Host "==> Using built-in PostgreSQL (postgres:17-alpine container enabled)." -ForegroundColor Green
 }
+
+# ---------- 3b. Valkey speed layer (cross-process realtime state) ----------
+# Valkey holds the shared active-request registry, recent-request ring, account
+# cooldowns and rotation mutexes, and fans /api/usage/stream events to every
+# worker. It is optional: with no Valkey reachable the app fails open to
+# per-process memory, so the dashboard only sees its own worker's traffic.
+$ValkeyMode = "1"
+$ValkeyUrl = if ($env:EXTERNAL_VALKEY_URL) { $env:EXTERNAL_VALKEY_URL } else { $env:REDIS_URL }
+if (-not [string]::IsNullOrWhiteSpace($ValkeyUrl)) {
+    $ValkeyMode = "2"
+} elseif (-not (Test-Path "docker-compose.valkey.yml")) {
+    Write-Host "==> docker-compose.valkey.yml missing; skipping Valkey setup (memory-only speed layer)." -ForegroundColor Yellow
+    $ValkeyMode = "3"
+} else {
+    Write-Host ""
+    Write-Host "==> Enable the Valkey speed layer for cross-worker realtime state?" -ForegroundColor Cyan
+    Write-Host "    [1] Built-in Valkey 8 (Docker container, recommended) [default]" -ForegroundColor Green
+    Write-Host "    [2] External Redis/Valkey (ElastiCache / Upstash / any server)" -ForegroundColor Yellow
+    Write-Host "    [3] None (memory-only; each worker keeps private state)" -ForegroundColor Red
+    switch ((Read-Host "    Choose [1/2/3] (Enter = 1)").Trim().ToLower()) {
+        { $_ -in @("3", "none", "off", "no") } { $ValkeyMode = "3" }
+        { $_ -in @("2", "external", "ext") }   { $ValkeyMode = "2" }
+        default { $ValkeyMode = "1" }
+    }
+}
+
+if ($ValkeyMode -eq "2") {
+    if ([string]::IsNullOrWhiteSpace($ValkeyUrl)) {
+        Write-Host ""
+        Write-Host "    Enter your Redis/Valkey connection URL:"
+        Write-Host "    (example: redis://user:password@host:6379/0  |  rediss:// for TLS)"
+        $ValkeyUrl = (Read-Host "    >").Trim()
+    }
+    if ($ValkeyUrl -match '^valkeys?://') {
+        # ioredis has no valkey:// scheme and would silently mis-parse it, so refuse it.
+        Write-Host "ERROR: Unsupported scheme 'valkey://'. ioredis does not recognise it and would connect to the wrong host." -ForegroundColor Red
+        Write-Host "       Use redis:// or rediss:// (Valkey speaks the Redis protocol)." -ForegroundColor Red
+        exit 1
+    }
+    if ($ValkeyUrl -notmatch '^rediss?://') {
+        Write-Host "ERROR: Valkey URL must start with redis:// or rediss://" -ForegroundColor Red
+        exit 1
+    }
+    Test-PortPing $ValkeyUrl | Out-Null
+    Set-EnvKey "VALKEY_URL" $ValkeyUrl
+    Write-Host "==> External Redis/Valkey selected (no local Valkey container will run)." -ForegroundColor Green
+} elseif ($ValkeyMode -eq "1") {
+    $ComposeOverlays = "${ComposeOverlays}:docker-compose.valkey.yml"
+    Set-EnvKey "VALKEY_URL" "redis://valkey:6379"
+    Write-Host "==> Using built-in Valkey 8 (axonrouter-valkey container enabled)." -ForegroundColor Green
+} else {
+    # Empty value makes the client use its 127.0.0.1 default and fail open to memory.
+    Set-EnvKey "VALKEY_URL" ""
+    Write-Host "==> No Valkey: realtime state stays per-process (memory-only speed layer)." -ForegroundColor Yellow
+}
+
+Set-EnvKey "COMPOSE_FILE" $ComposeOverlays
 
 # ---------- 4. Gateway workers (max = CPU cores) ----------
 $cores = [System.Environment]::ProcessorCount
@@ -183,6 +246,7 @@ Write-Host "  ✓ AxonRouter installed successfully and running!" -ForegroundCol
 Write-Host "========================================================================" -ForegroundColor Cyan
 Write-Host "  • Stack directory : $DisplayPath"
 Write-Host "  • Database mode   : $(if ($DbMode -eq '2') { 'External PostgreSQL (Neon / managed)' } else { 'Built-in PostgreSQL 17 container' })"
+Write-Host "  • Speed layer     : $(if ($ValkeyMode -eq '2') { 'External Redis/Valkey (shared realtime state across workers)' } elseif ($ValkeyMode -eq '3') { 'memory-only (each worker keeps private realtime state)' } else { 'Built-in Valkey 8 container (shared realtime state across workers)' })"
 Write-Host "  • Dashboard       : http://localhost:3777" -ForegroundColor Cyan
 Write-Host "  • Login password  : $AdminPass  (password only, no username)" -ForegroundColor Green
 Write-Host ""

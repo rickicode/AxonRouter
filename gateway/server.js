@@ -264,12 +264,21 @@ app.get("/api/health", async (c) => {
   try {
     const { getProviderConnections } = await import("@/lib/db/repos/connectionsRepo.js");
     await getProviderConnections({ isActive: true, limit: 1 });
+    // Informational only: a down Valkey must never fail this check, because the
+    // compose/watchtower healthcheck would restart a healthy worker. The app
+    // fails open to per-process memory in that case.
+    let valkey = false;
+    try {
+      const { isValkeyAvailable, valkeyPingLatencyMs } = await import("@/lib/cache/valkeyClient.js");
+      valkey = isValkeyAvailable() && (await valkeyPingLatencyMs()) >= 0;
+    } catch {}
     return c.json({
       status: "healthy",
       service: "gateway",
       mode: MODE,
       workers: WORKERS,
       pid: process.pid,
+      valkey,
       timestamp: new Date().toISOString(),
     });
   } catch (e) {

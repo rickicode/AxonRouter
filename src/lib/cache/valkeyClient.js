@@ -10,6 +10,17 @@ const DEFAULT_HOST = "127.0.0.1";
 function resolveValkeyConfig() {
   const url = process.env.VALKEY_URL || process.env.REDIS_URL;
   if (url) {
+    // ioredis only understands redis:// and rediss://. A "valkey://" scheme is
+    // silently mis-parsed into host "valkey" / port 6379 instead of erroring,
+    // so normalise it here and warn once rather than connect to a wrong host.
+    if (/^valkeys?:\/\//i.test(url)) {
+      const normalized = url.replace(/^valkeys:/i, "rediss:").replace(/^valkey:/i, "redis:");
+      console.warn(
+        `[Valkey] "${url.replace(/\/\/[^@]*@/, "//***@")}" uses the valkey:// scheme, which ioredis does not support. ` +
+          `Retrying as ${normalized.replace(/\/\/[^@]*@/, "//***@")} (Valkey speaks the Redis protocol).`
+      );
+      return { url: normalized };
+    }
     return { url };
   }
 
@@ -197,4 +208,22 @@ export async function subscribeValkey(channel, callback) {
       }
     }
   };
+}
+
+// ── Diagnostics ─────────────────────────────────────────────────────────────
+// Round-trip latency for /api/health. Returns -1 when Valkey is not reachable
+// so the caller can distinguish "absent" from "fast but zero ms". Never throws.
+export async function valkeyPingLatencyMs() {
+  const client = getValkey();
+  if (!client) return -1;
+  const start = Date.now();
+  try {
+    const result = await Promise.race([
+      client.ping(),
+      new Promise((_, reject) => setTimeout(() => reject(new Error("ping timeout")), 1000)),
+    ]);
+    return result === "PONG" ? Date.now() - start : -1;
+  } catch {
+    return -1;
+  }
 }

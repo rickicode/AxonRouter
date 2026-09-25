@@ -1,0 +1,18 @@
+services:
+  axonrouter-api:
+    container_name: axon-smoke-api
+    ports: !override
+      - "3978:3778"
+  axonrouter-web:
+    container_name: axon-smoke-web
+    ports: !override
+      - "3977:3777"
+  postgres:
+    container_name: axon-smoke-postgres
+    ports: !override
+      - "3954:5432"
+  valkey:
+    container_name: axon-smoke-valkey
+volumes:
+  axonrouter-data:
+  axonrouter-pgdata:

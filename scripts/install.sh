@@ -63,6 +63,7 @@ cd "$TARGET_DIR"
 info "Downloading compose files ..."
 curl -fsSL "$RAW/docker-compose.yml" -o docker-compose.yml </dev/null
 curl -fsSL "$RAW/docker-compose.postgres.yml" -o docker-compose.postgres.yml </dev/null
+curl -fsSL "$RAW/docker-compose.valkey.yml" -o docker-compose.valkey.yml </dev/null || warn "Could not download docker-compose.valkey.yml; the built-in Valkey option will fall back to memory-only."
 if [ ! -f .env ]; then
   curl -fsSL "$RAW/.env.example" -o .env.example </dev/null && cp .env.example .env || : > .env
 fi
@@ -79,11 +80,14 @@ set_env() {
 # Ping host & port using built-in /dev/tcp, nc, python3, or perl (No package installation needed)
 ping_db_port() {
   _url="$1"
-  # Extract host and port
-  _hp="$(printf '%s' "$_url" | sed -E 's#^postgres(ql)?://([^@]+@)?([^/?#]+).*#\3#')"
+  # Extract host and port (postgres://, postgresql://, redis://, rediss://, valkey://)
+  _hp="$(printf '%s' "$_url" | sed -E 's#^(postgres(ql)?|redis(s)?|valkey)://([^@]+@)?([^/?#]+).*#\5#')"
   _host="$(printf '%s' "$_hp" | cut -d: -f1)"
   _port="$(printf '%s' "$_hp" | cut -s -d: -f2)"
-  _port="${_port:-5432}"
+  case "$_url" in
+    redis://*|rediss://*|valkey://*) _port="${_port:-6379}" ;;
+    *) _port="${_port:-5432}" ;;
+  esac
 
   info "Testing TCP connection to $_host:$_port ..."
 
@@ -163,28 +167,89 @@ if [ "$DB_MODE" = "2" ]; then
     *) die "Invalid URL, it must start with postgres:// or postgresql://" ;;
   esac
 
-  # Automatic Neon pooler conversion & generic transaction pooler rejection
+  # Neon pooler -> prefer direct compute (one less hop, no double pooling).
+  # Generic transaction poolers (Supabase 6543 / PgBouncer) are SUPPORTED at
+  # runtime: postgresAdapter sets prepare=false so prepared statements don't
+  # collide across pooled sessions. We keep all locks as xact-scoped advisory
+  # locks + row FOR UPDATE (no LISTEN/NOTIFY, temp tables, or session GUCs).
   if printf '%s' "$DBURL" | grep -qE 'neon\.tech' && printf '%s' "$DBURL" | grep -qE -- '-pooler'; then
     DBURL="$(printf '%s' "$DBURL" | sed -E 's/-pooler(\.[a-zA-Z0-9.-]+\.neon\.tech|\.neon\.tech)/\1/g')"
-    warn "Detected Neon pooler URL. Automatically converted to direct compute endpoint (removed '-pooler') for persistent worker cluster compatibility."
-  elif printf '%s' "$DBURL" | grep -qE 'pooler\.supabase\.com:6543|:6543/|\.pgbouncer\.|-pooler\b'; then
-    die "Transaction poolers (PgBouncer port 6543 / pooler mode) are not supported. AxonRouter uses an internal connection pool across Hono workers and requires a direct connection (port 5432 / direct session endpoint)."
+    warn "Detected Neon pooler URL. Automatically switched to the direct compute endpoint (faster, one less hop). Set NEON_FORCE_POOLER=true to keep the pooler."
+  elif printf '%s' "$DBURL" | grep -qE 'pooler\.supabase\.com:6543|:6543/|\.pgbouncer\.'; then
+    warn "Transaction pooler detected. AxonRouter supports it (prepared statements auto-disabled), but a direct/session endpoint is faster. Continuing with the pooler."
   fi
 
   # Fast lightweight TCP ping (instant, zero apt-get/dnf/pacman)
   ping_db_port "$DBURL"
 
-  set_env COMPOSE_FILE "docker-compose.yml"
+  COMPOSE_OVERLAYS="docker-compose.yml"
   set_env DATABASE_URL "$DBURL"
   ok "External PostgreSQL selected (the local Postgres container will NOT run)."
   warn "Make sure the PostgreSQL role has CREATE rights (the schema is applied on boot)."
 else
-  set_env COMPOSE_FILE "docker-compose.yml:docker-compose.postgres.yml"
+  COMPOSE_OVERLAYS="docker-compose.yml:docker-compose.postgres.yml"
   set_env POSTGRES_PASSWORD "$(rand_hex 16)"
   PG_PW="$(grep '^POSTGRES_PASSWORD=' .env | cut -d= -f2-)"
   set_env DATABASE_URL "postgres://axonrouter:${PG_PW}@postgres:5432/axonrouter"
   ok "Using built-in PostgreSQL (postgres:17-alpine container enabled)."
 fi
+
+# ---------- 4b. Valkey speed layer (cross-process realtime state) ----------
+# Valkey holds the shared active-request registry, recent-request ring, account
+# cooldowns and rotation mutexes, and fans /api/usage/stream events to every
+# worker. It is optional: with no Valkey reachable the app fails open to
+# per-process memory, so the dashboard only sees its own worker's traffic.
+VALKEY_MODE="1"
+VALKEYURL="${EXTERNAL_VALKEY_URL:-${REDIS_URL:-}}"
+if [ -n "$VALKEYURL" ]; then
+  VALKEY_MODE="2"
+elif [ "$HAS_TTY" = "1" ] && [ -f docker-compose.valkey.yml ]; then
+  printf '\n%s==>%s Enable the Valkey speed layer for cross-worker realtime state?\n' "$CYN$B" "$R"
+  printf '    %s[1]%s Built-in Valkey 8 (Docker container, recommended) %s[default]%s\n' "$GRN$B" "$R" "$CYN$R"
+  printf '    %s[2]%s External Redis/Valkey (ElastiCache / Upstash / any server)\n' "$YLW$B" "$R"
+  printf '    %s[3]%s None (memory-only; each worker keeps private state)\n' "$RED$B" "$R"
+  printf '    Choose [1/2/3] (Enter = 1): '
+  case "$(read_input)" in
+    3|none|off|no) VALKEY_MODE="3" ;;
+    2|external|ext) VALKEY_MODE="2" ;;
+    *) VALKEY_MODE="1" ;;
+  esac
+elif [ ! -f docker-compose.valkey.yml ]; then
+  warn "docker-compose.valkey.yml missing; skipping Valkey setup (memory-only speed layer)."
+  VALKEY_MODE="3"
+fi
+
+if [ "$VALKEY_MODE" = "2" ]; then
+  if [ -z "$VALKEYURL" ]; then
+    printf '\n    Enter your Redis/Valkey connection URL:\n'
+    printf '    (example: redis://user:password@host:6379/0  |  rediss:// for TLS)\n'
+    printf '    > '
+    VALKEYURL="$(read_input)"
+  fi
+  VALKEYURL="$(printf '%s' "$VALKEYURL" | tr -d ' \t')"
+  case "$VALKEYURL" in
+    redis://*|rediss://*) ;;
+    # ioredis has no valkey:// scheme and would silently mis-parse it, so refuse it.
+    valkey://*) die "Unsupported scheme 'valkey://'. ioredis does not recognise it and would connect to the wrong host. Use redis:// or rediss:// (Valkey speaks the Redis protocol)." ;;
+    *) die "Invalid URL, it must start with redis:// or rediss://" ;;
+  esac
+
+  ping_db_port "$VALKEYURL"
+
+  set_env VALKEY_URL "$VALKEYURL"
+  ok "External Redis/Valkey selected (no local Valkey container will run)."
+elif [ "$VALKEY_MODE" = "1" ]; then
+  COMPOSE_OVERLAYS="$COMPOSE_OVERLAYS:docker-compose.valkey.yml"
+  set_env VALKEY_URL "redis://valkey:6379"
+  ok "Using built-in Valkey 8 (axonrouter-valkey container enabled)."
+else
+  # Keep any previously written VALKEY_URL from a prior run harmless: an empty
+  # value makes the client use its 127.0.0.1 default and fail open to memory.
+  set_env VALKEY_URL ""
+  warn "No Valkey: realtime state stays per-process (memory-only speed layer)."
+fi
+
+set_env COMPOSE_FILE "$COMPOSE_OVERLAYS"
 
 # ---------- 5. Gateway workers (max = CPU cores) ----------
 CORES="$(nproc 2>/dev/null || getconf _NPROCESSORS_ONLN 2>/dev/null || echo 1)"
@@ -227,6 +292,12 @@ printf '  %s✓ AxonRouter installed successfully and running!%s\n' "$GRN$B" "$R
 printf '========================================================================\n'
 printf '  • Stack directory : %s%s%s\n' "$B" "$DISPLAY_DIR" "$R"
 printf '  • Database mode   : %s%s%s\n' "$B" "$([ "$DB_MODE" = "2" ] && echo "External PostgreSQL (Neon / managed)" || echo "Built-in PostgreSQL 17 container")" "$R"
+case "$VALKEY_MODE" in
+  2) SPEED_LAYER="External Redis/Valkey (shared realtime state across workers)" ;;
+  3) SPEED_LAYER="memory-only (each worker keeps private realtime state)" ;;
+  *) SPEED_LAYER="Built-in Valkey 8 container (shared realtime state across workers)" ;;
+esac
+printf '  • Speed layer     : %s%s%s\n' "$B" "$SPEED_LAYER" "$R"
 printf '  • Dashboard       : %shttp://localhost:3777%s\n' "$CYN$B" "$R"
 printf '  • Login password  : %s%s%s  (password only, no username)\n' "$GRN$B" "$ADMIN_PASS" "$R"
 printf '\n  %s[PORTS & GATEWAY API]%s\n' "$YLW$B" "$R"

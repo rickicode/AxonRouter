@@ -1,6 +1,7 @@
 import { NextResponse } from "@/lib/http/response.js";
 import { pingDb } from "@/lib/db/repos/settingsRepo.js";
 import { memSize } from "@/lib/cache/memoryStore";
+import { isValkeyAvailable, valkeyPingLatencyMs } from "@/lib/cache/valkeyClient.js";
 import { getRoutingMetrics } from "open-sse/services/routingMetrics";
 
 const CORS_HEADERS = {
@@ -22,7 +23,7 @@ export async function GET() {
     status: "healthy",
     timestamp: new Date().toISOString(),
     postgres: false,
-    // Single-container: in-memory speed layer is always up.
+    // Overwritten below once Valkey reachability is known.
     cache: true,
     cacheNote: "memory-only speed layer",
     latencyMs: {},
@@ -45,6 +46,26 @@ export async function GET() {
     check.latencyMs.memory = 0;
     check.memoryKeys = memSize();
   } catch {}
+
+  // Valkey is the cross-process coordination layer. It is optional by design:
+  // when it is down the app fails open to per-process memory, so an unhealthy
+  // Valkey must NOT flip the top-level status or the 503 — otherwise watchtower
+  // and the compose healthcheck would restart a perfectly serving container.
+  try {
+    const valkeyUp = isValkeyAvailable();
+    check.valkey = valkeyUp;
+    check.cacheNote = valkeyUp
+      ? "valkey shared speed layer"
+      : "memory-only speed layer (valkey unavailable)";
+    if (valkeyUp) {
+      const rtt = await valkeyPingLatencyMs();
+      check.valkey = rtt >= 0;
+      if (rtt >= 0) check.latencyMs.valkey = rtt;
+      else check.cacheNote = "memory-only speed layer (valkey unreachable)";
+    }
+  } catch {
+    check.valkey = false;
+  }
 
   check.routing = getRoutingMetrics();
 
