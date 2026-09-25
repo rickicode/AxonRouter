@@ -6,6 +6,7 @@ import { BrowserRouter, Routes, Route, Navigate, useParams } from "react-router-
 import { ThemeProvider } from "@/shared/components/ThemeProvider";
 import { RuntimeI18nProvider } from "@/i18n/RuntimeI18nProvider";
 import { DashboardLayout, ErrorBoundary } from "@/shared/components";
+import DocumentTitle from "@/lib/ui/documentTitle";
 
 const LoginPage = lazy(() => import("@/app/login/page.js"));
 const LandingPage = lazy(() => import("@/app/landing/page.js"));
@@ -131,6 +132,7 @@ function ToolIdPage() {
 createRoot(document.getElementById("root")).render(
   <StrictMode>
     <BrowserRouter>
+      <DocumentTitle />
       <ThemeProvider>
         <RuntimeI18nProvider>
           <Routes>
