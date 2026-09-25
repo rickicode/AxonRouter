@@ -94,12 +94,18 @@ export async function POST(request) {
 
       const token = await createDashboardAuthToken();
       const secure = shouldUseSecureCookie(request);
+      const { generateCsrfToken, CSRF_COOKIE_NAME } = await import("@/lib/security/ingressSecurity.js");
+      const csrfToken = generateCsrfToken();
       const cookieStr = `auth_token=${encodeURIComponent(token)}; Path=/; Max-Age=86400; HttpOnly; SameSite=Lax${secure ? "; Secure" : ""}`;
+      // Readable by JS on purpose: the dashboard echoes it in x-csrf-token
+      // (double-submit). A cross-origin page can send cookies but cannot read this.
+      const csrfCookieStr = `${CSRF_COOKIE_NAME}=${encodeURIComponent(csrfToken)}; Path=/; Max-Age=86400; SameSite=Lax${secure ? "; Secure" : ""}`;
 
       const resHeaders = new Headers();
       resHeaders.append("cache-control", "no-store");
       resHeaders.append("content-type", "application/json");
       resHeaders.append("set-cookie", cookieStr);
+      resHeaders.append("set-cookie", csrfCookieStr);
 
       return new Response(JSON.stringify({ success: true, mustChangePassword: false }), {
         status: 200,

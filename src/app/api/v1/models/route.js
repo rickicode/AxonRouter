@@ -156,11 +156,13 @@ const parseOpenAIStyleModels = (data) => {
   return data?.data || data?.models || data?.results || [];
 };
 
-// In-memory cache for /v1/models with Stale-While-Revalidate (SWR).
-// Responses return in <2ms. Background refresh keeps catalog up to date without
-// blocking client requests or causing client discovery timeouts.
-const MODELS_CACHE_FRESH_MS = 5 * 60 * 1000; // 5 min fresh
-const MODELS_CACHE_MAX_STALE_MS = 60 * 60 * 1000; // 1 hr stale fallback
+// /v1/models cache. Two layers:
+//  - in-process Map: sub-ms hit for the worker that just served a request.
+//  - PostgreSQL kv snapshot (modelsSnapshot.js): one build cluster-wide; every
+//    worker and every container (gateway + web) reads the same row. Without it
+//    each of N workers pays the multi-second live-catalog build independently.
+const MODELS_CACHE_FRESH_MS = 5 * 60 * 1000;
+const MODELS_CACHE_MAX_STALE_MS = 60 * 60 * 1000;
 let modelsListCache = new Map();
 let inFlightBuild = new Map();
 
@@ -170,7 +172,11 @@ async function refreshModelsCache(cacheKey, skipDynamicFetch) {
   }
   const promise = (async () => {
     try {
-      const data = await buildModelsList([LLM_KIND], { skipDynamicFetch });
+      const { resolveModelsSnapshot } = await import("@/lib/cache/modelsSnapshot.js");
+      const { data, source } = await resolveModelsSnapshot(
+        (opts) => buildModelsList([LLM_KIND], { skipDynamicFetch: opts.skipDynamicFetch }),
+        false
+      );
       if (Array.isArray(data) && data.length > 0) {
         modelsListCache.set(cacheKey, {
           data,
@@ -178,10 +184,10 @@ async function refreshModelsCache(cacheKey, skipDynamicFetch) {
           staleUntil: Date.now() + MODELS_CACHE_MAX_STALE_MS,
         });
       }
-      return data;
+      return { data, source };
     } catch (err) {
-      console.log(`[ModelsCache] Background refresh failed for ${cacheKey}:`, err?.message || err);
-      return modelsListCache.get(cacheKey)?.data || [];
+      console.log(`[ModelsCache] refresh failed for ${cacheKey}:`, err?.message || err);
+      return { data: modelsListCache.get(cacheKey)?.data || [], source: "error" };
     } finally {
       inFlightBuild.delete(cacheKey);
     }
@@ -189,11 +195,6 @@ async function refreshModelsCache(cacheKey, skipDynamicFetch) {
   inFlightBuild.set(cacheKey, promise);
   return promise;
 }
-
-// Pre-warm cache shortly after boot in background
-setTimeout(() => {
-  refreshModelsCache("full", false).catch(() => {});
-}, 1000).unref?.();
 // Header sent by fetchCompatibleModelIds to detect cross-instance /models fetches
 // and break recursive loops between axonrouter instances connected to each other.
 const INTERNAL_MODELS_FETCH_HEADER = "x-axonrouter-internal-models-fetch";
@@ -715,7 +716,7 @@ export async function GET(request) {
     const cached = modelsListCache.get(cacheKey);
     const now = Date.now();
 
-    // 1. Fresh cache: serve immediately (<2ms)
+    // 1. Fresh in-process cache: serve immediately (<2ms)
     if (cached && now < cached.expiresAt) {
       return Response.json({ object: "list", data: cached.data }, {
         headers: {
@@ -726,7 +727,7 @@ export async function GET(request) {
       });
     }
 
-    // 2. Stale-While-Revalidate: serve stale immediately (<2ms) and trigger background re-fetch
+    // 2. Stale in-process cache: serve now, revalidate in background.
     if (cached && now < cached.staleUntil) {
       refreshModelsCache(cacheKey, skipDynamicFetch).catch(() => {});
       return Response.json({ object: "list", data: cached.data }, {
@@ -738,13 +739,14 @@ export async function GET(request) {
       });
     }
 
-    // 3. Cold start: wait for in-flight build or build now
-    const data = await refreshModelsCache(cacheKey, skipDynamicFetch);
+    // 3. Not in this worker's memory: shared PG snapshot decides (built once
+    //    cluster-wide), or this worker builds when the snapshot is cold.
+    const { data, source } = await refreshModelsCache(cacheKey, skipDynamicFetch);
     return Response.json({ object: "list", data }, {
       headers: {
         "Access-Control-Allow-Origin": "*",
         "Cache-Control": "public, max-age=60",
-        "x-axonrouter-cache": "MISS",
+        "x-axonrouter-cache": source === "pg" ? "PG-HIT" : source === "stale" || source === "error" ? "PG-STALE" : "MISS",
       },
     });
   } catch (error) {
