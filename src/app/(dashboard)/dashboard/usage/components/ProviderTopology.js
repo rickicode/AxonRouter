@@ -262,12 +262,26 @@ function buildLayout(providers, activeSet, lastSet, errorSet, totalActiveCount =
  const minRx = ((nodeW + nodeGap) * count) / (2 * Math.PI);
  const rx = Math.max(320, minRx);
  const ry = Math.max(200, rx * 0.55); // ellipse ratio ~0.55
- if (count === 0) {
- return {
- nodes: [{ id: "router", type: "router", position: { x: 0, y: 0 }, data: { activeCount: 0 }, draggable: false }],
- edges: [],
- };
- }
+  if (count === 0) {
+    const rx = 320;
+    const ry = 200;
+    return {
+      nodes: [
+        { id: "bound-top", position: { x: 0, y: -ry }, style: { width: 1, height: 1, opacity: 0, pointerEvents: "none" }, data: {}, draggable: false, selectable: false },
+        { id: "bound-bottom", position: { x: 0, y: ry }, style: { width: 1, height: 1, opacity: 0, pointerEvents: "none" }, data: {}, draggable: false, selectable: false },
+        { id: "bound-left", position: { x: -rx, y: 0 }, style: { width: 1, height: 1, opacity: 0, pointerEvents: "none" }, data: {}, draggable: false, selectable: false },
+        { id: "bound-right", position: { x: rx, y: 0 }, style: { width: 1, height: 1, opacity: 0, pointerEvents: "none" }, data: {}, draggable: false, selectable: false },
+        {
+          id: "router",
+          type: "router",
+          position: { x: -routerW / 2, y: -routerH / 2 },
+          data: { activeCount: totalActiveCount, idle: true },
+          draggable: false,
+        },
+      ],
+      edges: [],
+    };
+  }
 
  const nodes = [];
  const edges = [];
@@ -374,9 +388,15 @@ export default function ProviderTopology({ providers = [], activeRequests = [], 
   return used;
   }, [rawActiveSet, usedSnapshot]);
   const visibleProviders = useMemo(() => {
-    const active = providers.filter((p) => usedProviderSet.has(String(p.provider || "").toLowerCase()));
-    return active.length > 0 ? active : providers;
-  }, [providers, usedProviderSet]);
+    // Hide all provider icons when there are no active requests.
+    // Only display providers that are actively handling requests.
+    if (!rawActiveSet || rawActiveSet.size === 0) {
+      return [];
+    }
+    const matched = providers.filter((p) => rawActiveSet.has(String(p.provider || "").toLowerCase()));
+    if (matched.length > 0) return matched;
+    return Array.from(rawActiveSet).map((p) => ({ provider: p }));
+  }, [providers, rawActiveSet]);
 
  useEffect(() => {
   const now = Date.now();
@@ -503,51 +523,53 @@ export default function ProviderTopology({ providers = [], activeRequests = [], 
 
  return (
  <div className="flex min-w-0 flex-col">
- <div ref={containerRef} role="img" aria-label={statusSummary} data-testid="topology-container" className="h-[320px] w-full min-w-0 rounded-sm border border-border bg-surface-2 sm:h-[480px] overflow-hidden">
- {visibleProviders.length === 0 ? (
- <div className="h-full flex items-center justify-center text-text-muted text-sm">
- No providers connected
- </div>
- ) : (
- <ReactFlow
- key={providersKey}
- nodes={nodes}
- edges={edges}
- nodeTypes={nodeTypes}
- edgeTypes={edgeTypes}
- fitView
- fitViewOptions={fitOpts}
- minZoom={0.1}
- maxZoom={2}
- onInit={onInit}
- proOptions={{ hideAttribution: true }}
- panOnDrag
- zoomOnScroll
- zoomOnPinch
- zoomOnDoubleClick
- preventScrolling={false}
- nodesDraggable={false}
- nodesConnectable={false}
- elementsSelectable={false}
- >
- {/* One shared filter instance — all halo/plasma paths point at it via url(#topo-electric-shared).
- SMIL animate gated once for all edges; static SVG reduces per-edge repaints to zero. */}
- <svg width={0} height={0} aria-hidden="true" className="topology-defs">
- <defs>
- <filter id={SHARED_FILTER_ID} x="-40%" y="-40%" width="180%" height="180%">
- <feTurbulence type="fractalNoise" baseFrequency="0.9" numOctaves="2" seed="2" result="noise">
- {!reducedMotion && (
- <animate attributeName="baseFrequency" values="0.8;1.4;0.8" dur="0.25s" repeatCount="indefinite" />
- )}
- </feTurbulence>
- <feDisplacementMap in="SourceGraphic" in2="noise" scale="3.5" xChannelSelector="R" yChannelSelector="G" />
- </filter>
- </defs>
- </svg>
- <Controls showInteractive={false} position="bottom-right" className="react-flow-controls-custom" />
- </ReactFlow>
- )}
- </div>
+      <div ref={containerRef} role="img" aria-label={statusSummary} data-testid="topology-container" className="h-[320px] w-full min-w-0 rounded-sm border border-border bg-surface-2 sm:h-[480px] overflow-hidden relative">
+        <ReactFlow
+          key={providersKey}
+          nodes={nodes}
+          edges={edges}
+          nodeTypes={nodeTypes}
+          edgeTypes={edgeTypes}
+          fitView
+          fitViewOptions={fitOpts}
+          minZoom={0.1}
+          maxZoom={2}
+          onInit={onInit}
+          proOptions={{ hideAttribution: true }}
+          panOnDrag
+          zoomOnScroll
+          zoomOnPinch
+          zoomOnDoubleClick
+          preventScrolling={false}
+          nodesDraggable={false}
+          nodesConnectable={false}
+          elementsSelectable={false}
+        >
+          {/* One shared filter instance — all halo/plasma paths point at it via url(#topo-electric-shared).
+          SMIL animate gated once for all edges; static SVG reduces per-edge repaints to zero. */}
+          <svg width={0} height={0} aria-hidden="true" className="topology-defs">
+            <defs>
+              <filter id={SHARED_FILTER_ID} x="-40%" y="-40%" width="180%" height="180%">
+                <feTurbulence type="fractalNoise" baseFrequency="0.9" numOctaves="2" seed="2" result="noise">
+                  {!reducedMotion && (
+                    <animate attributeName="baseFrequency" values="0.8;1.4;0.8" dur="0.25s" repeatCount="indefinite" />
+                  )}
+                </feTurbulence>
+                <feDisplacementMap in="SourceGraphic" in2="noise" scale="3.5" xChannelSelector="R" yChannelSelector="G" />
+              </filter>
+            </defs>
+          </svg>
+          <Controls showInteractive={false} position="bottom-right" className="react-flow-controls-custom" />
+        </ReactFlow>
+
+        {visibleProviders.length === 0 && (
+          <div className="pointer-events-none absolute bottom-4 inset-x-0 flex items-center justify-center">
+            <span className="text-[11px] font-mono text-text-muted/60 bg-surface/80 border border-border/40 px-2.5 py-1 rounded-sm shadow-sm backdrop-blur-xs">
+              Idle • All providers standby (awaiting requests)
+            </span>
+          </div>
+        )}
+      </div>
 
  {/* AT fallback: offscreen text table (outside role=img so screen readers reach it) */}
  {visibleProviders.length > 0 && (
