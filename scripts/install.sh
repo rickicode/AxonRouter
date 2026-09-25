@@ -5,6 +5,7 @@
 set -e
 
 INSTALL_DIR="${1:-$HOME/AxonRouter}"
+REPO_URL="${REPO_URL:-https://github.com/rickicode/AxonRouter.git}"
 
 echo "==> AxonRouter installer (Docker Compose)"
 echo "    Compose file location: $INSTALL_DIR/docker-compose.yml"
