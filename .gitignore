@@ -68,7 +68,7 @@ graphify-out/
 .codegraph/
 .PR/
 .next-analyze/*
-
+.serena/
 # Kiro local workspace state
 .kiro/
 axonrouter-*
