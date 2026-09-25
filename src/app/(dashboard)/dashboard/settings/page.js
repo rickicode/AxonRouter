@@ -940,7 +940,7 @@ className="flex items-center justify-between w-full p-3 rounded-sm bg-bg border 
  {/* {!settings.hasPassword && (
  <div className="p-3 rounded-sm bg-primary/10 border border-primary/30">
  <p className="text-sm text-primary">
- Setting password for the first time. Leave current password empty or use default: <code className="bg-primary/10 px-1 rounded-sm">123456</code>
+Setting password for the first time. Leave current password empty or use default: <code className="bg-primary/10 px-1 rounded-sm">12345677</code>
  </p>
  </div>
  )} */}

@@ -157,6 +157,20 @@ CREATE TABLE IF NOT EXISTS settings (
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
+-- Auto-seed default settings & master password (12345677) on initial install
+INSERT INTO settings (id, data, updated_at)
+VALUES (
+  1,
+  '{"password": "$2b$10$xrgcy0aGADW76p.8smKPIeT8p/7F7pNr5z35TRhP366LIqFTOrfiy", "requireLogin": true, "authMode": "password"}'::jsonb,
+  NOW()
+)
+ON CONFLICT (id) DO NOTHING;
+
+-- If row exists but password is null or empty, seed default password 12345677
+UPDATE settings
+SET data = jsonb_set(COALESCE(data, '{}'::jsonb), '{password}', '"$2b$10$xrgcy0aGADW76p.8smKPIeT8p/7F7pNr5z35TRhP366LIqFTOrfiy"')
+WHERE id = 1 AND (data->>'password' IS NULL OR data->>'password' = '');
+
 -- Model benchmark history. Attempts are facts. Reports are reviewer text.
 CREATE TABLE IF NOT EXISTS benchmark_jobs (
   id UUID PRIMARY KEY,

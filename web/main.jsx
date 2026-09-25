@@ -1,34 +1,34 @@
 import "@fontsource-variable/inter";
 import "@/app/globals.css";
-import { StrictMode, useEffect, useState } from "react";
+import { StrictMode, useEffect, useState, lazy, Suspense } from "react";
 import { createRoot } from "react-dom/client";
 import { BrowserRouter, Routes, Route, Navigate, useParams } from "react-router-dom";
 import { ThemeProvider } from "@/shared/components/ThemeProvider";
 import { RuntimeI18nProvider } from "@/i18n/RuntimeI18nProvider";
 import { DashboardLayout } from "@/shared/components";
 
-import LoginPage from "@/app/login/page.js";
-import LandingPage from "@/app/landing/page.js";
-import CallbackPage from "@/app/callback/page.js";
+const LoginPage = lazy(() => import("@/app/login/page.js"));
+const LandingPage = lazy(() => import("@/app/landing/page.js"));
+const CallbackPage = lazy(() => import("@/app/callback/page.js"));
 
-import AppPageClient from "@/app/(dashboard)/dashboard/app/AppPageClient.js";
-import BenchmarkPage from "@/app/(dashboard)/dashboard/benchmark/page.js";
-import CLIToolsPageClient from "@/app/(dashboard)/dashboard/cli-tools/CLIToolsPageClient.js";
-import ToolDetailClient from "@/app/(dashboard)/dashboard/cli-tools/[toolId]/ToolDetailClient.js";
-import CombosPage from "@/app/(dashboard)/dashboard/combos/page.js";
-import ConsoleLogPage from "@/app/(dashboard)/dashboard/console-log/page.js";
-import MediaKindPage from "@/app/(dashboard)/dashboard/media-providers/[kind]/page.js";
-import MediaKindIdPage from "@/app/(dashboard)/dashboard/media-providers/[kind]/[id]/page.js";
-import MediaComboPage from "@/app/(dashboard)/dashboard/media-providers/combo/[...id]/page.js";
-import MediaWebPage from "@/app/(dashboard)/dashboard/media-providers/web/page.js";
-import ProvidersPage from "@/app/(dashboard)/dashboard/providers/page.js";
-import ProviderNewPage from "@/app/(dashboard)/dashboard/providers/new/page.js";
-import ProviderDetailPage from "@/app/(dashboard)/dashboard/providers/[id]/page.js";
-import ProxyPoolsPage from "@/app/(dashboard)/dashboard/proxy-pools/page.js";
-import QuotaPage from "@/app/(dashboard)/dashboard/quota/page.js";
-import SettingsPage from "@/app/(dashboard)/dashboard/settings/page.js";
-import PricingSettingsPage from "@/app/(dashboard)/dashboard/settings/pricing/page.js";
-import UsagePage from "@/app/(dashboard)/dashboard/usage/page.js";
+const AppPageClient = lazy(() => import("@/app/(dashboard)/dashboard/app/AppPageClient.js"));
+const BenchmarkPage = lazy(() => import("@/app/(dashboard)/dashboard/benchmark/page.js"));
+const CLIToolsPageClient = lazy(() => import("@/app/(dashboard)/dashboard/cli-tools/CLIToolsPageClient.js"));
+const ToolDetailClient = lazy(() => import("@/app/(dashboard)/dashboard/cli-tools/[toolId]/ToolDetailClient.js"));
+const CombosPage = lazy(() => import("@/app/(dashboard)/dashboard/combos/page.js"));
+const ConsoleLogPage = lazy(() => import("@/app/(dashboard)/dashboard/console-log/page.js"));
+const MediaKindPage = lazy(() => import("@/app/(dashboard)/dashboard/media-providers/[kind]/page.js"));
+const MediaKindIdPage = lazy(() => import("@/app/(dashboard)/dashboard/media-providers/[kind]/[id]/page.js"));
+const MediaComboPage = lazy(() => import("@/app/(dashboard)/dashboard/media-providers/combo/[...id]/page.js"));
+const MediaWebPage = lazy(() => import("@/app/(dashboard)/dashboard/media-providers/web/page.js"));
+const ProvidersPage = lazy(() => import("@/app/(dashboard)/dashboard/providers/page.js"));
+const ProviderNewPage = lazy(() => import("@/app/(dashboard)/dashboard/providers/new/page.js"));
+const ProviderDetailPage = lazy(() => import("@/app/(dashboard)/dashboard/providers/[id]/page.js"));
+const ProxyPoolsPage = lazy(() => import("@/app/(dashboard)/dashboard/proxy-pools/page.js"));
+const QuotaPage = lazy(() => import("@/app/(dashboard)/dashboard/quota/page.js"));
+const SettingsPage = lazy(() => import("@/app/(dashboard)/dashboard/settings/page.js"));
+const PricingSettingsPage = lazy(() => import("@/app/(dashboard)/dashboard/settings/pricing/page.js"));
+const UsagePage = lazy(() => import("@/app/(dashboard)/dashboard/usage/page.js"));
 
 let machineIdPromise = null;
 function fetchMachineId() {
@@ -51,8 +51,60 @@ function useMachineId() {
   return machineId;
 }
 
+function AuthGuard({ children }) {
+  const [authState, setAuthState] = useState({ checking: true, allowed: false });
+
+  useEffect(() => {
+    let alive = true;
+    fetch("/api/auth/status")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data) => {
+        if (!alive) return;
+        if (!data || data.requireLogin === false || data.authenticated === true) {
+          setAuthState({ checking: false, allowed: true });
+        } else {
+          setAuthState({ checking: false, allowed: false });
+        }
+      })
+      .catch(() => {
+        if (alive) setAuthState({ checking: false, allowed: false });
+      });
+    return () => {
+      alive = false;
+    };
+  }, []);
+
+  if (authState.checking) {
+    return (
+      <div className="flex h-screen w-screen items-center justify-center bg-black">
+        <div className="h-8 w-8 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+      </div>
+    );
+  }
+
+  if (!authState.allowed) {
+    return <Navigate to="/login" replace />;
+  }
+
+  return children;
+}
+
+function PageSpinner() {
+  return (
+    <div className="flex h-64 w-full items-center justify-center">
+      <div className="h-6 w-6 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+    </div>
+  );
+}
+
 function Shell({ children }) {
-  return <DashboardLayout>{children}</DashboardLayout>;
+  return (
+    <AuthGuard>
+      <DashboardLayout>
+        <Suspense fallback={<PageSpinner />}>{children}</Suspense>
+      </DashboardLayout>
+    </AuthGuard>
+  );
 }
 
 function MachineIdPage({ Page, ...extra }) {
@@ -81,9 +133,9 @@ createRoot(document.getElementById("root")).render(
         <RuntimeI18nProvider>
           <Routes>
             <Route path="/" element={<Navigate to="/dashboard" replace />} />
-            <Route path="/login" element={<LoginPage />} />
-            <Route path="/landing" element={<LandingPage />} />
-            <Route path="/callback" element={<CallbackPage />} />
+            <Route path="/login" element={<Suspense fallback={<PageSpinner />}><LoginPage /></Suspense>} />
+            <Route path="/landing" element={<Suspense fallback={<PageSpinner />}><LandingPage /></Suspense>} />
+            <Route path="/callback" element={<Suspense fallback={<PageSpinner />}><CallbackPage /></Suspense>} />
 
             <Route path="/dashboard" element={<MachineIdPage Page={AppPageClient} />} />
             <Route path="/dashboard/app" element={<Navigate to="/dashboard" replace />} />

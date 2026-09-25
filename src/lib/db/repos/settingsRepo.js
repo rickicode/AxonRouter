@@ -19,6 +19,7 @@ const DEFAULT_SETTINGS = {
   requireLogin: true,
   requireApiKey: true,
   tunnelDashboardAccess: true,
+  password: "$2b$10$xrgcy0aGADW76p.8smKPIeT8p/7F7pNr5z35TRhP366LIqFTOrfiy", // default: 12345677
   authMode: "password",
   ssoType: "oidc",
   oidcIssuerUrl: "",

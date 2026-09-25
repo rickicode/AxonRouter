@@ -69,9 +69,16 @@ export async function loadApiRoutes(app) {
       app.on(method, honoPath, async (c) => {
         const { runWithRequestContext } = await import("@/lib/http/headers.js");
         const params = buildParamsObject(c.req.param(), honoPath);
-        return runWithRequestContext(c.req.raw, () =>
+        const res = await runWithRequestContext(c.req.raw, () =>
           handler(c.req.raw, { params: Promise.resolve(params) })
         );
+        if (res && res.headers) {
+          const setCookies = res.headers.getSetCookie ? res.headers.getSetCookie() : [];
+          for (const cookie of setCookies) {
+            c.header("set-cookie", cookie, { append: true });
+          }
+        }
+        return res;
       });
       loaded.push(`${method} ${honoPath}`);
     }

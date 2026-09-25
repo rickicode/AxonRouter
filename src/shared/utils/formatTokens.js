@@ -1,30 +1,25 @@
 /**
  * Canonical token/count formatting for the dashboard.
  *
- * Values are normalised to the largest sensible unit so a token count never
- * sprawls across a metric card: 1,018,967,596 reads as `1,018.97M`. Grouping
- * separators are always applied, including to the mantissa, because operators
- * scan these columns for magnitude, not for exact digits.
+ * Values are normalised to the largest sensible unit and rendered WITHOUT
+ * decimals so a token count never sprawls across a metric card:
+ * 1200 -> `1K`, 12345 -> `12K`, 999999 -> `1M`, 1542000 -> `2M`.
+ * Thousands are grouped with `.` (Indonesian style); exact values live in
+ * formatTokensExact tooltips, so these are read for magnitude, not digits.
  */
 
 const UNITS = [
-  { suffix: "B", divisor: 1_000_000_000, decimals: 3 },
-  { suffix: "M", divisor: 1_000_000, decimals: 2 },
-  { suffix: "K", divisor: 1_000, decimals: 2 },
+  { suffix: "B", divisor: 1_000_000_000 },
+  { suffix: "M", divisor: 1_000_000 },
+  { suffix: "K", divisor: 1_000 },
 ];
 
 function group(intPart) {
-  return intPart.replace(/\B(?=(\d{3})+(?!\d))/g, ",");
-}
-
-function trimZeros(fixed) {
-  if (!fixed.includes(".")) return fixed;
-  const trimmed = fixed.replace(/0+$/, "").replace(/\.$/, "");
-  return trimmed || "0";
+  return intPart.replace(/\B(?=(\d{3})+(?!\d))/g, ".");
 }
 
 /**
- * Format a token count, shrinking to K/M/B when the value warrants it.
+ * Format a token count, shrinking to K/M/B with no decimals.
  * Below 1,000 the exact integer is returned with grouping.
  */
 export function formatTokens(value) {
@@ -34,26 +29,17 @@ export function formatTokens(value) {
 
   if (abs < 1000) return `${sign}${group(String(Math.round(abs)))}`;
 
-  for (const { suffix, divisor, decimals } of UNITS) {
+  for (const { suffix, divisor } of UNITS) {
     if (abs < divisor) continue;
-    const scaled = abs / divisor;
-    // Rounding must not promote the value past its own unit: 999,999 scaling
-    // to 1,000.0K would read as a unit error, so keep the smaller unit until
-    // the scaled value genuinely reaches the next one.
-    const fixed = trimZeros(scaled.toFixed(decimals));
-    const [whole, frac] = fixed.split(".");
-    const wholeNum = Number(whole);
-    if (wholeNum >= 1000 && suffix !== "B") {
-      const next = UNITS[UNITS.indexOf(UNITS.find((u) => u.suffix === suffix)) - 1];
-      const nextScaled = abs / next.divisor;
-      const nextFixed = trimZeros(nextScaled.toFixed(next.decimals));
-      const [nextWhole, nextFrac] = nextFixed.split(".");
-      return `${sign}${group(nextWhole)}${nextFrac ? `.${nextFrac}` : ""}${next.suffix}`;
-    }
-    return `${sign}${group(whole)}${frac ? `.${frac}` : ""}${suffix}`;
+    const scaled = Math.round(abs / divisor);
+    // Rounding must not promote the value past its own unit: 999,999 rounds
+    // to 1000K, which would read as a unit error - hand it to M instead.
+    if (scaled >= 1000 && suffix !== "B") continue;
+    return `${sign}${group(String(scaled))}${suffix}`;
   }
 
-  return `${sign}${group(String(abs))}`;
+  // Only reachable when rounding pushes K into M (999,500 - 999,999).
+  return `${sign}${group(String(Math.round(abs / 1_000_000)))}M`;
 }
 
 /**

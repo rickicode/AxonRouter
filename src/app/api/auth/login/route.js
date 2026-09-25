@@ -2,7 +2,7 @@ import { NextResponse } from "@/lib/http/response.js";
 import { getSettings } from "@/lib/localDb";
 import bcrypt from "bcryptjs";
 import { cookies } from "@/lib/http/headers.js";
-import { setDashboardAuthCookie } from "@/lib/auth/dashboardSession";
+import { setDashboardAuthCookie, createDashboardAuthToken, shouldUseSecureCookie } from "@/lib/auth/dashboardSession";
 import { isOidcConfigured } from "@/lib/auth/oidc";
 import { isSamlConfigured } from "@/lib/auth/saml.js";
 import { checkLock, recordFail, recordSuccess, getClientIp } from "@/lib/auth/loginLimiter";
@@ -37,7 +37,7 @@ export async function POST(request) {
       return NextResponse.json({ error: "Dashboard access via tunnel is disabled" }, { status: 403 });
     }
 
-    // Default password is '123456' if not set
+    // Default password is '12345677' if not set
     const storedHash = settings.password;
 
     if (settings.authMode === "sso" || settings.authMode === "saml" || settings.authMode === "oidc") {
@@ -55,7 +55,7 @@ export async function POST(request) {
       isValid = await bcrypt.compare(password, storedHash);
     } else {
       // Use env var or default
-      const initialPassword = process.env.INITIAL_PASSWORD || "123456";
+      const initialPassword = process.env.INITIAL_PASSWORD || "12345677";
       isValid = password === initialPassword;
     }
 
@@ -69,7 +69,7 @@ export async function POST(request) {
 
       if (mustChangePassword) {
         // Do NOT issue a session token: a fresh install's default password is
-        // public knowledge ("123456"), so handing out a valid JWT would let any
+        // public knowledge ("12345677"), so handing out a valid JWT would let any
         // remote attacker authenticate and (e.g.) PATCH /api/settings to disable
         // authentication entirely (CVE-2026-56679 class). Require the password
         // to be changed first.
@@ -87,10 +87,19 @@ export async function POST(request) {
         );
       }
 
-      const cookieStore = await cookies();
-      await setDashboardAuthCookie(cookieStore, request);
+      const token = await createDashboardAuthToken();
+      const secure = shouldUseSecureCookie(request);
+      const cookieStr = `auth_token=${encodeURIComponent(token)}; Path=/; Max-Age=86400; HttpOnly; SameSite=Lax${secure ? "; Secure" : ""}`;
 
-      return NextResponse.json({ success: true, mustChangePassword: false }, { headers: NO_STORE_HEADERS });
+      const resHeaders = new Headers();
+      resHeaders.append("cache-control", "no-store");
+      resHeaders.append("content-type", "application/json");
+      resHeaders.append("set-cookie", cookieStr);
+
+      return new Response(JSON.stringify({ success: true, mustChangePassword: false }), {
+        status: 200,
+        headers: resHeaders,
+      });
     }
 
     const { remainingBeforeLock } = recordFail(ip);

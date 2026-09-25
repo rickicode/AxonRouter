@@ -4,6 +4,7 @@ import { getSettings } from "@/lib/localDb";
 import { isOidcConfigured } from "@/lib/auth/oidc";
 import { isSamlConfigured } from "@/lib/auth/saml.js";
 import { getDashboardAuthSession } from "@/lib/auth/dashboardSession";
+import { getAppVersion } from "@/lib/db/version.js";
 
 export async function GET() {
   try {
@@ -28,6 +29,7 @@ export async function GET() {
     const loginMethod = session?.saml ? "SAML" : session?.oidc ? "OIDC" : "Password";
 
     return NextResponse.json({
+      version: getAppVersion(),
       requireLogin,
       authMode,
       ssoType,
@@ -48,6 +50,7 @@ export async function GET() {
     });
   } catch {
     return NextResponse.json({
+      version: getAppVersion(),
       requireLogin: true,
       authMode: "password",
       ssoType: "oidc",

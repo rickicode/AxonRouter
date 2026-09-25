@@ -58,10 +58,13 @@ export default function RealtimeRequestRow({ req, onOpenError }) {
  </span>
  </td>
 
- {/* Model */}
- <td className="h-8 px-3 font-mono font-medium text-text-main truncate max-w-[200px] text-sm" title={r.model}>
- {r.model}
- </td>
+      {/* Model */}
+      <td
+        className="h-8 px-3 font-mono font-medium text-text-main text-xs sm:text-sm min-w-[140px] max-w-[200px] md:max-w-[320px] lg:max-w-[460px] xl:max-w-none truncate"
+        title={r.model}
+      >
+        {r.model}
+      </td>
 
  {/* Provider */}
  <td className="h-8 px-3 text-sm">
@@ -88,21 +91,20 @@ export default function RealtimeRequestRow({ req, onOpenError }) {
  </span>
  </td>
 
- {/* Tokens */}
- <td className="h-8 px-3 text-right whitespace-nowrap font-mono text-[11px] text-sm">
- <span className="text-primary font-medium">
- {fmt(r.promptTokens)}↑
- </span>{" "}
- <span className="text-success font-medium">
- {fmt(r.completionTokens)}↓
- </span>
- </td>
+      {/* Tokens */}
+      <td className="h-8 px-3 text-right whitespace-nowrap font-mono text-xs">
+        <span className="text-primary font-medium" title={`In: ${Number(r.promptTokens || 0).toLocaleString("en-US")}`}>
+          {fmt(r.promptTokens)}↑
+        </span>{" "}
+        <span className="text-success font-medium" title={`Out: ${Number(r.completionTokens || 0).toLocaleString("en-US")}`}>
+          {fmt(r.completionTokens)}↓
+        </span>
+      </td>
 
- {/* When */}
- <td className="h-8 px-3 text-right text-text-muted whitespace-nowrap text-[11px] text-sm">
- <TimeAgo timestamp={r.timestamp} />
- </td>
-
+      {/* When */}
+      <td className="h-8 px-3 text-right text-text-muted whitespace-nowrap text-xs font-mono">
+        <TimeAgo timestamp={r.timestamp} />
+      </td>
  {/* Action */}
  <td className="h-8 px-3 text-center whitespace-nowrap text-sm">
  {!isOk || r.error ? (

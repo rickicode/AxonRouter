@@ -129,8 +129,57 @@ async function canAccessPublicLlmApi(c) {
 app.use("*", async (c, next) => {
   const pathname = c.req.path;
 
-  // Static assets and SPA html pass through
-  if (!pathname.startsWith("/api/") && !PUBLIC_PREFIXES.some((p) => pathname === p || pathname.startsWith(p + "/"))) {
+  // Allow public static assets
+  if (
+    pathname.startsWith("/assets/") ||
+    pathname.startsWith("/icons/") ||
+    pathname.startsWith("/providers/") ||
+    pathname === "/favicon.svg" ||
+    pathname === "/manifest.webmanifest" ||
+    pathname === "/sw.js" ||
+    /\.(js|css|svg|png|jpg|jpeg|webp|ico|woff2?|ttf|eot)$/i.test(pathname)
+  ) {
+    return next();
+  }
+
+  // Public frontend pages
+  if (pathname === "/login") {
+    const authCookie = c.req.header("cookie");
+    const tokenMatch = authCookie && authCookie.match(/auth_token=([^;]+)/);
+    const token = tokenMatch ? decodeURIComponent(tokenMatch[1]) : null;
+    if (token) {
+      const { verifyDashboardAuthToken } = await import("@/lib/auth/dashboardSession");
+      if (await verifyDashboardAuthToken(token)) {
+        return c.redirect("/dashboard", 302);
+      }
+    }
+    return next();
+  }
+
+  if (pathname === "/landing" || pathname.startsWith("/callback")) {
+    return next();
+  }
+
+  // Protect all dashboard routes & root
+  if (pathname === "/" || pathname.startsWith("/dashboard")) {
+    const settings = await getCachedSettings();
+    const requireLogin = settings?.requireLogin !== false;
+    if (requireLogin) {
+      const authCookie = c.req.header("cookie");
+      const tokenMatch = authCookie && authCookie.match(/auth_token=([^;]+)/);
+      const token = tokenMatch ? decodeURIComponent(tokenMatch[1]) : null;
+      let authenticated = false;
+      if (token) {
+        const { verifyDashboardAuthToken } = await import("@/lib/auth/dashboardSession");
+        authenticated = await verifyDashboardAuthToken(token);
+      }
+      if (!authenticated) {
+        return c.redirect("/login", 302);
+      }
+    }
+    if (pathname === "/") {
+      return c.redirect("/dashboard", 302);
+    }
     return next();
   }
 
