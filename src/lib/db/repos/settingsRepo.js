@@ -46,6 +46,9 @@ const DEFAULT_SETTINGS = {
   ponytailEnabled: false,
   ponytailLevel: "full",
   benchmarkRetentionDays: 30,
+  usageRetentionDays: 7,
+  usageMaxRecords: 100000,
+  usagePartitionRetainMonths: 2,
 };
 
 let cachedSettings = null;

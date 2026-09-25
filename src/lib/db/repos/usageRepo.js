@@ -1346,3 +1346,67 @@ export async function getRecentLogs(limit = 200) {
     return [];
   }
 }
+
+/**
+ * Prune raw usage_history records based on retention days and capacity limit.
+ * Daily aggregated metrics in usage_daily remain untouched.
+ */
+export async function pruneUsageHistory({
+  retentionDays,
+  maxRecords,
+} = {}) {
+  try {
+    const db = await getAdapter();
+    const { getSettings } = await import("./settingsRepo.js");
+    const settings = await getSettings().catch(() => ({}));
+
+    const days = retentionDays !== undefined
+      ? Number(retentionDays)
+      : (settings.usageRetentionDays !== undefined ? Number(settings.usageRetentionDays) : (Number(process.env.USAGE_RETENTION_DAYS) || 7));
+
+    const maxRecs = maxRecords !== undefined
+      ? Number(maxRecords)
+      : (settings.usageMaxRecords !== undefined ? Number(settings.usageMaxRecords) : (Number(process.env.USAGE_MAX_RECORDS) || 100000));
+
+    let deletedCount = 0;
+
+    // 1. Time-based retention cutoff: delete rows older than `days`
+    if (Number.isFinite(days) && days > 0) {
+      const res = await db.run(
+        `DELETE FROM usage_history WHERE timestamp < NOW() - ($1 || ' days')::INTERVAL;`,
+        [days],
+      );
+      deletedCount += Number(res?.changes || 0);
+    }
+
+    // 2. Capacity-based cutoff: if total rows > maxRecords, delete the oldest excess rows
+    if (Number.isFinite(maxRecs) && maxRecs > 0) {
+      const countRow = await db.get(`SELECT COUNT(*) AS total FROM usage_history;`);
+      const total = Number(countRow?.total || 0);
+      if (total > maxRecs) {
+        const excess = total - maxRecs;
+        const cutoffRow = await db.get(
+          `SELECT timestamp, id FROM usage_history ORDER BY timestamp ASC, id ASC OFFSET $1 LIMIT 1;`,
+          [excess],
+        );
+        if (cutoffRow?.timestamp && cutoffRow?.id) {
+          const res = await db.run(
+            `DELETE FROM usage_history WHERE (timestamp, id) <= ($1, $2);`,
+            [cutoffRow.timestamp, cutoffRow.id],
+          );
+          deletedCount += Number(res?.changes || 0);
+        }
+      }
+    }
+
+    // Reclaim dead space if rows were deleted
+    if (deletedCount > 0) {
+      db.run("VACUUM usage_history").catch(() => {});
+    }
+
+    return { deleted: deletedCount };
+  } catch (err) {
+    console.error("[usageRepo] prune error:", err.message);
+    return { error: err.message, deleted: 0 };
+  }
+}

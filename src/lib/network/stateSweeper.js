@@ -32,6 +32,19 @@ async function sweep() {
     import("@/lib/localDb")
       .then((mod) => mod.autoRecoverExpiredExhaustedConnections?.())
       .catch(() => {});
+    import("@/lib/db/repos/usageRepo.js")
+      .then((mod) => mod.pruneUsageHistory())
+      .catch(() => {});
+    import("@/lib/db/driver.js")
+      .then(async ({ getAdapter }) => {
+        const db = await getAdapter();
+        const { pruneStalePartitions } = await import("@/lib/db/schema.pg.js");
+        const { getSettings } = await import("@/lib/db/repos/settingsRepo.js");
+        const settings = await getSettings().catch(() => ({}));
+        const retainMonths = Number(settings.usagePartitionRetainMonths) || 2;
+        await pruneStalePartitions(db, retainMonths);
+      })
+      .catch(() => {});
   } catch {
     // fail-open: next tick retries
   }

@@ -94,6 +94,14 @@ export default function ProfilePage() {
  const [proxyLoading, setProxyLoading] = useState(false);
  const [proxyTestLoading, setProxyTestLoading] = useState(false);
 
+ const [retentionForm, setRetentionForm] = useState({
+   usageRetentionDays: 7,
+   usageMaxRecords: 100000,
+   usagePartitionRetainMonths: 2,
+ });
+ const [retentionLoading, setRetentionLoading] = useState(false);
+ const [retentionStatus, setRetentionStatus] = useState({ type: "", message: "" });
+ const [pruningLoading, setPruningLoading] = useState(false);
  const [isRemoteHost, setIsRemoteHost] = useState(() => {
  if (typeof window === "undefined") return false;
  return !["localhost", "127.0.0.1", "::1"].includes(window.location.hostname);
@@ -133,6 +141,11 @@ export default function ProfilePage() {
  outboundProxyEnabled: data?.outboundProxyEnabled === true,
  outboundProxyUrl: data?.outboundProxyUrl || "",
  outboundNoProxy: data?.outboundNoProxy || "",
+ });
+ setRetentionForm({
+   usageRetentionDays: data?.usageRetentionDays !== undefined ? Number(data.usageRetentionDays) : 7,
+   usageMaxRecords: data?.usageMaxRecords !== undefined ? Number(data.usageMaxRecords) : 100000,
+   usagePartitionRetainMonths: data?.usagePartitionRetainMonths !== undefined ? Number(data.usagePartitionRetainMonths) : 2,
  });
  setLoading(false);
  })
@@ -777,6 +790,58 @@ export default function ProfilePage() {
  }
  };
 
+ const handleSaveRetention = async () => {
+   setRetentionLoading(true);
+   setRetentionStatus({ type: "", message: "" });
+   try {
+     const res = await fetch("/api/settings", {
+       method: "PATCH",
+       headers: { "Content-Type": "application/json" },
+       body: JSON.stringify({
+         usageRetentionDays: Number(retentionForm.usageRetentionDays) || 0,
+         usageMaxRecords: Number(retentionForm.usageMaxRecords) || 0,
+         usagePartitionRetainMonths: Number(retentionForm.usagePartitionRetainMonths) || 2,
+       }),
+     });
+     if (!res.ok) {
+       const err = await res.json().catch(() => ({}));
+       throw new Error(err.error || "Failed to update retention settings");
+     }
+     const updated = await res.json();
+     setSettings((prev) => ({ ...prev, ...updated }));
+     setRetentionStatus({ type: "success", message: "Retention policy saved successfully." });
+   } catch (err) {
+     setRetentionStatus({ type: "error", message: err.message });
+   } finally {
+     setRetentionLoading(false);
+   }
+ };
+
+ const handleManualPrune = async () => {
+   setPruningLoading(true);
+   setRetentionStatus({ type: "", message: "" });
+   try {
+     const res = await fetch("/api/settings/database/prune", {
+       method: "POST",
+       headers: { "Content-Type": "application/json" },
+       body: JSON.stringify({
+         retentionDays: Number(retentionForm.usageRetentionDays),
+         maxRecords: Number(retentionForm.usageMaxRecords),
+         partitionRetainMonths: Number(retentionForm.usagePartitionRetainMonths),
+       }),
+     });
+     const data = await res.json();
+     if (!res.ok) throw new Error(data.error || "Prune failed");
+     setRetentionStatus({
+       type: "success",
+       message: `Clean up complete. Deleted ${Number(data.deletedUsageRows || 0).toLocaleString()} raw usage rows. Remaining: ${Number(data.currentUsageRows || 0).toLocaleString()} rows.`,
+     });
+   } catch (err) {
+     setRetentionStatus({ type: "error", message: err.message || "Failed to clean up" });
+   } finally {
+     setPruningLoading(false);
+   }
+ };
  const handleLogout = async () => {
  try {
  const res = await fetch("/api/auth/logout", { method: "POST" });
@@ -881,6 +946,149 @@ export default function ProfilePage() {
  </pre>
  )}
  </div>
+
+          {/* Usage Data Retention & Storage */}
+          <div className="flex flex-col gap-3 pt-3 border-t border-border">
+            <div>
+              <h4 className="font-semibold text-sm text-text-main">Usage Data Retention & Storage</h4>
+              <p className="text-xs text-text-muted mt-0.5">
+                Automatically clean up raw request logs in <code className="font-mono text-[11px] bg-surface-2 px-1 rounded">usage_history</code> to protect database storage quotas.
+                Aggregated daily metrics (requests, tokens, cost) are preserved permanently in <code className="font-mono text-[11px] bg-surface-2 px-1 rounded">usage_daily</code>.
+              </p>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              {/* Retention Days */}
+              <div className="p-2.5 rounded-sm bg-bg border border-border flex flex-col gap-2">
+                <div className="flex items-center justify-between">
+                  <label className="text-xs font-medium text-text-main">Retention (Days)</label>
+                  <span className="text-[11px] font-mono text-text-muted">
+                    {retentionForm.usageRetentionDays > 0 ? `${retentionForm.usageRetentionDays}d` : "Disabled"}
+                  </span>
+                </div>
+                <Input
+                  type="number"
+                  min="0"
+                  max="365"
+                  value={retentionForm.usageRetentionDays}
+                  onChange={(e) => setRetentionForm((prev) => ({ ...prev, usageRetentionDays: Number(e.target.value) || 0 }))}
+                  placeholder="7"
+                />
+                <div className="flex items-center gap-1 flex-wrap">
+                  {[3, 7, 14, 30, 0].map((v) => (
+                    <button
+                      key={v}
+                      type="button"
+                      onClick={() => setRetentionForm((prev) => ({ ...prev, usageRetentionDays: v }))}
+                      className={`px-1.5 py-0.5 text-[10px] font-mono rounded border transition-colors ${
+                        retentionForm.usageRetentionDays === v
+                          ? "bg-primary/20 text-primary border-primary/40 font-bold"
+                          : "bg-surface text-text-muted border-border hover:bg-surface-2"
+                      }`}
+                    >
+                      {v === 0 ? "Off" : `${v}d`}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Max Records Cap */}
+              <div className="p-2.5 rounded-sm bg-bg border border-border flex flex-col gap-2">
+                <div className="flex items-center justify-between">
+                  <label className="text-xs font-medium text-text-main">Max Records Cap</label>
+                  <span className="text-[11px] font-mono text-text-muted">
+                    {retentionForm.usageMaxRecords > 0 ? `${Math.round(retentionForm.usageMaxRecords / 1000)}k` : "No limit"}
+                  </span>
+                </div>
+                <Input
+                  type="number"
+                  min="0"
+                  value={retentionForm.usageMaxRecords}
+                  onChange={(e) => setRetentionForm((prev) => ({ ...prev, usageMaxRecords: Number(e.target.value) || 0 }))}
+                  placeholder="100000"
+                />
+                <div className="flex items-center gap-1 flex-wrap">
+                  {[25000, 50000, 100000, 200000, 0].map((v) => (
+                    <button
+                      key={v}
+                      type="button"
+                      onClick={() => setRetentionForm((prev) => ({ ...prev, usageMaxRecords: v }))}
+                      className={`px-1.5 py-0.5 text-[10px] font-mono rounded border transition-colors ${
+                        retentionForm.usageMaxRecords === v
+                          ? "bg-primary/20 text-primary border-primary/40 font-bold"
+                          : "bg-surface text-text-muted border-border hover:bg-surface-2"
+                      }`}
+                    >
+                      {v === 0 ? "Off" : `${v / 1000}k`}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Partition Retention (Months) */}
+              <div className="p-2.5 rounded-sm bg-bg border border-border flex flex-col gap-2">
+                <div className="flex items-center justify-between">
+                  <label className="text-xs font-medium text-text-main">Keep Partitions</label>
+                  <span className="text-[11px] font-mono text-text-muted">
+                    {retentionForm.usagePartitionRetainMonths} mo
+                  </span>
+                </div>
+                <Input
+                  type="number"
+                  min="1"
+                  max="12"
+                  value={retentionForm.usagePartitionRetainMonths}
+                  onChange={(e) => setRetentionForm((prev) => ({ ...prev, usagePartitionRetainMonths: Number(e.target.value) || 1 }))}
+                  placeholder="2"
+                />
+                <div className="flex items-center gap-1 flex-wrap">
+                  {[1, 2, 3, 6].map((v) => (
+                    <button
+                      key={v}
+                      type="button"
+                      onClick={() => setRetentionForm((prev) => ({ ...prev, usagePartitionRetainMonths: v }))}
+                      className={`px-1.5 py-0.5 text-[10px] font-mono rounded border transition-colors ${
+                        retentionForm.usagePartitionRetainMonths === v
+                          ? "bg-primary/20 text-primary border-primary/40 font-bold"
+                          : "bg-surface text-text-muted border-border hover:bg-surface-2"
+                      }`}
+                    >
+                      {v} mo
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            <div className="flex flex-col sm:flex-row items-center gap-2">
+              <Button
+                variant="primary"
+                size="sm"
+                icon="save"
+                onClick={handleSaveRetention}
+                loading={retentionLoading}
+                className="w-full sm:w-auto"
+              >
+                Save Retention Policy
+              </Button>
+              <Button
+                variant="secondary"
+                size="sm"
+                icon="auto_delete"
+                onClick={handleManualPrune}
+                loading={pruningLoading}
+                className="w-full sm:w-auto"
+              >
+                Clean Up Now
+              </Button>
+            </div>
+
+            {retentionStatus.message && (
+              <p className={`text-xs ${retentionStatus.type === "error" ? "text-danger" : "text-success"}`}>
+                {retentionStatus.message}
+              </p>
+            )}
+          </div>
  </Card>
 
  {/* Language */}
