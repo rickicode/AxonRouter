@@ -17,8 +17,9 @@ services:
       - .env
     environment:
       DATA_DIR: /app/data
-      GATEWAY_PORT: "3778"
-      GATEWAY_WORKERS: "4"
+      GATEWAY_PORT: "${GATEWAY_PORT:-3778}"
+      GATEWAY_CLUSTER: "${GATEWAY_CLUSTER:-true}"
+      GATEWAY_WORKERS: "${GATEWAY_WORKERS:-4}"
       HOSTNAME: "0.0.0.0"
       TZ: Asia/Jakarta
       NODE_ENV: production

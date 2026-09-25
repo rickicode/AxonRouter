@@ -120,11 +120,12 @@ All published GHCR images are **multi-arch** (`linux/amd64` + `linux/arm64`) —
 
 ### Option 1: One-Line Installer (Recommended)
 
-The installer does everything interactively:
-1. Detects Docker — if missing, it prompts `Install Docker now? (yes/no)` and runs `curl -sSL https://get.docker.com | sh` when you answer `yes`.
-2. Clones the repo, generates all secrets into `.env` (`JWT_SECRET`, `API_KEY_SECRET`, `ENCRYPTION_KEY`, `POSTGRES_PASSWORD`, `INITIAL_PASSWORD`) — press Enter to accept each generated value. **No manual `.env` editing needed.**
-3. Asks `Start the stack now? (yes/no)` and runs `docker compose up -d` from the clone directory.
-
+The installer does everything interactively without needing to clone the git repository:
+1. Detects Docker — if missing, prompts `Install Docker now? (yes/no)` and installs it automatically via `get.docker.com`.
+2. Downloads `docker-compose.yml` and `.env.example` directly from GitHub into `~/AxonRouter`. **Zero git clone required.**
+3. Prompts for **Gateway Worker Mode**: Choose between **Cluster Mode** (multi-worker Hono for heavy AI traffic) or **Standalone Mode** (single process for 1 CPU / low-RAM VPS).
+4. Generates all cryptographic secrets into `.env` (`JWT_SECRET`, `API_KEY_SECRET`, `ENCRYPTION_KEY`, `POSTGRES_PASSWORD`, `INITIAL_PASSWORD`) — press Enter to accept auto-generated values.
+5. Asks `Start AxonRouter now? (yes/no)` and launches the stack with `docker compose up -d` using pre-built multi-arch GHCR images.
 ```bash
 curl -sSL https://raw.githubusercontent.com/rickicode/AxonRouter/main/scripts/install.sh | sh
 ```

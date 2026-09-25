@@ -18,18 +18,21 @@ register("./alias-resolver.mjs", import.meta.url);
 
 import http from "node:http";
 import cluster from "node:cluster";
-import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import crypto from "node:crypto";
 import { Hono } from "hono";
 import { serve } from "@hono/node-server";
+import { resolveGatewayMode } from "./workerMode.mjs";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-
 // ── Config ────────────────────────────────────────────────────────────────────
 const PORT = Number(process.env.GATEWAY_PORT || process.env.PORT || 3778);
-const WORKERS = Math.max(1, Math.min(Number(process.env.GATEWAY_WORKERS) || os.cpus().length, os.cpus().length));
+// Worker topology toggle lives in workerMode.mjs (pure + unit-tested):
+//   GATEWAY_CLUSTER=false|0|off|no → standalone single process (lowest RAM)
+//   GATEWAY_WORKERS=<n>            → cluster worker count (default: CPU cores)
+const { useCluster: USE_CLUSTER, workers: WORKERS, cores: CORES, mode: MODE } =
+  resolveGatewayMode();
 
 // ── Auth gate (ported from src/dashboardGuard.js public-API section) ─────────
 // Public paths: LLM API carries its own key auth inside handlers; everything
@@ -244,7 +247,14 @@ app.get("/api/health", async (c) => {
   try {
     const { getProviderConnections } = await import("@/lib/db/repos/connectionsRepo.js");
     await getProviderConnections({ isActive: true, limit: 1 });
-    return c.json({ status: "healthy", service: "gateway", timestamp: new Date().toISOString() });
+    return c.json({
+      status: "healthy",
+      service: "gateway",
+      mode: MODE,
+      workers: WORKERS,
+      pid: process.pid,
+      timestamp: new Date().toISOString(),
+    });
   } catch (e) {
     return c.json({ status: "degraded", error: e.message, timestamp: new Date().toISOString() }, 503);
   }
@@ -270,26 +280,7 @@ const SERVER_TIMEOUTS = {
   requestTimeout: 300_000,
   maxRequestsPerSocket: 0,
 };
-if (cluster.isPrimary) {
-  // Primary only orchestrates — it must NOT bind the port (workers do).
-  console.log(`[Gateway] primary ${process.pid} forking ${WORKERS} worker(s)`);
-  for (let i = 0; i < WORKERS; i++) cluster.fork();
-  let shuttingDown = false;
-  cluster.on("exit", (worker, code, signal) => {
-    if (shuttingDown) return;
-    console.error(`[Gateway] worker ${worker.process.pid} died (${signal || code}) — respawning`);
-    cluster.fork();
-  });
-  const primaryShutdown = (signal) => {
-    if (shuttingDown) return;
-    shuttingDown = true;
-    console.log(`[Gateway] primary received ${signal} — signaling workers to drain`);
-    for (const id in cluster.workers) cluster.workers[id].process.kill(signal);
-    setTimeout(() => process.exit(0), 16_000).unref?.();
-  };
-  process.on("SIGINT", () => primaryShutdown("SIGINT"));
-  process.on("SIGTERM", () => primaryShutdown("SIGTERM"));
-} else {
+function startWorkerServer() {
   // Timeouts come from SERVER_TIMEOUTS: a stalled upstream (free-tier queue,
   // dead proxy) must not hold a worker socket forever. requestTimeout is the
   // hard ceiling for any single request incl. streaming chat completions.
@@ -303,7 +294,8 @@ if (cluster.isPrimary) {
   server.on("clientError", (err, socket) => {
     if (socket.writable) socket.end("HTTP/1.1 400 Bad Request\r\n\r\n");
   });
-  console.log(`[Gateway] worker ${process.pid} listening on ${PORT} (node ${process.version})`);
+  const modeLabel = USE_CLUSTER ? `worker ${process.pid} of ${WORKERS}` : `standalone pid ${process.pid} (cluster disabled)`;
+  console.log(`[Gateway] mode=${MODE} listening on ${PORT} (node ${process.version}) — ${modeLabel}`);
   // Pipeline warm-up in the background so the first client request is fast.
   ensureInitialized().catch(() => {});
   // Models snapshot is shared via PostgreSQL (src/lib/cache/modelsSnapshot.js):
@@ -321,14 +313,14 @@ if (cluster.isPrimary) {
   const workerShutdown = (signal) => {
     if (workerShuttingDown) return;
     workerShuttingDown = true;
-    console.log(`[Gateway] worker ${process.pid} received ${signal} — draining`);
+    console.log(`[Gateway] ${modeLabel} received ${signal} — draining`);
     const deadline = setTimeout(() => {
-      console.warn(`[Gateway] worker ${process.pid} drain timed out — forcing exit`);
+      console.warn(`[Gateway] ${modeLabel} drain timed out — forcing exit`);
       process.exit(0);
     }, 15_000);
     deadline.unref?.();
     server.close(() => {
-      console.log(`[Gateway] worker ${process.pid} drained — exiting`);
+      console.log(`[Gateway] ${modeLabel} drained — exiting`);
       process.exit(0);
     });
     // Idle keep-alive sockets would hold close(); drop them so close() fires.
@@ -336,4 +328,27 @@ if (cluster.isPrimary) {
   };
   process.on("SIGINT", () => workerShutdown("SIGINT"));
   process.on("SIGTERM", () => workerShutdown("SIGTERM"));
+}
+
+if (USE_CLUSTER && cluster.isPrimary) {
+  // Primary only orchestrates — it must NOT bind the port (workers do).
+  console.log(`[Gateway] primary ${process.pid} forking ${WORKERS} worker(s) (cluster mode enabled)`);
+  for (let i = 0; i < WORKERS; i++) cluster.fork();
+  let shuttingDown = false;
+  cluster.on("exit", (worker, code, signal) => {
+    if (shuttingDown) return;
+    console.error(`[Gateway] worker ${worker.process.pid} died (${signal || code}) — respawning`);
+    cluster.fork();
+  });
+  const primaryShutdown = (signal) => {
+    if (shuttingDown) return;
+    shuttingDown = true;
+    console.log(`[Gateway] primary received ${signal} — signaling workers to drain`);
+    for (const id in cluster.workers) cluster.workers[id].process.kill(signal);
+    setTimeout(() => process.exit(0), 16_000).unref?.();
+  };
+  process.on("SIGINT", () => primaryShutdown("SIGINT"));
+  process.on("SIGTERM", () => primaryShutdown("SIGTERM"));
+} else {
+  startWorkerServer();
 }
