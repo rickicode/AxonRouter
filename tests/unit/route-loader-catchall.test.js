@@ -117,4 +117,62 @@ describe("routeLoader Hono path conversion and param extraction", () => {
     expect(singleScore).toBeLessThan(multiScore);
     expect(multiScore).toBeLessThan(catchAllScore);
   });
+
+  it("handles path rewrites from /v1/* and /v1beta/* with catch-all params", async () => {
+    const app = new Hono();
+
+    app.get("/api/v1/models/:model{.+}", (c) => {
+      const params = buildParamsObject(c.req.param(), "/api/v1/models/:model{.+}");
+      return c.json({ matched: "models", params });
+    });
+
+    app.post("/api/v1beta/models/:path{.+}", (c) => {
+      const params = buildParamsObject(c.req.param(), "/api/v1beta/models/:path{.+}");
+      return c.json({ matched: "v1beta", params });
+    });
+
+    const rewriteToApi = async (c) => {
+      let targetPath = c.req.path;
+      if (targetPath.startsWith("/v1/")) targetPath = "/api" + targetPath;
+      else if (targetPath.startsWith("/v1beta/")) targetPath = "/api" + targetPath;
+
+      const url = new URL(c.req.url);
+      url.pathname = targetPath;
+      const newReq = new Request(url.toString(), {
+        method: c.req.method,
+        headers: c.req.raw.headers,
+        body: c.req.raw.body,
+        duplex: "half",
+      });
+      return app.fetch(newReq, c.env);
+    };
+
+    app.all("/v1/*", rewriteToApi);
+    app.all("/v1beta/*", rewriteToApi);
+
+    // Deep model path through rewrite
+    const resV1 = await app.fetch(new Request("http://localhost/v1/models/openrouter/deepseek/deepseek-v4-flash-0731:free"));
+    expect(resV1.status).toBe(200);
+    expect(await resV1.json()).toEqual({
+      matched: "models",
+      params: { model: ["openrouter", "deepseek", "deepseek-v4-flash-0731:free"] },
+    });
+
+    // Native Gemini model path through rewrite
+    const resV1beta = await app.fetch(new Request("http://localhost/v1beta/models/google/gemini-1.5-flash:generateContent", {
+      method: "POST",
+    }));
+    expect(resV1beta.status).toBe(200);
+    expect(await resV1beta.json()).toEqual({
+      matched: "v1beta",
+      params: { path: ["google", "gemini-1.5-flash:generateContent"] },
+    });
+  });
+
+  it("handles combo names with special characters (dots, underscores, hyphens, slashes)", async () => {
+    const complexName = "test.combo-1_v2/sub-model.fast";
+    const honoParams = { id: complexName };
+    const parsed = buildParamsObject(honoParams, "/api/combos/:id{.+}");
+    expect(parsed).toEqual({ id: ["test.combo-1_v2", "sub-model.fast"] });
+  });
 });
