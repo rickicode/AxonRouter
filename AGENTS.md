@@ -48,6 +48,7 @@ A `graft/` context graph is maintained at repository root. Code search MUST prio
    - Plain JavaScript with ES Modules (`import`/`export`). No TypeScript.
    - Use path aliases: `@/*` maps to `src/*` and `open-sse/*` maps to `open-sse/*`; resolved at boot by `gateway/alias-resolver.mjs` (registered in `src/server/webServer.mjs` and `gateway/server.js`) — no bundler/webpack alias.
    - Conventional Commits for commit messages (`feat(...)`, `fix(...)`, `chore(...)`).
+   - Release commits (`chore(release): vX.Y.Z — <summary>`) MUST bump `package.json` `version` to match the newest `CHANGELOG.md` header and add a complete version-log section: `# vX.Y.Z (YYYY-MM-DD)` with `## Features` / `## Fixes` / `## Tests` subsections describing every user-visible change since the previous release. Never publish a build whose baked `__APP_VERSION__` mismatches the CHANGELOG (verify with `grep '"<version>"' dist/assets/index-*.js` after `npm run build`).
 
 2. **Database & Repositories**:
    - Never write raw queries in API routes. All database queries must live in repository modules (`src/lib/db/repos/*`).
