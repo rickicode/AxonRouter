@@ -175,4 +175,12 @@ describe("routeLoader Hono path conversion and param extraction", () => {
     const parsed = buildParamsObject(honoParams, "/api/combos/:id{.+}");
     expect(parsed).toEqual({ id: ["test.combo-1_v2", "sub-model.fast"] });
   });
+
+  it("handles capability filter routes as single-element array in v1/models/[...model]", () => {
+    const kinds = ["image", "tts", "stt", "embedding", "image-to-text", "web"];
+    for (const kind of kinds) {
+      const parsed = buildParamsObject({ model: kind }, "/api/v1/models/:model{.+}");
+      expect(parsed).toEqual({ model: [kind] });
+    }
+  });
 });
