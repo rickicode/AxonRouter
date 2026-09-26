@@ -151,5 +151,62 @@ describe("Proxy Audit Followups", () => {
         })
       );
     });
+
+    it("skips dead pools by default to avoid probing dead proxies continuously", async () => {
+      const deadPool = {
+        id: "p6",
+        name: "Dead Pool",
+        proxyUrl: "http://dead.local:8080",
+        type: "http",
+        isActive: false,
+        testStatus: "dead",
+        consecutiveFailures: 5,
+        lastTestedAt: null,
+      };
+
+      vi.spyOn(proxyPoolsRepoModule, "getProxyPools").mockResolvedValue([deadPool]);
+      const probeSpy = vi.spyOn(proxyTestModule, "testProxyPoolEntry");
+
+      const result = await autoRecoverUnhealthyProxyPools();
+
+      expect(result.checked).toBe(0);
+      expect(probeSpy).not.toHaveBeenCalled();
+    });
+
+    it("escalates 4-failure unhealthy pool to dead when probe fails again (5th failure)", async () => {
+      const persistentlyFailingPool = {
+        id: "p7",
+        name: "Persistent Fail Pool",
+        proxyUrl: "http://failing.local:8080",
+        type: "http",
+        isActive: false,
+        testStatus: "unhealthy",
+        consecutiveFailures: 4,
+        lastTestedAt: null,
+      };
+
+      vi.spyOn(proxyPoolsRepoModule, "getProxyPools").mockResolvedValue([persistentlyFailingPool]);
+      vi.spyOn(proxyTestModule, "testProxyPoolEntry").mockResolvedValue({
+        ok: false,
+        status: 502,
+        error: "Bad Gateway",
+      });
+      const updateSpy = vi.spyOn(proxyPoolsRepoModule, "updateProxyPool").mockResolvedValue(true);
+
+      const result = await autoRecoverUnhealthyProxyPools();
+
+      expect(result.checked).toBe(1);
+      expect(result.recovered).toBe(0);
+      expect(result.markedDead).toBe(1);
+      expect(updateSpy).toHaveBeenCalledWith(
+        "p7",
+        expect.objectContaining({
+          isActive: false,
+          testStatus: "dead",
+          consecutiveFailures: 5,
+          lastError: "Bad Gateway",
+        })
+      );
+    });
   });
 });

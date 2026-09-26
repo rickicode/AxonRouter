@@ -706,7 +706,11 @@ className={`flex min-h-11 w-full flex-col items-center rounded-sm px-2 hover:bg-
  )}
  {!isActive && (
  <span className="ml-auto text-[11px] text-danger">
- {pool.consecutiveFailures >= 3 || pool.testStatus === "unhealthy" ? "(unhealthy · 3 fails)" : "(inactive)"}
+ {pool.consecutiveFailures >= 5 || pool.testStatus === "dead"
+ ? `(dead · ${pool.consecutiveFailures} fails)`
+ : pool.consecutiveFailures >= 3 || pool.testStatus === "unhealthy"
+ ? `(unhealthy · ${pool.consecutiveFailures} fails)`
+ : "(inactive)"}
  </span>
  )}
  </div>

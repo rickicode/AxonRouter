@@ -248,7 +248,7 @@ function ConnectionRow({ connection, proxyPools, isOAuth, isFirst, isLast, onMov
      <span className="text-[11px] text-warning font-normal">({pool.consecutiveFailures}/3 fails)</span>
    )}
    {!pool.isActive && (
-     <span className="text-[11px] text-danger font-normal">{pool.consecutiveFailures >= 3 || pool.testStatus === "unhealthy" ? "(unhealthy)" : "(inactive)"}</span>
+     <span className="text-[11px] text-danger font-normal">{pool.consecutiveFailures >= 5 || pool.testStatus === "dead" ? "(dead)" : pool.consecutiveFailures >= 3 || pool.testStatus === "unhealthy" ? "(unhealthy)" : "(inactive)"}</span>
    )}
  </button>
  ))}

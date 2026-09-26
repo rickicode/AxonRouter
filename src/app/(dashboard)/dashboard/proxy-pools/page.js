@@ -9,7 +9,7 @@ import Icon from "@/shared/components/Icon";
 
 function getStatusVariant(status) {
  if (status === "active") return "success";
- if (status === "error" || status === "unhealthy") return "error";
+ if (status === "error" || status === "unhealthy" || status === "dead") return "error";
  if (status === "degraded") return "warning";
  return "default";
 }
@@ -503,8 +503,13 @@ function ProxyPoolsContent() {
  if (!isDegraded) return false;
  }
  if (statusFilter === "unhealthy") {
- const isUnhealthy = pool.testStatus === "unhealthy" || pool.consecutiveFailures >= 3;
+ const isDead = pool.testStatus === "dead" || pool.consecutiveFailures >= 5;
+ const isUnhealthy = !isDead && (pool.testStatus === "unhealthy" || pool.consecutiveFailures >= 3);
  if (!isUnhealthy) return false;
+ }
+ if (statusFilter === "dead") {
+ const isDead = pool.testStatus === "dead" || pool.consecutiveFailures >= 5;
+ if (!isDead) return false;
  }
  if (statusFilter === "inactive" && pool.isActive) return false;
  }
@@ -567,7 +572,19 @@ function ProxyPoolsContent() {
  proxyPools.filter(
  (p) =>
  !p.isActive &&
+ p.testStatus !== "dead" &&
+ Number(p.consecutiveFailures) < 5 &&
  (p.testStatus === "unhealthy" || Number(p.consecutiveFailures) >= 3)
+ ).length,
+ [proxyPools]
+ );
+
+ const deadCount = useMemo(
+ () =>
+ proxyPools.filter(
+ (p) =>
+ !p.isActive &&
+ (p.testStatus === "dead" || Number(p.consecutiveFailures) >= 5)
  ).length,
  [proxyPools]
  );
@@ -706,6 +723,7 @@ function ProxyPoolsContent() {
  let alive = 0;
  let degraded = 0;
  let unhealthy = 0;
+ let dead = 0;
  let done = 0;
  const CONCURRENCY = 10;
  const queue = [...targets];
@@ -719,6 +737,8 @@ function ProxyPoolsContent() {
  const data = await res.json();
  if (res.ok && data.ok) {
  alive += 1;
+ } else if (data.consecutiveFailures >= 5 || data.testStatus === "dead") {
+ dead += 1;
  } else if (data.consecutiveFailures >= 3 || data.testStatus === "unhealthy" || !data.isActive) {
  unhealthy += 1;
  } else {
@@ -738,7 +758,7 @@ function ProxyPoolsContent() {
  setHealthChecking(false);
  setHealthProgress({ current: 0, total: 0 });
 
- notify.success(`Health check complete: ${alive} healthy, ${degraded} degraded (1-2 fails), ${unhealthy} unhealthy (auto-disabled)`);
+ notify.success(`Health check complete: ${alive} healthy, ${degraded} degraded, ${unhealthy} unhealthy, ${dead} dead`);
  };
 
  // Cleanup selectedIds when pools change
@@ -1382,9 +1402,19 @@ function ProxyPoolsContent() {
                   variant="error"
                   className="cursor-pointer hover:opacity-80"
                   onClick={() => setStatusFilter("unhealthy")}
-                  title="Filter unhealthy proxies (3+ consecutive failures)"
+                  title="Filter unhealthy proxies (3-4 consecutive failures)"
                 >
                   Unhealthy: {unhealthyCount}
+                </Badge>
+              )}
+              {deadCount > 0 && (
+                <Badge
+                  variant="error"
+                  className="cursor-pointer hover:opacity-80 bg-red-950/80 border-red-700 text-red-300 font-semibold"
+                  onClick={() => setStatusFilter("dead")}
+                  title="Filter dead proxies (5+ continuous failures)"
+                >
+                  Dead: {deadCount}
                 </Badge>
               )}
               {disabledCount > 0 && (
@@ -1489,7 +1519,8 @@ function ProxyPoolsContent() {
                   <option value="all">All Status</option>
                   <option value="active">Active</option>
                   <option value="degraded">Degraded (1-2 fails)</option>
-                  <option value="unhealthy">Unhealthy (3+ fails)</option>
+                  <option value="unhealthy">Unhealthy (3-4 fails)</option>
+                  <option value="dead">Dead (5+ fails)</option>
                   <option value="inactive">Inactive</option>
                 </select>
                 {statusFilter !== "all" && (
@@ -1555,22 +1586,36 @@ function ProxyPoolsContent() {
  </div>
  )}
 
- {unhealthyCount > 0 && (
+ {(unhealthyCount > 0 || deadCount > 0) && (
  <div className="mb-3 flex flex-wrap items-center justify-between gap-2 rounded-sm border border-red-500/30 bg-red-500/10 px-3.5 py-2.5 text-xs text-red-200">
  <div className="flex items-center gap-2">
  <Icon name="warning" size={16} className="text-red-400 shrink-0" />
  <span>
- <strong>{unhealthyCount} proxy pool(s)</strong> marked unhealthy after 3 consecutive failures.
+ {deadCount > 0 && <strong>{deadCount} dead</strong>}
+ {deadCount > 0 && unhealthyCount > 0 && ", "}
+ {unhealthyCount > 0 && <strong>{unhealthyCount} unhealthy</strong>}
+ {" proxy pool(s) detected with repeated failures."}
  </span>
  </div>
  <div className="flex items-center gap-3">
+ {deadCount > 0 && (
+ <button
+ type="button"
+ onClick={() => setStatusFilter("dead")}
+ className="font-medium underline hover:text-white"
+ >
+ View Dead ({deadCount})
+ </button>
+ )}
+ {unhealthyCount > 0 && (
  <button
  type="button"
  onClick={() => setStatusFilter("unhealthy")}
  className="font-medium underline hover:text-white"
  >
- View Unhealthy
+ View Unhealthy ({unhealthyCount})
  </button>
+ )}
  <span>·</span>
  <button
  type="button"
@@ -1625,11 +1670,12 @@ function ProxyPoolsContent() {
  </Badge>
  {pool.consecutiveFailures > 0 && (
  <Badge
- variant={pool.consecutiveFailures >= 3 ? "error" : "warning"}
+ variant={pool.consecutiveFailures >= 5 || pool.testStatus === "dead" ? "error" : pool.consecutiveFailures >= 3 ? "error" : "warning"}
  size="sm"
- title={`${pool.consecutiveFailures} consecutive failure(s). Auto-disables at 3.`}
+ className={pool.consecutiveFailures >= 5 || pool.testStatus === "dead" ? "bg-red-950/80 border-red-700 text-red-300 font-semibold" : undefined}
+ title={`${pool.consecutiveFailures} consecutive failure(s). Auto-disables at 3, marked dead at 5.`}
  >
- {pool.consecutiveFailures}/3 fails
+ {pool.consecutiveFailures >= 5 || pool.testStatus === "dead" ? `${pool.consecutiveFailures} fails · dead` : `${pool.consecutiveFailures}/3 fails`}
  </Badge>
  )}
  {pool.type === "vercel" && (

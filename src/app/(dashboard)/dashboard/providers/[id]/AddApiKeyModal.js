@@ -381,7 +381,7 @@ export default function AddApiKeyModal({ isOpen, provider, providerName, isCompa
  ...(proxyPools || []).map((pool) => {
    let suffix = "";
    if (pool.consecutiveFailures > 0 && pool.isActive) suffix = ` (${pool.consecutiveFailures}/3 fails)`;
-   else if (!pool.isActive) suffix = pool.consecutiveFailures >= 3 ? " (unhealthy)" : " (inactive)";
+   else if (!pool.isActive) suffix = pool.consecutiveFailures >= 5 || pool.testStatus === "dead" ? " (dead)" : pool.consecutiveFailures >= 3 || pool.testStatus === "unhealthy" ? " (unhealthy)" : " (inactive)";
    return { value: pool.id, label: `${pool.name}${suffix}` };
  }),
  ]}

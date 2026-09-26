@@ -6,9 +6,10 @@ export async function POST(request) {
   try {
     const url = new URL(request.url);
     const force = url.searchParams.get("force") === "true";
+    const includeDead = url.searchParams.get("includeDead") === "true" || force;
     const minCooldownMs = force ? 0 : undefined;
 
-    const result = await autoRecoverUnhealthyProxyPools({ minCooldownMs });
+    const result = await autoRecoverUnhealthyProxyPools({ minCooldownMs, includeDead });
     return NextResponse.json({
       success: true,
       ...result,

@@ -4,6 +4,7 @@ import {
   recordRuntimeProxyFailure,
   recordRuntimeProxySuccess,
   PROXY_FAILOVER_THRESHOLD,
+  PROXY_DEAD_THRESHOLD,
   PROXY_FAIL_WINDOW_S,
 } from "../../src/lib/network/proxyHealth.js";
 import { probePoolGeo } from "../../open-sse/services/poolGeo.js";
@@ -82,6 +83,39 @@ describe("Proxy Health System (3-failure threshold)", () => {
       expect(update.lastError).toBe("Connection refused");
     });
 
+    it("4th consecutive failure stays unhealthy", () => {
+      const pool = {
+        id: "pool-1",
+        isActive: false,
+        testStatus: "unhealthy",
+        consecutiveFailures: 3,
+      };
+      const testResult = { ok: false, status: 500, error: "Connection refused again" };
+
+      const update = computeProxyTestHealth(pool, testResult);
+
+      expect(update.isActive).toBe(false);
+      expect(update.testStatus).toBe("unhealthy");
+      expect(update.consecutiveFailures).toBe(4);
+    });
+
+    it("5th consecutive failure marks pool as dead", () => {
+      const pool = {
+        id: "pool-1",
+        isActive: false,
+        testStatus: "unhealthy",
+        consecutiveFailures: 4,
+      };
+      const testResult = { ok: false, status: 500, error: "Host unreachable" };
+
+      const update = computeProxyTestHealth(pool, testResult);
+
+      expect(update.isActive).toBe(false);
+      expect(update.testStatus).toBe("dead");
+      expect(update.consecutiveFailures).toBe(5);
+      expect(update.lastError).toBe("Host unreachable");
+    });
+
     it("uses default error message when testResult has no error text", () => {
       const pool = { id: "pool-1", isActive: true, consecutiveFailures: 0 };
       const testResult = { ok: false, status: 503 };
@@ -93,8 +127,9 @@ describe("Proxy Health System (3-failure threshold)", () => {
   });
 
   describe("runtime failure and success tracking", () => {
-    it("threshold is 3 and window is 600s", () => {
+    it("threshold is 3, deadThreshold is 5, and window is 600s", () => {
       expect(PROXY_FAILOVER_THRESHOLD).toBe(3);
+      expect(PROXY_DEAD_THRESHOLD).toBe(5);
       expect(PROXY_FAIL_WINDOW_S).toBe(600);
     });
 

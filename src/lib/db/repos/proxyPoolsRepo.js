@@ -302,7 +302,11 @@ export async function deleteDisabledProxyPools(options = {}) {
 
     if (!force && Number(graceHours) > 0) {
       params.push(Number(graceHours));
-      graceFilter = `AND (p.updated_at IS NULL OR p.updated_at <= (NOW() - ($${params.length}::text || ' hours')::interval))`;
+      if (protectUnhealthy) {
+        graceFilter = `AND (p.updated_at IS NULL OR p.updated_at <= (NOW() - ($${params.length}::text || ' hours')::interval)) AND p.test_status != 'unhealthy'`;
+      } else {
+        graceFilter = `AND (p.updated_at IS NULL OR p.updated_at <= (NOW() - ($${params.length}::text || ' hours')::interval))`;
+      }
     } else if (!force && protectUnhealthy) {
       graceFilter = `AND p.test_status != 'unhealthy'`;
     }
