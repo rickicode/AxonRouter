@@ -43,7 +43,6 @@ const CARDS = [
 ];
 
 function Metric({ label, icon, tone, value, valueClass, note, exact, spanTwo = false }) {
-  const costBreakdownTip = "Exact rate from Settings > Pricing (billing docs: Estimated, not actual billing)";
   return (
     <div
       className={`flex min-w-0 flex-col justify-between rounded-lg border border-border bg-surface px-3 py-2 sm:px-3 sm:py-2.5 ${
@@ -72,6 +71,8 @@ function Metric({ label, icon, tone, value, valueClass, note, exact, spanTwo = f
     </div>
   );
 }
+
+const COST_BREAKDOWN_TIP = "Exact rate from Settings > Pricing (billing docs: Estimated, not actual billing)";
 
 export default function OverviewCards({ stats }) {
   const totalPrompt = Number(stats.totalPromptTokens) || 0;
@@ -132,7 +133,7 @@ export default function OverviewCards({ stats }) {
         note={
           <div className="flex items-center justify-between w-full">
             <Tooltip
-              text={`In ${fmtCost(inputCost)} · Cached ${fmtCost(cachedCost)} · Out ${fmtCost(outputCost)} · ${costBreakdownTip}`}
+              text={`In ${fmtCost(inputCost)} · Cached ${fmtCost(cachedCost)} · Out ${fmtCost(outputCost)} · ${COST_BREAKDOWN_TIP}`}
               className="min-w-0"
             >
               <span className="truncate cursor-help">
