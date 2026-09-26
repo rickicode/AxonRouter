@@ -25,7 +25,6 @@ import { Hono } from "hono";
 import { serve } from "@hono/node-server";
 import { resolveGatewayMode } from "./workerMode.mjs";
 import { renderGatewayLandingHtml } from "./landingPage.mjs";
-import { runProxyAutoFetcher } from "../open-sse/services/proxyAutoFetcher.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 // ── Config ────────────────────────────────────────────────────────────────────
@@ -82,8 +81,13 @@ setInterval(() => {
   }
 }, 30 * 1000).unref?.();
 
-setInterval(() => {
-  runProxyAutoFetcher().catch(console.error);
+setInterval(async () => {
+  try {
+    const { runProxyAutoFetcher } = await import("../open-sse/services/proxyAutoFetcher.js");
+    await runProxyAutoFetcher();
+  } catch (err) {
+    console.error("[proxyAutoFetcher] error:", err);
+  }
 }, 60 * 1000).unref?.();
 
 function isRateLimited(ip) {
