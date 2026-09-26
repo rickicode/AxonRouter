@@ -104,6 +104,7 @@ services:
       WATCHTOWER_CLEANUP: "true"
       WATCHTOWER_POLL_INTERVAL: "43200" # 12 hours
       WATCHTOWER_INCLUDE_RESTARTING: "true"
+      DOCKER_API_VERSION: "${DOCKER_API_VERSION:-1.44}"
     command: axonrouter-api axonrouter-web
     logging:
       driver: "json-file"
