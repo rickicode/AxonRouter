@@ -2,7 +2,7 @@ export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
 import { NextResponse } from "@/lib/http/response.js";
-import { getClientUsageConnections, getClientUsageMeta, getProviderNodes } from "@/lib/localDb";
+import { getClientUsageConnections, getClientUsageMeta } from "@/lib/localDb";
 import { backfillCodexEmails, backfillCodeBuddyIntlIdentity } from "@/lib/oauth/providers";
 import { USAGE_APIKEY_PROVIDERS, USAGE_SUPPORTED_PROVIDERS } from "@/shared/constants/providers";
 
@@ -53,34 +53,14 @@ function sanitize(c) {
   return safe;
 }
 
-// Custom compatible nodes (openai-compatible-* / anthropic-compatible-*) have
-// dynamic ids that can never appear in the static USAGE_* lists, but must be
-// first-class on the Usage page: their connection status (active / exhausted /
-// unavailable / disabled) is tracked by the same pipeline as built-ins.
-// Quota endpoints are unknown for them, so they join as apikey-eligible only —
-// the quota fetch surfaces "no quota API" instead of hiding the connection.
-const COMPATIBLE_NODE_TYPES = new Set(["openai-compatible", "anthropic-compatible"]);
-
-async function getUsageProviderLists() {
-  const [supported, apikey] = await Promise.all([
-    Promise.resolve(USAGE_SUPPORTED_PROVIDERS),
-    Promise.resolve(USAGE_APIKEY_PROVIDERS),
-  ]);
-  try {
-    const nodes = await getProviderNodes();
-    const compatibleIds = nodes
-      .filter((n) => COMPATIBLE_NODE_TYPES.has(n.type))
-      .map((n) => n.id);
-    if (compatibleIds.length) {
-      return {
-        supportedProviders: [...supported, ...compatibleIds],
-        apiKeyProviders: [...apikey, ...compatibleIds],
-      };
-    }
-  } catch (err) {
-    console.warn("[Usage] failed to load provider nodes:", err?.message || err);
-  }
-  return { supportedProviders: supported, apiKeyProviders: apikey };
+// Quota Tracker (/dashboard/quota) monitors API quota limits across provider accounts.
+// Custom compatible providers (openai-compatible-* / anthropic-compatible-*) do not have
+// upstream quota APIs and must not be listed in quota tracking.
+function getUsageProviderLists() {
+  return {
+    supportedProviders: USAGE_SUPPORTED_PROVIDERS,
+    apiKeyProviders: USAGE_APIKEY_PROVIDERS,
+  };
 }
 
 function parsePositiveInt(value, fallback) {

@@ -764,7 +764,6 @@ export default function ProfilePage() {
 
  const observabilityEnabled = settings.enableObservability === true;
 
- };
 
  const handleMemoryCheck = async () => {
  setMemoryLoading(true);
@@ -1888,3 +1887,35 @@ className="inline-flex min-h-11 items-center mt-1 text-[11px] hover:text-primary
  setLocale(next);
  }}
  />
+
+      <Modal
+        isOpen={dbAuth.open}
+        onClose={() => setDbAuth({ open: false, mode: "", password: "" })}
+        title="Confirm Password"
+        size="sm"
+        footer={
+          <>
+            <Button variant="ghost" onClick={() => setDbAuth({ open: false, mode: "", password: "" })} disabled={dbLoading}>
+              Cancel
+            </Button>
+            <Button variant="primary" onClick={handleDbAuthConfirm} loading={dbLoading} disabled={!dbAuth.password}>
+              Confirm
+            </Button>
+          </>
+        }
+      >
+        <p className="text-text-muted mb-3 text-sm">
+          Enter your current password to {dbAuth.mode === "export" ? "export" : "import"} the database.
+        </p>
+        <Input
+          type="password"
+          value={dbAuth.password}
+          onChange={(e) => setDbAuth((s) => ({ ...s, password: e.target.value }))}
+          onKeyDown={(e) => { if (e.key === "Enter" && dbAuth.password) handleDbAuthConfirm(); }}
+          placeholder="Current password"
+          autoFocus
+        />
+      </Modal>
+    </div>
+  );
+}
