@@ -1,7 +1,7 @@
 // Filesystem route auto-loader for src/app/api/**/route.js.
 // Converts Next.js App Router filesystem conventions to Hono paths:
 //   [id]        -> :id
-//   [...slug]   -> *slug
+//   [...slug]   -> :slug{.+}
 // Dynamic params are passed to handlers as Next-style awaited objects
 // ({ params: Promise<{...}> }) so existing handlers run unmodified.
 import { readdirSync, statSync } from "node:fs";
@@ -29,7 +29,7 @@ function toHonoPath(routeFile) {
   const segments = rel.split(path.sep).filter(Boolean);
   const converted = segments.map((seg) => {
     if (seg.startsWith("[...") && seg.endsWith("]")) {
-      return `*${seg.slice(4, -1)}`;
+      return `:${seg.slice(4, -1)}{.+}`;
     }
     if (seg.startsWith("[") && seg.endsWith("]")) {
       return `:${seg.slice(1, -1)}`;
@@ -43,7 +43,11 @@ function buildParamsObject(honoParams, honoPath) {
   const segments = honoPath.split("/").filter(Boolean);
   const params = {};
   for (const seg of segments) {
-    if (seg.startsWith("*")) {
+    if (seg.startsWith(":") && seg.includes("{")) {
+      const paramName = seg.slice(1, seg.indexOf("{"));
+      const rest = honoParams[paramName] || "";
+      params[paramName] = String(rest).split("/").filter(Boolean);
+    } else if (seg.startsWith("*")) {
       const rest = honoParams[seg.slice(1)] || "";
       params[seg.slice(1)] = String(rest).split("/").filter(Boolean);
     } else if (seg.startsWith(":")) {
@@ -58,7 +62,7 @@ function getRouteScore(file) {
   const segments = honoPath.split("/").filter(Boolean);
   let score = 0;
   for (const seg of segments) {
-    if (seg.startsWith("*")) {
+    if (seg.startsWith("*") || (seg.startsWith(":") && seg.includes("{"))) {
       score += 10000;
     } else if (seg.startsWith(":")) {
       score += 100;
