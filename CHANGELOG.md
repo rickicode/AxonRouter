@@ -1,3 +1,18 @@
+# v0.5.76 (2026-09-26)
+
+## Fixes
+- **Combo PUT 404**: catch-all API routes (`[...slug]`) now convert to Hono regex params (`:slug{.+}`) in `routeLoader.mjs` instead of literal `*slug` suffixes. Repairs `PUT /api/combos/{uuid}`, `GET /api/v1/models/[...model]`, and `/v1beta/models/[...path]`; `buildParamsObject` parses regex params into Next-style arrays and `getRouteScore` ranks catch-alls last so literal subpaths win.
+- **Combo PUT ReferenceError**: `createCombo` was not imported in `src/app/api/combos/[...id]/route.js`, so any PUT upsert crashed; also reordered built-in-name validation before the uniqueness check so built-in renames return the intended 400/403.
+- **DB bootstrap hang**: a broken ternary in `pruneStalePartitions` (`adapter || getAdapter ? getAdapter() : adapter`) always awaited `getAdapter()` even when an adapter was passed, producing a circular self-wait inside `initAdapter` — the schema-bootstrap advisory lock was held forever and every `getAdapter()` queued behind it (idle-in-transaction wedge). One-line fix restores proper fallback.
+- **Provider topology animations restored**: commit `dbf050b` had silently removed all motion — edge-dash/flicker keyframes, SMIL energy orbs + electric sparks on active edges, ping indicator on active provider nodes, router pulse/icon-shake/label-flicker, and the edge status legend are all back. Also restored the Estimated Cost tooltip (In/Cached/Out breakdown + exact-rate note), the Details tab, and the 30s TimeAgo throttle on the realtime card.
+
+## Tests
+- 15 routeLoader edge-case tests (deep multi-segment catch-alls, URL-encoded segments, mixed dynamic + catch-all params, capability kinds, `/v1` rewrite propagation, route scores).
+- Combo route suite expanded to 12 tests (built-in guard, duplicate names, invalid chars, rotation-cache reset, name fallback lookup, upsert 201, delete 404).
+- New E2E script `tests/e2e_combo_hono_verification.mjs`: full combo CRUD + CSRF flow against live Hono + PostgreSQL (10 steps, exit 0).
+- Architecture contracts now pass 100% after moving prune count queries into repositories (`countUsageHistory`, `countAnalyticsEvents`).
+- Runtime proxy-health verification: state machine thresholds (degraded@1–2, unhealthy@3–4, dead@5+, sticky, reset-on-success), `includeDead=false` auto-recovery filter, and prune rules all re-verified on live Postgres.
+
 # Unreleased
 
 ## Features

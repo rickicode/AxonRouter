@@ -1,6 +1,6 @@
 {
   "name": "axonrouter",
-  "version": "0.1.2",
+  "version": "0.5.76",
   "description": "AxonRouter AI infrastructure management and routing gateway",
   "private": true,
    "scripts": {
