@@ -29,6 +29,7 @@ import { FreebuffExecutor } from "./freebuff.js";
 import { MorphExecutor } from "./morphllm.js";
 import { KiloCodeFreeExecutor } from "./kilocode-free.js";
 import { LlmTechFreeExecutor } from "./llmtech-free.js";
+import { TokenHarborExecutor } from "./tokenharbor.js";
 const executors = {
   antigravity: new AntigravityExecutor(),
   azure: new AzureExecutor(),
@@ -58,6 +59,8 @@ const executors = {
   "xiaomi-mimo": new XiaomiMimoExecutor(),
   "codebuddy-cn": new CodeBuddyExecutor(),
   "codebuddy-intl": new CodeBuddyIntlExecutor(),
+  tokenharbor: new TokenHarborExecutor(),
+  th: new TokenHarborExecutor(),
   workbuddy: new WorkBuddyExecutor(),
   trae: new TraeExecutor(),
   zed: new ZedExecutor(),
