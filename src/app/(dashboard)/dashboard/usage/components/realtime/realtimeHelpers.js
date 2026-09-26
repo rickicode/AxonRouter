@@ -30,7 +30,7 @@ export function TimeAgo({ timestamp }) {
  const timer = setInterval(() => {
  if (typeof document !== "undefined" && document.hidden) return; // pause hidden
  setTick((t) => t + 1);
-    }, 5000);
+    }, 30000);
  const onVisibility = () => {
  if (typeof document !== "undefined" && !document.hidden) setTick((t) => t + 1); // catch-up on return
  };

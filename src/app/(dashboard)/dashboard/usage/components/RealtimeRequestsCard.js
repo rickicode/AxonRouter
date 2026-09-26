@@ -10,6 +10,38 @@ import ActiveRequestsModal from "./realtime/ActiveRequestsModal";
 import RequestErrorModal from "./realtime/RequestErrorModal";
 import Icon from "@/shared/components/Icon";
 
+// Local 30s-throttled relative timestamp (shared shape with UsageStats TimeAgo)
+function TimeAgo({ timestamp }) {
+  const [, setTick] = useState(0);
+  useEffect(() => {
+    const timer = setInterval(() => {
+      if (typeof document !== "undefined" && document.hidden) return; // pause hidden
+      setTick((t) => t + 1);
+    }, 30000);
+    const onVisibility = () => {
+      if (typeof document !== "undefined" && !document.hidden) setTick((t) => t + 1); // catch-up on return
+    };
+    if (typeof document !== "undefined") document.addEventListener("visibilitychange", onVisibility);
+    return () => {
+      clearInterval(timer);
+      if (typeof document !== "undefined") document.removeEventListener("visibilitychange", onVisibility);
+    };
+  }, []);
+  return <>{timeAgo(timestamp)}</>;
+}
+
+function timeAgo(ts) {
+  const diff = Math.max(0, Date.now() - new Date(ts).getTime());
+  const s = Math.floor(diff / 1000);
+  if (s < 60) return `${s}s ago`;
+  const m = Math.floor(s / 60);
+  if (m < 60) return `${m}m ago`;
+  const h = Math.floor(m / 60);
+  if (h < 24) return `${h}h ${m % 60}m ago`;
+  const d = Math.floor(h / 24);
+  return `${d}d ${h % 24}h ago`;
+}
+
 // Live traffic appends without bound; a phone cannot scroll an unbounded list.
 const MOBILE_ROW_CAP = 10;
 

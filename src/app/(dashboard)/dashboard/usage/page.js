@@ -35,8 +35,9 @@ const PERIODS = [
 
 const TABS = [
   { value: "overview", label: "Overview" },
+  { value: "details", label: "Details" },
   { value: "analytics", label: "Analytics" },
-  { value: "logs", label: "Request Logs" },
+  { value: "logs", label: "Logs" },
 ];
 
 const TAB_COPY = {
@@ -67,11 +68,10 @@ function UsageContent() {
   const router = useRouter();
   const [period, setPeriod] = useState("today");
 
-  // Legacy deep links: `?tab=details` used to be its own tab; merge into logs.
   const tabParam = searchParams.get("tab");
-  const tabFromUrl = tabParam === "details" ? "logs" : tabParam;
+  const tabFromUrl = tabParam;
   const activeTab =
-    tabFromUrl && ["overview", "logs", "analytics"].includes(tabFromUrl)
+    tabFromUrl && ["overview", "logs", "analytics", "details"].includes(tabFromUrl)
       ? tabFromUrl
       : "overview";
   const showDetails =
@@ -189,6 +189,16 @@ function UsageContent() {
             </div>
           )}
         </>
+      )}
+      {activeTab === "details" && (
+        <Suspense fallback={<CardSkeleton />}>
+          <RequestDetailsTab
+            initialFilters={{
+              status: searchParams.get("status") || "",
+              provider: searchParams.get("provider") || "",
+            }}
+          />
+        </Suspense>
       )}
       {activeTab === "analytics" && <AnalyticsTab period={period} />}
     </div>

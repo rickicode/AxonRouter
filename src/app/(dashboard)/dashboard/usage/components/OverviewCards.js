@@ -4,6 +4,7 @@ import PropTypes from "prop-types";
 import Link from "@/lib/ui/link.jsx";
 import { formatTokens, formatTokensExact } from "@/shared/utils/formatTokens";
 import Icon from "@/shared/components/Icon";
+import Tooltip from "@/shared/components/Tooltip";
 
 const fmt = (n) => new Intl.NumberFormat().format(Number(n) || 0);
 const fmtCost = (n) => `$${(Number(n) || 0).toFixed(2)}`;
@@ -42,6 +43,7 @@ const CARDS = [
 ];
 
 function Metric({ label, icon, tone, value, valueClass, note, exact, spanTwo = false }) {
+  const costBreakdownTip = "Exact rate from Settings > Pricing (billing docs: Estimated, not actual billing)";
   return (
     <div
       className={`flex min-w-0 flex-col justify-between rounded-lg border border-border bg-surface px-3 py-2 sm:px-3 sm:py-2.5 ${
@@ -129,9 +131,14 @@ export default function OverviewCards({ stats }) {
         spanTwo
         note={
           <div className="flex items-center justify-between w-full">
-            <span className="truncate" title={`In ${fmtCost(inputCost)} · Cache ${fmtCost(cachedCost)} · Out ${fmtCost(outputCost)} (Estimated, not billed)`}>
-              In {fmtCost(inputCost)} · Out {fmtCost(outputCost)}
-            </span>
+            <Tooltip
+              text={`In ${fmtCost(inputCost)} · Cached ${fmtCost(cachedCost)} · Out ${fmtCost(outputCost)} · ${costBreakdownTip}`}
+              className="min-w-0"
+            >
+              <span className="truncate cursor-help">
+                In {fmtCost(inputCost)} · Out {fmtCost(outputCost)}
+              </span>
+            </Tooltip>
             <Link
               href="/dashboard/settings/pricing"
               className="ml-1 text-text-muted hover:text-primary underline decoration-dotted shrink-0"
