@@ -183,4 +183,55 @@ describe("routeLoader Hono path conversion and param extraction", () => {
       expect(parsed).toEqual({ model: [kind] });
     }
   });
+
+  it("handles deep multi-segment catch-all paths", () => {
+    const deepPath = "enterprise/asia/prod/v2/models/cluster-a/shard-3";
+    const parsed = buildParamsObject({ id: deepPath }, "/api/combos/:id{.+}");
+    expect(parsed.id).toEqual([
+      "enterprise",
+      "asia",
+      "prod",
+      "v2",
+      "models",
+      "cluster-a",
+      "shard-3",
+    ]);
+  });
+
+  it("handles URL-encoded characters in catch-all segments", () => {
+    const encodedPath = "model%20name/version%3Av1.2/sub%2Btag";
+    const parsed = buildParamsObject({ path: encodedPath }, "/api/v1beta/models/:path{.+}");
+    expect(parsed.path).toEqual(["model%20name", "version%3Av1.2", "sub%2Btag"]);
+  });
+
+  it("converts multi-segment dynamic + catchall routes in toHonoPath", () => {
+    const complexRoute = path.join(API_ROOT, "tenants", "[tenantId]", "combos", "[...id]", "route.js");
+    expect(toHonoPath(complexRoute)).toBe("/api/tenants/:tenantId/combos/:id{.+}");
+  });
+
+  it("extracts mixed dynamic and catchall parameters accurately", () => {
+    const honoParams = { tenantId: "tenant_corp_99", id: "deep/nested/combo" };
+    const parsed = buildParamsObject(honoParams, "/api/tenants/:tenantId/combos/:id{.+}");
+    expect(parsed.tenantId).toBe("tenant_corp_99");
+    expect(parsed.id).toEqual(["deep", "nested", "combo"]);
+  });
+
+  it("dispatches requests with mixed single and catch-all params in Hono app", async () => {
+    const app = new Hono();
+    const pattern = "/api/teams/:teamId/combos/:id{.+}";
+    app.put(pattern, (c) => {
+      const params = buildParamsObject(c.req.param(), pattern);
+      return c.json({ teamId: params.teamId, id: params.id });
+    });
+
+    const res = await app.fetch(
+      new Request("http://localhost/api/teams/platform-eng/combos/prod/inference/cluster-1", {
+        method: "PUT",
+      })
+    );
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.teamId).toBe("platform-eng");
+    expect(body.id).toEqual(["prod", "inference", "cluster-1"]);
+  });
 });

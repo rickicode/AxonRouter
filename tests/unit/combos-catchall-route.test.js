@@ -249,4 +249,67 @@ describe("API /api/combos/[...id] route handlers with routeLoader params", () =>
     const body = await res.json();
     expect(body.id).toBe("new-combo-uuid");
   });
+
+  it("rejects PUT with invalid characters in name", async () => {
+    mocks.getComboById.mockResolvedValue(testCombo);
+
+    const honoParams = { id: testCombo.id };
+    const params = buildParamsObject(honoParams, "/api/combos/:id{.+}");
+
+    const req = new Request(`http://localhost/api/combos/${testCombo.id}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name: "invalid*name!#$" }),
+    });
+
+    const res = await PUT(req, { params: Promise.resolve(params) });
+    expect(res.status).toBe(400);
+    const body = await res.json();
+    expect(body.error).toContain("Name can only contain letters");
+  });
+
+  it("resets rotation cache and shared counter on combo update and delete", async () => {
+    mocks.getComboById.mockResolvedValue(testCombo);
+    mocks.updateCombo.mockResolvedValue(testCombo);
+    mocks.deleteCombo.mockResolvedValue(true);
+
+    const honoParams = { id: testCombo.id };
+    const params = buildParamsObject(honoParams, "/api/combos/:id{.+}");
+
+    // PUT resets cache
+    const putReq = new Request(`http://localhost/api/combos/${testCombo.id}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ models: ["oc/mimo-v2.6-flash-free"] }),
+    });
+    const putRes = await PUT(putReq, { params: Promise.resolve(params) });
+    expect(putRes.status).toBe(200);
+    expect(mocks.resetComboRotation).toHaveBeenCalledWith(testCombo.name);
+    expect(mocks.delSharedCounter).toHaveBeenCalledWith(`rr_seq:${testCombo.name}`);
+
+    // DELETE resets cache
+    const delReq = new Request(`http://localhost/api/combos/${testCombo.id}`, {
+      method: "DELETE",
+    });
+    const delRes = await DELETE(delReq, { params: Promise.resolve(params) });
+    expect(delRes.status).toBe(200);
+    expect(mocks.resetComboRotation).toHaveBeenCalledTimes(2);
+  });
+
+  it("finds combo by name fallback when id lookup returns null", async () => {
+    mocks.getComboById.mockResolvedValue(null);
+    mocks.getComboByName.mockResolvedValue(testCombo);
+
+    const honoParams = { id: testCombo.name };
+    const params = buildParamsObject(honoParams, "/api/combos/:id{.+}");
+
+    const req = new Request(`http://localhost/api/combos/${testCombo.name}`);
+    const res = await GET(req, { params: Promise.resolve(params) });
+
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.id).toBe(testCombo.id);
+    expect(mocks.getComboById).toHaveBeenCalledWith(testCombo.name);
+    expect(mocks.getComboByName).toHaveBeenCalledWith(testCombo.name);
+  });
 });
