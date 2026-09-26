@@ -34,8 +34,6 @@ export default function ProfilePage() {
  const { theme, setTheme, isDark } = useTheme();
  const [locale, setLocale] = useState(() => getLocaleFromCookie());
  const [langOpen, setLangOpen] = useState(false);
- const [shutdownOpen, setShutdownOpen] = useState(false);
- const [isShuttingDown, setIsShuttingDown] = useState(false);
  const [settings, setSettings] = useState({ fallbackStrategy: "fill-first" });
  const [loading, setLoading] = useState(true);
  const [passwords, setPasswords] = useState({ current: "", new: "", confirm: "" });
@@ -766,15 +764,6 @@ export default function ProfilePage() {
 
  const observabilityEnabled = settings.enableObservability === true;
 
- const handleShutdown = async () => {
- setIsShuttingDown(true);
- try {
- await fetch("/api/version/shutdown", { method: "POST" });
- } catch (e) {
- // Expected to fail as server shuts down; ignore error
- }
- setIsShuttingDown(false);
- setShutdownOpen(false);
  };
 
  const handleMemoryCheck = async () => {
@@ -1869,15 +1858,6 @@ Setting password for the first time. Leave current password empty or use default
  <Button
  variant="outline"
  fullWidth
- icon="power_settings_new"
- onClick={() => setShutdownOpen(true)}
- className="text-danger border-danger/30 hover:bg-danger/10"
- >
- Shutdown
- </Button>
- <Button
- variant="outline"
- fullWidth
  icon="logout"
  onClick={handleLogout}
  >
@@ -1908,46 +1888,3 @@ className="inline-flex min-h-11 items-center mt-1 text-[11px] hover:text-primary
  setLocale(next);
  }}
  />
- <ConfirmModal
- isOpen={shutdownOpen}
- onClose={() => setShutdownOpen(false)}
- onConfirm={handleShutdown}
- title="Close Proxy"
- message="Are you sure you want to close the proxy server?"
- confirmText="Close"
- cancelText="Cancel"
- variant="danger"
- loading={isShuttingDown}
- />
-
- <Modal
- isOpen={dbAuth.open}
- onClose={() => setDbAuth({ open: false, mode: "", password: "" })}
- title="Confirm Password"
- size="sm"
- footer={
- <>
- <Button variant="ghost" onClick={() => setDbAuth({ open: false, mode: "", password: "" })} disabled={dbLoading}>
- Cancel
- </Button>
- <Button variant="primary" onClick={handleDbAuthConfirm} loading={dbLoading} disabled={!dbAuth.password}>
- Confirm
- </Button>
- </>
- }
- >
- <p className="text-text-muted mb-3 text-sm">
- Enter your current password to {dbAuth.mode === "export" ? "export" : "import"} the database.
- </p>
- <Input
- type="password"
- value={dbAuth.password}
- onChange={(e) => setDbAuth((s) => ({ ...s, password: e.target.value }))}
- onKeyDown={(e) => { if (e.key === "Enter" && dbAuth.password) handleDbAuthConfirm(); }}
- placeholder="Current password"
- autoFocus
- />
- </Modal>
- </div>
- );
-}
