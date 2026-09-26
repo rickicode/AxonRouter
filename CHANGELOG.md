@@ -1,4 +1,8 @@
-# v0.5.76 (2026-09-26)
+# v0.1.3 (2026-09-26)
+
+> NOTE: the historical `0.5.x` entries below came from the 9router-X fork lineage
+> that AxonRouter was seeded from. AxonRouter proper follows `0.1.x`; entries
+> below are kept for provenance only.
 
 ## Fixes
 - **Combo PUT 404**: catch-all API routes (`[...slug]`) now convert to Hono regex params (`:slug{.+}`) in `routeLoader.mjs` instead of literal `*slug` suffixes. Repairs `PUT /api/combos/{uuid}`, `GET /api/v1/models/[...model]`, and `/v1beta/models/[...path]`; `buildParamsObject` parses regex params into Next-style arrays and `getRouteScore` ranks catch-alls last so literal subpaths win.
