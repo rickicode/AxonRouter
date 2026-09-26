@@ -1,4 +1,4 @@
-import { getAdapter } from "../driver.js";
+import { getAdapter } from "../../src/lib/db/driver.js";
 import { invalidateProxyGroupCache } from "../../src/lib/db/repos/proxyGroupsRepo.js";
 import crypto from "crypto";
 
