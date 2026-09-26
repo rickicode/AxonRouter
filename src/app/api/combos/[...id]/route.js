@@ -1,5 +1,5 @@
 import { NextResponse } from "@/lib/http/response.js";
-import { getComboById, updateCombo, deleteCombo, getComboByName } from "@/lib/localDb";
+import { getComboById, updateCombo, deleteCombo, getComboByName, createCombo } from "@/lib/localDb";
 import { resetComboRotation } from "open-sse/services/combo.js";
 import { delSharedCounter } from "@/lib/cache/client.js";
 import { CORE_MODEL_COMBOS, GENERAL_LATEST_COMBOS } from "open-sse/config/coreModelCombos.js";
@@ -102,15 +102,15 @@ export async function PUT(request, { params }) {
         return NextResponse.json({ error: "Name can only contain letters, numbers, -, _, . and /" }, { status: 400 });
       }
       
+      if (isBuiltinCombo(prev) && body.name !== prev.name) {
+        return NextResponse.json({ error: "Built-in preset combo name cannot be changed" }, { status: 400 });
+      }
+
       // Check if name already exists (exclude current combo)
       const existing = await getComboByName(body.name);
       if (existing && existing.id !== realId) {
         return NextResponse.json({ error: "Combo name already exists" }, { status: 400 });
       }
-    }
-
-    if (isBuiltinCombo(prev) && body.name && body.name !== prev.name) {
-      return NextResponse.json({ error: "Built-in preset combo name cannot be changed" }, { status: 400 });
     }
 
     const combo = await updateCombo(realId, body);

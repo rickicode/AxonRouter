@@ -138,4 +138,115 @@ describe("API /api/combos/[...id] route handlers with routeLoader params", () =>
     expect(body).toEqual({ success: true });
     expect(mocks.deleteCombo).toHaveBeenCalledWith(testCombo.id);
   });
+
+  it("prevents changing the name of built-in preset combos", async () => {
+    const builtinCombo = {
+      id: "deepseek-v4-flash",
+      name: "deepseek-v4-flash",
+      models: ["cline-free/deepseek/deepseek-v4-flash"],
+    };
+    mocks.getComboById.mockResolvedValue(builtinCombo);
+
+    const honoParams = { id: "deepseek-v4-flash" };
+    const params = buildParamsObject(honoParams, "/api/combos/:id{.+}");
+
+    const req = new Request("http://localhost/api/combos/deepseek-v4-flash", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name: "my-custom-deepseek" }),
+    });
+
+    const res = await PUT(req, { params: Promise.resolve(params) });
+    expect(res.status).toBe(400);
+    const body = await res.json();
+    expect(body.error).toBe("Built-in preset combo name cannot be changed");
+  });
+
+  it("prevents renaming to an already existing combo name", async () => {
+    mocks.getComboById.mockResolvedValue(testCombo);
+    mocks.getComboByName.mockResolvedValue({
+      id: "another-uuid-456",
+      name: "already-taken-name",
+    });
+
+    const honoParams = { id: testCombo.id };
+    const params = buildParamsObject(honoParams, "/api/combos/:id{.+}");
+
+    const req = new Request(`http://localhost/api/combos/${testCombo.id}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name: "already-taken-name" }),
+    });
+
+    const res = await PUT(req, { params: Promise.resolve(params) });
+    expect(res.status).toBe(400);
+    const body = await res.json();
+    expect(body.error).toBe("Combo name already exists");
+  });
+
+  it("prevents deleting built-in preset combos", async () => {
+    const builtinCombo = {
+      id: "claude-latest",
+      name: "claude-latest",
+      models: ["ag/claude-opus-4-6-thinking"],
+    };
+    mocks.getComboById.mockResolvedValue(builtinCombo);
+
+    const honoParams = { id: "claude-latest" };
+    const params = buildParamsObject(honoParams, "/api/combos/:id{.+}");
+
+    const req = new Request("http://localhost/api/combos/claude-latest", {
+      method: "DELETE",
+    });
+
+    const res = await DELETE(req, { params: Promise.resolve(params) });
+    expect(res.status).toBe(403);
+    const body = await res.json();
+    expect(body.error).toBe("Built-in preset combos cannot be deleted");
+  });
+
+  it("returns 404 when deleting a non-existent combo", async () => {
+    mocks.getComboById.mockResolvedValue(null);
+    mocks.getComboByName.mockResolvedValue(null);
+
+    const honoParams = { id: "missing-uuid" };
+    const params = buildParamsObject(honoParams, "/api/combos/:id{.+}");
+
+    const req = new Request("http://localhost/api/combos/missing-uuid", {
+      method: "DELETE",
+    });
+
+    const res = await DELETE(req, { params: Promise.resolve(params) });
+    expect(res.status).toBe(404);
+    const body = await res.json();
+    expect(body.error).toBe("Combo not found");
+  });
+
+  it("upserts a new combo if PUT target does not exist", async () => {
+    mocks.getComboById.mockResolvedValue(null);
+    mocks.getComboByName.mockResolvedValue(null);
+    const newCombo = {
+      id: "new-combo-uuid",
+      name: "new-upserted-combo",
+      models: ["ag/gemini-3.8-flash-high"],
+    };
+    mocks.createCombo.mockResolvedValue(newCombo);
+
+    const honoParams = { id: "new-upserted-combo" };
+    const params = buildParamsObject(honoParams, "/api/combos/:id{.+}");
+
+    const req = new Request("http://localhost/api/combos/new-upserted-combo", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        name: "new-upserted-combo",
+        models: ["ag/gemini-3.8-flash-high"],
+      }),
+    });
+
+    const res = await PUT(req, { params: Promise.resolve(params) });
+    expect(res.status).toBe(201);
+    const body = await res.json();
+    expect(body.id).toBe("new-combo-uuid");
+  });
 });

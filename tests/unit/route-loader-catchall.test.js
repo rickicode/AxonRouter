@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { Hono } from "hono";
-import { toHonoPath, buildParamsObject, API_ROOT } from "../../src/server/routeLoader.mjs";
+import { toHonoPath, buildParamsObject, getRouteScore, API_ROOT } from "../../src/server/routeLoader.mjs";
 import path from "node:path";
 
 describe("routeLoader Hono path conversion and param extraction", () => {
@@ -95,5 +95,26 @@ describe("routeLoader Hono path conversion and param extraction", () => {
       type: "model",
       params: { model: ["openai", "gpt-4"] },
     });
+  });
+
+  it("calculates route scores giving catch-all highest score to register last", () => {
+    const staticRoute = path.join(API_ROOT, "combos", "route.js");
+    const singleParamRoute = path.join(API_ROOT, "providers", "[id]", "route.js");
+    const multiParamRoute = path.join(API_ROOT, "oauth", "[provider]", "[action]", "route.js");
+    const catchAllRoute = path.join(API_ROOT, "combos", "[...id]", "route.js");
+
+    const staticScore = getRouteScore(staticRoute);
+    const singleScore = getRouteScore(singleParamRoute);
+    const multiScore = getRouteScore(multiParamRoute);
+    const catchAllScore = getRouteScore(catchAllRoute);
+
+    expect(staticScore).toBe(2); // "api" (1) + "combos" (1)
+    expect(singleScore).toBe(102); // "api" (1) + "providers" (1) + ":id" (100)
+    expect(multiScore).toBe(202); // "api" (1) + "oauth" (1) + ":provider" (100) + ":action" (100)
+    expect(catchAllScore).toBe(10002); // "api" (1) + "combos" (1) + ":id{.+} " (10000)
+
+    expect(staticScore).toBeLessThan(singleScore);
+    expect(singleScore).toBeLessThan(multiScore);
+    expect(multiScore).toBeLessThan(catchAllScore);
   });
 });

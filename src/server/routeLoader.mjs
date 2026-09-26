@@ -140,4 +140,4 @@ export async function loadApiRoutes(app) {
   return loaded;
 }
 
-export { toHonoPath, buildParamsObject, API_ROOT };
+export { toHonoPath, buildParamsObject, getRouteScore, API_ROOT };
