@@ -112,20 +112,20 @@ export default function DashboardLayout({ children }) {
  Skip to main content
  </a>
 
- {/* Accessible Toast Notifications container */}
+ // Accessible Toast Notifications container
  <div
- className="fixed top-4 right-4 z-[80] flex w-[min(92vw,380px)] flex-col gap-2"
- role="status"
- aria-live="polite"
- aria-atomic="false"
+   className="fixed top-16 right-4 z-[80] flex w-[min(92vw,380px)] flex-col gap-2"
+   role="status"
+   aria-live="polite"
+   aria-atomic="false"
  >
- {notifications.map((n) => {
- const style = getToastStyle(n.type);
- return (
- <div
- key={n.id}
- className={`rounded-sm border px-3 min-h-8 py-1.5 ${style.wrapper}`}
- >
+   {notifications.map((n) => {
+     const style = getToastStyle(n.type);
+     return (
+       <div
+         key={n.id}
+         className={`rounded-sm border px-3 min-h-8 py-1.5 ${style.wrapper.replace(/bg-.*-10/, 'bg-surface')}`}
+       >
             <div className="flex items-start gap-2">
               <Icon name={style.icon} size={18} className="leading-5" />
  <div className="min-w-0 flex-1">
