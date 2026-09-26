@@ -242,7 +242,15 @@ function ConnectionRow({ connection, proxyPools, isOAuth, isFirst, isLast, onMov
  <div className="absolute right-0 top-full mt-1 z-50 bg-bg border border-border rounded-sm py-1 min-w-[160px]">
  <button onClick={() => handleSelectProxy("__none__")} className={`w-full text-left px-3 py-2 text-sm hover:bg-surface-2 ${!boundProxyPoolId ? "text-primary font-medium" : "text-text-main"}`}>None</button>
  {(proxyPools || []).map((pool) => (
- <button key={pool.id} onClick={() => handleSelectProxy(pool.id)} className={`w-full text-left px-3 py-2 text-sm hover:bg-surface-2 ${boundProxyPoolId === pool.id ? "text-primary font-medium" : "text-text-main"}`}>{pool.name}</button>
+ <button key={pool.id} onClick={() => handleSelectProxy(pool.id)} className={`w-full text-left px-3 py-2 text-sm hover:bg-surface-2 flex items-center justify-between gap-2 ${boundProxyPoolId === pool.id ? "text-primary font-medium" : "text-text-main"}`}>
+   <span>{pool.name}</span>
+   {pool.consecutiveFailures > 0 && pool.isActive && (
+     <span className="text-[11px] text-warning font-normal">({pool.consecutiveFailures}/3 fails)</span>
+   )}
+   {!pool.isActive && (
+     <span className="text-[11px] text-danger font-normal">{pool.consecutiveFailures >= 3 || pool.testStatus === "unhealthy" ? "(unhealthy)" : "(inactive)"}</span>
+   )}
+ </button>
  ))}
  </div>
  )}

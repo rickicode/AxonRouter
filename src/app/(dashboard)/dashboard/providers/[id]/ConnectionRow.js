@@ -701,8 +701,13 @@ className={`flex min-h-11 w-full flex-col items-center rounded-sm px-2 hover:bg-
  size={18}
  />
  <span className={isSelected ? "text-primary font-medium" : "text-text-main"}>{pool.name}</span>
+ {pool.consecutiveFailures > 0 && isActive && (
+ <span className="ml-auto text-[11px] text-warning">({pool.consecutiveFailures}/3 fails · degraded)</span>
+ )}
  {!isActive && (
- <span className="ml-auto text-[11px] text-danger">(inactive)</span>
+ <span className="ml-auto text-[11px] text-danger">
+ {pool.consecutiveFailures >= 3 || pool.testStatus === "unhealthy" ? "(unhealthy · 3 fails)" : "(inactive)"}
+ </span>
  )}
  </div>
  </button>

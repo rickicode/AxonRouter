@@ -378,7 +378,12 @@ export default function AddApiKeyModal({ isOpen, provider, providerName, isCompa
  onChange={(e) => setFormData({ ...formData, proxyPoolId: e.target.value })}
  options={[
  { value: NONE_PROXY_POOL_VALUE, label: "None" },
- ...(proxyPools || []).map((pool) => ({ value: pool.id, label: pool.name })),
+ ...(proxyPools || []).map((pool) => {
+   let suffix = "";
+   if (pool.consecutiveFailures > 0 && pool.isActive) suffix = ` (${pool.consecutiveFailures}/3 fails)`;
+   else if (!pool.isActive) suffix = pool.consecutiveFailures >= 3 ? " (unhealthy)" : " (inactive)";
+   return { value: pool.id, label: `${pool.name}${suffix}` };
+ }),
  ]}
  placeholder="None"
  />

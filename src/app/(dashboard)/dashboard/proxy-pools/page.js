@@ -164,6 +164,7 @@ function ProxyPoolsContent() {
  const [searchQuery, setSearchQuery] = useState("");
  const [typeFilter, setTypeFilter] = useState("all");
  const [groupFilter, setGroupFilter] = useState("all");
+ const [statusFilter, setStatusFilter] = useState("all");
  const [currentPage, setCurrentPage] = useState(1);
  const [pageSize, setPageSize] = useState(50);
  const [healthChecking, setHealthChecking] = useState(false);
@@ -396,6 +397,22 @@ function ProxyPoolsContent() {
  });
  };
 
+ const handleResetFailures = async (poolId) => {
+ try {
+ const res = await fetch(`/api/proxy-pools/${poolId}`, {
+ method: "PUT",
+ headers: { "Content-Type": "application/json" },
+ body: JSON.stringify({ consecutiveFailures: 0, testStatus: "active", isActive: true }),
+ });
+ if (res.ok) {
+ await fetchProxyPools();
+ notify.success("Failure counter reset to 0");
+ }
+ } catch {
+ notify.error("Failed to reset failure counter");
+ }
+ };
+
  const handleTest = async (proxyPoolId) => {
  setTestingId(proxyPoolId);
  try {
@@ -477,6 +494,20 @@ function ProxyPoolsContent() {
  }
  }
 
+ // Status / Health filter
+ if (statusFilter !== "all") {
+ if (statusFilter === "active" && !pool.isActive) return false;
+ if (statusFilter === "degraded") {
+ const isDegraded = pool.testStatus === "degraded" || (pool.consecutiveFailures > 0 && pool.consecutiveFailures < 3);
+ if (!isDegraded) return false;
+ }
+ if (statusFilter === "unhealthy") {
+ const isUnhealthy = pool.testStatus === "unhealthy" || pool.consecutiveFailures >= 3;
+ if (!isUnhealthy) return false;
+ }
+ if (statusFilter === "inactive" && pool.isActive) return false;
+ }
+
  // Search query
  if (searchQuery.trim()) {
  const q = searchQuery.toLowerCase().trim();
@@ -492,11 +523,11 @@ function ProxyPoolsContent() {
 
  return true;
  });
- }, [proxyPools, typeFilter, groupFilter, searchQuery, poolCustomGroupsMap, proxyGroups.customGroups]);
+ }, [proxyPools, typeFilter, groupFilter, statusFilter, searchQuery, poolCustomGroupsMap, proxyGroups.customGroups]);
 
  useEffect(() => {
  setCurrentPage(1);
- }, [searchQuery, typeFilter, groupFilter, pageSize]);
+ }, [searchQuery, typeFilter, groupFilter, statusFilter, pageSize]);
 
  const totalPages = Math.max(
  1,
@@ -621,7 +652,9 @@ function ProxyPoolsContent() {
  if (targets.length === 0) return;
  setHealthChecking(true);
  setHealthProgress({ current: 0, total: targets.length });
- let alive = 0; const deadIds = [];
+ let alive = 0;
+ let degraded = 0;
+ let unhealthy = 0;
  let done = 0;
  const CONCURRENCY = 10;
  const queue = [...targets];
@@ -633,9 +666,15 @@ function ProxyPoolsContent() {
  try {
  const res = await fetch(`/api/proxy-pools/${pool.id}/test`, { method: "POST" });
  const data = await res.json();
- if (res.ok && data.ok) alive += 1; else deadIds.push(pool.id);
+ if (res.ok && data.ok) {
+ alive += 1;
+ } else if (data.consecutiveFailures >= 3 || data.testStatus === "unhealthy" || !data.isActive) {
+ unhealthy += 1;
+ } else {
+ degraded += 1;
+ }
  } catch {
- deadIds.push(pool.id);
+ degraded += 1;
  } finally {
  done += 1;
  setHealthProgress({ current: done, total: targets.length });
@@ -648,33 +687,7 @@ function ProxyPoolsContent() {
  setHealthChecking(false);
  setHealthProgress({ current: 0, total: 0 });
 
- if (deadIds.length > 0) {
- setConfirmState({
- title: "Disable Dead Proxies",
- message: `Alive: ${alive}, Dead: ${deadIds.length}.\n\nDisable ${deadIds.length} dead proxies?`,
- onConfirm: async () => {
- setConfirmState(null);
- setBulkBusy(true);
- try {
- for (const id of deadIds) {
- try {
- await fetch(`/api/proxy-pools/${id}`, {
- method: "PUT",
- headers: { "Content-Type": "application/json" },
- body: JSON.stringify({ isActive: false }),
- });
- } catch {}
- }
- await fetchProxyPools();
- notify.success(`Disabled ${deadIds.length} dead proxies`);
- } finally {
- setBulkBusy(false);
- }
- }
- });
- } else {
- notify.success(`Health check done. Alive: ${alive}, Dead: ${deadIds.length}`);
- }
+ notify.success(`Health check complete: ${alive} healthy, ${degraded} degraded (1-2 fails), ${unhealthy} unhealthy (auto-disabled)`);
  };
 
  // Cleanup selectedIds when pools change
@@ -1389,6 +1402,32 @@ function ProxyPoolsContent() {
                 )}
               </div>
 
+              {/* Status / Health Filter */}
+              <div className="flex items-center gap-1">
+                <select
+                  value={statusFilter}
+                  onChange={(e) => setStatusFilter(e.target.value)}
+                  className="min-h-11 sm:min-h-9 rounded-sm border border-border bg-surface py-1.5 px-2.5 text-xs text-text-main focus:border-primary focus:outline-none font-medium"
+                  title="Filter by Health / Status"
+                >
+                  <option value="all">All Status</option>
+                  <option value="active">Active</option>
+                  <option value="degraded">Degraded (1-2 fails)</option>
+                  <option value="unhealthy">Unhealthy (3+ fails)</option>
+                  <option value="inactive">Inactive</option>
+                </select>
+                {statusFilter !== "all" && (
+                  <button
+                    type="button"
+                    onClick={() => setStatusFilter("all")}
+                    className="size-11 sm:size-8 flex items-center justify-center rounded-sm text-text-muted hover:text-text-main hover:bg-surface-2"
+                    title="Clear status filter"
+                  >
+                    <Icon name="cancel" size={18} />
+                  </button>
+                )}
+              </div>
+
               <SegmentedControl
                 options={[
                   { value: "all", label: "All" },
@@ -1454,7 +1493,7 @@ function ProxyPoolsContent() {
  <p className="text-sm text-text-muted mb-3">
  Try adjusting your search query, group, or type filter.
  </p>
- <Button variant="secondary" size="sm" onClick={() => { setSearchQuery(""); setTypeFilter("all"); setGroupFilter("all"); }}>
+ <Button variant="secondary" size="sm" onClick={() => { setSearchQuery(""); setTypeFilter("all"); setGroupFilter("all"); setStatusFilter("all"); }}>
  Reset Filter
  </Button>
  </div>
@@ -1479,6 +1518,15 @@ function ProxyPoolsContent() {
  <Badge variant={pool.isActive ? "success" : "default"} size="sm">
  {pool.isActive ? "active" : "inactive"}
  </Badge>
+ {pool.consecutiveFailures > 0 && (
+ <Badge
+ variant={pool.consecutiveFailures >= 3 ? "error" : "warning"}
+ size="sm"
+ title={`${pool.consecutiveFailures} consecutive failure(s). Auto-disables at 3.`}
+ >
+ {pool.consecutiveFailures}/3 fails
+ </Badge>
+ )}
  {pool.type === "vercel" && (
  <Badge variant="default" size="sm">vercel relay</Badge>
  )}
@@ -1530,6 +1578,7 @@ function ProxyPoolsContent() {
  ) : null}
  <p className="text-[11px] text-text-muted mt-1">
  Last tested: {formatDateTime(pool.lastTestedAt)}
+ {pool.consecutiveFailures > 0 ? ` · ${pool.consecutiveFailures}/3 consecutive failures` : ""}
  {pool.lastError ? ` · ${pool.lastError}` : ""}
  </p>
  </div>
@@ -1554,6 +1603,15 @@ function ProxyPoolsContent() {
                       style={testingId === pool.id ? { animation: "spin 1s linear infinite" } : undefined}
                     />
                   </button>
+                  {pool.consecutiveFailures > 0 && (
+                    <button
+                      onClick={() => handleResetFailures(pool.id)}
+                      className="size-11 sm:size-8 flex items-center justify-center shrink-0 rounded-sm text-warning hover:bg-warning/10"
+                      title="Reset failure counter to 0"
+                    >
+                      <Icon name="restart_alt" size={18} />
+                    </button>
+                  )}
                   <button
                     onClick={() => openEditModal(pool)}
                     className="size-11 sm:size-8 flex items-center justify-center shrink-0 rounded-sm text-text-muted hover:bg-surface-2 hover:text-text-main"
