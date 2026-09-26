@@ -1458,3 +1458,14 @@ export async function pruneUsageHistory({
     return { error: err.message, deleted: 0 };
   }
 }
+
+export async function countUsageHistory() {
+  try {
+    const db = await getAdapter();
+    const row = await db.get("SELECT COUNT(*)::int AS count FROM usage_history");
+    return Number(row?.count || 0);
+  } catch (err) {
+    console.error("[usageRepo] countUsageHistory error:", err.message);
+    return 0;
+  }
+}

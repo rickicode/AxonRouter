@@ -449,11 +449,13 @@ export async function ensureMonthlyPartitions(adapter) {
  */
 export async function pruneStalePartitions(adapter, retainMonths = 3) {
   try {
+    const db = adapter || (await import("./driver.js")).getAdapter ? await (await import("./driver.js")).getAdapter() : adapter;
+    if (!db) return;
     const now = new Date();
     const cutoffDate = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - retainMonths, 1));
     const cutoffSuffix = `y${cutoffDate.getUTCFullYear()}m${String(cutoffDate.getUTCMonth() + 1).padStart(2, "0")}`;
 
-    const rows = await adapter.all(
+    const rows = await db.all(
       `SELECT c.relname
          FROM pg_class c
          JOIN pg_namespace n ON n.oid = c.relnamespace
@@ -465,7 +467,7 @@ export async function pruneStalePartitions(adapter, retainMonths = 3) {
     for (const r of (rows || [])) {
       const match = r.relname.match(/(request_details|usage_history)_(y\d{4}m\d{2})/);
       if (match && match[2] < cutoffSuffix) {
-        await adapter.exec(`DROP TABLE IF EXISTS ${r.relname} CASCADE;`);
+        await db.exec(`DROP TABLE IF EXISTS ${r.relname} CASCADE;`);
       }
     }
   } catch (err) {

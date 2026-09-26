@@ -442,6 +442,17 @@ export async function pruneAnalyticsEvents({
   }
 }
 
+export async function countAnalyticsEvents() {
+  try {
+    const db = await getAdapter();
+    const row = await db.get("SELECT COUNT(*)::int AS count FROM analytics_events");
+    return Number(row?.count || 0);
+  } catch (err) {
+    console.error("[AnalyticsRepo] countAnalyticsEvents error:", err.message);
+    return 0;
+  }
+}
+
 export const __test__ = {
   getBuffer: () => writeBuffer,
   clearBuffer: () => {

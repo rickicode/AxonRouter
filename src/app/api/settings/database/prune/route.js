@@ -1,8 +1,7 @@
 import { NextResponse } from "@/lib/http/response.js";
-import { pruneUsageHistory } from "@/lib/db/repos/usageRepo.js";
-import { pruneAnalyticsEvents } from "@/lib/db/repos/analyticsRepo.js";
+import { pruneUsageHistory, countUsageHistory } from "@/lib/db/repos/usageRepo.js";
+import { pruneAnalyticsEvents, countAnalyticsEvents } from "@/lib/db/repos/analyticsRepo.js";
 import { pruneStalePartitions } from "@/lib/db/schema.pg.js";
-import { getAdapter } from "@/lib/db/driver.js";
 import { getSettings } from "@/lib/db/repos/settingsRepo.js";
 
 export const dynamic = "force-dynamic";
@@ -16,8 +15,6 @@ export async function POST(request) {
     const maxRecords = body.maxRecords !== undefined ? Number(body.maxRecords) : Number(settings.usageMaxRecords) || 100000;
     const partitionRetainMonths = body.partitionRetainMonths !== undefined ? Number(body.partitionRetainMonths) : Number(settings.usagePartitionRetainMonths) || 2;
 
-    const db = await getAdapter();
-
     // 1. Prune usage_history
     const usageResult = await pruneUsageHistory({ retentionDays, maxRecords });
 
@@ -25,17 +22,17 @@ export async function POST(request) {
     const analyticsResult = await pruneAnalyticsEvents({ retentionDays: Math.max(retentionDays, 7), maxRecords });
 
     // 3. Prune stale partitions
-    await pruneStalePartitions(db, partitionRetainMonths);
+    await pruneStalePartitions(null, partitionRetainMonths);
 
-    // 4. Fetch updated row counts
-    const usageCountRow = await db.get("SELECT COUNT(*)::int AS count FROM usage_history");
-    const analyticsCountRow = await db.get("SELECT COUNT(*)::int AS count FROM analytics_events");
+    // 4. Fetch updated row counts via repositories
+    const currentUsageRows = await countUsageHistory();
+    const currentAnalyticsRows = await countAnalyticsEvents();
 
     return NextResponse.json({
       success: true,
-      deletedUsageRows: usageResult.deleted || 0,
-      currentUsageRows: usageCountRow?.count || 0,
-      currentAnalyticsRows: analyticsCountRow?.count || 0,
+      deletedUsageRows: usageResult?.deleted || 0,
+      currentUsageRows,
+      currentAnalyticsRows,
     });
   } catch (error) {
     console.error("[settings/database/prune] error:", error);
