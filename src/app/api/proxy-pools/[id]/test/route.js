@@ -1,6 +1,7 @@
 import { NextResponse } from "@/lib/http/response.js";
 import { getProxyPoolById, updateProxyPool } from "@/models";
 import { testProxyUrl } from "@/lib/network/proxyTest";
+import { computeProxyTestHealth } from "@/lib/network/proxyHealth.js";
 import { fetch as undiciFetch } from "undici";
 
 async function testVercelRelay(relayUrl, timeoutMs = 10000) {
@@ -46,14 +47,9 @@ export async function POST(request, { params }) {
     const result = proxyPool.type === "vercel" || proxyPool.type === "cloudflare" || proxyPool.type === "deno"
       ? await testVercelRelay(proxyPool.proxyUrl)
       : await testProxyUrl({ proxyUrl: proxyPool.proxyUrl });
-    const now = new Date().toISOString();
 
-    await updateProxyPool(id, {
-      testStatus: result.ok ? "active" : "error",
-      lastTestedAt: now,
-      lastError: result.ok ? null : (result.error || `Proxy test failed with status ${result.status}`),
-      isActive: result.ok,
-    });
+    const healthUpdate = computeProxyTestHealth(proxyPool, result);
+    await updateProxyPool(id, healthUpdate);
 
     return NextResponse.json({
       ok: result.ok,
@@ -61,7 +57,10 @@ export async function POST(request, { params }) {
       statusText: result.statusText || null,
       error: result.error || null,
       elapsedMs: result.elapsedMs || 0,
-      testedAt: now,
+      testedAt: healthUpdate.lastTestedAt,
+      consecutiveFailures: healthUpdate.consecutiveFailures,
+      testStatus: healthUpdate.testStatus,
+      isActive: healthUpdate.isActive,
     });
   } catch (error) {
     console.log("Error testing proxy pool:", error);

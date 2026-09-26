@@ -41,6 +41,7 @@ function rowToPool(row) {
     testStatus: row.test_status,
     lastTestedAt: row.last_tested_at,
     lastError: row.last_error,
+    consecutiveFailures: Number(row.consecutive_failures ?? data.consecutiveFailures ?? 0),
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };
@@ -266,6 +267,18 @@ export async function deleteProxyPool(id) {
      const existing = await tx.get(`SELECT * FROM proxy_pools WHERE id = $1 FOR UPDATE`, [id]);
      if (!existing) return null;
      await tx.run(`DELETE FROM proxy_pools WHERE id = $1`, [id]);
+     try {
+       await tx.run(
+         `UPDATE proxy_groups 
+          SET pool_ids = COALESCE((
+            SELECT jsonb_agg(elem.id)
+            FROM jsonb_array_elements_text(proxy_groups.pool_ids) elem(id)
+            WHERE elem.id != $1
+          ), '[]'::jsonb)
+          WHERE pool_ids::text LIKE '%' || $1 || '%'`,
+         [id]
+       );
+     } catch {}
      return existing;
    });
    if (!row) return null;
@@ -282,6 +295,10 @@ export async function deleteDisabledProxyPools() {
          AND NOT EXISTS (
            SELECT 1 FROM provider_connections c
            WHERE c.data->'providerSpecificData'->>'proxyPoolId' = p.id
+              OR (
+                jsonb_typeof(c.data->'providerSpecificData'->'proxyPoolIds') = 'array'
+                AND c.data->'providerSpecificData'->'proxyPoolIds' @> jsonb_build_array(p.id)
+              )
          )`
     );
     if (!candidates || candidates.length === 0) return [];

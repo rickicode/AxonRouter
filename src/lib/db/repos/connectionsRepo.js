@@ -623,11 +623,26 @@ export async function getProviderSummaryStats() {
 export async function getProxyPoolBoundCounts() {
   const db = await getAdapter();
   const rows = await db.all(`
-    SELECT data->'providerSpecificData'->>'proxyPoolId' AS pool_id,
-           COUNT(*)::int AS count
-      FROM provider_connections
-     WHERE data->'providerSpecificData'->>'proxyPoolId' IS NOT NULL
-     GROUP BY 1
+    WITH individual_pools AS (
+      SELECT data->'providerSpecificData'->>'proxyPoolId' AS pool_id
+        FROM provider_connections
+       WHERE data->'providerSpecificData'->>'proxyPoolId' IS NOT NULL
+         AND data->'providerSpecificData'->>'proxyPoolId' != ''
+      UNION ALL
+      SELECT elem.pool_id
+        FROM provider_connections,
+             LATERAL jsonb_array_elements_text(
+               CASE 
+                 WHEN jsonb_typeof(data->'providerSpecificData'->'proxyPoolIds') = 'array' 
+                 THEN data->'providerSpecificData'->'proxyPoolIds' 
+                 ELSE '[]'::jsonb 
+               END
+             ) AS elem(pool_id)
+       WHERE elem.pool_id IS NOT NULL AND elem.pool_id != ''
+    )
+    SELECT pool_id, COUNT(*)::int AS count
+      FROM individual_pools
+     GROUP BY pool_id
   `);
   const map = {};
   for (const r of rows) {
@@ -642,7 +657,11 @@ export async function countProxyPoolBoundConnections(proxyPoolId) {
   const row = await db.get(
     `SELECT COUNT(*)::int AS count
        FROM provider_connections
-      WHERE data->'providerSpecificData'->>'proxyPoolId' = $1`,
+      WHERE data->'providerSpecificData'->>'proxyPoolId' = $1
+         OR (
+           jsonb_typeof(data->'providerSpecificData'->'proxyPoolIds') = 'array'
+           AND data->'providerSpecificData'->'proxyPoolIds' @> jsonb_build_array($1::text)
+         )`,
     [proxyPoolId],
   );
   return Number(row?.count || 0);

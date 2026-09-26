@@ -223,6 +223,7 @@ export async function PUT(request, { params }) {
           delete updateData.providerSpecificData.proxyPoolId;
         } else {
           // Handle legacy single-proxy format
+          delete updateData.providerSpecificData.proxyPoolIds;
           if (proxyPoolResult.proxyPoolId === null) {
             delete updateData.providerSpecificData.proxyPoolId;
           } else {

@@ -42,8 +42,13 @@ function normalizeProxyPoolUpdate(body = {}) {
   }
 
   if (Object.prototype.hasOwnProperty.call(body, "type")) {
-    const validTypes = ["http", "vercel", "cloudflare"];
+    const validTypes = ["http", "vercel", "cloudflare", "deno"];
     updates.type = validTypes.includes(body?.type) ? body.type : "http";
+  }
+
+  if (Object.prototype.hasOwnProperty.call(body, "consecutiveFailures")) {
+    const cf = Number(body?.consecutiveFailures);
+    updates.consecutiveFailures = Number.isFinite(cf) && cf >= 0 ? Math.floor(cf) : 0;
   }
 
   return { updates };

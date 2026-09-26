@@ -9,7 +9,8 @@ import Icon from "@/shared/components/Icon";
 
 function getStatusVariant(status) {
  if (status === "active") return "success";
- if (status === "error") return "error";
+ if (status === "error" || status === "unhealthy") return "error";
+ if (status === "degraded") return "warning";
  return "default";
 }
 
@@ -1483,6 +1484,9 @@ function ProxyPoolsContent() {
  )}
  {pool.type === "cloudflare" && (
  <Badge variant="default" size="sm">cloudflare relay</Badge>
+ )}
+ {pool.type === "deno" && (
+ <Badge variant="default" size="sm">deno relay</Badge>
  )}
  {(() => {
  const customList = poolCustomGroupsMap.get(pool.id) || [];

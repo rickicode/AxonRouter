@@ -3,7 +3,7 @@ function normalizeString(value) {
   return String(value).trim();
 }
 
-const ALLOWED_PROXY_SCHEMES = ["http:", "https:", "socks5:", "socks4:", "socks5h:", "socks4a:"];
+const ALLOWED_PROXY_SCHEMES = ["http:", "https:", "socks5:", "socks:", "socks5h:"];
 
 function validateProxyUrl(url) {
   if (!url) return null;
@@ -11,6 +11,9 @@ function validateProxyUrl(url) {
   try {
     const parsed = new URL(url);
     if (!ALLOWED_PROXY_SCHEMES.includes(parsed.protocol)) return null;
+    if (parsed.protocol === "socks5h:") {
+      parsed.protocol = "socks5:";
+    }
     return parsed.href;
   } catch {
     return null;

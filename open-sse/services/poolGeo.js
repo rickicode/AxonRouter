@@ -158,8 +158,8 @@ export async function probePoolGeo(pool, timeoutMs = 15000) {
   const { proxyAwareFetch } = await import("../utils/proxyFetch.js");
   const isRelay = ["vercel", "cloudflare", "deno"].includes(pool?.type);
   const proxyOptions = isRelay
-    ? { vercelRelayUrl: proxyUrl }
-    : { connectionProxyEnabled: true, connectionProxyUrl: proxyUrl };
+    ? { vercelRelayUrl: proxyUrl, strictProxy: true }
+    : { connectionProxyEnabled: true, connectionProxyUrl: proxyUrl, strictProxy: true };
 
   const custom = process.env.GEO_PROBE_URL ? [{ name: null, url: process.env.GEO_PROBE_URL }] : [];
   const probes = custom.length ? custom : GEO_PROBES;

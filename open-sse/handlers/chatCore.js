@@ -14,6 +14,7 @@ import { acquireUpstreamSlot, UpstreamQueueTimeout } from "../utils/upstreamSema
 import { handleBypassRequest } from "../utils/bypassHandler.js";
 import { trackPendingRequest as persistPendingRequest, appendRequestLog as persistRequestLog, saveRequestDetail as persistRequestDetail, saveFailedRequest as persistFailedRequest } from "@/lib/usageDb.js";
 import { observeChatAttempt } from "@/lib/observeChatAttempt.js";
+import { recordRuntimeProxyFailure } from "@/lib/network/proxyHealth.js";
 import { getExecutor } from "../executors/index.js";
 import { supportsGrokCliReasoningEffort } from "../config/grokCli.js";
 import { buildRequestDetail, extractRequestConfig } from "./chatCore/requestDetail.js";
@@ -430,7 +431,10 @@ const tryNextPool = async (poolScoped, reasonMsg) => {
     scope: poolScoped?.scope || proxyScope,
     reason: poolScoped?.reason || "pool-scoped",
   };
-  if (failed.poolId) failedPoolIds.add(failed.poolId);
+  if (failed.poolId) {
+    failedPoolIds.add(failed.poolId);
+    recordRuntimeProxyFailure(failed.poolId, failed.reason).catch(() => {});
+  }
   markPoolUnfit(failed.poolId, failed.scope, undefined, failed.reason);
   log?.warn?.("PROXY", `${provider.toUpperCase()} | pool ${failed.poolId || "?"} unfit for ${failed.scope} (${failed.reason}) — retry with another pool. ${reasonMsg || ""}`);
   // Rotate executor session ID so the next attempt gets a fresh fingerprint.

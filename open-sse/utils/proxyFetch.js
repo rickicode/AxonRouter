@@ -191,8 +191,11 @@ function normalizeProxyUrl(proxyUrl) {
   if (!normalizedInput) return null;
 
   try {
-
-    new URL(normalizedInput);
+    const parsed = new URL(normalizedInput);
+    if (parsed.protocol === "socks5h:") {
+      parsed.protocol = "socks5:";
+      return parsed.href;
+    }
     return normalizedInput;
   } catch {
     // Allow "127.0.0.1:7890" style values

@@ -40,9 +40,18 @@ export async function testProxyUrl({ proxyUrl, testUrl, timeoutMs } = {}) {
 
   let dispatcher;
 
+  let proxyUri = normalizedProxyUrl;
+  try {
+    const parsed = new URL(normalizedProxyUrl);
+    if (parsed.protocol === "socks5h:") {
+      parsed.protocol = "socks5:";
+      proxyUri = parsed.href;
+    }
+  } catch {}
+
   try {
     try {
-      dispatcher = new ProxyAgent({ uri: normalizedProxyUrl });
+      dispatcher = new ProxyAgent({ uri: proxyUri });
     } catch (err) {
       return {
         ok: false,

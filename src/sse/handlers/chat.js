@@ -11,6 +11,7 @@ import {
 import { markAccountExhaustedFrom429, markAccountExhaustedFromCredits, refreshQuota } from "@/domain/quotaCache.js";
 import { canonicalFreebuffModel } from "open-sse/executors/freebuff.js";
 import { getSettings, lockAccountToModel, lockProxyPoolForScope } from "@/lib/localDb";
+import { recordRuntimeProxySuccess } from "@/lib/network/proxyHealth.js";
 import { saveFailedRequest, saveRequestDetail } from "@/lib/usageDb.js";
 import { getModelInfo, getComboModels } from "../services/model.js";
 import { handleChatCore } from "open-sse/handlers/chatCore.js";
@@ -823,7 +824,11 @@ export async function handleSingleModelChat(body, modelStr, clientRawRequest = n
         // until it fails or becomes unfit.
         const successfulPoolId = credentials?.providerSpecificData?.proxyPoolId || credentials?.providerSpecificData?.connectionProxyPoolId;
         if (successfulPoolId) {
+          if (credentials?.connectionId) {
+            lockProxyPoolForScope(credentials.connectionId, successfulPoolId, credentials?.providerSpecificData?.proxyGroup || null);
+          }
           lockProxyPoolForScope(provider, successfulPoolId, credentials?.providerSpecificData?.proxyGroup || null);
+          recordRuntimeProxySuccess(successfulPoolId).catch(() => {});
         }
       }
     });
