@@ -449,7 +449,7 @@ export async function ensureMonthlyPartitions(adapter) {
  */
 export async function pruneStalePartitions(adapter, retainMonths = 3) {
   try {
-    const db = adapter || (await import("./driver.js")).getAdapter ? await (await import("./driver.js")).getAdapter() : adapter;
+    const db = adapter || (await (await import("./driver.js")).getAdapter());
     if (!db) return;
     const now = new Date();
     const cutoffDate = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - retainMonths, 1));
