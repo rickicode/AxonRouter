@@ -944,7 +944,7 @@ exports[`GOLDEN buildHeaders (default executor providers) > kimi → headers (ap
     "X-Msh-Device-Model": "Linux x64",
     "X-Msh-Device-Name": "servX",
     "X-Msh-Platform": "axonrouter",
-    "X-Msh-Version": "0.1.2",
+    "X-Msh-Version": "0.1.3",
     "x-api-key": "<CRED>",
   },
   "nonStream": {
@@ -955,7 +955,7 @@ exports[`GOLDEN buildHeaders (default executor providers) > kimi → headers (ap
     "X-Msh-Device-Model": "Linux x64",
     "X-Msh-Device-Name": "servX",
     "X-Msh-Platform": "axonrouter",
-    "X-Msh-Version": "0.1.2",
+    "X-Msh-Version": "0.1.3",
     "x-api-key": "<CRED>",
   },
   "oauth": {
@@ -967,7 +967,7 @@ exports[`GOLDEN buildHeaders (default executor providers) > kimi → headers (ap
     "X-Msh-Device-Model": "Linux x64",
     "X-Msh-Device-Name": "servX",
     "X-Msh-Platform": "axonrouter",
-    "X-Msh-Version": "0.1.2",
+    "X-Msh-Version": "0.1.3",
     "x-api-key": "<CRED>",
   },
 }
