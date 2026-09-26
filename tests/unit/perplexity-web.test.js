@@ -12,6 +12,11 @@
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+
+vi.mock("../../open-sse/utils/proxyFetch.js", () => ({
+  proxyAwareFetch: vi.fn(),
+}));
+
 import {
   parseOpenAIMessages,
   buildQuery,
@@ -19,8 +24,7 @@ import {
   formatToolsHint,
   PerplexityWebExecutor,
 } from "../../open-sse/executors/perplexity-web.js";
-
-const originalFetch = global.fetch;
+import { proxyAwareFetch } from "../../open-sse/utils/proxyFetch.js";
 
 function mockPplxStream(events) {
   const chunks = events.map((e) => `data: ${JSON.stringify(e)}\n\n`).join("") + "data: [DONE]\n\n";
@@ -183,7 +187,7 @@ describe("PerplexityWebExecutor.execute", () => {
     capturedUrl = null;
     capturedOpts = null;
     capturedBody = null;
-    global.fetch = vi.fn(async (url, opts) => {
+    proxyAwareFetch.mockImplementation(async (url, opts) => {
       capturedUrl = url;
       capturedOpts = opts;
       capturedBody = JSON.parse(opts.body);
@@ -198,7 +202,7 @@ describe("PerplexityWebExecutor.execute", () => {
   });
 
   afterEach(() => {
-    global.fetch = originalFetch;
+    proxyAwareFetch.mockReset();
   });
 
   it("maps pplx-auto → mode=concise, pref=pplx_pro", async () => {
@@ -277,7 +281,7 @@ describe("PerplexityWebExecutor.execute", () => {
   });
 
   it("surfaces upstream 401 with friendly auth message", async () => {
-    global.fetch = vi.fn(async () => new Response(JSON.stringify({ error: "bad" }), { status: 401 }));
+    proxyAwareFetch.mockResolvedValueOnce(new Response(JSON.stringify({ error: "bad" }), { status: 401 }));
     const exec = new PerplexityWebExecutor();
     const { response } = await exec.execute({
       model: "pplx-auto",
@@ -291,7 +295,7 @@ describe("PerplexityWebExecutor.execute", () => {
   });
 
   it("surfaces 429 with rate-limit message", async () => {
-    global.fetch = vi.fn(async () => new Response("", { status: 429 }));
+    proxyAwareFetch.mockResolvedValueOnce(new Response("", { status: 429 }));
     const exec = new PerplexityWebExecutor();
     const { response } = await exec.execute({
       model: "pplx-auto",
