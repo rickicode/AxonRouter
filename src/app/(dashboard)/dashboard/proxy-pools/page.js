@@ -169,6 +169,7 @@ function ProxyPoolsContent() {
  const [pageSize, setPageSize] = useState(50);
  const [healthChecking, setHealthChecking] = useState(false);
  const [healthProgress, setHealthProgress] = useState({ current: 0, total: 0 });
+ const [recovering, setRecovering] = useState(false);
  const [bulkBusy, setBulkBusy] = useState(false);
  const [confirmState, setConfirmState] = useState(null);
  const [proxyGroups, setProxyGroups] = useState({ defaultGroups: [], customGroups: [] });
@@ -540,8 +541,34 @@ function ProxyPoolsContent() {
  return filteredProxyPools.slice(start, start + pageSize);
  }, [filteredProxyPools, currentPage, pageSize]);
 
+ const activeCount = useMemo(
+ () => proxyPools.filter((pool) => pool.isActive === true).length,
+ [proxyPools]
+ );
+
  const disabledCount = useMemo(
  () => proxyPools.filter((pool) => pool.isActive === false).length,
+ [proxyPools]
+ );
+
+ const degradedCount = useMemo(
+ () =>
+ proxyPools.filter(
+ (p) =>
+ p.isActive &&
+ (p.testStatus === "degraded" ||
+ (Number(p.consecutiveFailures) > 0 && Number(p.consecutiveFailures) < 3))
+ ).length,
+ [proxyPools]
+ );
+
+ const unhealthyCount = useMemo(
+ () =>
+ proxyPools.filter(
+ (p) =>
+ !p.isActive &&
+ (p.testStatus === "unhealthy" || Number(p.consecutiveFailures) >= 3)
+ ).length,
  [proxyPools]
  );
 
@@ -570,12 +597,12 @@ function ProxyPoolsContent() {
  if (disabledCount === 0) return;
  setConfirmState({
  title: "Delete All Disabled Proxies",
- message: `Delete all ${disabledCount} disabled proxy pool(s)? Proxies bound to active connections will be preserved.`,
+ message: `Delete disabled proxy pool(s)? Proxies bound to connections and recently failed proxies (within 24h grace period) will be preserved.`,
  onConfirm: async () => {
  setConfirmState(null);
  setBulkBusy(true);
  try {
- const res = await fetch("/api/proxy-pools?scope=disabled", { method: "DELETE" });
+ const res = await fetch("/api/proxy-pools?scope=disabled&graceHours=24&protectUnhealthy=true", { method: "DELETE" });
  const data = await res.json();
  if (res.ok) {
  notify.success(`Deleted ${data.count} disabled proxy pool(s)`);
@@ -592,6 +619,30 @@ function ProxyPoolsContent() {
  }
  },
  });
+ };
+
+ const handleAutoRecover = async () => {
+ setRecovering(true);
+ try {
+ const res = await fetch("/api/proxy-pools/recover?force=true", { method: "POST" });
+ const data = await res.json();
+ if (res.ok) {
+ if (data.recovered > 0) {
+ notify.success(`Auto-recovered ${data.recovered} proxy pool(s)!`);
+ } else if (data.checked === 0) {
+ notify.info("No degraded or unhealthy proxies to recover");
+ } else {
+ notify.warning(`Tested ${data.checked} proxy pool(s), but none recovered yet.`);
+ }
+ await fetchProxyPools();
+ } else {
+ notify.error(data.error || "Auto-recovery failed");
+ }
+ } catch {
+ notify.error("Failed to run auto-recovery");
+ } finally {
+ setRecovering(false);
+ }
  };
 
  const bulkSetActive = async (isActive) => {
@@ -1169,13 +1220,6 @@ function ProxyPoolsContent() {
  }
  };
 
- const activeCount = useMemo(
- () => proxyPools.filter((pool) => pool.isActive === true).length,
- [proxyPools]
- );
-
-
-
  if (loading) {
  return (
  <div className="flex w-full flex-col gap-3">
@@ -1323,8 +1367,40 @@ function ProxyPoolsContent() {
                 <Badge variant="default">Filtered: {filteredProxyPools.length}</Badge>
               )}
               <Badge variant="success">Active: {activeCount}</Badge>
+              {degradedCount > 0 && (
+                <Badge
+                  variant="warning"
+                  className="cursor-pointer hover:opacity-80"
+                  onClick={() => setStatusFilter("degraded")}
+                  title="Filter degraded proxies (1-2 consecutive failures)"
+                >
+                  Degraded: {degradedCount}
+                </Badge>
+              )}
+              {unhealthyCount > 0 && (
+                <Badge
+                  variant="error"
+                  className="cursor-pointer hover:opacity-80"
+                  onClick={() => setStatusFilter("unhealthy")}
+                  title="Filter unhealthy proxies (3+ consecutive failures)"
+                >
+                  Unhealthy: {unhealthyCount}
+                </Badge>
+              )}
               {disabledCount > 0 && (
-                <Badge variant="error">Disabled: {disabledCount}</Badge>
+                <Badge variant="default">Disabled: {disabledCount}</Badge>
+              )}
+              {(unhealthyCount > 0 || degradedCount > 0) && (
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  icon="healing"
+                  onClick={handleAutoRecover}
+                  disabled={bulkBusy || healthChecking || recovering}
+                  title="Probe and auto-recover unhealthy and degraded proxy pools"
+                >
+                  {recovering ? "Recovering..." : `Auto-Recover (${unhealthyCount + degradedCount})`}
+                </Button>
               )}
               {disabledCount > 0 && (
                 <Button
@@ -1332,8 +1408,8 @@ function ProxyPoolsContent() {
                   variant="danger"
                   icon="delete_sweep"
                   onClick={handleDeleteAllDisabled}
-                  disabled={bulkBusy || healthChecking}
-                  title="Delete all disabled proxy pools not in use"
+                  disabled={bulkBusy || healthChecking || recovering}
+                  title="Delete all disabled proxy pools not in use (protected by 24h grace period)"
                 >
                   Delete Disabled ({disabledCount})
                 </Button>
@@ -1475,6 +1551,35 @@ function ProxyPoolsContent() {
  </Button>
  </>
  )}
+ </div>
+ </div>
+ )}
+
+ {unhealthyCount > 0 && (
+ <div className="mb-3 flex flex-wrap items-center justify-between gap-2 rounded-sm border border-red-500/30 bg-red-500/10 px-3.5 py-2.5 text-xs text-red-200">
+ <div className="flex items-center gap-2">
+ <Icon name="warning" size={16} className="text-red-400 shrink-0" />
+ <span>
+ <strong>{unhealthyCount} proxy pool(s)</strong> marked unhealthy after 3 consecutive failures.
+ </span>
+ </div>
+ <div className="flex items-center gap-3">
+ <button
+ type="button"
+ onClick={() => setStatusFilter("unhealthy")}
+ className="font-medium underline hover:text-white"
+ >
+ View Unhealthy
+ </button>
+ <span>·</span>
+ <button
+ type="button"
+ onClick={handleAutoRecover}
+ disabled={recovering || healthChecking}
+ className="font-medium underline hover:text-white disabled:opacity-50"
+ >
+ {recovering ? "Recovering..." : "Auto-Recover Now"}
+ </button>
  </div>
  </div>
  )}

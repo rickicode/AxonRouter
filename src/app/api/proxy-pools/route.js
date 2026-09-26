@@ -88,7 +88,11 @@ export async function DELETE(request) {
     const { searchParams } = new URL(request.url);
     const scope = searchParams.get("scope");
     if (scope === "disabled") {
-      const deleted = await deleteDisabledProxyPools();
+      const force = searchParams.get("force") === "true";
+      const graceHoursParam = searchParams.get("graceHours");
+      const graceHours = graceHoursParam != null ? Number(graceHoursParam) : 24;
+      const protectUnhealthy = searchParams.get("protectUnhealthy") !== "false";
+      const deleted = await deleteDisabledProxyPools({ graceHours, protectUnhealthy, force });
       return NextResponse.json({ success: true, count: deleted.length, deleted });
     }
     return NextResponse.json({ error: "Invalid or missing scope parameter" }, { status: 400 });

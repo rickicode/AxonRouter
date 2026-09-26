@@ -32,6 +32,9 @@ async function sweep() {
     import("@/lib/localDb")
       .then((mod) => mod.autoRecoverExpiredExhaustedConnections?.())
       .catch(() => {});
+    import("@/lib/network/proxyAutoRecovery.js")
+      .then((mod) => mod.autoRecoverUnhealthyProxyPools?.())
+      .catch(() => {});
     import("@/lib/db/repos/usageRepo.js")
       .then((mod) => mod.pruneUsageHistory())
       .catch(() => {});

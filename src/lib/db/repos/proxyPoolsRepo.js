@@ -258,6 +258,13 @@ export async function updateProxyPool(id, data = {}) {
     return writePool(tx, merged, { createdAt: existing.createdAt });
   });
   invalidateProxyPoolCache(id);
+
+  if (patch.consecutiveFailures === 0 || patch.isActive === true || patch.testStatus === "active") {
+    import("@/lib/network/proxyHealth.js")
+      .then(({ recordRuntimeProxySuccess }) => recordRuntimeProxySuccess(id))
+      .catch(() => {});
+  }
+
   return result;
 }
 
@@ -286,12 +293,24 @@ export async function deleteProxyPool(id) {
   return rowToPool(row);
 }
 
-export async function deleteDisabledProxyPools() {
+export async function deleteDisabledProxyPools(options = {}) {
+  const { graceHours = 24, protectUnhealthy = true, force = false } = options;
   const db = await getAdapter();
   const rows = await db.transaction(async (tx) => {
+    let graceFilter = "";
+    const params = [];
+
+    if (!force && Number(graceHours) > 0) {
+      params.push(Number(graceHours));
+      graceFilter = `AND (p.updated_at IS NULL OR p.updated_at <= (NOW() - ($${params.length}::text || ' hours')::interval))`;
+    } else if (!force && protectUnhealthy) {
+      graceFilter = `AND p.test_status != 'unhealthy'`;
+    }
+
     const candidates = await tx.all(
       `SELECT p.id, p.name FROM proxy_pools p
        WHERE p.is_active = false
+         ${graceFilter}
          AND NOT EXISTS (
            SELECT 1 FROM provider_connections c
            WHERE c.data->'providerSpecificData'->>'proxyPoolId' = p.id
@@ -299,7 +318,8 @@ export async function deleteDisabledProxyPools() {
                 jsonb_typeof(c.data->'providerSpecificData'->'proxyPoolIds') = 'array'
                 AND c.data->'providerSpecificData'->'proxyPoolIds' @> jsonb_build_array(p.id)
               )
-         )`
+         )`,
+      params
     );
     if (!candidates || candidates.length === 0) return [];
     const ids = candidates.map((c) => c.id);

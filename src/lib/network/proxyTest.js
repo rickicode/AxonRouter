@@ -98,3 +98,42 @@ export async function testProxyUrl({ proxyUrl, testUrl, timeoutMs } = {}) {
     }
   }
 }
+
+export async function testVercelRelay(relayUrl, timeoutMs = 10000) {
+  const controller = new AbortController();
+  const startedAt = Date.now();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    const res = await undiciFetch(relayUrl, {
+      method: "GET",
+      headers: {
+        "x-relay-target": "https://httpbin.org",
+        "x-relay-path": "/get",
+      },
+      signal: controller.signal,
+    });
+    return {
+      ok: res.ok,
+      status: res.status,
+      statusText: res.statusText,
+      elapsedMs: Date.now() - startedAt,
+    };
+  } catch (err) {
+    return {
+      ok: false,
+      status: 500,
+      error: err?.name === "AbortError" ? "Relay test timed out" : getErrorMessage(err),
+    };
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+export async function testProxyPoolEntry(proxyPool, timeoutMs = 10000) {
+  if (!proxyPool?.proxyUrl) return { ok: false, status: 400, error: "Missing proxy URL" };
+  const isRelay = proxyPool.type === "vercel" || proxyPool.type === "cloudflare" || proxyPool.type === "deno";
+  return isRelay
+    ? await testVercelRelay(proxyPool.proxyUrl, timeoutMs)
+    : await testProxyUrl({ proxyUrl: proxyPool.proxyUrl, timeoutMs });
+}
+
