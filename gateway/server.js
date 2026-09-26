@@ -25,6 +25,7 @@ import { Hono } from "hono";
 import { serve } from "@hono/node-server";
 import { resolveGatewayMode } from "./workerMode.mjs";
 import { renderGatewayLandingHtml } from "./landingPage.mjs";
+import { runProxyAutoFetcher } from "../open-sse/services/proxyAutoFetcher.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 // ── Config ────────────────────────────────────────────────────────────────────
@@ -80,6 +81,11 @@ setInterval(() => {
     if (bucket.resetAt < cutoff) ipRequestBuckets.delete(ip);
   }
 }, 30 * 1000).unref?.();
+
+import { runProxyAutoFetcher } from "../open-sse/services/proxyAutoFetcher.js";
+setInterval(() => {
+  runProxyAutoFetcher().catch(console.error);
+}, 60 * 1000).unref?.();
 
 function isRateLimited(ip) {
   if (!ip || ip === "127.0.0.1" || ip === "::1" || ip === "::ffff:127.0.0.1") return false;

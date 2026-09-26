@@ -1545,14 +1545,14 @@ export async function markAccountUnavailable(connectionId, status, errorText, pr
   }
   // TokenHarbor: Free allowance exhausted (rolling 7-day period)
   const isTokenHarborFreeExhausted = providerId === "tokenharbor"
-    && (/used this period's free allowance|free allowance/i.test(lowerErr) || (status === 402 && /balance is at \$0/i.test(lowerErr)));
+    && (/used this period's free allowance|free allowance|free_tier_limit|free_quota_exceeded|free_tier_limit_reached|rate.?limit/i.test(lowerErr) || (status === 402 && /balance is at \$0|balance is at 0/i.test(lowerErr)));
   if (isTokenHarborFreeExhausted) {
-    lockAll = true;
-    isExhausted = true;
+    lockAll = status !== 429; // Lock akun jika quota habis, hanya model jika rate-limit 429
+    isExhausted = status !== 429;
     shouldFallback = true;
     cooldownMs = resetsAtMs && resetsAtMs > Date.now()
       ? resetsAtMs - Date.now()
-      : 7 * 24 * 60 * 60 * 1000;
+      : (status === 429 ? 30 * 1000 : 7 * 24 * 60 * 60 * 1000); // 30s untuk rate-limit
   }
   const isQuotaExhausted = /resource.*exhausted|quota.*exhausted|exhausted.*capacity|capacity.*exhausted|quota.*reset|daily.*limit|limit reached/i.test(lowerErr);
   if (providerId === "antigravity" && isQuotaExhausted && model) {

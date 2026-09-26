@@ -36,9 +36,9 @@ export default function ModelsSection(d) {
   ].filter((m) => { const k = getModelKind(m); return !k || k === "llm"; });
   const disabledSet = new Set(disabledModelIds);
   const activeModels = allModels.filter((m) => !disabledSet.has(m.id));
-  const hidePaidOnClineFree = providerId === "cline-free";
+  const hidePaid = providerId === "cline-free" || providerId === "tokenharbor";
   const displayModels = sortModelsByFree(
-    activeModels.filter((m) => !hidePaidOnClineFree || isFreeModel(m, providerId)),
+    activeModels.filter((m) => !hidePaid || isFreeModel(m, providerId)),
     [],
     providerId
   ).filter((m) => matchesQuery(m.id, m.name));

@@ -112,7 +112,7 @@ export default function DashboardLayout({ children }) {
  Skip to main content
  </a>
 
- // Accessible Toast Notifications container
+ {/* Accessible Toast Notifications container */}
  <div
    className="fixed top-16 right-4 z-[80] flex w-[min(92vw,380px)] flex-col gap-2"
    role="status"
