@@ -82,7 +82,6 @@ setInterval(() => {
   }
 }, 30 * 1000).unref?.();
 
-import { runProxyAutoFetcher } from "../open-sse/services/proxyAutoFetcher.js";
 setInterval(() => {
   runProxyAutoFetcher().catch(console.error);
 }, 60 * 1000).unref?.();
