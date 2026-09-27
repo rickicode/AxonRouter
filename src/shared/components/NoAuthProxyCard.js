@@ -40,6 +40,7 @@ export default function NoAuthProxyCard({ providerId, isFreeNoAuth = null }) {
   const [trialKeySaved, setTrialKeySaved] = useState(false);
   const [stats, setStats] = useState(null);
   const [statsLoading, setStatsLoading] = useState(false);
+  const [poolFilter, setPoolFilter] = useState("");
 
   const isActuallyFreeNoAuth = isFreeNoAuth !== null ? isFreeNoAuth : !!FREE_PROVIDERS[providerId]?.noAuth;
 
@@ -115,6 +116,12 @@ export default function NoAuthProxyCard({ providerId, isFreeNoAuth = null }) {
     });
     return [...defaults, ...custom];
   }, [proxyGroups, proxyPools]);
+
+  const filteredPools = useMemo(() => {
+    if (!poolFilter.trim()) return proxyPools.slice(0, 100);
+    const q = poolFilter.toLowerCase().trim();
+    return proxyPools.filter((p) => String(p.name || "").toLowerCase().includes(q) || String(p.type || "").toLowerCase().includes(q)).slice(0, 100);
+  }, [proxyPools, poolFilter]);
 
   const save = useCallback(async (mode, poolId, group, strategy) => {
     setSaving(true);
@@ -267,6 +274,7 @@ export default function NoAuthProxyCard({ providerId, isFreeNoAuth = null }) {
   const totalReq24h = stats?.stats24h?.total ?? 0;
   const successReq24h = stats?.stats24h?.success ?? 0;
   const failReq24h = stats?.stats24h?.failure ?? 0;
+  const cancelledReq24h = stats?.stats24h?.cancelled ?? 0;
   const totalAccounts = stats?.connectionCount ?? 0;
   const groupHealth = stats?.groupHealth ?? null;
 
@@ -326,7 +334,7 @@ export default function NoAuthProxyCard({ providerId, isFreeNoAuth = null }) {
               {totalReq24h > 0 ? `${successRate24h}%` : "100%"}
             </span>
             <span className="text-xs text-text-muted">
-              ({successReq24h.toLocaleString()} / {totalReq24h.toLocaleString()} reqs)
+              ({successReq24h.toLocaleString()} / {Math.max(1, successReq24h + failReq24h).toLocaleString()} completed)
             </span>
           </div>
           <div className="w-full bg-border rounded-full h-1.5 mt-2 overflow-hidden flex">
@@ -335,6 +343,11 @@ export default function NoAuthProxyCard({ providerId, isFreeNoAuth = null }) {
               style={{ width: `${Math.max(5, Math.min(100, successRate24h || 100))}%` }}
             />
           </div>
+          {cancelledReq24h > 0 && (
+            <span className="text-[10px] text-text-muted mt-1 truncate" title="Internal speculative hedging race aborts (not user failures)">
+              +{cancelledReq24h.toLocaleString()} internal race aborted
+            </span>
+          )}
         </div>
 
         {/* Group / Proxy Pool Health */}
@@ -496,6 +509,26 @@ export default function NoAuthProxyCard({ providerId, isFreeNoAuth = null }) {
 
         {routingMode === "single" && (
           <div className="flex flex-col gap-3">
+            {proxyPools.length > 30 && (
+              <div className="relative">
+                <input
+                  type="text"
+                  value={poolFilter}
+                  onChange={(e) => setPoolFilter(e.target.value)}
+                  placeholder={`Search ${proxyPools.length.toLocaleString()} pools by name or type...`}
+                  className="w-full px-3 py-1.5 text-xs rounded-sm border border-border bg-surface text-text-main placeholder:text-text-muted focus:border-primary/50 focus:outline-none"
+                />
+                {poolFilter && (
+                  <button
+                    type="button"
+                    onClick={() => setPoolFilter("")}
+                    className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-text-muted hover:text-text-main"
+                  >
+                    ×
+                  </button>
+                )}
+              </div>
+            )}
             <Select
               label="Select Proxy Pool"
               value={proxyPoolId}
@@ -503,12 +536,12 @@ export default function NoAuthProxyCard({ providerId, isFreeNoAuth = null }) {
               disabled={saving}
               options={[
                 { value: NONE_PROXY_POOL_VALUE, label: "— Select a pool —" },
-                ...proxyPools.map((pool) => ({
+                ...filteredPools.map((pool) => ({
                   value: pool.id,
                   label: `${pool.name} (${pool.type || "http"})`,
                 })),
               ]}
-              hint="All new and default requests for this provider will route through this single proxy pool."
+              hint={proxyPools.length > 100 && !poolFilter ? "Showing first 100 pools. Use search above to filter." : "All new and default requests for this provider will route through this single proxy pool."}
             />
             {proxyPoolId === NONE_PROXY_POOL_VALUE && (
               <p className="text-xs text-warning">Please select a proxy pool above.</p>

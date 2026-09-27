@@ -115,27 +115,28 @@ function SearchFilterBar({ connectionSearch, setConnectionSearch, connectionPage
 }
 
 function ConnectionsList({
- connections, proxyPools, proxyGroups, providerId, isOAuth, isSelected, toggleSelectConnection,
- handleSwapPriority, handleUpdateConnectionStatus, handleAutoPingConnection,
- autoPing, autoPingEnabled, handleDelete, handleResetConnectionStatus, oneByOneResults,
- handleUnlockModel, setSelectedConnection, setShowEditModal, handleConnectionProxyUpdate,
+  connections, proxyPools, proxyGroups, providerStrategy, providerId, isOAuth, isSelected, toggleSelectConnection,
+  handleSwapPriority, handleUpdateConnectionStatus, handleAutoPingConnection,
+  autoPing, autoPingEnabled, handleDelete, handleResetConnectionStatus, oneByOneResults,
+  handleUnlockModel, setSelectedConnection, setShowEditModal, handleConnectionProxyUpdate,
 }) {
- return (
- <div className="flex min-w-0 flex-col divide-y divide-border">
- {connections.map((conn, index) => (
- <div key={conn.id} className="flex min-w-0 items-stretch relative">
- <div className="flex shrink-0 items-center pl-1 sm:pl-2">
- <input
- type="checkbox" checked={isSelected(conn.id)}
- onChange={() => toggleSelectConnection(conn.id)}
- className="h-4 w-4 rounded-sm border-border text-primary"
- />
- </div>
- <div className="flex-1 min-w-0">
- <ConnectionRow
- connection={conn}
- proxyPools={proxyPools}
- proxyGroups={proxyGroups}
+  return (
+    <div className="flex min-w-0 flex-col divide-y divide-border">
+      {connections.map((conn, index) => (
+        <div key={conn.id} className="flex min-w-0 items-stretch relative">
+          <div className="flex shrink-0 items-center pl-1 sm:pl-2">
+            <input
+              type="checkbox" checked={isSelected(conn.id)}
+              onChange={() => toggleSelectConnection(conn.id)}
+              className="h-4 w-4 rounded-sm border-border text-primary"
+            />
+          </div>
+          <div className="flex-1 min-w-0">
+            <ConnectionRow
+              connection={conn}
+              proxyPools={proxyPools}
+              proxyGroups={proxyGroups}
+              providerStrategy={providerStrategy}
  isOAuth={isOAuth}
  isFirst={index === 0}
  isLast={index === connections.length - 1}
@@ -291,8 +292,9 @@ export default function ConnectionsSection(d) {
  </div>
  )}
  <ConnectionsList
- connections={connections} proxyPools={proxyPools} proxyGroups={proxyGroups}
- providerId={providerId} isOAuth={d.isOAuth} isSelected={isSelected}
+   connections={connections} proxyPools={proxyPools} proxyGroups={proxyGroups}
+   providerStrategy={providerStrategy}
+   providerId={providerId} isOAuth={d.isOAuth} isSelected={isSelected}
  toggleSelectConnection={toggleSelectConnection} handleSwapPriority={handleSwapPriority}
  handleUpdateConnectionStatus={handleUpdateConnectionStatus}
  handleAutoPingConnection={handleAutoPingConnection} autoPing={autoPing} autoPingEnabled={d.AUTO_PING_SETTINGS_KEYS?.[providerId]}

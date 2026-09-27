@@ -8,7 +8,7 @@ import { useCopyToClipboard } from "@/shared/hooks/useCopyToClipboard";
 import CooldownTimer from "./CooldownTimer";
 import Icon from "@/shared/components/Icon";
 
-export default function ConnectionRow({ connection, proxyPools, proxyGroups = null, isOAuth, isFirst, isLast, onMoveUp, onMoveDown, onToggleActive, onUpdateProxy, onEdit, onDelete, onResetStatus = null, onUnlockModel = null, oneByOneStatus = null, autoPing = null }) {
+export default function ConnectionRow({ connection, proxyPools, proxyGroups = null, providerStrategy = null, isOAuth, isFirst, isLast, onMoveUp, onMoveDown, onToggleActive, onUpdateProxy, onEdit, onDelete, onResetStatus = null, onUnlockModel = null, oneByOneStatus = null, autoPing = null }) {
  const [showProxyDropdown, setShowProxyDropdown] = useState(false);
  const [updatingProxy, setUpdatingProxy] = useState(false);
  const [resettingStatus, setResettingStatus] = useState(false);
@@ -87,6 +87,29 @@ export default function ConnectionRow({ connection, proxyPools, proxyGroups = nu
  // Display logic - support both new (multi-proxy) and legacy (single proxy) formats
  const hasLegacyProxy = connection.providerSpecificData?.connectionProxyEnabled === true && !!connection.providerSpecificData?.connectionProxyUrl;
  const hasAnyProxy = safeSelectedProxyIds.length > 0 || hasLegacyProxy || !!selectedGroup;
+
+ // Provider-level default proxy (auto-inherited when this account has no per-account override)
+ const inheritedGroup = (providerStrategy?.proxyGroup && String(providerStrategy.proxyGroup).trim()) ? String(providerStrategy.proxyGroup).trim() : null;
+ const inheritedPoolId = (providerStrategy?.proxyPoolId && providerStrategy.proxyPoolId !== "__none__") ? providerStrategy.proxyPoolId : null;
+ const inheritedRotateAll = !!(providerStrategy?.rotateStrategy && providerStrategy.rotateStrategy !== "none");
+ const isInheritedProxy = !hasAnyProxy && (!!inheritedGroup || !!inheritedPoolId || inheritedRotateAll);
+
+ const inheritedDisplayText = (() => {
+   if (!isInheritedProxy) return "";
+   if (inheritedGroup) {
+     const def = defaultGroupsList.find((g) => g.key === inheritedGroup || g.name.toLowerCase() === inheritedGroup.toLowerCase() || g.id === inheritedGroup);
+     if (def) return `Inherited: Group ${def.name}`;
+     const custom = customGroupsList.find((g) => g.name.toLowerCase() === inheritedGroup.toLowerCase() || g.id === inheritedGroup);
+     if (custom) return `Inherited: Group ${custom.name}`;
+     return `Inherited: Group ${inheritedGroup}`;
+   }
+   if (inheritedPoolId) {
+     const pool = proxyPoolMap.get(inheritedPoolId);
+     return `Inherited: Pool ${pool ? pool.name : inheritedPoolId}`;
+   }
+   if (inheritedRotateAll) return `Inherited: All Active Pools (${providerStrategy.rotateStrategy})`;
+   return "";
+ })();
 
  const getProxyDisplayText = () => {
  if (safeSelectedProxyIds.length === 0 && !hasLegacyProxy && !selectedGroup) return "";
@@ -413,11 +436,15 @@ export default function ConnectionRow({ connection, proxyPools, proxyGroups = nu
  <Badge variant="default" size="sm">
  {authLabel}
  </Badge>
- {hasAnyProxy && (
- <Badge variant={proxyBadgeVariant} size="sm">
- Proxy
- </Badge>
- )}
+ {hasAnyProxy ? (
+   <Badge variant={proxyBadgeVariant} size="sm" title="Custom proxy configured specifically for this account">
+     {selectedGroup ? "Proxy Group" : safeSelectedProxyIds.length > 1 ? "Multi-Proxy" : "Proxy"}
+   </Badge>
+ ) : isInheritedProxy ? (
+   <Badge variant="outline" size="sm" className="text-[11px] text-primary border-primary/30 bg-primary/5" title="Inherited from provider default proxy strategy">
+     Inherited Proxy
+   </Badge>
+ ) : null}
  {isFreebuff && connection.isActive !== false && (
  hasModelAffinityLock ? (
  <span className="inline-flex items-center gap-1.5 rounded-sm bg-warning/10 px-2 py-1 text-xs text-warning border border-warning/30">
@@ -479,22 +506,27 @@ export default function ConnectionRow({ connection, proxyPools, proxyGroups = nu
  </Badge>
  )}
  </div>
- {hasAnyProxy && (
- <div className="mt-1 flex items-center gap-2 flex-wrap">
- <span className="max-w-full truncate text-[11px] text-text-muted sm:max-w-[420px]" title={proxyDisplayText}>
- {proxyDisplayText}
- </span>
- {maskedProxyUrl && (
- <code className="max-w-full truncate rounded-sm bg-surface-2 px-1 py-1 font-mono text-[11px] text-text-muted sm:max-w-[260px]">
- {maskedProxyUrl}
- </code>
- )}
- {noProxyText && (
- <span className="max-w-full truncate text-[11px] text-text-muted sm:max-w-[320px]" title={noProxyText}>
- no_proxy: {noProxyText}
- </span>
- )}
- </div>
+ {(hasAnyProxy || isInheritedProxy) && (
+   <div className="mt-1 flex items-center gap-2 flex-wrap">
+     <span
+       className={`max-w-full truncate text-[11px] sm:max-w-[420px] ${
+         hasAnyProxy ? "text-text-muted" : "text-primary/80 font-medium"
+       }`}
+       title={hasAnyProxy ? proxyDisplayText : `${inheritedDisplayText} (Inherited from provider default)`}
+     >
+       {hasAnyProxy ? proxyDisplayText : `${inheritedDisplayText} (Default)`}
+     </span>
+     {hasAnyProxy && maskedProxyUrl && (
+       <code className="max-w-full truncate rounded-sm bg-surface-2 px-1 py-1 font-mono text-[11px] text-text-muted sm:max-w-[260px]">
+         {maskedProxyUrl}
+       </code>
+     )}
+     {hasAnyProxy && noProxyText && (
+       <span className="max-w-full truncate text-[11px] text-text-muted sm:max-w-[320px]" title={noProxyText}>
+         no_proxy: {noProxyText}
+       </span>
+     )}
+   </div>
  )}
  {connection.providerSpecificData?.validationUrl && (
  <div className="mt-1.5 flex flex-wrap items-center gap-2 rounded-sm border border-warning/30 bg-warning/10 px-2.5 py-1 text-xs text-warning">
