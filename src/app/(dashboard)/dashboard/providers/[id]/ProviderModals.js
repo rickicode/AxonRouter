@@ -59,11 +59,11 @@ export default function ProviderModals(d) {
  )}
 
  <AddApiKeyModal
- isOpen={showAddApiKeyModal} provider={providerId}
- providerName={providerInfo.name} isCompatible={isCompatible}
- isAnthropic={isAnthropicCompatible} authType={providerInfo?.authType}
- authHint={providerInfo?.authHint} website={providerInfo?.website}
- proxyPools={proxyPools} error={addConnectionError}
+   isOpen={showAddApiKeyModal} provider={providerId}
+   providerName={providerInfo.name} isCompatible={isCompatible}
+   isAnthropic={isAnthropicCompatible} authType={providerInfo?.authType}
+   authHint={providerInfo?.authHint} website={providerInfo?.website}
+   proxyPools={proxyPools} providerStrategy={d.providerStrategy} error={addConnectionError}
  existingNames={connections.map((c) => c.name).filter(Boolean)}
   onSave={handleSaveApiKey} onBulkDone={() => { fetchConnections(); fetchConnectionStats(); }}
  onClose={() => { setAddConnectionError(""); setShowAddApiKeyModal(false); }}

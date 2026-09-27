@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import PropTypes from "prop-types";
 import { Button, Badge, Input, Modal, Select } from "@/shared/components";
 import { AI_PROVIDERS } from "@/shared/constants/providers";
@@ -8,8 +8,9 @@ import { planBulkAdd } from "@/shared/utils/bulkAdd";
 
 const BULK_PLACEHOLDER = `name1|sk-key1\nname2|sk-key2\nsk-key-only-auto-named`;
 
-export default function AddApiKeyModal({ isOpen, provider, providerName, isCompatible, isAnthropic, authType, authHint, website, proxyPools, error, existingNames, onSave, onBulkDone, onClose }) {
+export default function AddApiKeyModal({ isOpen, provider, providerName, isCompatible, isAnthropic, authType, authHint, website, proxyPools, providerStrategy = null, error, existingNames, onSave, onBulkDone, onClose }) {
  const NONE_PROXY_POOL_VALUE = "__none__";
+ const [poolFilter, setPoolFilter] = useState("");
  const isOllamaLocal = provider === "ollama-local";
  const isCookie = authType === "cookie";
  const isXaiApiKey = provider === "xai" && !isCookie;
@@ -185,6 +186,27 @@ export default function AddApiKeyModal({ isOpen, provider, providerName, isCompa
  setBulkResult({ success, failed });
  if (success > 0 && onBulkDone) onBulkDone();
  };
+
+ const defaultProxyLabel = useMemo(() => {
+   if (providerStrategy?.proxyGroup) {
+     return `Inherit Default (Group: ${providerStrategy.proxyGroup})`;
+   }
+   if (providerStrategy?.proxyPoolId && providerStrategy.proxyPoolId !== NONE_PROXY_POOL_VALUE) {
+     const defPool = (proxyPools || []).find((p) => p.id === providerStrategy.proxyPoolId);
+     return `Inherit Default (Pool: ${defPool ? defPool.name : providerStrategy.proxyPoolId})`;
+   }
+   if (providerStrategy?.rotateStrategy && providerStrategy.rotateStrategy !== "none") {
+     return `Inherit Default (All Pools, ${providerStrategy.rotateStrategy})`;
+   }
+   return "Direct (No Proxy)";
+ }, [providerStrategy, proxyPools]);
+
+ const filteredProxyPools = useMemo(() => {
+   const list = proxyPools || [];
+   if (!poolFilter.trim()) return list.slice(0, 100);
+   const q = poolFilter.toLowerCase().trim();
+   return list.filter((p) => String(p.name || "").toLowerCase().includes(q) || String(p.type || "").toLowerCase().includes(q)).slice(0, 100);
+ }, [proxyPools, poolFilter]);
 
  if (!provider) return null;
 
@@ -372,20 +394,41 @@ export default function AddApiKeyModal({ isOpen, provider, providerName, isCompa
  onChange={(e) => setFormData({ ...formData, priority: Number.parseInt(e.target.value) || 1 })}
  />
 
+ {(proxyPools || []).length > 30 && (
+   <div className="relative">
+     <input
+       type="text"
+       value={poolFilter}
+       onChange={(e) => setPoolFilter(e.target.value)}
+       placeholder={`Filter ${(proxyPools || []).length.toLocaleString()} pools by name or type...`}
+       className="w-full px-3 py-1.5 text-xs rounded-sm border border-border bg-surface text-text-main placeholder:text-text-muted focus:border-primary/50 focus:outline-none"
+     />
+     {poolFilter && (
+       <button
+         type="button"
+         onClick={() => setPoolFilter("")}
+         className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-text-muted hover:text-text-main"
+       >
+         ×
+       </button>
+     )}
+   </div>
+ )}
+
  <Select
- label="Proxy Pool"
- value={formData.proxyPoolId}
- onChange={(e) => setFormData({ ...formData, proxyPoolId: e.target.value })}
- options={[
- { value: NONE_PROXY_POOL_VALUE, label: "None" },
- ...(proxyPools || []).map((pool) => {
-   let suffix = "";
-   if (pool.consecutiveFailures > 0 && pool.isActive) suffix = ` (${pool.consecutiveFailures}/3 fails)`;
-   else if (!pool.isActive) suffix = pool.consecutiveFailures >= 5 || pool.testStatus === "dead" ? " (dead)" : pool.consecutiveFailures >= 3 || pool.testStatus === "unhealthy" ? " (unhealthy)" : " (inactive)";
-   return { value: pool.id, label: `${pool.name}${suffix}` };
- }),
- ]}
- placeholder="None"
+   label="Proxy Pool"
+   value={formData.proxyPoolId}
+   onChange={(e) => setFormData({ ...formData, proxyPoolId: e.target.value })}
+   options={[
+     { value: NONE_PROXY_POOL_VALUE, label: defaultProxyLabel },
+     ...filteredProxyPools.map((pool) => {
+       let suffix = "";
+       if (pool.consecutiveFailures > 0 && pool.isActive) suffix = ` (${pool.consecutiveFailures}/3 fails)`;
+       else if (!pool.isActive) suffix = pool.consecutiveFailures >= 5 || pool.testStatus === "dead" ? " (dead)" : pool.consecutiveFailures >= 3 || pool.testStatus === "unhealthy" ? " (unhealthy)" : " (inactive)";
+       return { value: pool.id, label: `${pool.name}${suffix}` };
+     }),
+   ]}
+   hint={(proxyPools || []).length > 100 && !poolFilter ? "Showing first 100 pools. Use filter above to search." : "Leave as default to automatically inherit the provider's proxy strategy."}
  />
 
  {(proxyPools || []).length === 0 && (
