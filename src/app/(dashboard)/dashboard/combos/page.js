@@ -682,7 +682,7 @@ const STRATEGY_OPTIONS = [
   { value: "round-robin", label: "Round Robin (Load Balanced)" },
   { value: "round-robin-sticky", label: "Round Robin Sticky (N Calls / Model)" },
   { value: "random", label: "Random Shuffle (Per Request)" },
-  { value: "difficulty", label: "Smart Routing (Easy / Med / Hard Tiers)" },
+  { value: "difficulty", label: "Smart Routing (Easy & Hard Tiers)" },
   { value: "fusion", label: "Consensus Fusion (Panel + Judge)" },
 ];
 
@@ -728,8 +728,7 @@ function ComboCard({
   const judgeOverrideActive =
     strategy.judgeMode != null ||
     strategy.jevConfidenceThreshold != null ||
-    strategy.typeSafeKeyConfigured === true ||
-    typeof strategy.typeSafeApiKey === "string";
+    strategy.jevModel != null;
 
   return (
     <Card padding="none" className="group rounded-lg border border-border bg-surface transition-all hover:border-border/80 overflow-hidden shadow-sm">
