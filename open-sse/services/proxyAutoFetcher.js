@@ -346,6 +346,14 @@ export async function syncProxyGroupFromUrl(groupIdOrGroup, db = null) {
 
   const content = await response.text();
   const fetchedUrls = parseProxyList(content);
+  const MAX_POOLS_PER_GROUP = 5000;
+  if (fetchedUrls.length > MAX_POOLS_PER_GROUP) {
+    console.warn(
+      `[proxyAutoFetcher] Group "${group.name}" returned ${fetchedUrls.length} proxies; ` +
+      `capping to ${MAX_POOLS_PER_GROUP}. Reduce the list size on the subscription endpoint.`,
+    );
+    fetchedUrls.length = MAX_POOLS_PER_GROUP;
+  }
 
   const result = await reconcileProxyGroup(group, fetchedUrls, db);
   return {

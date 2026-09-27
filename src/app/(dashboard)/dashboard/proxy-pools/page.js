@@ -295,14 +295,36 @@ function ProxyPoolsContent() {
      const isEdit = !!editingGroup;
      const url = isEdit ? `/api/proxy-groups/${editingGroup.id}` : "/api/proxy-groups";
      const method = isEdit ? "PUT" : "POST";
+     const payload = { ...groupForm };
+     // Auto-managed (subscription) groups own their pool list via the fetch URL,
+     // so never send a stale poolIds list for them. For manual groups, only send
+     // poolIds when the selection actually changed (avoids redundant writes).
+     if (groupForm.fetchUrl?.trim()) {
+       delete payload.poolIds;
+     } else if (
+       isEdit &&
+       Array.isArray(editingGroup.poolIds) &&
+       editingGroup.poolIds.length === groupForm.poolIds.length &&
+       editingGroup.poolIds.every((pid) => groupForm.poolIds.includes(pid))
+     ) {
+       delete payload.poolIds;
+     }
      const res = await fetch(url, {
        method,
        headers: { "Content-Type": "application/json" },
-       body: JSON.stringify(groupForm),
+       body: JSON.stringify(payload),
      });
      const data = await res.json();
      if (res.ok) {
-       notify.success(isEdit ? "Proxy group updated" : "Proxy group created");
+       notify.success(
+         groupForm.fetchUrl?.trim()
+           ? isEdit
+             ? "Proxy group updated and re-synced from URL"
+             : "Proxy group created and synced from URL"
+           : isEdit
+             ? "Proxy group updated"
+             : "Proxy group created",
+       );
        setShowGroupModal(false);
        await Promise.all([fetchProxyGroups(), fetchProxyPools()]);
      } else {
@@ -325,7 +347,11 @@ function ProxyPoolsContent() {
      });
      const data = await res.json();
      if (res.ok && data.success) {
-       notify.success(`Synced ${data.count ?? 0} proxies for group "${group.name}"`);
+       // Surface what actually changed so the user knows the sync was effective.
+       const parts = [`${data.count ?? 0} proxies`];
+       if (Number(data.addedCount) > 0) parts.push(`+${data.addedCount} added`);
+       if (Number(data.removedCount) > 0) parts.push(`-${data.removedCount} removed`);
+       notify.success(`Synced ${parts.join(", ")} for group "${group.name}"`);
        await Promise.all([fetchProxyGroups(), fetchProxyPools()]);
      } else {
        notify.error(data.error || "Failed to sync proxy group");
