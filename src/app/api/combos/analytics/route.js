@@ -1,5 +1,6 @@
 import { NextResponse } from "@/lib/http/response.js";
 import { getComboAnalytics } from "@/lib/usageDb";
+import { getRoutingMetrics } from "open-sse/services/routingMetrics.js";
 
 export const dynamic = "force-dynamic";
 
@@ -32,7 +33,11 @@ export async function GET(request) {
     const period = searchParams.get("period") || "today";
     const { timeFrom, timeTo } = resolveWindow(period);
     const result = await getComboAnalytics({ timeFrom, timeTo });
-    return NextResponse.json({ period, ...result });
+    let routingMetrics = null;
+    try {
+      routingMetrics = getRoutingMetrics();
+    } catch {}
+    return NextResponse.json({ period, routingMetrics, ...result });
   } catch (error) {
     console.error("[API] /api/combos/analytics error:", error);
     return NextResponse.json(

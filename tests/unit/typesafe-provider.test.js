@@ -60,6 +60,16 @@ describe("typesafe provider registry entry", () => {
     expect(PROVIDER_MODELS.typesafe.map((m) => m.id)).toContain("jev-latest");
     expect(PROVIDERS.typesafe.baseUrl).toBe("https://api.typesafe.ai/v1");
   });
+
+  it("is exposed as a capabilities provider under kind 'jev'", async () => {
+    const { getProvidersByKind, MEDIA_PROVIDER_KINDS } = await import("../../src/shared/constants/providers.js");
+    const jevKind = MEDIA_PROVIDER_KINDS.find((k) => k.id === "jev");
+    expect(jevKind).toBeDefined();
+    expect(jevKind.endpoint.path).toBe("/v1/systemone");
+
+    const jevProviders = getProvidersByKind("jev");
+    expect(jevProviders.map((p) => p.id)).toEqual(expect.arrayContaining(["typesafe", "opencode-zen"]));
+  });
 });
 
 describe("OpenCode Zen Jev models", () => {

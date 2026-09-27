@@ -7,6 +7,7 @@ export default {
     "zen",
   ],
   uiAlias: "ocz",
+  serviceKinds: ["llm", "jev"],
   display: {
     name: "OpenCode Zen",
     icon: "terminal",

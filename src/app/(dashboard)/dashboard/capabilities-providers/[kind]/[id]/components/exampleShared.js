@@ -67,10 +67,17 @@ export const KIND_EXAMPLE_CONFIG = {
  defaultResponse: `{\n "data": [\n { "url": "..." }\n ]\n}`,
  },
  music: {
- inputLabel: "Prompt",
- inputPlaceholder: "A calm piano melody",
- defaultInput: "A calm piano melody",
- bodyKey: "prompt",
- defaultResponse: `{\n "data": [\n { "url": "...", "format": "mp3" }\n ]\n}`,
+   inputLabel: "Prompt",
+   inputPlaceholder: "A calm piano melody",
+   defaultInput: "A calm piano melody",
+   bodyKey: "prompt",
+   defaultResponse: `{\n  "data": [\n    { "url": "...", "format": "mp3" }\n  ]\n}`,
  },
-};
+ jev: {
+   inputLabel: "Task Prompt",
+   inputPlaceholder: "Design a fault-tolerant distributed consensus engine in Go",
+   defaultInput: "Design a fault-tolerant distributed consensus engine in Go",
+   bodyKey: "prompt",
+   defaultResponse: `{\n  "difficulty": "hard",\n  "ambiguity": "low",\n  "domain": "coding",\n  "confidence": 0.95,\n  "tier": "hard"\n}`,
+ },
+ };

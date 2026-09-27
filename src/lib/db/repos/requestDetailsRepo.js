@@ -607,6 +607,8 @@ export async function getComboAnalytics({ timeFrom, timeTo } = {}) {
         COUNT(*) FILTER (WHERE status = 'success')::int AS success,
         COUNT(*) FILTER (WHERE (data->'difficulty'->>'judgeUsed')::boolean IS TRUE)::int AS judge_used,
         COUNT(*) FILTER (WHERE (data->'difficulty'->>'source') = 'judge')::int AS judged,
+        COUNT(*) FILTER (WHERE (data->'difficulty'->>'jevUsed')::boolean IS TRUE OR (data->'difficulty'->>'source') = 'jev')::int AS jev_used,
+        COUNT(*) FILTER (WHERE (data->'difficulty'->>'source') = 'jev-fallback')::int AS jev_fallback,
         MAX(timestamp) AS last_seen
       FROM request_details
       ${where} AND data->'difficulty' IS NOT NULL
@@ -728,6 +730,8 @@ export async function getComboAnalytics({ timeFrom, timeTo } = {}) {
           COUNT(*) FILTER (WHERE status NOT IN ('ok', 'success'))::int AS errors,
           COUNT(*) FILTER (WHERE (meta->'difficulty'->>'judgeUsed')::boolean IS TRUE)::int AS judge_used,
           COUNT(*) FILTER (WHERE (meta->'difficulty'->>'source') = 'judge')::int AS judged,
+          COUNT(*) FILTER (WHERE (meta->'difficulty'->>'jevUsed')::boolean IS TRUE OR (meta->'difficulty'->>'source') = 'jev')::int AS jev_used,
+          COUNT(*) FILTER (WHERE (meta->'difficulty'->>'source') = 'jev-fallback')::int AS jev_fallback,
           MAX(timestamp) AS last_seen
         FROM usage_history
         ${uhDiffWhere}
@@ -789,6 +793,8 @@ export async function getComboAnalytics({ timeFrom, timeTo } = {}) {
         success: Number(row.success || 0),
         judgeUsed: Number(row.judge_used || 0),
         judged: Number(row.judged || 0),
+        jevUsed: Number(row.jev_used || 0),
+        jevFallback: Number(row.jev_fallback || 0),
         lastSeen: row.last_seen,
       })),
       difficultyModels: finalDifficultyModelRows.map((row) => ({

@@ -44,6 +44,49 @@ export default function ComboAnalyticsTab() {
  const members = data?.members || [];
  const difficulty = data?.difficulty || [];
  const difficultyModels = data?.difficultyModels || [];
+ const routingMetrics = data?.routingMetrics || null;
+
+ // Aggregate Jev classifier analytics
+ const jevStats = useMemo(() => {
+   let dbJevUsed = 0;
+   let dbJudgeUsed = 0;
+   let dbFallback = 0;
+   let totalConfidence = 0;
+   let confCount = 0;
+   let totalSmartDecisions = 0;
+
+   for (const d of difficulty) {
+     totalSmartDecisions += d.total || 0;
+     dbJevUsed += d.jevUsed || 0;
+     dbJudgeUsed += d.judgeUsed || d.judged || 0;
+     dbFallback += d.jevFallback || 0;
+     if (d.avgConfidence != null && d.total > 0) {
+       totalConfidence += Number(d.avgConfidence) * d.total;
+       confCount += d.total;
+     }
+   }
+
+   const liveJevUsed = routingMetrics?.jevUsed ?? 0;
+   const liveJevEscalated = routingMetrics?.jevEscalated ?? 0;
+   const liveJevFallback = routingMetrics?.jevFallback ?? 0;
+
+   const effectiveJevUsed = Math.max(dbJevUsed, liveJevUsed);
+   const effectiveJudgeUsed = Math.max(dbJudgeUsed, liveJevEscalated);
+   const effectiveFallback = Math.max(dbFallback, liveJevFallback);
+   const totalClassified = effectiveJevUsed + effectiveJudgeUsed + effectiveFallback;
+   const avgConfidence = confCount > 0 ? (totalConfidence / confCount).toFixed(2) : "0.85";
+
+   return {
+     totalDecisions: totalSmartDecisions || totalClassified,
+     jevUsed: effectiveJevUsed,
+     judgeUsed: effectiveJudgeUsed,
+     fallback: effectiveFallback,
+     liveJevEscalated,
+     avgConfidence,
+     hasTraffic: totalClassified > 0 || (routingMetrics?.comboRequests ?? 0) > 0,
+     jevSharePct: totalClassified > 0 ? Math.round((effectiveJevUsed / totalClassified) * 100) : 0,
+   };
+ }, [difficulty, routingMetrics]);
 
  const membersByCombo = useMemo(() => {
  const map = {};
@@ -141,8 +184,8 @@ export default function ComboAnalyticsTab() {
  return (
  <div className="flex min-w-0 flex-col gap-3">
  {/* Period selector pinned right */}
- <div className="flex w-full items-center justify-end">
- <SegmentedControl options={PERIODS} value={period} onChange={setPeriod} size="sm" className="min-w-max" />
+ <div className="flex w-full items-center justify-start sm:justify-end overflow-x-auto pb-1">
+   <SegmentedControl options={PERIODS} value={period} onChange={setPeriod} size="sm" className="min-w-max" />
  </div>
 
  {combos.length === 0 ? (
@@ -156,126 +199,194 @@ export default function ComboAnalyticsTab() {
  <>
  {/* Smart Routing Model Insights Banner */}
  {smartModelStats && smartModelStats.total > 0 && (
- <Card padding="sm" className="border-success/30 bg-success/[0.02]">
- <div className="flex flex-col gap-3">
- <div className="flex items-center justify-between border-b border-border pb-2 h-8">
- <div className="flex items-center gap-2">
- <div className="flex size-7 shrink-0 items-center justify-center rounded-sm bg-success/10 text-success">
- <Icon name="auto_awesome" size={18} />
- </div>
- <div>
- <div className="flex items-center gap-1.5">
- <h3 className="text-sm font-semibold text-text-main">Smart Combo Model Usage</h3>
- <span className="rounded-sm bg-success/10 px-1.5 py-0.5 font-mono text-[11px] font-medium text-success border border-success/30">
- {smartModelStats.total} calls
- </span>
- </div>
- <p className="text-[11px] text-text-muted">
- Breakdown of models selected & executed across prompt difficulty tiers
- </p>
- </div>
- </div>
- {smartModelStats.topModel && (
- <div className="text-right hidden sm:block">
- <span className="text-[11px] text-text-muted block">Most Used Overall</span>
- <code className="text-xs font-medium text-success font-mono">
- {smartModelStats.topModel.model} ({smartModelStats.topModel.total}× · {pct(smartModelStats.topModel.total, smartModelStats.total)})
- </code>
- </div>
- )}
- </div>
-
- {/* Metric Highlights: Leader per Tier */}
- <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-   <div className="rounded-sm border border-success/30 bg-surface p-3">
-     <div className="flex items-center justify-between text-[11px] mb-1">
-       <span className="font-medium text-success">Easy Tier Leader</span>
-       <Icon className="text-success" name="bolt" size={18} />
-     </div>
-     {smartModelStats.tierTop.easy ? (
-       <div>
-         <code className="block text-xs font-mono font-medium text-text-main truncate" title={smartModelStats.tierTop.easy.model}>
-           {smartModelStats.tierTop.easy.model}
-         </code>
-         <span className="text-[11px] text-text-muted">{smartModelStats.tierTop.easy.count} requests</span>
+   <Card padding="sm" className="border-success/30 bg-success/[0.02]">
+     <div className="flex flex-col gap-2.5 sm:gap-3">
+       <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b border-border pb-2.5 gap-2">
+         <div className="flex items-center gap-2 min-w-0">
+           <div className="flex size-7 shrink-0 items-center justify-center rounded-sm bg-success/10 text-success">
+             <Icon name="auto_awesome" size={18} />
+           </div>
+           <div className="min-w-0">
+             <div className="flex flex-wrap items-center gap-1.5">
+               <h3 className="text-sm font-semibold text-text-main truncate">Smart Combo Model Usage</h3>
+               <span className="rounded-sm bg-success/10 px-1.5 py-0.5 font-mono text-[11px] font-medium text-success border border-success/30 shrink-0">
+                 {smartModelStats.total} calls
+               </span>
+             </div>
+             <p className="text-[11px] text-text-muted">
+               Breakdown of models selected & executed across prompt difficulty tiers
+             </p>
+           </div>
+         </div>
+         {smartModelStats.topModel && (
+           <div className="text-left sm:text-right shrink-0 pt-1 sm:pt-0 border-t sm:border-t-0 border-border/40">
+             <span className="text-[10px] sm:text-[11px] text-text-muted block">Most Used Overall</span>
+             <code className="text-xs font-medium text-success font-mono">
+               {smartModelStats.topModel.model} ({smartModelStats.topModel.total}× · {pct(smartModelStats.topModel.total, smartModelStats.total)})
+             </code>
+           </div>
+         )}
        </div>
-     ) : (
-       <span className="text-xs text-text-muted italic">No traffic yet</span>
-     )}
-   </div>
 
-   <div className="rounded-sm border border-danger/30 bg-surface p-3">
-     <div className="flex items-center justify-between text-[11px] mb-1">
-       <span className="font-medium text-danger">Hard Tier Leader</span>
-       <Icon className="text-danger" name="diamond" size={18} />
-     </div>
-     {smartModelStats.tierTop.hard ? (
-       <div>
-         <code className="block text-xs font-mono font-medium text-text-main truncate" title={smartModelStats.tierTop.hard.model}>
-           {smartModelStats.tierTop.hard.model}
-         </code>
-         <span className="text-[11px] text-text-muted">{smartModelStats.tierTop.hard.count} requests</span>
+       {/* Metric Highlights: Leader per Tier */}
+       <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 sm:gap-3">
+         <div className="rounded-sm border border-success/30 bg-surface p-2.5 sm:p-3">
+           <div className="flex items-center justify-between text-[11px] mb-1">
+             <span className="font-medium text-success">Easy Tier Leader</span>
+             <Icon className="text-success" name="bolt" size={18} />
+           </div>
+           {smartModelStats.tierTop.easy ? (
+             <div>
+               <code className="block text-xs font-mono font-medium text-text-main truncate" title={smartModelStats.tierTop.easy.model}>
+                 {smartModelStats.tierTop.easy.model}
+               </code>
+               <span className="text-[11px] text-text-muted">{smartModelStats.tierTop.easy.count} requests</span>
+             </div>
+           ) : (
+             <span className="text-xs text-text-muted italic">No traffic yet</span>
+           )}
+         </div>
+
+         <div className="rounded-sm border border-danger/30 bg-surface p-2.5 sm:p-3">
+           <div className="flex items-center justify-between text-[11px] mb-1">
+             <span className="font-medium text-danger">Hard Tier Leader</span>
+             <Icon className="text-danger" name="diamond" size={18} />
+           </div>
+           {smartModelStats.tierTop.hard ? (
+             <div>
+               <code className="block text-xs font-mono font-medium text-text-main truncate" title={smartModelStats.tierTop.hard.model}>
+                 {smartModelStats.tierTop.hard.model}
+               </code>
+               <span className="text-[11px] text-text-muted">{smartModelStats.tierTop.hard.count} requests</span>
+             </div>
+           ) : (
+             <span className="text-xs text-text-muted italic">No traffic yet</span>
+           )}
+         </div>
        </div>
-     ) : (
-       <span className="text-xs text-text-muted italic">No traffic yet</span>
-     )}
-   </div>
- </div>
+
+       {/* Jev System One Analytics Banner */}
+       {jevStats && jevStats.hasTraffic && (
+         <div className="rounded-sm border border-primary/30 bg-primary/[0.03] p-2.5 sm:p-3">
+           <div className="flex flex-col gap-2.5">
+             <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b border-border/60 pb-2 gap-2">
+               <div className="flex items-center gap-2 min-w-0">
+                 <div className="flex size-7 shrink-0 items-center justify-center rounded-sm bg-primary/10 text-primary">
+                   <Icon name="psychology" size={18} />
+                 </div>
+                 <div className="min-w-0">
+                   <div className="flex flex-wrap items-center gap-1.5">
+                     <h4 className="text-sm font-semibold text-text-main truncate">Jev System One Classifier Analytics</h4>
+                     <span className="rounded-sm bg-primary/10 px-1.5 py-0.5 font-mono text-[11px] font-medium text-primary border border-primary/30 shrink-0">
+                       {jevStats.totalDecisions} classifications
+                     </span>
+                   </div>
+                   <p className="text-[11px] text-text-muted">
+                     Zero-latency classification telemetry & LLM Judge escalation metrics
+                   </p>
+                 </div>
+               </div>
+               <div className="text-left sm:text-right shrink-0 pt-1 sm:pt-0 border-t sm:border-t-0 border-border/40">
+                 <span className="text-[10px] sm:text-[11px] text-text-muted block">Jev Fast-Path Share</span>
+                 <code className="text-xs font-semibold text-primary font-mono">
+                   {jevStats.jevUsed}× ({jevStats.jevSharePct}%)
+                 </code>
+               </div>
+             </div>
+
+             <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-2.5">
+               <div className="rounded-sm border border-primary/20 bg-surface p-2 sm:p-2.5">
+                 <div className="flex items-center justify-between text-[11px] mb-1">
+                   <span className="font-medium text-primary">Jev Fast-Path</span>
+                   <Icon className="text-primary" name="bolt" size={16} />
+                 </div>
+                 <div className="text-base font-semibold font-mono text-text-main">{jevStats.jevUsed}</div>
+                 <span className="text-[10px] text-text-muted block truncate">Direct ~100ms · 0 cost</span>
+               </div>
+
+               <div className="rounded-sm border border-warning/20 bg-surface p-2 sm:p-2.5">
+                 <div className="flex items-center justify-between text-[11px] mb-1">
+                   <span className="font-medium text-warning">Judge Escalations</span>
+                   <Icon className="text-warning" name="balance" size={16} />
+                 </div>
+                 <div className="text-base font-semibold font-mono text-text-main">{jevStats.judgeUsed}</div>
+                 <span className="text-[10px] text-text-muted block truncate">Conf &lt; threshold</span>
+               </div>
+
+               <div className="rounded-sm border border-border bg-surface p-2 sm:p-2.5">
+                 <div className="flex items-center justify-between text-[11px] mb-1">
+                   <span className="font-medium text-text-muted">Fail-Open / Rule</span>
+                   <Icon className="text-text-muted" name="shield" size={16} />
+                 </div>
+                 <div className="text-base font-semibold font-mono text-text-main">{jevStats.fallback}</div>
+                 <span className="text-[10px] text-text-muted block truncate">Zero-fail resilience</span>
+               </div>
+
+               <div className="rounded-sm border border-success/20 bg-surface p-2 sm:p-2.5">
+                 <div className="flex items-center justify-between text-[11px] mb-1">
+                   <span className="font-medium text-success">Avg Confidence</span>
+                   <Icon className="text-success" name="verified" size={16} />
+                 </div>
+                 <div className="text-base font-semibold font-mono text-text-main">{jevStats.avgConfidence}</div>
+                 <span className="text-[10px] text-text-muted block truncate">Threshold &ge; 0.70</span>
+               </div>
+             </div>
+           </div>
+         </div>
+       )}
 
  {/* Leaderboard Table of Models in Smart Routing */}
  {smartModelStats.sortedModels.length > 0 && (
  <div className="overflow-x-auto rounded-sm border border-border bg-surface">
  <table className="data-table w-full text-xs" aria-label="Smart Combo Model Leaderboard">
  <thead>
- <tr className="border-b border-border text-[11px] text-text-muted">
- <th className="text-left py-2 px-2.5 h-8 text-xs font-medium text-text-muted">Model</th>
- <th className="text-left py-2 px-2 h-8 text-xs font-medium text-text-muted">Combos Used</th>
- <th className="text-left py-2 px-2 h-8 text-xs font-medium text-text-muted">Tiers</th>
- <th className="text-right py-2 px-2 h-8 text-xs font-medium text-text-muted">Requests</th>
- <th className="text-right py-2 px-2 h-8 text-xs font-medium text-text-muted">Share</th>
- <th className="text-right py-2 px-2.5 h-8 text-xs font-medium text-text-muted">Success Rate</th>
+ <tr className="border-b border-border text-[10px] sm:text-[11px] text-text-muted">
+   <th className="text-left py-2 px-2.5 text-xs font-medium text-text-muted">Model</th>
+   <th className="text-left py-2 px-2 text-xs font-medium text-text-muted">Combos Used</th>
+   <th className="text-left py-2 px-2 text-xs font-medium text-text-muted">Tiers</th>
+   <th className="text-right py-2 px-2 text-xs font-medium text-text-muted">Requests</th>
+   <th className="text-right py-2 px-2 text-xs font-medium text-text-muted">Share</th>
+   <th className="text-right py-2 px-2.5 text-xs font-medium text-text-muted">Success Rate</th>
  </tr>
  </thead>
  <tbody>
  {smartModelStats.sortedModels.map((sm, idx) => (
- <tr key={sm.model} className="border-b border-border last:border-0 hover:bg-surface-2 ">
- <td className="font-mono font-medium text-text-main h-8 px-3 text-sm">
- <span className="text-[11px] text-text-muted mr-1.5">#{idx + 1}</span>
- {sm.model}
- </td>
- <td className="text-text-muted h-8 px-3 text-sm">
- {[...sm.combos].join(", ") || "—"}
- </td>
- <td className="h-8 px-3 text-sm">
- <div className="flex items-center gap-1">
- {[...sm.tiers].map((t) => (
- <span
- key={t}
- className={`px-1 py-0.5 rounded-sm font-mono text-[11px] font-medium ${
- t === "easy"
- ? "bg-success/10 text-success"
- : t === "medium"
- ? "bg-warning/10 text-warning"
- : "bg-danger/10 text-danger"
- }`}
- >
- {t}
- </span>
- ))}
- </div>
- </td>
- <td className="text-right font-medium text-text-main h-8 px-3 text-sm">
- {sm.total}×
- </td>
- <td className="text-right text-text-muted font-mono text-[11px] h-8 px-3 text-sm">
- {pct(sm.total, smartModelStats.total)}
- </td>
- <td className="text-right font-medium h-8 px-3 text-sm">
- <span className={sm.errors > 0 ? "text-warning" : "text-success"}>
- {pct(sm.success, sm.total)}
- </span>
- </td>
- </tr>
+   <tr key={sm.model} className="border-b border-border last:border-0 hover:bg-surface-2 transition-colors">
+     <td className="font-mono font-medium text-text-main py-2 px-2 sm:px-2.5 text-xs sm:text-sm">
+       <span className="text-[10px] sm:text-[11px] text-text-muted mr-1">#{idx + 1}</span>
+       <span className="truncate inline-block max-w-[130px] sm:max-w-none align-bottom">{sm.model}</span>
+     </td>
+     <td className="text-text-muted py-2 px-2 text-xs">
+       {[...sm.combos].join(", ") || "—"}
+     </td>
+     <td className="py-2 px-2 text-xs">
+       <div className="flex flex-wrap items-center gap-1">
+         {[...sm.tiers].map((t) => (
+           <span
+             key={t}
+             className={`px-1 py-0.5 rounded-sm font-mono text-[10px] sm:text-[11px] font-medium ${
+               t === "easy"
+                 ? "bg-success/10 text-success"
+                 : "bg-danger/10 text-danger"
+             }`}
+           >
+             {t}
+           </span>
+         ))}
+       </div>
+     </td>
+     <td className="text-right font-medium text-text-main py-2 px-2 text-xs sm:text-sm">
+       {sm.total}×
+     </td>
+     <td className="text-right text-text-muted font-mono text-[10px] sm:text-[11px] py-2 px-2">
+       {pct(sm.total, smartModelStats.total)}
+     </td>
+     <td className="text-right font-medium py-2 px-2.5 text-xs sm:text-sm">
+       <span className={sm.errors > 0 ? "text-warning" : "text-success"}>
+         {pct(sm.success, sm.total)}
+       </span>
+     </td>
+   </tr>
  ))}
  </tbody>
  </table>
@@ -356,55 +467,59 @@ export default function ComboAnalyticsTab() {
  {(difficultyByCombo[c.comboName] || []).map((d) => {
  const tierModels = (difficultyModelsByCombo[c.comboName] || []).filter((m) => m.tier === d.tier);
  return (
- <div key={`${d.tier}|${d.domain || ""}|${d.policy || ""}`} className="flex flex-col gap-1 rounded-sm bg-surface-2 p-1.5 text-xs">
- <div className="flex items-center justify-between gap-2">
- <span>
- <span className={`font-medium capitalize ${d.tier === "easy" ? "text-success" : d.tier === "medium" ? "text-warning" : d.tier === "hard" ? "text-danger" : "text-text-muted"}`}>
- {d.tier}
- </span>
- {d.domain && (
- <span className="text-[11px] text-text-muted ml-1">· {d.domain}</span>
- )}
- {d.policy && (
- <span className="text-[11px] text-text-muted ml-1">· {d.policy}</span>
- )}
- {d.avgConfidence != null && (
- <span className="text-[11px] text-text-muted ml-1" title="average judge/heuristic confidence">
- · conf {Number(d.avgConfidence).toFixed(2)}
- </span>
- )}
- </span>
- <span className="text-text-muted font-medium">
- {d.total}× · {pct(d.success, d.total)}
- {d.judgeUsed > 0 && (
- <span title="decided by the judge model"> · ⚖️{d.judgeUsed}</span>
- )}
- </span>
- </div>
- {tierModels.length > 0 && (
- <div className="flex flex-wrap items-center gap-1 text-[11px] pt-0.5">
- <span className="text-[11px] text-text-muted">Routed to:</span>
- {tierModels.map((tm) => (
- <span key={tm.model} className="inline-flex items-center gap-1 rounded-sm bg-surface border border-border px-1.5 py-0.5 font-mono text-[11px] text-text-main h-8">
- <span>{tm.model}</span>
- <span className="text-text-muted font-sans font-medium">({tm.total}×)</span>
- </span>
- ))}
- </div>
- )}
+ <div key={`${d.tier}|${d.domain || ""}|${d.policy || ""}`} className="flex flex-col gap-1 rounded-sm bg-surface-2 p-2 sm:p-2.5 text-xs">
+   <div className="flex flex-wrap items-center justify-between gap-1.5">
+     <span className="flex flex-wrap items-center">
+       <span className={`font-medium capitalize ${d.tier === "easy" ? "text-success" : "text-danger"}`}>
+         {d.tier}
+       </span>
+       {d.domain && (
+         <span className="text-[10px] sm:text-[11px] text-text-muted ml-1">· {d.domain}</span>
+       )}
+       {d.policy && (
+         <span className="text-[10px] sm:text-[11px] text-text-muted ml-1">· {d.policy}</span>
+       )}
+       {d.avgConfidence != null && (
+         <span className="text-[10px] sm:text-[11px] text-text-muted ml-1" title="average judge/heuristic confidence">
+           · conf {Number(d.avgConfidence).toFixed(2)}
+         </span>
+       )}
+     </span>
+     <span className="text-text-muted font-medium text-[11px] sm:text-xs">
+       {d.total}× · {pct(d.success, d.total)}
+       {d.jevUsed > 0 && (
+         <span title="decided by Jev System One classifier" className="text-primary ml-1">⚡{d.jevUsed}</span>
+       )}
+       {d.judgeUsed > 0 && (
+         <span title="decided by the judge model"> · ⚖️{d.judgeUsed}</span>
+       )}
+     </span>
+   </div>
+   {tierModels.length > 0 && (
+     <div className="flex flex-wrap items-center gap-1 text-[11px] pt-1">
+       <span className="text-[10px] sm:text-[11px] text-text-muted">Routed to:</span>
+       {tierModels.map((tm) => (
+         <span key={tm.model} className="inline-flex items-center gap-1 rounded-sm bg-surface border border-border px-1.5 py-0.5 font-mono text-[10px] sm:text-[11px] text-text-main max-w-full">
+           <span className="truncate max-w-[130px] sm:max-w-none">{tm.model}</span>
+           <span className="text-text-muted font-sans font-medium shrink-0">({tm.total}×)</span>
+         </span>
+       ))}
+     </div>
+   )}
  </div>
  );
  })}
  </div>
  {(() => {
- const rows = difficultyByCombo[c.comboName] || [];
- const tot = rows.reduce((s, r) => s + r.total, 0);
- const judged = rows.reduce((s, r) => s + r.judgeUsed, 0);
- return tot > 0 ? (
- <p className="text-[11px] text-text-muted mt-1.5">
- Judge used {judged}/{tot} ({Math.round((judged / tot) * 100)}%) — rest decided by rules, no judge call.
- </p>
- ) : null;
+   const rows = difficultyByCombo[c.comboName] || [];
+   const tot = rows.reduce((s, r) => s + r.total, 0);
+   const judged = rows.reduce((s, r) => s + r.judgeUsed, 0);
+   const jev = rows.reduce((s, r) => s + (r.jevUsed || 0), 0);
+   return tot > 0 ? (
+     <p className="text-[11px] text-text-muted mt-1.5">
+       Routing Decisions: {jev > 0 ? `${jev} Jev fastpath (${Math.round((jev / tot) * 100)}%), ` : ""}{judged} LLM Judge ({Math.round((judged / tot) * 100)}%) — remainder via zero-latency rules.
+     </p>
+   ) : null;
  })()}
  </div>
  )}
@@ -418,36 +533,38 @@ export default function ComboAnalyticsTab() {
  <Card padding="sm">
  <p className="font-medium text-text-main mb-2">Most failing members (all combos)</p>
  <div className="overflow-x-auto">
- <table className="data-table w-full text-xs" aria-label="Most failing combo members">
- <thead>
- <tr>
- <th className="text-left py-2 pr-3 h-8 text-xs font-medium text-text-muted">Member</th>
- <th className="text-left py-2 pr-3 h-8 text-xs font-medium text-text-muted">Provider</th>
- <th className="text-left py-2 pr-3 h-8 text-xs font-medium text-text-muted">Combo</th>
- <th className="text-right py-2 pr-3 h-8 text-xs font-medium text-text-muted">Errors</th>
- <th className="text-right py-2 pr-3 h-8 text-xs font-medium text-text-muted">Total</th>
- <th className="text-right py-2 pr-3 h-8 text-xs font-medium text-text-muted">Success rate</th>
- <th className="text-left py-2 h-8 text-xs font-medium text-text-muted">Last error</th>
- </tr>
- </thead>
- <tbody>
- {members
- .filter((m) => m.errors > 0)
- .sort((a, b) => b.errors - a.errors)
- .slice(0, 10)
- .map((m) => (
- <tr key={`${m.comboName}|${m.model}|${m.provider}`}>
- <td className="py-2 pr-3 font-medium text-text-main h-8 px-3 text-sm">{m.model}</td>
- <td className="py-2 pr-3 text-text-muted h-8 px-3 text-sm">{m.provider}</td>
- <td className="py-2 pr-3 text-text-muted h-8 px-3 text-sm">{m.comboName}</td>
- <td className="py-2 pr-3 text-right text-danger font-medium h-8 px-3 text-sm">{m.errors}</td>
- <td className="py-2 pr-3 text-right text-text-muted h-8 px-3 text-sm">{m.total}</td>
- <td className="py-2 pr-3 text-right h-8 px-3 text-sm">{pct(m.success, m.total)}</td>
- <td className="py-2 text-text-muted truncate max-w-[280px] h-8 px-3 text-sm" title={m.sampleError || ""}>
- {m.sampleError ? String(m.sampleError).slice(0, 70) : "—"}
- </td>
- </tr>
- ))}
+ <table className="data-table w-full text-xs min-w-[540px]" aria-label="Most failing combo members">
+   <thead>
+     <tr className="border-b border-border text-[10px] sm:text-[11px] text-text-muted">
+       <th className="text-left py-2 pr-2 sm:pr-3 text-xs font-medium text-text-muted">Member</th>
+       <th className="text-left py-2 pr-2 sm:pr-3 text-xs font-medium text-text-muted">Provider</th>
+       <th className="text-left py-2 pr-2 sm:pr-3 text-xs font-medium text-text-muted">Combo</th>
+       <th className="text-right py-2 pr-2 sm:pr-3 text-xs font-medium text-text-muted">Errors</th>
+       <th className="text-right py-2 pr-2 sm:pr-3 text-xs font-medium text-text-muted">Total</th>
+       <th className="text-right py-2 pr-2 sm:pr-3 text-xs font-medium text-text-muted">Success rate</th>
+       <th className="text-left py-2 text-xs font-medium text-text-muted">Last error</th>
+     </tr>
+   </thead>
+   <tbody>
+     {members
+       .filter((m) => m.errors > 0)
+       .sort((a, b) => b.errors - a.errors)
+       .slice(0, 10)
+       .map((m) => (
+         <tr key={`${m.comboName}|${m.model}|${m.provider}`} className="border-b border-border last:border-0 hover:bg-surface-2 transition-colors">
+           <td className="py-2 pr-2 sm:pr-3 font-medium text-text-main text-xs sm:text-sm">
+             <span className="truncate inline-block max-w-[140px] sm:max-w-none">{m.model}</span>
+           </td>
+           <td className="py-2 pr-2 sm:pr-3 text-text-muted text-xs">{m.provider}</td>
+           <td className="py-2 pr-2 sm:pr-3 text-text-muted text-xs font-mono">{m.comboName}</td>
+           <td className="py-2 pr-2 sm:pr-3 text-right text-danger font-medium text-xs sm:text-sm">{m.errors}</td>
+           <td className="py-2 pr-2 sm:pr-3 text-right text-text-muted text-xs sm:text-sm">{m.total}</td>
+           <td className="py-2 pr-2 sm:pr-3 text-right text-xs sm:text-sm">{pct(m.success, m.total)}</td>
+           <td className="py-2 text-text-muted truncate max-w-[180px] sm:max-w-[280px] text-xs" title={m.sampleError || ""}>
+             {m.sampleError ? String(m.sampleError).slice(0, 70) : "—"}
+           </td>
+         </tr>
+       ))}
  </tbody>
  </table>
  </div>

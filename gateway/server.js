@@ -259,6 +259,11 @@ app.post("/v1/web/fetch", async (c) => {
   const { handleFetch } = await import(`${srcSse}/fetch.js`);
   return handleFetch(c.req.raw);
 });
+app.post("/v1/systemone", async (c) => {
+  await ensureInitialized();
+  const { handleSystemOne } = await import(`${srcSse}/systemone.js`);
+  return handleSystemOne(c.req.raw);
+});
 
 // ── Root Landing Page (Informative Non-Generic UI for Browser Visitors) ───────
 app.get("/", (c) => {

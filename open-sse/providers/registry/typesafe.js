@@ -8,6 +8,7 @@ export default {
     "typesafe-ai",
   ],
   uiAlias: "ts",
+  serviceKinds: ["llm", "jev"],
   display: {
     name: "TypeSafe AI (Jev)",
     icon: "psychology",

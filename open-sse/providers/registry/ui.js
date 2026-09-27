@@ -9482,6 +9482,7 @@ export const REGISTRY_UI = [
       "zen"
     ],
     uiAlias: "ocz",
+    serviceKinds: ["llm", "jev"],
     category: "apikey",
     display: {
       name: "OpenCode Zen",
@@ -10918,6 +10919,7 @@ export const REGISTRY_UI = [
       "typesafe-ai"
     ],
     uiAlias: "ts",
+    serviceKinds: ["llm", "jev"],
     category: "apikey",
     display: {
       name: "TypeSafe AI (Jev)",

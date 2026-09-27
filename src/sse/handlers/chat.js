@@ -300,6 +300,7 @@ export async function handleChat(request, clientRawRequest = null) {
             ambiguity: diffCtx.ambiguity || null,
             confidence: diffCtx.confidence ?? null,
             policy: diffCtx.policy || null,
+            jevUsed: !!diffCtx.jevUsed,
           };
           const crr = clientRawRequest
             ? { ...clientRawRequest, difficulty: diffPayload, comboName: clientRawRequest.comboName || modelStr }
