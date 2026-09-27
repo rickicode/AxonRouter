@@ -108,7 +108,8 @@ describe("chatCore proxy fallback to direct", () => {
     });
 
     expect(res).toBeTruthy();
-    // Total attempts: Initial + 5 pool retries (MAX_POOL_RETRIES = 5) + 1 direct fallback = 7 attempts
+    // Total attempts: Initial + 10 pool retries (MAX_POOL_RETRIES = 10) + 1 direct fallback = 12 attempts
+    expect(attempts.length).toBe(12);
     const lastAttempt = attempts[attempts.length - 1];
     expect(lastAttempt.connectionProxyEnabled).toBe(false);
     expect(lastAttempt.proxyPoolId).toBe(null);

@@ -39,7 +39,7 @@ import { isFreeTierGateModel } from "../config/opencodeAgentTools.js";
 // Pool-scoped failure retry: when an executor tags an error as belonging to a
 // proxy pool (region gate, dead proxy, …), re-resolve the proxy config
 // excluding that pool and retry instead of failing the whole account.
-const MAX_POOL_RETRIES = 5;
+const MAX_POOL_RETRIES = 10;
 
 /**
  * Core chat handler - shared between SSE and Worker
