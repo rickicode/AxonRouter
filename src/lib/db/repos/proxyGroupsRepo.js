@@ -24,6 +24,7 @@ export function invalidateProxyGroupCache(id = null) {
 function rowToGroup(row) {
   if (!row) return null;
   const data = parseJson(row.data, {});
+  const fetchIntervalNum = Number(row.fetch_interval_ms);
   return {
     ...data,
     id: row.id,
@@ -32,6 +33,9 @@ function rowToGroup(row) {
     isSticky: row.is_sticky === true,
     stickyLimit: Number.isFinite(row.sticky_limit) && row.sticky_limit > 0 ? row.sticky_limit : 3,
     poolIds: parseJson(row.pool_ids, []),
+    fetchUrl: row.fetch_url || null,
+    fetchIntervalMs: Number.isFinite(fetchIntervalNum) && fetchIntervalNum >= 10000 ? fetchIntervalNum : 600000,
+    lastFetchedAt: row.last_fetched_at || null,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };
@@ -49,6 +53,16 @@ function normalizePatch(data = {}) {
   if (data.poolIds !== undefined) {
     patch.poolIds = Array.isArray(data.poolIds) ? [...new Set(data.poolIds.map(String).filter(Boolean))] : [];
   }
+  if (data.fetchUrl !== undefined) {
+    patch.fetchUrl = data.fetchUrl ? String(data.fetchUrl).trim() : null;
+  }
+  if (data.fetchIntervalMs !== undefined) {
+    const num = Number(data.fetchIntervalMs);
+    patch.fetchIntervalMs = Number.isFinite(num) && num >= 10000 ? Math.floor(num) : 600000;
+  }
+  if (data.lastFetchedAt !== undefined) {
+    patch.lastFetchedAt = data.lastFetchedAt ? new Date(data.lastFetchedAt).toISOString() : null;
+  }
   if (data.data && typeof data.data === "object") patch.data = data.data;
   return patch;
 }
@@ -61,7 +75,7 @@ export async function getProxyGroups() {
 
   const db = await getAdapter();
   const rows = await db.all(
-    `SELECT id, name, description, is_sticky, sticky_limit, pool_ids, data, created_at, updated_at
+    `SELECT id, name, description, is_sticky, sticky_limit, pool_ids, fetch_url, fetch_interval_ms, last_fetched_at, data, created_at, updated_at
        FROM proxy_groups
       ORDER BY updated_at DESC NULLS LAST, created_at DESC NULLS LAST`,
   );
@@ -85,7 +99,7 @@ export async function getProxyGroupById(id) {
 
   const db = await getAdapter();
   const row = await db.get(
-    `SELECT id, name, description, is_sticky, sticky_limit, pool_ids, data, created_at, updated_at
+    `SELECT id, name, description, is_sticky, sticky_limit, pool_ids, fetch_url, fetch_interval_ms, last_fetched_at, data, created_at, updated_at
        FROM proxy_groups
       WHERE id = $1`,
     [id],
@@ -109,7 +123,7 @@ export async function getProxyGroupByName(name) {
 
   const db = await getAdapter();
   const row = await db.get(
-    `SELECT id, name, description, is_sticky, sticky_limit, pool_ids, data, created_at, updated_at
+    `SELECT id, name, description, is_sticky, sticky_limit, pool_ids, fetch_url, fetch_interval_ms, last_fetched_at, data, created_at, updated_at
        FROM proxy_groups
       WHERE LOWER(name) = LOWER($1)`,
     [name.trim()],
@@ -136,14 +150,17 @@ export async function createProxyGroup(data = {}) {
     isSticky: patch.isSticky === true,
     stickyLimit: patch.stickyLimit || 3,
     poolIds: patch.poolIds || [],
+    fetchUrl: patch.fetchUrl ?? null,
+    fetchIntervalMs: patch.fetchIntervalMs ?? 600000,
+    lastFetchedAt: patch.lastFetchedAt ?? null,
     data: patch.data || {},
     createdAt: now,
     updatedAt: now,
   };
 
   await db.run(
-    `INSERT INTO proxy_groups (id, name, description, is_sticky, sticky_limit, pool_ids, data, created_at, updated_at)
-     VALUES ($1, $2, $3, $4, $5, $6::jsonb, $7::jsonb, $8, $9)`,
+    `INSERT INTO proxy_groups (id, name, description, is_sticky, sticky_limit, pool_ids, fetch_url, fetch_interval_ms, last_fetched_at, data, created_at, updated_at)
+     VALUES ($1, $2, $3, $4, $5, $6::jsonb, $7, $8, $9, $10::jsonb, $11, $12)`,
     [
       group.id,
       group.name,
@@ -151,6 +168,9 @@ export async function createProxyGroup(data = {}) {
       group.isSticky,
       group.stickyLimit,
       group.poolIds || [],
+      group.fetchUrl,
+      group.fetchIntervalMs,
+      group.lastFetchedAt,
       group.data || {},
       group.createdAt,
       group.updatedAt,
@@ -183,8 +203,11 @@ export async function updateProxyGroup(id, data = {}) {
               is_sticky = $4,
               sticky_limit = $5,
               pool_ids = $6::jsonb,
-              data = $7::jsonb,
-              updated_at = $8
+              fetch_url = $7,
+              fetch_interval_ms = $8,
+              last_fetched_at = $9,
+              data = $10::jsonb,
+              updated_at = $11
         WHERE id = $1`,
       [
         id,
@@ -193,6 +216,9 @@ export async function updateProxyGroup(id, data = {}) {
         merged.isSticky,
         merged.stickyLimit,
         merged.poolIds || [],
+        merged.fetchUrl ?? null,
+        merged.fetchIntervalMs ?? 600000,
+        merged.lastFetchedAt ?? null,
         merged.data || {},
         merged.updatedAt,
       ],

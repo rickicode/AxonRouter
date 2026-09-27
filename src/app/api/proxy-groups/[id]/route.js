@@ -9,6 +9,7 @@ import {
   updateSettings,
 } from "@/models";
 import { matchDefaultGroupType } from "@/lib/network/connectionProxy.js";
+import { syncProxyGroupFromUrl } from "open-sse/services/proxyAutoFetcher.js";
 
 // GET /api/proxy-groups/[id]
 export async function GET(request, { params }) {
@@ -99,8 +100,32 @@ export async function PUT(request, { params }) {
         : [];
     }
 
+    if (body.fetchUrl !== undefined) {
+      patch.fetchUrl = body.fetchUrl ? String(body.fetchUrl).trim() : null;
+    }
+
+    if (body.fetchIntervalMs !== undefined) {
+      const num = Number(body.fetchIntervalMs);
+      patch.fetchIntervalMs = Number.isFinite(num) && num >= 10000 ? Math.floor(num) : 600000;
+    }
+
     const updated = await updateProxyGroup(id, patch);
-    return NextResponse.json({ group: updated });
+
+    const isFetchUrlChangedOrProvided =
+      patch.fetchUrl !== undefined &&
+      patch.fetchUrl !== null &&
+      patch.fetchUrl.length > 0;
+
+    if (isFetchUrlChangedOrProvided) {
+      try {
+        await syncProxyGroupFromUrl(id);
+      } catch (syncErr) {
+        console.error(`[ProxyGroups] Update sync failed for group ${id}:`, syncErr.message);
+      }
+    }
+
+    const finalGroup = (await getProxyGroupById(id)) || updated;
+    return NextResponse.json({ group: finalGroup });
   } catch (error) {
     console.log("Error updating proxy group:", error);
     return NextResponse.json({ error: error.message || "Failed to update proxy group" }, { status: 500 });

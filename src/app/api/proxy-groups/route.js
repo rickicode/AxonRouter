@@ -4,8 +4,10 @@ import {
   createProxyGroup,
   getProxyPools,
   getProxyGroupByName,
+  getProxyGroupById,
   getSettings,
 } from "@/models";
+import { syncProxyGroupFromUrl } from "open-sse/services/proxyAutoFetcher.js";
 
 export const DEFAULT_PROXY_GROUPS = [
   {
@@ -106,6 +108,9 @@ export async function GET() {
       }
       return {
         ...g,
+        fetchUrl: g.fetchUrl || null,
+        fetchIntervalMs: g.fetchIntervalMs || 600000,
+        lastFetchedAt: g.lastFetchedAt || null,
         isDefault: false,
         poolCount: poolIds.length,
         activeCount,
@@ -133,6 +138,9 @@ export async function POST(request) {
     const stickyLimitNum = Number(body?.stickyLimit);
     const stickyLimit = Number.isFinite(stickyLimitNum) && stickyLimitNum > 0 ? Math.floor(stickyLimitNum) : 3;
     const poolIds = Array.isArray(body?.poolIds) ? [...new Set(body.poolIds.map(String).filter(Boolean))] : [];
+    const fetchUrl = typeof body?.fetchUrl === "string" && body.fetchUrl.trim() ? body.fetchUrl.trim() : null;
+    const fetchIntervalNum = Number(body?.fetchIntervalMs);
+    const fetchIntervalMs = Number.isFinite(fetchIntervalNum) && fetchIntervalNum >= 10000 ? Math.floor(fetchIntervalNum) : 600000;
 
     if (!name) {
       return NextResponse.json({ error: "Group name is required" }, { status: 400 });
@@ -159,9 +167,20 @@ export async function POST(request) {
       isSticky,
       stickyLimit,
       poolIds,
+      fetchUrl,
+      fetchIntervalMs,
     });
 
-    return NextResponse.json({ group }, { status: 201 });
+    if (fetchUrl) {
+      try {
+        await syncProxyGroupFromUrl(group.id);
+      } catch (syncErr) {
+        console.error(`[ProxyGroups] Initial sync failed for group ${group.id}:`, syncErr.message);
+      }
+    }
+
+    const finalGroup = (await getProxyGroupById(group.id)) || group;
+    return NextResponse.json({ group: finalGroup }, { status: 201 });
   } catch (error) {
     console.log("Error creating proxy group:", error);
     return NextResponse.json({ error: error.message || "Failed to create proxy group" }, { status: 500 });

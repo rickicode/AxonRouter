@@ -46,6 +46,16 @@ async function runHeavyStartup() {
   import("@/lib/network/stateSweeper.js")
     .then(({ startStateSweeper }) => startStateSweeper())
     .catch((e) => console.log("[StateSweeper] scheduler start failed:", e.message));
+
+  // Periodic proxy auto-fetcher for proxy groups with subscription/fetch URLs (every 60s)
+  setInterval(async () => {
+    try {
+      const { runProxyAutoFetcher } = await import("open-sse/services/proxyAutoFetcher.js");
+      await runProxyAutoFetcher();
+    } catch (e) {
+      console.error("[ProxyAutoFetcher] scheduler error:", e.message);
+    }
+  }, 60 * 1000).unref?.();
 }
 
 

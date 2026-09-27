@@ -119,11 +119,17 @@ CREATE TABLE IF NOT EXISTS proxy_groups (
   is_sticky BOOLEAN DEFAULT FALSE,
   sticky_limit INTEGER DEFAULT 3,
   pool_ids JSONB DEFAULT '[]'::jsonb,
+  fetch_url TEXT,
+  fetch_interval_ms BIGINT DEFAULT 600000,
+  last_fetched_at TIMESTAMPTZ,
   data JSONB DEFAULT '{}'::jsonb,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 CREATE INDEX IF NOT EXISTS idx_pg_name ON proxy_groups (name);
+ALTER TABLE proxy_groups ADD COLUMN IF NOT EXISTS fetch_url TEXT;
+ALTER TABLE proxy_groups ADD COLUMN IF NOT EXISTS fetch_interval_ms BIGINT DEFAULT 600000;
+ALTER TABLE proxy_groups ADD COLUMN IF NOT EXISTS last_fetched_at TIMESTAMPTZ;
 
 -- API Keys
 CREATE TABLE IF NOT EXISTS api_keys (

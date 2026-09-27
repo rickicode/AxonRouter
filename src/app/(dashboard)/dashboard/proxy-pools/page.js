@@ -20,6 +20,14 @@ function formatDateTime(value) {
  if (Number.isNaN(date.getTime())) return "Never";
  return date.toLocaleString();
 }
+
+function formatSyncInterval(ms) {
+  const num = Number(ms);
+  if (!num) return "Every 10m";
+  if (num < 60000) return `Every ${Math.round(num / 1000)}s`;
+  if (num < 3600000) return `Every ${Math.round(num / 60000)}m`;
+  return `Every ${Math.round(num / 3600000)}h`;
+}
 const TAB_COPY = {
   pools: {
     title: "Proxy Pools",
@@ -174,9 +182,18 @@ function ProxyPoolsContent() {
  const [confirmState, setConfirmState] = useState(null);
  const [proxyGroups, setProxyGroups] = useState({ defaultGroups: [], customGroups: [] });
  const [loadingGroups, setLoadingGroups] = useState(false);
+ const [syncingGroupId, setSyncingGroupId] = useState(null);
  const [showGroupModal, setShowGroupModal] = useState(false);
  const [editingGroup, setEditingGroup] = useState(null);
- const [groupForm, setGroupForm] = useState({ name: "", description: "", isSticky: false, stickyLimit: 3, poolIds: [] });
+ const [groupForm, setGroupForm] = useState({
+   name: "",
+   description: "",
+   isSticky: false,
+   stickyLimit: 3,
+   poolIds: [],
+   fetchUrl: "",
+   fetchIntervalMs: 600000,
+ });
  const [groupPoolSearch, setGroupPoolSearch] = useState("");
  const [savingGroup, setSavingGroup] = useState(false);
  const relayMenuRef = useRef(null);
@@ -232,61 +249,93 @@ function ProxyPoolsContent() {
  }, [fetchProxyPools, fetchProxyGroups]);
 
  const openCreateGroupModal = () => {
- setEditingGroup(null);
- setGroupForm({ name: "", description: "", isSticky: false, stickyLimit: 3, poolIds: [] });
- setGroupPoolSearch("");
- setShowGroupModal(true);
+   setEditingGroup(null);
+   setGroupForm({
+     name: "",
+     description: "",
+     isSticky: false,
+     stickyLimit: 3,
+     poolIds: [],
+     fetchUrl: "",
+     fetchIntervalMs: 600000,
+   });
+   setGroupPoolSearch("");
+   setShowGroupModal(true);
  };
 
  const openEditGroupModal = (group) => {
- setEditingGroup(group);
- setGroupForm({
- name: group.name || "",
- description: group.description || "",
- isSticky: group.isSticky === true,
- stickyLimit: group.stickyLimit || 3,
- poolIds: Array.isArray(group.poolIds) ? [...group.poolIds] : [],
- });
- setGroupPoolSearch("");
- setShowGroupModal(true);
+   setEditingGroup(group);
+   setGroupForm({
+     name: group.name || "",
+     description: group.description || "",
+     isSticky: group.isSticky === true,
+     stickyLimit: group.stickyLimit || 3,
+     poolIds: Array.isArray(group.poolIds) ? [...group.poolIds] : [],
+     fetchUrl: group.fetchUrl || "",
+     fetchIntervalMs: group.fetchIntervalMs || 600000,
+   });
+   setGroupPoolSearch("");
+   setShowGroupModal(true);
  };
 
  const closeGroupModal = () => {
- if (savingGroup) return;
- setShowGroupModal(false);
- setEditingGroup(null);
+   if (savingGroup) return;
+   setShowGroupModal(false);
+   setEditingGroup(null);
  };
 
  const handleSaveGroup = async () => {
- if (!groupForm.name.trim()) {
- notify.error("Group name is required");
- return;
- }
+   if (!groupForm.name.trim()) {
+     notify.error("Group name is required");
+     return;
+   }
 
- setSavingGroup(true);
- try {
- const isEdit = !!editingGroup;
- const url = isEdit ? `/api/proxy-groups/${editingGroup.id}` : "/api/proxy-groups";
- const method = isEdit ? "PUT" : "POST";
- const res = await fetch(url, {
- method,
- headers: { "Content-Type": "application/json" },
- body: JSON.stringify(groupForm),
- });
- const data = await res.json();
- if (res.ok) {
- notify.success(isEdit ? "Proxy group updated" : "Proxy group created");
- setShowGroupModal(false);
- await fetchProxyGroups();
- } else {
- notify.error(data.error || "Failed to save proxy group");
- }
- } catch (error) {
- console.log("Error saving proxy group:", error);
- notify.error("Failed to save proxy group");
- } finally {
- setSavingGroup(false);
- }
+   setSavingGroup(true);
+   try {
+     const isEdit = !!editingGroup;
+     const url = isEdit ? `/api/proxy-groups/${editingGroup.id}` : "/api/proxy-groups";
+     const method = isEdit ? "PUT" : "POST";
+     const res = await fetch(url, {
+       method,
+       headers: { "Content-Type": "application/json" },
+       body: JSON.stringify(groupForm),
+     });
+     const data = await res.json();
+     if (res.ok) {
+       notify.success(isEdit ? "Proxy group updated" : "Proxy group created");
+       setShowGroupModal(false);
+       await Promise.all([fetchProxyGroups(), fetchProxyPools()]);
+     } else {
+       notify.error(data.error || "Failed to save proxy group");
+     }
+   } catch (error) {
+     console.log("Error saving proxy group:", error);
+     notify.error("Failed to save proxy group");
+   } finally {
+     setSavingGroup(false);
+   }
+ };
+
+ const handleSyncGroup = async (group) => {
+   if (!group?.id) return;
+   setSyncingGroupId(group.id);
+   try {
+     const res = await fetch(`/api/proxy-groups/${group.id}/sync`, {
+       method: "POST",
+     });
+     const data = await res.json();
+     if (res.ok && data.success) {
+       notify.success(`Synced ${data.count ?? 0} proxies for group "${group.name}"`);
+       await Promise.all([fetchProxyGroups(), fetchProxyPools()]);
+     } else {
+       notify.error(data.error || "Failed to sync proxy group");
+     }
+   } catch (error) {
+     console.log("Error syncing proxy group:", error);
+     notify.error("Failed to sync proxy group");
+   } finally {
+     setSyncingGroupId(null);
+   }
  };
 
  const handleDeleteGroup = (group) => {
@@ -1986,12 +2035,29 @@ function ProxyPoolsContent() {
  ) : (
  <Badge variant="default">Round-Robin (Every req)</Badge>
  )}
+ {grp.fetchUrl && (
+ <Badge variant="info" icon="sync">
+   Auto-Sync ({formatSyncInterval(grp.fetchIntervalMs)})
+ </Badge>
+ )}
  <span className="text-xs text-text-muted font-mono">
  {grp.activeCount} active / {grp.poolCount} total
  </span>
  </div>
  {grp.description && (
  <p className="text-xs text-text-muted mb-2">{grp.description}</p>
+ )}
+ {grp.fetchUrl && (
+ <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-text-muted mb-2">
+   <span className="flex items-center gap-1 font-mono text-[11px] bg-surface px-2 py-0.5 rounded-sm border border-border/60 max-w-md truncate" title={grp.fetchUrl}>
+     <Icon name="link" size={13} className="text-text-muted/70 shrink-0" />
+     <span className="truncate">{grp.fetchUrl}</span>
+   </span>
+   <span className="text-[11px] text-text-muted flex items-center gap-1">
+     <Icon name="schedule" size={13} className="text-text-muted/60" />
+     Last sync: <span className="text-text-main font-medium">{formatDateTime(grp.lastFetchedAt)}</span>
+   </span>
+ </div>
  )}
  {poolNames.length > 0 && (
  <div className="flex flex-wrap gap-1 mt-1.5">
@@ -2017,6 +2083,18 @@ function ProxyPoolsContent() {
  </div>
 
  <div className="flex items-center gap-1 self-end sm:self-center">
+ {grp.fetchUrl && (
+ <Button
+ size="sm"
+ variant="secondary"
+ icon="refresh"
+ loading={syncingGroupId === grp.id}
+ onClick={() => handleSyncGroup(grp)}
+ title="Sync proxies from URL now"
+ >
+ Sync Now
+ </Button>
+ )}
  <Button
  size="sm"
  variant="secondary"
@@ -2053,6 +2131,26 @@ function ProxyPoolsContent() {
  onClose={closeBatchImportModal}
  >
  <div className="flex flex-col gap-3">
+ {/* Auto-sync from URL promotion banner */}
+ <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 p-2.5 rounded-sm bg-surface-2 border border-border text-xs">
+   <div className="flex items-center gap-2 text-text-muted">
+     <Icon name="sync" size={16} className="text-primary shrink-0" />
+     <span>Need auto-updating proxies from URL?</span>
+   </div>
+   <button
+     type="button"
+     onClick={() => {
+       closeBatchImportModal();
+       setActiveTab("groups");
+       openCreateGroupModal();
+     }}
+     className="inline-flex items-center gap-1 font-medium text-primary hover:underline text-xs shrink-0 cursor-pointer self-start sm:self-auto"
+   >
+     <span>Use Proxy Groups → Auto-Fetch URL</span>
+     <Icon name="arrow_forward" size={14} />
+   </button>
+ </div>
+
  {/* Group Assignment Option */}
  <div className="flex flex-col gap-2">
  <label className="text-xs font-medium text-text-muted">Group Option</label>
@@ -2550,6 +2648,46 @@ function ProxyPoolsContent() {
  placeholder="Optional group description"
  />
  )}
+ {!editingGroup?.isDefault && (
+ <>
+ <Input
+ label="Fetch URL / Subscription URL"
+ value={groupForm.fetchUrl}
+ onChange={(e) => setGroupForm((prev) => ({ ...prev, fetchUrl: e.target.value }))}
+ placeholder="e.g. https://proxi.hijitoko.com/500proxy"
+ hint="Optional URL providing newline-separated or JSON list of proxies for automatic periodic synchronization."
+ />
+
+ <div className="flex flex-col gap-1.5">
+   <label className="text-xs font-medium text-text-muted">Sync Interval</label>
+   <select
+     value={groupForm.fetchIntervalMs}
+     onChange={(e) => setGroupForm((prev) => ({ ...prev, fetchIntervalMs: Number(e.target.value) }))}
+     className="w-full rounded-sm border border-border bg-surface py-2 px-3 text-xs text-text-main focus:border-primary focus:outline-none"
+   >
+     <option value={300000}>5 minutes (300000)</option>
+     <option value={600000}>10 minutes (600000 - default)</option>
+     <option value={1800000}>30 minutes (1800000)</option>
+     <option value={3600000}>1 hour (3600000)</option>
+     <option value={21600000}>6 hours (21600000)</option>
+     <option value={86400000}>24 hours (86400000)</option>
+   </select>
+   <p className="text-[11px] text-text-muted">How often AxonRouter automatically syncs proxies from this URL.</p>
+ </div>
+
+ {groupForm.fetchUrl?.trim() && (
+   <div className="rounded-sm bg-primary/10 border border-primary/20 p-3 text-xs text-text-main flex items-start gap-2">
+     <Icon name="info" size={16} className="text-primary shrink-0 mt-0.5" />
+     <div>
+       <p className="font-semibold text-primary mb-0.5">Auto-Managed Subscription</p>
+       <p className="text-text-muted">
+         Proxies in this group will be automatically updated and managed from this URL.
+       </p>
+     </div>
+   </div>
+ )}
+ </>
+ )}
 
  <div className="flex flex-col gap-3 rounded-sm border border-border p-3 sm:flex-row sm:items-center sm:justify-between">
  <div>
@@ -2583,6 +2721,16 @@ function ProxyPoolsContent() {
  <p>
  All active proxy pools with type <span className="font-mono font-medium">{editingGroup.type}</span> are automatically included in this group.
  </p>
+ </div>
+ ) : groupForm.fetchUrl?.trim() ? (
+ <div className="rounded-sm bg-surface border border-border p-3 text-xs text-text-muted">
+   <p className="font-medium text-text-main mb-1 flex items-center gap-1.5">
+     <Icon name="cloud_sync" size={16} className="text-primary" />
+     <span>Auto-Managed via Subscription URL</span>
+   </p>
+   <p>
+     Proxies in this group will be automatically updated and managed from this URL ({groupForm.poolIds.length} proxies currently synchronized). Manual proxy selection is bypassed.
+   </p>
  </div>
  ) : (
  <div>
