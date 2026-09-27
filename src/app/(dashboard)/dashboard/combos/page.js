@@ -1262,7 +1262,7 @@ function ComboFormModal({
                 <span>Smart Routing Active</span>
               </div>
               <p className="mt-1 text-[11px] text-text-muted leading-relaxed">
-                This combo automatically classifies prompts into <strong>Easy</strong>, <strong>Medium</strong>, and <strong>Hard</strong> tiers. You can fine-tune tier models and priority order on the combo card.
+                This combo automatically classifies prompts into <strong>Easy</strong> and <strong>Hard</strong> tiers. You can fine-tune tier models and priority order on the combo card.
               </p>
             </div>
           )}

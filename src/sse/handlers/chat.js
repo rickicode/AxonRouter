@@ -455,7 +455,7 @@ export async function handleSingleModelChat(body, modelStr, clientRawRequest = n
         });
       }
 
-      // Difficulty / smart-routing: judge picks a tier (easy/medium/hard),
+      // Difficulty / smart-routing: judge picks a tier (easy/hard),
       // then ONLY that tier runs (one model at a time, escalate on failure).
       // Tier decisions flow into request_details via clientRawRequest.difficulty
       // so the analytics tab can show per-tier usage + judge hit rate.

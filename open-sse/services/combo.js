@@ -653,8 +653,8 @@ const FUSION_DEFAULTS = {
 
 // ── Difficulty / smart-routing strategy ─────────────────────────────────────
 // Classifies the prompt (heuristic + judge LLM for ambiguous cases) into one
-// of three tiers (easy / medium / hard) and runs ONLY the selected tier's
-// members sequentially (fallback inside the tier, escalate easy→medium→hard).
+// of two tiers (easy / hard) and runs ONLY the selected tier's
+// members sequentially (fallback inside the tier, escalate easy→hard).
 // Unlike fusion it never fans out — one model answer at a time, so switching
 // costs a single prefill instead of a panel. Judge is only called when the
 // heuristic is unsure, and per-session decisions are cached (Morph router
