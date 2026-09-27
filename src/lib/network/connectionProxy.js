@@ -34,6 +34,37 @@ export function matchDefaultGroupType(input) {
 const rotateState = (globalThis.__axonrouterProxyRotateState__ ??= new Map()); // stateKey → { index, count, currentPoolId }
 
 /**
+ * Check whether a proxy pool is healthy and eligible for routing.
+ * A pool is NOT eligible if it is inactive, marked unhealthy/dead,
+ * or has accumulated 3 or more consecutive failures.
+ *
+ * @param {object} pool
+ * @returns {boolean}
+ */
+export function isPoolHealthy(pool) {
+  if (!pool || pool.isActive === false) return false;
+  if (pool.testStatus === "unhealthy" || pool.testStatus === "dead") return false;
+  if (Number(pool.consecutiveFailures) >= 3) return false;
+  return true;
+}
+
+/**
+ * Immediately evicts a pool ID from sticky rotation state upon failure or deactivation.
+ *
+ * @param {string} poolId
+ */
+export function evictProxyPoolFromRotateState(poolId) {
+  if (!poolId) return;
+  for (const [key, state] of rotateState.entries()) {
+    if (state?.currentPoolId === poolId) {
+      state.currentPoolId = null;
+      state.stickCount = 0;
+      rotateState.set(key, state);
+    }
+  }
+}
+
+/**
  * Pick one proxy pool ID from a list based on strategy.
  * round-robin: cycle sequentially (in-memory, resets on restart)
  * random:      uniform random pick
@@ -286,7 +317,7 @@ export async function resolveConnectionProxyConfig(
         const proxyUrl = normalizeString(proxyPool?.proxyUrl);
         const noProxy = normalizeString(proxyPool?.noProxy);
 
-        const isValidPool = proxyPool && proxyPool.isActive === true && proxyUrl;
+        const isValidPool = proxyPool && isPoolHealthy(proxyPool) && proxyUrl;
 
         if (isValidPool) {
           /**
@@ -354,7 +385,7 @@ export async function resolveConnectionProxyConfig(
       const proxyPool = await getProxyPoolById(proxyPoolIdRaw);
       const proxyUrl = normalizeString(proxyPool?.proxyUrl);
       const noProxy = normalizeString(proxyPool?.noProxy);
-      const isValidPool = proxyPool && proxyPool.isActive === true && proxyUrl;
+      const isValidPool = proxyPool && isPoolHealthy(proxyPool) && proxyUrl;
 
       if (isValidPool) {
         if (proxyPool.type === "vercel" || proxyPool.type === "cloudflare" || proxyPool.type === "deno") {

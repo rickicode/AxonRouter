@@ -94,6 +94,10 @@ export async function recordRuntimeProxyFailure(
             lastTestedAt: new Date().toISOString(),
           });
           invalidateProxyPoolCache(poolId);
+          try {
+            const { evictProxyPoolFromRotateState } = await import("@/lib/network/connectionProxy.js");
+            evictProxyPoolFromRotateState(poolId);
+          } catch {}
           console.warn(`[ProxyHealth] Proxy pool ${poolId} ("${pool.name}") marked as ${targetStatus} after ${count} consecutive failures: ${errorMsg}`);
         }
       }

@@ -478,6 +478,8 @@ const isProxyNetworkError = (err) => {
   if (!err) return false;
   const msg = String(err.message || "").toLowerCase();
   const code = String(err.code || "").toLowerCase();
+  const causeMsg = String(err.cause?.message || "").toLowerCase();
+  const causeCode = String(err.cause?.code || "").toLowerCase();
   return (
     msg.includes("[proxyfetch]") ||
     msg.includes("proxy required but failed") ||
@@ -493,7 +495,13 @@ const isProxyNetworkError = (err) => {
     code === "econnrefused" ||
     code === "etimedout" ||
     code === "econnreset" ||
-    code === "und_err_connect_timeout"
+    code === "und_err_connect_timeout" ||
+    causeMsg.includes("econnrefused") ||
+    causeMsg.includes("etimedout") ||
+    causeMsg.includes("econnreset") ||
+    causeCode === "econnrefused" ||
+    causeCode === "etimedout" ||
+    causeCode === "econnreset"
   );
 };
 
