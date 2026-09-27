@@ -1098,6 +1098,11 @@ export async function handleDifficultyChat({ body, models = [], handleSingleMode
     log.info("DIFFICULTY", `Combo "${comboName}" running ${tierCfg.name} tier [${candidateModels.join(", ")}]`);
     for (let i = 0; i < candidateModels.length; i++) {
       const m = candidateModels[i];
+      if (externalSignal?.aborted) {
+        log.warn("DIFFICULTY", `Client disconnected — stopping difficulty routing`);
+        bumpRoutingMetric("comboClientAbortStops");
+        return new Response(JSON.stringify({ error: { message: "Client disconnected during difficulty routing" } }), { status: 499, headers: { "Content-Type": "application/json" } });
+      }
       if (memberHealth?.checkAvailability) {
         const avail = await memberHealth.checkAvailability(m).catch(() => ({ available: true }));
         if (avail && avail.available === false) {
@@ -1108,7 +1113,7 @@ export async function handleDifficultyChat({ body, models = [], handleSingleMode
       }
       let result;
       try {
-        result = await handleSingleModel(body, m, { signal: externalSignal?.aborted ? undefined : undefined });
+        result = await handleSingleModel(body, m, { signal: externalSignal });
       } catch (e) {
         bumpRoutingMetric("difficultyMemberThrown");
         difficultyModelHealth.set(m, { failedAt: Date.now(), error: e.message });

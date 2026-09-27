@@ -756,10 +756,10 @@ if (!stream) {
 }
 
 // Streaming response
-const { onStreamComplete: rawOnStreamComplete, streamDetailId } = buildOnStreamComplete({ ...sharedCtx });
+const { onStreamComplete: rawOnStreamComplete, streamDetailId, streamTimestamp } = buildOnStreamComplete({ ...sharedCtx });
 const onStreamComplete = (...args) => { releaseUpstreamSlot(); return rawOnStreamComplete(...args); };
 try {
-  return handleStreamingResponse({ ...sharedCtx, providerResponse, sourceFormat, targetFormat: providerResponseFormat, userAgent, reqLogger, toolNameMap, customToolNames, streamController, onStreamComplete, streamDetailId, credentials });
+  return handleStreamingResponse({ ...sharedCtx, providerResponse, sourceFormat, targetFormat: providerResponseFormat, userAgent, reqLogger, toolNameMap, customToolNames, streamController, onStreamComplete, streamDetailId, streamTimestamp, credentials });
 } catch (e) {
   releaseUpstreamSlot();
   throw e;

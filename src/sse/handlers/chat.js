@@ -477,9 +477,9 @@ export async function handleSingleModelChat(body, modelStr, clientRawRequest = n
               policy: diffCtx.policy || null,
             };
             const crr = clientRawRequest
-              ? { ...clientRawRequest, difficulty: diffPayload }
-              : { difficulty: diffPayload };
-            return handleSingleModelChat(b, m, crr, request, apiKey, modelStr, isTestRequest, rotationBudget, opts?.signal ?? null);
+              ? { ...clientRawRequest, difficulty: diffPayload, comboName: clientRawRequest.comboName || comboName || modelStr }
+              : { difficulty: diffPayload, comboName: comboName || modelStr };
+            return handleSingleModelChat(b, m, crr, request, apiKey, clientRawRequest?.comboName || comboName || modelStr, isTestRequest, rotationBudget, opts?.signal ?? null);
           },
           log,
           comboName: modelStr,
@@ -512,7 +512,7 @@ export async function handleSingleModelChat(body, modelStr, clientRawRequest = n
         body,
         models: preparedNested.models,
       handleSingleModel: withCapacityAdapterStripping(
-        (b, m, opts) => handleSingleModelChat(b, m, clientRawRequest, request, apiKey, modelStr, isTestRequest, rotationBudget, opts?.signal ?? null),
+        (b, m, opts) => handleSingleModelChat(b, m, clientRawRequest, request, apiKey, clientRawRequest?.comboName || comboName || modelStr, isTestRequest, rotationBudget, opts?.signal ?? null),
         adapterAdded
       ),
         log,
@@ -531,7 +531,7 @@ export async function handleSingleModelChat(body, modelStr, clientRawRequest = n
 
   const { provider, model } = modelInfo;
   if (clientRawRequest) {
-    clientRawRequest = { ...clientRawRequest, comboName: comboName || clientRawRequest.comboName || null };
+    clientRawRequest = { ...clientRawRequest, comboName: clientRawRequest.comboName || comboName || null };
   }
 
   // Routing shown in the unified "▶" line (client model → provider/model)
@@ -790,7 +790,7 @@ export async function handleSingleModelChat(body, modelStr, clientRawRequest = n
       // Detect source format by endpoint + body
       sourceFormatOverride: request?.url ? detectFormatByEndpoint(new URL(request.url).pathname, body) : null,
       isTestRequest,
-      comboName,
+      comboName: clientRawRequest?.comboName || comboName,
       difficulty: clientRawRequest?.difficulty || null,
       // Fusion straggler / combo target-timeout abort: linked to the stream
       // controller inside chatCore (fail-open when ignored downstream).

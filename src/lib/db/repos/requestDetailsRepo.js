@@ -323,7 +323,13 @@ export async function saveRequestDetail(detail) {
   const config = await getObservabilityConfig();
   if (!config.enabled) return detail;
 
-  writeBuffer.push(detail);
+  const existingIdx = detail.id ? writeBuffer.findIndex((b) => b.id === detail.id) : -1;
+  if (existingIdx !== -1) {
+    writeBuffer[existingIdx] = { ...writeBuffer[existingIdx], ...detail };
+  } else {
+    writeBuffer.push(detail);
+  }
+
   if (writeBuffer.length >= config.batchSize) {
     clearTimeout(flushTimer);
     flushTimer = null;
@@ -713,24 +719,26 @@ export async function getComboAnalytics({ timeFrom, timeTo } = {}) {
       const uhDiffSql = `
         SELECT
           meta->>'comboName' AS combo_name,
-          meta->>'difficulty' AS tier,
+          COALESCE(meta->'difficulty'->>'tier', meta->>'difficulty', 'unknown') AS tier,
+          NULLIF(meta->'difficulty'->>'domain', '') AS domain,
+          NULLIF(meta->'difficulty'->>'policy', '') AS policy,
+          ROUND(AVG(COALESCE((meta->'difficulty'->>'confidence')::numeric, 1.0)), 2) AS avg_confidence,
           COUNT(*)::int AS total,
           COUNT(*) FILTER (WHERE status IN ('ok', 'success'))::int AS success,
           COUNT(*) FILTER (WHERE status NOT IN ('ok', 'success'))::int AS errors,
-          0::int AS judge_used,
-          0::int AS judged,
-          NULL::numeric AS avg_confidence,
+          COUNT(*) FILTER (WHERE (meta->'difficulty'->>'judgeUsed')::boolean IS TRUE)::int AS judge_used,
+          COUNT(*) FILTER (WHERE (meta->'difficulty'->>'source') = 'judge')::int AS judged,
           MAX(timestamp) AS last_seen
         FROM usage_history
         ${uhDiffWhere}
-        GROUP BY 1, 2
+        GROUP BY 1, 2, 3, 4
         ORDER BY combo_name ASC, total DESC;
       `;
 
       const uhDiffModelSql = `
         SELECT
           meta->>'comboName' AS combo_name,
-          meta->>'difficulty' AS tier,
+          COALESCE(meta->'difficulty'->>'tier', meta->>'difficulty', 'unknown') AS tier,
           model,
           COUNT(*)::int AS total,
           COUNT(*) FILTER (WHERE status IN ('ok', 'success'))::int AS success,

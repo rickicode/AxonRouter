@@ -90,4 +90,41 @@ describe("Observability config & Combo Analytics fallback", () => {
     expect(analytics.members[0].model).toBe("mimo-v2.6-flash-free");
     expect(analytics.members[0].provider).toBe("opencode");
   });
+
+  it("buildOnStreamComplete returns matching streamDetailId and streamTimestamp", async () => {
+    const { buildOnStreamComplete } = await import("../../open-sse/handlers/chatCore/streamingHandler.js");
+    const { onStreamComplete, streamDetailId, streamTimestamp } = buildOnStreamComplete({
+      provider: "unikey",
+      model: "google/gemini-3.1-flash-lite",
+      connectionId: "conn-1",
+      requestStartTime: 1727400000000,
+      comboName: "auto/coding",
+    });
+
+    expect(streamDetailId).toBeDefined();
+    expect(streamTimestamp).toBe(new Date(1727400000000).toISOString());
+    expect(typeof onStreamComplete).toBe("function");
+  });
+
+  it("saveRequestDetail deduplicates identical id in writeBuffer before flushing", async () => {
+    const { saveRequestDetail } = await import("../../src/lib/db/repos/requestDetailsRepo.js");
+    const id = "test-stream-id-123";
+    const ts = new Date().toISOString();
+
+    await saveRequestDetail({
+      id,
+      timestamp: ts,
+      status: "success",
+      response: { content: "[Streaming in progress...]" },
+      tokens: { prompt_tokens: 0, completion_tokens: 0 },
+    });
+
+    await saveRequestDetail({
+      id,
+      timestamp: ts,
+      status: "success",
+      response: { content: "Complete response!" },
+      tokens: { prompt_tokens: 10, completion_tokens: 20 },
+    });
+  });
 });

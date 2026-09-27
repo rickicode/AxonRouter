@@ -71,7 +71,7 @@ export function buildRequestDetail(base, overrides = {}) {
     connectionId: base.connectionId || undefined,
     comboName: base.comboName || overrides.comboName || undefined,
     difficulty: base.difficulty || overrides.difficulty || undefined,
-    timestamp: new Date().toISOString(),
+    timestamp: overrides.timestamp || base.timestamp || new Date().toISOString(),
     latency: base.latency || { ttft: 0, total: 0 },
     tokens: base.tokens || { prompt_tokens: 0, completion_tokens: 0 },
     request: base.request,
