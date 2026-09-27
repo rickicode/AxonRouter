@@ -35,7 +35,6 @@ const PERIODS = [
 
 const TABS = [
   { value: "overview", label: "Overview" },
-  { value: "details", label: "Details" },
   { value: "analytics", label: "Analytics" },
   { value: "logs", label: "Logs" },
 ];
@@ -50,12 +49,8 @@ const TAB_COPY = {
     body: "New routed LLM attempts only. Retries count separately. Reliability and latency describe service performance, not answer quality.",
   },
   logs: {
-    title: "Request Logs",
-    body: "Live request stream captured by the gateway. Filter by status to find failures without leaving the dashboard.",
-  },
-  details: {
-    title: "Request Details",
-    body: "Full request/response payloads for each routed attempt — client input, translated provider request, raw upstream response, and the final client response.",
+    title: "Request Logs & Traces",
+    body: "Live request stream and full payload traces captured by the gateway. Filter by status or toggle detailed trace inspects.",
   },
 };
 
@@ -73,11 +68,13 @@ function UsageContent() {
   const [period, setPeriod] = useState("today");
 
   const tabParam = searchParams.get("tab");
-  const tabFromUrl = tabParam;
+  // Backward compatibility: tab=details redirects seamlessly to tab=logs with details panel open
   const activeTab =
-    tabFromUrl && ["overview", "logs", "analytics", "details"].includes(tabFromUrl)
-      ? tabFromUrl
-      : "overview";
+    tabParam === "details" || tabParam === "logs"
+      ? "logs"
+      : tabParam && ["overview", "analytics"].includes(tabParam)
+        ? tabParam
+        : "overview";
   const showDetails =
     activeTab === "logs" &&
     (tabParam === "details" || searchParams.get("details") === "1");
@@ -193,16 +190,6 @@ function UsageContent() {
             </div>
           )}
         </>
-      )}
-      {activeTab === "details" && (
-        <Suspense fallback={<CardSkeleton />}>
-          <RequestDetailsTab
-            initialFilters={{
-              status: searchParams.get("status") || "",
-              provider: searchParams.get("provider") || "",
-            }}
-          />
-        </Suspense>
       )}
       {activeTab === "analytics" && <AnalyticsTab period={period} />}
     </div>

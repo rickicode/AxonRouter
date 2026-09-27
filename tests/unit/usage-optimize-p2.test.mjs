@@ -43,8 +43,8 @@ describe("[axonrouter-X audit] P2 optimize + animate — dynamic heavy tabs + Us
       assert.match(pageSrc, /subtab=\{searchParams\.get\("subtab"\)\s*\|\|\s*undefined\}/);
       assert.ok(pageSrc.includes('{ value: "overview", label: "Overview" }'));
       assert.ok(pageSrc.includes('{ value: "logs", label: "Logs" }'));
-      assert.ok(pageSrc.includes('{ value: "details", label: "Details" }'));
       assert.ok(pageSrc.includes('{ value: "analytics", label: "Analytics" }'));
+      assert.ok(pageSrc.includes('tabParam === "details" || tabParam === "logs"'));
     });
   });
 

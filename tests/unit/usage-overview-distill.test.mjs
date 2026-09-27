@@ -140,8 +140,8 @@ describe("[axonrouter-X usage] P1 distill overview sub-tabs + lazy topology/char
       assert.match(pageSrc, /subtab=\{searchParams\.get\("subtab"\)\s*\|\|\s*undefined\}/);
       assert.ok(pageSrc.includes('{ value: "overview", label: "Overview" }'));
       assert.ok(pageSrc.includes('{ value: "logs", label: "Logs" }'));
-      assert.ok(pageSrc.includes('{ value: "details", label: "Details" }'));
       assert.ok(pageSrc.includes('{ value: "analytics", label: "Analytics" }'));
+      assert.ok(pageSrc.includes('tabParam === "details" || tabParam === "logs"'));
     });
   });
 });
