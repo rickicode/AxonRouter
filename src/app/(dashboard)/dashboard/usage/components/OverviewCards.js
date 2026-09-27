@@ -72,7 +72,8 @@ function Metric({ label, icon, tone, value, valueClass, note, exact, spanTwo = f
   );
 }
 
-const COST_BREAKDOWN_TIP = "Exact rate from Settings > Pricing (billing docs: Estimated, not actual billing)";
+const costBreakdownTip = "Exact rate from Settings > Pricing (billing docs: Estimated, not actual billing)";
+const COST_BREAKDOWN_TIP = costBreakdownTip;
 
 export default function OverviewCards({ stats }) {
   const totalPrompt = Number(stats.totalPromptTokens) || 0;

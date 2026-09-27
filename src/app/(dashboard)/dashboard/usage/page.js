@@ -68,16 +68,12 @@ function UsageContent() {
   const [period, setPeriod] = useState("today");
 
   const tabParam = searchParams.get("tab");
-  // Backward compatibility: tab=details redirects seamlessly to tab=logs with details panel open
   const activeTab =
-    tabParam === "details" || tabParam === "logs"
-      ? "logs"
-      : tabParam && ["overview", "analytics"].includes(tabParam)
-        ? tabParam
-        : "overview";
+    tabParam && ["overview", "analytics", "logs"].includes(tabParam)
+      ? tabParam
+      : "overview";
   const showDetails =
-    activeTab === "logs" &&
-    (tabParam === "details" || searchParams.get("details") === "1");
+    activeTab === "logs" && searchParams.get("details") === "1";
 
   const handleTabChange = (value) => {
     if (value === activeTab) return;

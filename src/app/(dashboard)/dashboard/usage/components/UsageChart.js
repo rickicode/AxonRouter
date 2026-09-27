@@ -77,6 +77,17 @@ export default function UsageChart({ period = "7d", viewMode: controlledViewMode
         />
       }
     >
+      <div
+        role="region"
+        aria-label={`Usage trend chart for ${period} period showing ${mode.label.toLowerCase()} per bucket`}
+        tabIndex={0}
+        className="min-w-0 rounded-md outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
+      >
+        <p className="sr-only">
+          {hasData
+            ? `${columns.length} buckets of ${mode.label.toLowerCase()} for the ${period} period, peak ${mode.fmt(max)}.`
+            : "No usage recorded for this period."}
+        </p>
       {error ? (
         <div className="flex h-48 flex-col items-center justify-center gap-2 text-sm text-danger" role="alert">
           <div className="flex items-center gap-1.5 font-medium">
@@ -125,6 +136,7 @@ export default function UsageChart({ period = "7d", viewMode: controlledViewMode
           />
         </>
       )}
+      </div>
     </Card>
   );
 }

@@ -4,7 +4,7 @@ export {
   validateFilterDimension,
 } from "../../../../../lib/analyticsFilters.js";
 
-import { formatTokens, formatTokensExact } from "@/shared/utils/formatTokens";
+import { formatTokens, formatTokensExact } from "../../../../../shared/utils/formatTokens.js";
 
 export { formatTokensExact };
 

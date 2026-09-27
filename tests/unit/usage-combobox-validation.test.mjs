@@ -174,7 +174,11 @@ describe("[axonrouter-X usage] P0 harden exact-ID → searchable provider/model 
         ROOT,
         "src/app/(dashboard)/dashboard/usage/components/AnalyticsTab.js",
       );
-      const content = fs.readFileSync(tabPath, "utf8");
+      const filterBarPath = path.join(
+        ROOT,
+        "src/app/(dashboard)/dashboard/usage/components/AnalyticsFilterBar.js",
+      );
+      const content = fs.readFileSync(tabPath, "utf8") + fs.readFileSync(filterBarPath, "utf8");
       assert.match(content, /import\s+Combobox\s+from\s+["']@\/shared\/components\/Combobox["']/);
       assert.match(content, /id="analytics-provider-filter"/);
       assert.match(content, /id="analytics-model-filter"/);
@@ -189,7 +193,11 @@ describe("[axonrouter-X usage] P0 harden exact-ID → searchable provider/model 
         ROOT,
         "src/app/(dashboard)/dashboard/usage/components/AnalyticsTab.js",
       );
-      const content = fs.readFileSync(tabPath, "utf8");
+      const hookPath = path.join(
+        ROOT,
+        "src/app/(dashboard)/dashboard/usage/components/useAnalytics.js",
+      );
+      const content = fs.readFileSync(tabPath, "utf8") + fs.readFileSync(hookPath, "utf8");
       assert.match(content, /validateProviderFilter/);
       assert.match(content, /validateModelFilter/);
       assert.match(content, /providerValidation/);
