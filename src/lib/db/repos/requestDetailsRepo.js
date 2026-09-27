@@ -193,16 +193,16 @@ function rowToDetail(row) {
   return normalizeJson(row.data, {});
 }
 
-async function getObservabilityConfig() {
+export async function getObservabilityConfig() {
   if (cachedConfig && Date.now() - cachedConfigTs < CONFIG_CACHE_TTL_MS) return cachedConfig;
 
   try {
     const { getSettings } = await import("./settingsRepo.js");
     const settings = await getSettings();
-    const envRequestLogs = process.env.ENABLE_REQUEST_LOGS;
-    const enabled = envRequestLogs !== undefined
-      ? envRequestLogs.toLowerCase() === "true"
-      : settings.enableObservability !== false && process.env.OBSERVABILITY_ENABLED !== "false";
+    const envObs = process.env.OBSERVABILITY_ENABLED;
+    const enabled = envObs !== undefined
+      ? envObs.toLowerCase() === "true"
+      : settings.enableObservability !== false;
     cachedConfig = {
       enabled,
       maxRecords: Number(settings.observabilityMaxRecords || process.env.OBSERVABILITY_MAX_RECORDS || DEFAULT_MAX_RECORDS),
@@ -211,9 +211,9 @@ async function getObservabilityConfig() {
       maxJsonSize: Number(settings.observabilityMaxJsonSize || process.env.OBSERVABILITY_MAX_JSON_SIZE || 5) * 1024,
     };
   } catch {
-    const envRequestLogs = process.env.ENABLE_REQUEST_LOGS;
-    const enabled = envRequestLogs !== undefined
-      ? envRequestLogs.toLowerCase() === "true"
+    const envObs = process.env.OBSERVABILITY_ENABLED;
+    const enabled = envObs !== undefined
+      ? envObs.toLowerCase() === "true"
       : process.env.OBSERVABILITY_ENABLED !== "false";
     cachedConfig = {
       enabled,
@@ -629,8 +629,129 @@ export async function getComboAnalytics({ timeFrom, timeTo } = {}) {
       db.all(difficultyModelSql, params).catch(() => []),
     ]);
 
+    let finalComboRows = comboRows || [];
+    let finalMemberRows = memberRows || [];
+
+    // Fallback: If request_details has no tagged combo rows (e.g. bounded retention,
+    // disabled payload logs, or past requests), aggregate from usage_history.
+    if (finalComboRows.length === 0) {
+      const uhConditions = ["meta->>'comboName' IS NOT NULL", "meta->>'comboName' != ''"];
+      const uhParams = [];
+      const addUh = (condition, value) => {
+        uhParams.push(value);
+        uhConditions.push(condition.replace("?", `$${uhParams.length}`));
+      };
+      if (timeFrom) addUh("timestamp >= ?", new Date(timeFrom).toISOString());
+      if (timeTo) addUh("timestamp <= ?", new Date(timeTo).toISOString());
+      const uhWhere = `WHERE ${uhConditions.join(" AND ")}`;
+
+      const uhComboSql = `
+        SELECT
+          meta->>'comboName' AS combo_name,
+          COUNT(*)::int AS total,
+          COUNT(*) FILTER (WHERE status IN ('ok', 'success'))::int AS success,
+          COUNT(*) FILTER (WHERE status NOT IN ('ok', 'success'))::int AS errors,
+          COALESCE(ROUND(AVG(COALESCE((meta->'latency'->>'total')::numeric, 0)) / 1000.0, 2), 0) AS avg_latency_s,
+          MAX(timestamp) AS last_seen
+        FROM usage_history
+        ${uhWhere}
+        GROUP BY 1
+        ORDER BY errors DESC, total DESC;
+      `;
+
+      const uhMemberSql = `
+        SELECT
+          meta->>'comboName' AS combo_name,
+          model,
+          provider,
+          COUNT(*)::int AS total,
+          COUNT(*) FILTER (WHERE status IN ('ok', 'success'))::int AS success,
+          COUNT(*) FILTER (WHERE status NOT IN ('ok', 'success'))::int AS errors,
+          COALESCE(ROUND(AVG(COALESCE((meta->'latency'->>'total')::numeric, 0)) / 1000.0, 2), 0) AS avg_latency_s,
+          MAX(timestamp) AS last_seen,
+          (ARRAY_AGG(COALESCE(
+            NULLIF(meta->>'error', ''),
+            status,
+            'Unknown failure'
+          ) ORDER BY timestamp DESC))[1] AS sample_error,
+          (ARRAY_AGG(COALESCE(
+            status,
+            ''
+          ) ORDER BY timestamp DESC))[1] AS sample_status
+        FROM usage_history
+        ${uhWhere}
+        GROUP BY 1, 2, 3
+        ORDER BY combo_name ASC, errors DESC, total DESC;
+      `;
+
+      const [uhCombos, uhMembers] = await Promise.all([
+        db.all(uhComboSql, uhParams).catch(() => []),
+        db.all(uhMemberSql, uhParams).catch(() => []),
+      ]);
+      finalComboRows = uhCombos || [];
+      finalMemberRows = uhMembers || [];
+    }
+
+    let finalDifficultyRows = difficultyRows || [];
+    let finalDifficultyModelRows = difficultyModelRows || [];
+
+    if (finalDifficultyRows.length === 0 && finalDifficultyModelRows.length === 0) {
+      const uhDiffConditions = [
+        "meta->>'comboName' IS NOT NULL",
+        "meta->>'comboName' != ''",
+        "meta->>'difficulty' IS NOT NULL",
+      ];
+      const uhDiffParams = [];
+      const addUhDiff = (condition, value) => {
+        uhDiffParams.push(value);
+        uhDiffConditions.push(condition.replace("?", `$${uhDiffParams.length}`));
+      };
+      if (timeFrom) addUhDiff("timestamp >= ?", new Date(timeFrom).toISOString());
+      if (timeTo) addUhDiff("timestamp <= ?", new Date(timeTo).toISOString());
+      const uhDiffWhere = `WHERE ${uhDiffConditions.join(" AND ")}`;
+
+      const uhDiffSql = `
+        SELECT
+          meta->>'comboName' AS combo_name,
+          meta->>'difficulty' AS tier,
+          COUNT(*)::int AS total,
+          COUNT(*) FILTER (WHERE status IN ('ok', 'success'))::int AS success,
+          COUNT(*) FILTER (WHERE status NOT IN ('ok', 'success'))::int AS errors,
+          0::int AS judge_used,
+          0::int AS judged,
+          NULL::numeric AS avg_confidence,
+          MAX(timestamp) AS last_seen
+        FROM usage_history
+        ${uhDiffWhere}
+        GROUP BY 1, 2
+        ORDER BY combo_name ASC, total DESC;
+      `;
+
+      const uhDiffModelSql = `
+        SELECT
+          meta->>'comboName' AS combo_name,
+          meta->>'difficulty' AS tier,
+          model,
+          COUNT(*)::int AS total,
+          COUNT(*) FILTER (WHERE status IN ('ok', 'success'))::int AS success,
+          COUNT(*) FILTER (WHERE status NOT IN ('ok', 'success'))::int AS errors,
+          MAX(timestamp) AS last_seen
+        FROM usage_history
+        ${uhDiffWhere}
+        GROUP BY 1, 2, 3
+        ORDER BY combo_name ASC, total DESC;
+      `;
+
+      const [uhDiffs, uhDiffModels] = await Promise.all([
+        db.all(uhDiffSql, uhDiffParams).catch(() => []),
+        db.all(uhDiffModelSql, uhDiffParams).catch(() => []),
+      ]);
+      if (uhDiffs?.length) finalDifficultyRows = uhDiffs;
+      if (uhDiffModels?.length) finalDifficultyModelRows = uhDiffModels;
+    }
+
     return {
-      combos: (comboRows || []).map((row) => ({
+      combos: finalComboRows.map((row) => ({
         comboName: row.combo_name,
         total: Number(row.total || 0),
         success: Number(row.success || 0),
@@ -638,7 +759,7 @@ export async function getComboAnalytics({ timeFrom, timeTo } = {}) {
         avgLatencyS: Number(row.avg_latency_s || 0),
         lastSeen: row.last_seen,
       })),
-      members: (memberRows || []).map((row) => ({
+      members: finalMemberRows.map((row) => ({
         comboName: row.combo_name,
         model: row.model,
         provider: row.provider,
@@ -650,7 +771,7 @@ export async function getComboAnalytics({ timeFrom, timeTo } = {}) {
         sampleError: row.sample_error,
         sampleStatus: row.sample_status,
       })),
-      difficulty: (difficultyRows || []).map((row) => ({
+      difficulty: finalDifficultyRows.map((row) => ({
         comboName: row.combo_name,
         tier: row.tier,
         domain: row.domain || null,
@@ -662,7 +783,7 @@ export async function getComboAnalytics({ timeFrom, timeTo } = {}) {
         judged: Number(row.judged || 0),
         lastSeen: row.last_seen,
       })),
-      difficultyModels: (difficultyModelRows || []).map((row) => ({
+      difficultyModels: finalDifficultyModelRows.map((row) => ({
         comboName: row.combo_name,
         tier: row.tier,
         model: row.model,

@@ -363,7 +363,7 @@ export async function handleNonStreamingResponse({ providerResponse, provider, m
 
   const usage = extractUsageFromResponse(responseBody);
   appendLog({ tokens: usage, status: "200 OK" });
-  saveUsageStats({ provider, model, tokens: usage, connectionId, apiKey, endpoint: clientRawRequest?.endpoint, silent: true, isStream: false, isTestRequest, comboName, requestId });
+  saveUsageStats({ provider, model, tokens: usage, connectionId, apiKey, endpoint: clientRawRequest?.endpoint, silent: true, isStream: false, isTestRequest, comboName, requestId, latency: { total: Date.now() - requestStartTime }, difficulty: clientRawRequest?.difficulty || null });
   if (log?.line) log.line(reqTag, "📊", formatDoneLine({ usage, latency: { total: Date.now() - requestStartTime } }));
 
   // OpenCode Free/Zen may return a Responses object while transport metadata
