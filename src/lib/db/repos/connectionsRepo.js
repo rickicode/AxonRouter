@@ -587,7 +587,20 @@ export async function getProviderConnectionById(id) {
   });
 }
 
+let cachedSummaryStats = null;
+let cachedSummaryStatsExpiresAt = 0;
+const SUMMARY_STATS_TTL_MS = 5000;
+
+export function invalidateProviderSummaryStatsCache() {
+  cachedSummaryStats = null;
+  cachedSummaryStatsExpiresAt = 0;
+}
+
 export async function getProviderSummaryStats() {
+  const now = Date.now();
+  if (cachedSummaryStats && now < cachedSummaryStatsExpiresAt) {
+    return cachedSummaryStats;
+  }
   const db = await getAdapter();
   const rows = await db.all(`
     SELECT
@@ -617,6 +630,8 @@ export async function getProviderSummaryStats() {
       lastErrorAt: r.latest_error_at || null,
     };
   }
+  cachedSummaryStats = stats;
+  cachedSummaryStatsExpiresAt = Date.now() + SUMMARY_STATS_TTL_MS;
   return stats;
 }
 

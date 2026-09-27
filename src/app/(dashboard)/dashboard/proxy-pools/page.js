@@ -6,6 +6,7 @@ import { Badge, Button, Card, CardSkeleton, Input, Modal, Toggle, ConfirmModal, 
 import { useNotificationStore } from "@/store/notificationStore";
 import ProxyFitnessTab from "./components/ProxyFitnessTab";
 import Icon from "@/shared/components/Icon";
+import { cn } from "@/shared/utils/cn";
 
 function getStatusVariant(status) {
  if (status === "active") return "success";
@@ -185,6 +186,7 @@ function ProxyPoolsContent() {
  const [syncingGroupId, setSyncingGroupId] = useState(null);
  const [showGroupModal, setShowGroupModal] = useState(false);
  const [editingGroup, setEditingGroup] = useState(null);
+ const [createMode, setCreateMode] = useState("subscription"); // "subscription" | "manual"
  const [groupForm, setGroupForm] = useState({
    name: "",
    description: "",
@@ -196,60 +198,70 @@ function ProxyPoolsContent() {
  });
  const [groupPoolSearch, setGroupPoolSearch] = useState("");
  const [savingGroup, setSavingGroup] = useState(false);
+ const [subVerifyState, setSubVerifyState] = useState({
+   loading: false,
+   verifiedUrl: "",
+   totalCount: 0,
+   verifiedCount: 0,
+   testedCount: 0,
+   ok: false,
+   error: null,
+ });
  const relayMenuRef = useRef(null);
  const notify = useNotificationStore();
 
  useEffect(() => {
- const handleClickOutside = (e) => {
- if (relayMenuRef.current && !relayMenuRef.current.contains(e.target)) {
- setShowRelayMenu(false);
- }
- };
- if (showRelayMenu) {
- document.addEventListener("mousedown", handleClickOutside);
- }
- return () => document.removeEventListener("mousedown", handleClickOutside);
+   const handleClickOutside = (e) => {
+     if (relayMenuRef.current && !relayMenuRef.current.contains(e.target)) {
+       setShowRelayMenu(false);
+     }
+   };
+   if (showRelayMenu) {
+     document.addEventListener("mousedown", handleClickOutside);
+   }
+   return () => document.removeEventListener("mousedown", handleClickOutside);
  }, [showRelayMenu]);
 
  const fetchProxyPools = useCallback(async () => {
- try {
- const res = await fetch("/api/proxy-pools?includeUsage=true", { cache: "no-store" });
- const data = await res.json();
- if (res.ok) {
- setProxyPools(data.proxyPools || []);
- }
- } catch (error) {
- console.log("Error fetching proxy pools:", error);
- } finally {
- setLoading(false);
- }
+   try {
+     const res = await fetch("/api/proxy-pools?includeUsage=true", { cache: "no-store" });
+     const data = await res.json();
+     if (res.ok) {
+       setProxyPools(data.proxyPools || []);
+     }
+   } catch (error) {
+     console.log("Error fetching proxy pools:", error);
+   } finally {
+     setLoading(false);
+   }
  }, []);
 
  const fetchProxyGroups = useCallback(async () => {
- setLoadingGroups(true);
- try {
- const res = await fetch("/api/proxy-groups", { cache: "no-store" });
- if (res.ok) {
- const data = await res.json();
- setProxyGroups({
- defaultGroups: data.defaultGroups || [],
- customGroups: data.customGroups || [],
- });
- }
- } catch (error) {
- console.log("Error fetching proxy groups:", error);
- } finally {
- setLoadingGroups(false);
- }
+   setLoadingGroups(true);
+   try {
+     const res = await fetch("/api/proxy-groups", { cache: "no-store" });
+     if (res.ok) {
+       const data = await res.json();
+       setProxyGroups({
+         defaultGroups: data.defaultGroups || [],
+         customGroups: data.customGroups || [],
+       });
+     }
+   } catch (error) {
+     console.log("Error fetching proxy groups:", error);
+   } finally {
+     setLoadingGroups(false);
+   }
  }, []);
 
  useEffect(() => {
- fetchProxyPools();
- fetchProxyGroups();
+   fetchProxyPools();
+   fetchProxyGroups();
  }, [fetchProxyPools, fetchProxyGroups]);
 
- const openCreateGroupModal = () => {
+ const openCreateGroupModal = (initialMode = "subscription") => {
    setEditingGroup(null);
+   setCreateMode(initialMode);
    setGroupForm({
      name: "",
      description: "",
@@ -259,12 +271,23 @@ function ProxyPoolsContent() {
      fetchUrl: "",
      fetchIntervalMs: 600000,
    });
+   setSubVerifyState({
+     loading: false,
+     verifiedUrl: "",
+     totalCount: 0,
+     verifiedCount: 0,
+     testedCount: 0,
+     ok: false,
+     error: null,
+   });
    setGroupPoolSearch("");
    setShowGroupModal(true);
  };
 
  const openEditGroupModal = (group) => {
    setEditingGroup(group);
+   const hasFetchUrl = Boolean(group.fetchUrl?.trim());
+   setCreateMode(hasFetchUrl ? "subscription" : "manual");
    setGroupForm({
      name: group.name || "",
      description: group.description || "",
@@ -273,6 +296,15 @@ function ProxyPoolsContent() {
      poolIds: Array.isArray(group.poolIds) ? [...group.poolIds] : [],
      fetchUrl: group.fetchUrl || "",
      fetchIntervalMs: group.fetchIntervalMs || 600000,
+   });
+   setSubVerifyState({
+     loading: false,
+     verifiedUrl: group.fetchUrl || "",
+     totalCount: group.poolCount || (Array.isArray(group.poolIds) ? group.poolIds.length : 0),
+     verifiedCount: hasFetchUrl ? 4 : 0,
+     testedCount: 4,
+     ok: hasFetchUrl,
+     error: null,
    });
    setGroupPoolSearch("");
    setShowGroupModal(true);
@@ -284,10 +316,82 @@ function ProxyPoolsContent() {
    setEditingGroup(null);
  };
 
+ const handleVerifySubscription = async () => {
+   const url = groupForm.fetchUrl?.trim();
+   if (!url) {
+     notify.error("Please enter a subscription URL to verify");
+     return;
+   }
+   setSubVerifyState((prev) => ({ ...prev, loading: true, error: null }));
+   try {
+     const res = await fetch("/api/proxy-groups/verify-subscription", {
+       method: "POST",
+       headers: { "Content-Type": "application/json" },
+       body: JSON.stringify({ url, minRequired: 4 }),
+     });
+     const data = await res.json();
+     if (res.ok && data.ok) {
+       setSubVerifyState({
+         loading: false,
+         verifiedUrl: url,
+         totalCount: data.totalCount || 0,
+         verifiedCount: data.verifiedCount || 0,
+         testedCount: data.testedCount || 0,
+         ok: true,
+         error: null,
+       });
+       notify.success(`Verified: ${data.totalCount} proxies found (${data.verifiedCount} active, min 4 required)`);
+     } else {
+       const errorMsg = data.error || data.message || "Failed to verify at least 4 active proxies";
+       setSubVerifyState({
+         loading: false,
+         verifiedUrl: url,
+         totalCount: data.totalCount || 0,
+         verifiedCount: data.verifiedCount || 0,
+         testedCount: data.testedCount || 0,
+         ok: false,
+         error: errorMsg,
+       });
+       notify.error(errorMsg);
+     }
+   } catch (err) {
+     const errorMsg = err?.message || "Failed to verify subscription endpoint";
+     setSubVerifyState({
+       loading: false,
+       verifiedUrl: url,
+       totalCount: 0,
+       verifiedCount: 0,
+       testedCount: 0,
+       ok: false,
+       error: errorMsg,
+     });
+     notify.error(errorMsg);
+   }
+ };
+
  const handleSaveGroup = async () => {
    if (!groupForm.name.trim()) {
      notify.error("Group name is required");
      return;
+   }
+
+   const isSubscriptionMode = createMode === "subscription" && !editingGroup?.isDefault;
+
+   if (isSubscriptionMode) {
+     const trimmedUrl = groupForm.fetchUrl?.trim();
+     if (!trimmedUrl) {
+       notify.error("Subscription URL is required");
+       return;
+     }
+     const isVerified =
+       subVerifyState.ok &&
+       subVerifyState.verifiedUrl === trimmedUrl &&
+       subVerifyState.verifiedCount >= 4;
+
+     if (!isVerified) {
+       notify.error("Verification required: at least 4 proxies must be responsive before saving");
+       return;
+     }
    }
 
    setSavingGroup(true);
@@ -295,20 +399,22 @@ function ProxyPoolsContent() {
      const isEdit = !!editingGroup;
      const url = isEdit ? `/api/proxy-groups/${editingGroup.id}` : "/api/proxy-groups";
      const method = isEdit ? "PUT" : "POST";
-     const payload = { ...groupForm };
-     // Auto-managed (subscription) groups own their pool list via the fetch URL,
-     // so never send a stale poolIds list for them. For manual groups, only send
-     // poolIds when the selection actually changed (avoids redundant writes).
-     if (groupForm.fetchUrl?.trim()) {
-       delete payload.poolIds;
-     } else if (
-       isEdit &&
-       Array.isArray(editingGroup.poolIds) &&
-       editingGroup.poolIds.length === groupForm.poolIds.length &&
-       editingGroup.poolIds.every((pid) => groupForm.poolIds.includes(pid))
-     ) {
-       delete payload.poolIds;
+     const payload = {
+       name: groupForm.name.trim(),
+       description: groupForm.description?.trim() || "",
+       isSticky: groupForm.isSticky === true,
+       stickyLimit: groupForm.stickyLimit || 3,
+     };
+
+     if (isSubscriptionMode) {
+       payload.fetchUrl = groupForm.fetchUrl.trim();
+       payload.fetchIntervalMs = groupForm.fetchIntervalMs || 600000;
+     } else {
+       payload.fetchUrl = null;
+       payload.fetchIntervalMs = 600000;
+       payload.poolIds = groupForm.poolIds || [];
      }
+
      const res = await fetch(url, {
        method,
        headers: { "Content-Type": "application/json" },
@@ -317,7 +423,7 @@ function ProxyPoolsContent() {
      const data = await res.json();
      if (res.ok) {
        notify.success(
-         groupForm.fetchUrl?.trim()
+         isSubscriptionMode
            ? isEdit
              ? "Proxy group updated and re-synced from URL"
              : "Proxy group created and synced from URL"
@@ -1405,12 +1511,6 @@ function ProxyPoolsContent() {
             </Button>
             <Button size="sm" icon="add" onClick={openCreateModal}>
               Add Proxy Pool
-            </Button>
-          </div>
-        ) : activeTab === "groups" ? (
-          <div className="flex items-center gap-2 shrink-0">
-            <Button size="sm" icon="add" onClick={openCreateGroupModal} className="whitespace-nowrap">
-              Add Custom Group
             </Button>
           </div>
         ) : null}
@@ -2677,193 +2777,292 @@ function ProxyPoolsContent() {
  disabled={editingGroup?.isDefault}
  />
  {!editingGroup?.isDefault && (
- <Input
- label="Description"
- value={groupForm.description}
- onChange={(e) => setGroupForm((prev) => ({ ...prev, description: e.target.value }))}
- placeholder="Optional group description"
- />
+   <Input
+     label="Description"
+     value={groupForm.description}
+     onChange={(e) => setGroupForm((prev) => ({ ...prev, description: e.target.value }))}
+     placeholder="Optional group description"
+   />
  )}
+
  {!editingGroup?.isDefault && (
- <>
- <Input
- label="Fetch URL / Subscription URL"
- value={groupForm.fetchUrl}
- onChange={(e) => setGroupForm((prev) => ({ ...prev, fetchUrl: e.target.value }))}
- placeholder="e.g. https://proxi.hijitoko.com/500proxy"
- hint="Optional URL providing newline-separated or JSON list of proxies for automatic periodic synchronization."
- />
-
- <div className="flex flex-col gap-1.5">
-   <label className="text-xs font-medium text-text-muted">Sync Interval</label>
-   <select
-     value={groupForm.fetchIntervalMs}
-     onChange={(e) => setGroupForm((prev) => ({ ...prev, fetchIntervalMs: Number(e.target.value) }))}
-     className="w-full rounded-sm border border-border bg-surface py-2 px-3 text-xs text-text-main focus:border-primary focus:outline-none"
-   >
-     <option value={300000}>5 minutes (300000)</option>
-     <option value={600000}>10 minutes (600000 - default)</option>
-     <option value={1800000}>30 minutes (1800000)</option>
-     <option value={3600000}>1 hour (3600000)</option>
-     <option value={21600000}>6 hours (21600000)</option>
-     <option value={86400000}>24 hours (86400000)</option>
-   </select>
-   <p className="text-[11px] text-text-muted">How often AxonRouter automatically syncs proxies from this URL.</p>
- </div>
-
- {groupForm.fetchUrl?.trim() && (
-   <div className="rounded-sm bg-primary/10 border border-primary/20 p-3 text-xs text-text-main flex items-start gap-2">
-     <Icon name="info" size={16} className="text-primary shrink-0 mt-0.5" />
-     <div>
-       <p className="font-semibold text-primary mb-0.5">Auto-Managed Subscription</p>
-       <p className="text-text-muted">
-         Proxies in this group will be automatically updated and managed from this URL.
-       </p>
+   <div className="flex flex-col gap-1.5">
+     <label className="text-xs font-medium text-text-muted">Proxy Source Method</label>
+     <div className="grid grid-cols-2 gap-2 p-1 bg-surface rounded-sm border border-border">
+       <button
+         type="button"
+         onClick={() => setCreateMode("subscription")}
+         className={cn(
+           "flex items-center justify-center gap-1.5 py-2 px-3 rounded-xs text-xs font-medium transition-colors cursor-pointer",
+           createMode === "subscription"
+             ? "bg-primary text-black font-semibold shadow-xs"
+             : "text-text-muted hover:text-text-main"
+         )}
+       >
+         <Icon name="cloud_download" size={16} />
+         <span>Subscription URL</span>
+       </button>
+       <button
+         type="button"
+         onClick={() => setCreateMode("manual")}
+         className={cn(
+           "flex items-center justify-center gap-1.5 py-2 px-3 rounded-xs text-xs font-medium transition-colors cursor-pointer",
+           createMode === "manual"
+             ? "bg-primary text-black font-semibold shadow-xs"
+             : "text-text-muted hover:text-text-main"
+         )}
+       >
+         <Icon name="playlist_add_check" size={16} />
+         <span>Manual Selection</span>
+       </button>
      </div>
    </div>
  )}
- </>
+
+ {!editingGroup?.isDefault && createMode === "subscription" && (
+   <div className="flex flex-col gap-3 rounded-sm border border-border bg-surface/40 p-3">
+     <div className="flex flex-col gap-1.5">
+       <label className="text-xs font-medium text-text-muted">Subscription / Feed URL</label>
+       <div className="flex flex-col sm:flex-row gap-2">
+         <input
+           type="url"
+           value={groupForm.fetchUrl}
+           onChange={(e) => {
+             const val = e.target.value;
+             setGroupForm((prev) => ({ ...prev, fetchUrl: val }));
+             if (subVerifyState.verifiedUrl !== val.trim()) {
+               setSubVerifyState((prev) => ({ ...prev, ok: false, verifiedUrl: "" }));
+             }
+           }}
+           placeholder="e.g. https://proxi.hijitoko.com/500proxy"
+           className="flex-1 rounded-sm border border-border bg-surface py-2 px-3 text-xs text-text-main focus:border-primary focus:outline-none font-mono"
+         />
+         <Button
+           type="button"
+           size="sm"
+           variant="secondary"
+           icon={subVerifyState.loading ? undefined : "verified"}
+           onClick={handleVerifySubscription}
+           disabled={!groupForm.fetchUrl?.trim() || subVerifyState.loading}
+           className="shrink-0 whitespace-nowrap"
+         >
+           {subVerifyState.loading ? "Verifying..." : "Verify URL"}
+         </Button>
+       </div>
+       <p className="text-[11px] text-text-muted">
+         Endpoint returning newline-separated or JSON list of proxies. Minimum 4 proxies must be active & responsive.
+       </p>
+     </div>
+
+     {/* Verification Status Card */}
+     {subVerifyState.loading ? (
+       <div className="rounded-sm bg-surface-2 border border-border p-3 flex items-center gap-2.5 text-xs text-text-main animate-pulse">
+         <Icon name="progress_activity" size={18} className="text-primary animate-spin shrink-0" />
+         <div className="min-w-0 flex-1">
+           <p className="font-semibold text-text-main">Verifying Subscription URL...</p>
+           <p className="text-text-muted text-[11px]">Testing proxy sample connectivity to ensure minimum 4 active proxies.</p>
+         </div>
+       </div>
+     ) : subVerifyState.ok && subVerifyState.verifiedUrl === groupForm.fetchUrl?.trim() ? (
+       <div className="rounded-sm bg-success/10 border border-success/30 p-3 text-xs flex items-start gap-2.5">
+         <Icon name="check_circle" size={18} className="text-success shrink-0 mt-0.5" />
+         <div className="flex-1 min-w-0">
+           <div className="flex flex-wrap items-center justify-between gap-1 mb-1.5">
+             <span className="font-semibold text-success">Subscription Verified</span>
+             <span className="text-[11px] font-mono px-2 py-0.5 rounded-sm bg-success/20 text-success font-semibold">
+               Ready to Save
+             </span>
+           </div>
+           <div className="grid grid-cols-2 gap-2 pt-2 border-t border-success/20">
+             <div>
+               <span className="text-text-muted text-[11px] block">Total Proxies in Feed</span>
+               <span className="text-sm font-bold text-text-main">{subVerifyState.totalCount} proxies</span>
+             </div>
+             <div>
+               <span className="text-text-muted text-[11px] block">Verified Active Sample</span>
+               <span className="text-sm font-bold text-success">{subVerifyState.verifiedCount} active (min 4 passed)</span>
+             </div>
+           </div>
+         </div>
+       </div>
+     ) : subVerifyState.error ? (
+       <div className="rounded-sm bg-danger/10 border border-danger/30 p-3 text-xs flex items-start gap-2.5">
+         <Icon name="error" size={18} className="text-danger shrink-0 mt-0.5" />
+         <div className="flex-1 min-w-0">
+           <span className="font-semibold text-danger block mb-0.5">Verification Failed</span>
+           <p className="text-text-muted text-[11px]">{subVerifyState.error}</p>
+           {subVerifyState.totalCount > 0 && (
+             <p className="text-text-muted text-[11px] mt-1">
+               Found {subVerifyState.totalCount} proxies in feed, but only {subVerifyState.verifiedCount} responded (at least 4 required).
+             </p>
+           )}
+         </div>
+       </div>
+     ) : (
+       <div className="rounded-sm bg-surface border border-dashed border-border p-3 text-xs text-text-muted flex items-center gap-2">
+         <Icon name="info" size={16} className="text-primary shrink-0" />
+         <span>Click <strong>Verify URL</strong> to test responsiveness before saving (minimum 4 responsive proxies required).</span>
+       </div>
+     )}
+
+     <div className="flex flex-col gap-1.5">
+       <label className="text-xs font-medium text-text-muted">Auto-Sync Interval</label>
+       <select
+         value={groupForm.fetchIntervalMs}
+         onChange={(e) => setGroupForm((prev) => ({ ...prev, fetchIntervalMs: Number(e.target.value) }))}
+         className="w-full rounded-sm border border-border bg-surface py-2 px-3 text-xs text-text-main focus:border-primary focus:outline-none"
+       >
+         <option value={300000}>5 minutes (300000 ms)</option>
+         <option value={600000}>10 minutes (600000 ms - default)</option>
+         <option value={1800000}>30 minutes (1800000 ms)</option>
+         <option value={3600000}>1 hour (3600000 ms)</option>
+         <option value={21600000}>6 hours (21600000 ms)</option>
+         <option value={86400000}>24 hours (86400000 ms)</option>
+       </select>
+       <p className="text-[11px] text-text-muted">How often AxonRouter automatically syncs proxies from this URL.</p>
+     </div>
+   </div>
  )}
 
  <div className="flex flex-col gap-3 rounded-sm border border-border p-3 sm:flex-row sm:items-center sm:justify-between">
- <div>
- <p className="font-medium text-sm text-text-main">Sticky Proxy Session</p>
- <p className="text-xs text-text-muted">
- Keep consecutive requests from the same account on the same proxy before rotating to the next.
- </p>
- </div>
- <Toggle
- checked={groupForm.isSticky === true}
- onChange={() => setGroupForm((prev) => ({ ...prev, isSticky: !prev.isSticky }))}
- disabled={savingGroup}
- />
+   <div>
+     <p className="font-medium text-sm text-text-main">Sticky Proxy Session</p>
+     <p className="text-xs text-text-muted">
+       Keep consecutive requests from the same account on the same proxy before rotating to the next.
+     </p>
+   </div>
+   <Toggle
+     checked={groupForm.isSticky === true}
+     onChange={() => setGroupForm((prev) => ({ ...prev, isSticky: !prev.isSticky }))}
+     disabled={savingGroup}
+   />
  </div>
 
  {groupForm.isSticky && (
- <Input
- label="Sticky Request Limit"
- type="number"
- min="1"
- max="100"
- value={groupForm.stickyLimit}
- onChange={(e) => setGroupForm((prev) => ({ ...prev, stickyLimit: e.target.value }))}
- hint="Number of consecutive requests to send through the same proxy before rotating (default: 3)."
- />
+   <Input
+     label="Sticky Request Limit"
+     type="number"
+     min="1"
+     max="100"
+     value={groupForm.stickyLimit}
+     onChange={(e) => setGroupForm((prev) => ({ ...prev, stickyLimit: e.target.value }))}
+     hint="Number of consecutive requests to send through the same proxy before rotating (default: 3)."
+   />
  )}
 
  {editingGroup?.isDefault ? (
- <div className="rounded-sm bg-surface border border-border p-3 text-xs text-text-muted">
- <p className="font-medium text-text-main mb-1">Automatic Membership</p>
- <p>
- All active proxy pools with type <span className="font-mono font-medium">{editingGroup.type}</span> are automatically included in this group.
- </p>
- </div>
- ) : groupForm.fetchUrl?.trim() ? (
- <div className="rounded-sm bg-surface border border-border p-3 text-xs text-text-muted">
-   <p className="font-medium text-text-main mb-1 flex items-center gap-1.5">
-     <Icon name="cloud_sync" size={16} className="text-primary" />
-     <span>Auto-Managed via Subscription URL</span>
-   </p>
-   <p>
-     Proxies in this group will be automatically updated and managed from this URL ({groupForm.poolIds.length} proxies currently synchronized). Manual proxy selection is bypassed.
-   </p>
- </div>
- ) : (
- <div>
- <div className="flex items-center justify-between mb-1.5">
- <label className="block text-xs font-medium text-text-muted">
- Assign Proxies ({groupForm.poolIds.length} selected)
- </label>
- <div className="flex items-center gap-2">
- <button
- type="button"
- onClick={() => {
- const activePoolIds = proxyPools.filter((p) => p.isActive === true).map((p) => p.id);
- setGroupForm((prev) => ({ ...prev, poolIds: activePoolIds }));
- }}
- className="text-xs text-primary hover:underline"
- >
- Select All Active
- </button>
- <span className="text-xs text-text-muted">|</span>
- <button
- type="button"
- onClick={() => setGroupForm((prev) => ({ ...prev, poolIds: [] }))}
- className="text-xs text-text-muted hover:underline"
- >
- Clear
- </button>
- </div>
- </div>
+   <div className="rounded-sm bg-surface border border-border p-3 text-xs text-text-muted">
+     <p className="font-medium text-text-main mb-1">Automatic Membership</p>
+     <p>
+       All active proxy pools with type <span className="font-mono font-medium">{editingGroup.type}</span> are automatically included in this group.
+     </p>
+   </div>
+ ) : createMode === "subscription" ? null : (
+   <div>
+     <div className="flex items-center justify-between mb-1.5">
+       <label className="block text-xs font-medium text-text-muted">
+         Assign Proxies ({groupForm.poolIds.length} selected)
+       </label>
+       <div className="flex items-center gap-2">
+         <button
+           type="button"
+           onClick={() => {
+             const activePoolIds = proxyPools.filter((p) => p.isActive === true).map((p) => p.id);
+             setGroupForm((prev) => ({ ...prev, poolIds: activePoolIds }));
+           }}
+           className="text-xs text-primary hover:underline cursor-pointer"
+         >
+           Select All Active
+         </button>
+         <span className="text-xs text-text-muted">|</span>
+         <button
+           type="button"
+           onClick={() => setGroupForm((prev) => ({ ...prev, poolIds: [] }))}
+           className="text-xs text-text-muted hover:underline cursor-pointer"
+         >
+           Clear
+         </button>
+       </div>
+     </div>
 
- <div className="mb-2">
- <input
- type="text"
- value={groupPoolSearch}
- onChange={(e) => setGroupPoolSearch(e.target.value)}
- placeholder="Filter proxy pools..."
- className="w-full rounded-sm border border-border bg-surface py-2 px-3 text-xs text-text-main focus:border-primary focus:outline-none"
- />
- </div>
+     <div className="mb-2">
+       <input
+         type="text"
+         value={groupPoolSearch}
+         onChange={(e) => setGroupPoolSearch(e.target.value)}
+         placeholder="Filter proxy pools..."
+         className="w-full rounded-sm border border-border bg-surface py-2 px-3 text-xs text-text-main focus:border-primary focus:outline-none"
+       />
+     </div>
 
- <div className="max-h-56 overflow-y-auto rounded-sm border border-border divide-y divide-border">
- {proxyPools
- .filter((pool) => {
- if (!groupPoolSearch.trim()) return true;
- const q = groupPoolSearch.toLowerCase();
- return (pool.name || "").toLowerCase().includes(q) || (pool.proxyUrl || "").toLowerCase().includes(q) || (pool.type || "").toLowerCase().includes(q);
- })
- .map((pool) => {
- const checked = groupForm.poolIds.includes(pool.id);
- return (
- <label
- key={pool.id}
- className={`flex items-center gap-2 px-3 h-8 text-xs cursor-pointer hover:bg-surface-2 ${
- checked ? "bg-primary/10" : ""
- }`}
- >
- <input
- type="checkbox"
- checked={checked}
- onChange={() => {
- setGroupForm((prev) => ({
- ...prev,
- poolIds: checked
- ? prev.poolIds.filter((id) => id !== pool.id)
- : [...prev.poolIds, pool.id],
- }));
- }}
- className="size-4 rounded-sm border-border text-primary"
- />
- <div className="flex-1 min-w-0 flex items-center justify-between gap-2">
- <span className="truncate font-medium text-text-main">{pool.name}</span>
- <div className="flex items-center gap-1.5 shrink-0">
- <span className="text-[11px] font-mono px-1.5 py-1 rounded-sm bg-surface text-text-muted">
- {pool.type || "http"}
- </span>
- {!pool.isActive && (
- <span className="text-[11px] text-danger font-medium">(inactive)</span>
- )}
- </div>
- </div>
- </label>
- );
- })}
- </div>
- </div>
+     <div className="max-h-56 overflow-y-auto rounded-sm border border-border divide-y divide-border">
+       {proxyPools
+         .filter((pool) => {
+           if (!groupPoolSearch.trim()) return true;
+           const q = groupPoolSearch.toLowerCase();
+           return (pool.name || "").toLowerCase().includes(q) || (pool.proxyUrl || "").toLowerCase().includes(q) || (pool.type || "").toLowerCase().includes(q);
+         })
+         .map((pool) => {
+           const checked = groupForm.poolIds.includes(pool.id);
+           return (
+             <label
+               key={pool.id}
+               className={`flex items-center gap-2 px-3 h-8 text-xs cursor-pointer hover:bg-surface-2 ${
+                 checked ? "bg-primary/10" : ""
+               }`}
+             >
+               <input
+                 type="checkbox"
+                 checked={checked}
+                 onChange={() => {
+                   setGroupForm((prev) => ({
+                     ...prev,
+                     poolIds: checked
+                       ? prev.poolIds.filter((id) => id !== pool.id)
+                       : [...prev.poolIds, pool.id],
+                   }));
+                 }}
+                 className="size-4 rounded-sm border-border text-primary"
+               />
+               <div className="flex-1 min-w-0 flex items-center justify-between gap-2">
+                 <span className="truncate font-medium text-text-main">{pool.name}</span>
+                 <div className="flex items-center gap-1.5 shrink-0">
+                   <span className="text-[11px] font-mono px-1.5 py-1 rounded-sm bg-surface text-text-muted">
+                     {pool.type || "http"}
+                   </span>
+                   {!pool.isActive && (
+                     <span className="text-[11px] text-danger font-medium">(inactive)</span>
+                   )}
+                 </div>
+               </div>
+             </label>
+           );
+         })}
+     </div>
+   </div>
  )}
 
  <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 mt-2">
- <Button
- fullWidth
- onClick={handleSaveGroup}
- disabled={!groupForm.name.trim() || savingGroup}
- >
- {savingGroup ? "Saving..." : "Save Group"}
- </Button>
- <Button fullWidth variant="ghost" onClick={closeGroupModal} disabled={savingGroup}>
- Cancel
- </Button>
+   <Button
+     fullWidth
+     onClick={handleSaveGroup}
+     disabled={
+       !groupForm.name.trim() ||
+       savingGroup ||
+       (createMode === "subscription" &&
+         !editingGroup?.isDefault &&
+         !(
+           subVerifyState.ok &&
+           subVerifyState.verifiedUrl === groupForm.fetchUrl?.trim() &&
+           subVerifyState.verifiedCount >= 4
+         ))
+     }
+   >
+     {savingGroup ? "Saving..." : "Save Group"}
+   </Button>
+   <Button fullWidth variant="ghost" onClick={closeGroupModal} disabled={savingGroup}>
+     Cancel
+   </Button>
  </div>
  </div>
  </Modal>

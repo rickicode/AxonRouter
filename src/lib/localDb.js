@@ -2,7 +2,7 @@
 // Kept for backward compatibility with existing imports.
 export {
   getSettings, updateSettings,
-  getProviderConnections, countProviderConnections, getProviderConnectionById, getProviderSummaryStats,
+  getProviderConnections, countProviderConnections, getProviderConnectionById, getProviderSummaryStats, invalidateProviderSummaryStatsCache,
   setProviderConnectionsActive, setConnectionsActiveByIds,
   getProxyPoolBoundCounts, countProxyPoolBoundConnections,
   countProxyGroupBoundConnections,

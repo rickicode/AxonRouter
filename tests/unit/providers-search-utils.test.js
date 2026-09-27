@@ -35,4 +35,10 @@ describe("providers search debounce + helpers", () => {
     expect(out.length).toBeLessThanOrEqual(32);
     expect(out.endsWith("…")).toBe(true);
   });
+
+  it("matchesSearchQuery matches extraTerms like aliases or models", () => {
+    expect(matchesSearchQuery("TypeSafe AI", "jev", ["typesafe", "jev"])).toBe(true);
+    expect(matchesSearchQuery("OpenCode Zen", "jev", ["opencode-zen", "jev"])).toBe(true);
+    expect(matchesSearchQuery("OpenAI", "jev", ["openai"])).toBe(false);
+  });
 });

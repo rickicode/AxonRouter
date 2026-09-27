@@ -53,6 +53,10 @@ const TAB_COPY = {
     title: "Request Logs",
     body: "Live request stream captured by the gateway. Filter by status to find failures without leaving the dashboard.",
   },
+  details: {
+    title: "Request Details",
+    body: "Full request/response payloads for each routed attempt — client input, translated provider request, raw upstream response, and the final client response.",
+  },
 };
 
 export default function UsagePage() {
@@ -101,7 +105,7 @@ function UsageContent() {
     }
   }, [showDetails]);
 
-  const copy = TAB_COPY[activeTab];
+  const copy = TAB_COPY[activeTab] || { title: "", body: "" };
   const showPeriod = activeTab === "overview" || activeTab === "analytics";
   const tabsRef = useRef(null);
 

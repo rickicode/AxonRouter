@@ -13,10 +13,16 @@ export const SEARCH_DEBOUNCE_MS = 200;
 
 // Case-insensitive substring match used by the providers grid. Pure helper
 // so the debounce + filter contract is unit-testable without rendering.
-export function matchesSearchQuery(name, query) {
- if (!query || !query.trim()) return true;
- if (!name) return false;
- return name.toLowerCase().includes(query.trim().toLowerCase());
+export function matchesSearchQuery(name, query, extraTerms = []) {
+  if (!query || !query.trim()) return true;
+  const q = query.trim().toLowerCase();
+  if (name && name.toLowerCase().includes(q)) return true;
+  if (Array.isArray(extraTerms)) {
+    for (const term of extraTerms) {
+      if (typeof term === "string" && term.toLowerCase().includes(q)) return true;
+    }
+  }
+  return false;
 }
 
 // Stats badges render counts + short codes; upstream error strings can be

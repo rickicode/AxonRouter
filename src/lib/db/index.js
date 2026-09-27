@@ -9,7 +9,7 @@ export {
 
 // Provider connections
 export {
-  getProviderConnections, countProviderConnections, getProviderConnectionById, getProviderSummaryStats,
+  getProviderConnections, countProviderConnections, getProviderConnectionById, getProviderSummaryStats, invalidateProviderSummaryStatsCache,
   setProviderConnectionsActive, setConnectionsActiveByIds,
   getProxyPoolBoundCounts, countProxyPoolBoundConnections,
   countProxyGroupBoundConnections,

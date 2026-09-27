@@ -6,6 +6,7 @@ export {
   countProviderConnections,
   getProviderConnectionById,
   getProviderSummaryStats,
+  invalidateProviderSummaryStatsCache,
   setProviderConnectionsActive,
   setConnectionsActiveByIds,
   getProxyPoolBoundCounts,

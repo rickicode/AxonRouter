@@ -17,6 +17,11 @@ const COMBINED_WEB_ITEM = { id: "web", label: "Web Fetch & Search", icon: "trave
 const coreRoutingItems = [
   { href: "/dashboard/app", label: "Overview", icon: "dashboard" },
   { href: "/dashboard/providers", label: "Providers", icon: "dns" },
+];
+
+// Routing items rendered after the Capabilities Providers accordion so the
+// capability kinds sit directly under "Providers" in the sidebar.
+const routingTailItems = [
   { href: "/dashboard/combos", label: "Combo Adapter", icon: "layers" },
 ];
 
@@ -42,7 +47,9 @@ const debugItems = [
 
 export default function Sidebar({ onClose }) {
   const pathname = usePathname();
-  const [mediaOpen, setMediaOpen] = useState(false);
+  const [mediaOpen, setMediaOpen] = useState(() =>
+    pathname.startsWith("/dashboard/capabilities-providers")
+  );
 
   const isActive = (href) => {
     if (href === "/dashboard/app") {
@@ -78,6 +85,90 @@ export default function Sidebar({ onClose }) {
             <span className="text-[9px] font-medium uppercase tracking-wider text-text-muted opacity-70">Core & Routing</span>
           </div>
           {coreRoutingItems.map((item) => (
+            <Link
+              key={item.href}
+              href={item.href}
+              prefetch={false}
+              onClick={onClose}
+              aria-current={isActive(item.href) ? "page" : undefined}
+              className={cn(
+                "flex h-8 items-center gap-2.5 px-2.5 rounded-sm text-[13px] font-medium transition-colors",
+                isActive(item.href)
+                  ? "bg-primary/10 text-primary"
+                  : "text-text-muted hover:bg-surface-2 hover:text-text-main"
+              )}
+            >
+              <Icon
+                name={item.icon}
+                size={18}
+                className={isActive(item.href) ? "fill-current" : ""}
+              />
+              <span>{item.label}</span>
+            </Link>
+          ))}
+
+          {/* Capabilities Providers accordion — sits directly under Providers */}
+          <button
+            type="button"
+            onClick={() => setMediaOpen((v) => !v)}
+            aria-expanded={mediaOpen}
+            aria-label="Toggle Capabilities Providers"
+            className={cn(
+              "flex h-8 w-full items-center gap-2.5 px-2.5 rounded-sm text-[13px] font-medium transition-colors",
+              pathname.startsWith("/dashboard/capabilities-providers")
+                ? "bg-primary/10 text-primary"
+                : "text-text-muted hover:bg-surface-2 hover:text-text-main"
+            )}
+          >
+            <Icon name="extension" size={18} />
+            <span className="flex-1 text-left">Capabilities Providers</span>
+            <Icon
+              name="expand_more"
+              size={18}
+              className={cn("transition-transform", mediaOpen && "rotate-180")}
+            />
+          </button>
+
+          {mediaOpen && (
+            <div className="mt-1 space-y-0.5">
+              {MEDIA_PROVIDER_KINDS.filter((k) => VISIBLE_MEDIA_KINDS.includes(k.id)).map((kind) => (
+                <Link
+                  key={kind.id}
+                  href={`/dashboard/capabilities-providers/${kind.id}`}
+                  prefetch={false}
+                  onClick={onClose}
+                  aria-current={pathname.startsWith(`/dashboard/capabilities-providers/${kind.id}`) ? "page" : undefined}
+                  className={cn(
+                    "flex h-7.5 items-center gap-2 pl-8 pr-2.5 rounded-sm text-[12.5px] transition-colors",
+                    pathname.startsWith(`/dashboard/capabilities-providers/${kind.id}`)
+                      ? "bg-primary/10 text-primary"
+                      : "text-text-muted hover:bg-surface-2 hover:text-text-main"
+                  )}
+                >
+                  <Icon name={kind.icon} size={16} />
+                  <span>{kind.label}</span>
+                </Link>
+              ))}
+              <Link
+                key={COMBINED_WEB_ITEM.id}
+                href={COMBINED_WEB_ITEM.href}
+                prefetch={false}
+                onClick={onClose}
+                aria-current={pathname.startsWith(COMBINED_WEB_ITEM.href) ? "page" : undefined}
+                className={cn(
+                  "flex h-7.5 items-center gap-2 pl-8 pr-2.5 rounded-sm text-[12.5px] transition-colors",
+                  pathname.startsWith(COMBINED_WEB_ITEM.href)
+                    ? "bg-primary/10 text-primary"
+                    : "text-text-muted hover:bg-surface-2 hover:text-text-main"
+                )}
+              >
+                <Icon name={COMBINED_WEB_ITEM.icon} size={16} />
+                <span>{COMBINED_WEB_ITEM.label}</span>
+              </Link>
+            </div>
+          )}
+
+          {routingTailItems.map((item) => (
             <Link
               key={item.href}
               href={item.href}
@@ -157,60 +248,6 @@ export default function Sidebar({ onClose }) {
               <span>{item.label}</span>
             </Link>
           ))}
-
-          {/* Capabilities Providers accordion */}
-          <button
-            onClick={() => setMediaOpen((v) => !v)}
-            className={cn(
-              "flex h-8 items-center gap-2.5 px-2.5 rounded-sm text-[13px] font-medium transition-colors",
-              pathname.startsWith("/dashboard/capabilities-providers")
-                ? "bg-primary/10 text-primary"
-                : "text-text-muted hover:bg-surface-2 hover:text-text-main"
-            )}
-          >
-            <Icon name="extension" size={18} />
-            <span className="flex-1 text-left">Capabilities Providers</span>
-            <Icon name="expand_more" size={18} className="transition-transform" />
-          </button>
-          
-          {mediaOpen && (
-            <div className="mt-1 space-y-0.5">
-              {MEDIA_PROVIDER_KINDS.filter((k) => VISIBLE_MEDIA_KINDS.includes(k.id)).map((kind) => (
-                <Link
-                  key={kind.id}
-                  href={`/dashboard/capabilities-providers/${kind.id}`}
-                  prefetch={false}
-                  onClick={onClose}
-                  aria-current={pathname.startsWith(`/dashboard/capabilities-providers/${kind.id}`) ? "page" : undefined}
-                  className={cn(
-                    "flex h-7.5 items-center gap-2 pl-8 pr-2.5 rounded-sm text-[12.5px] transition-colors",
-                    pathname.startsWith(`/dashboard/capabilities-providers/${kind.id}`)
-                      ? "bg-primary/10 text-primary"
-                      : "text-text-muted hover:bg-surface-2 hover:text-text-main"
-                  )}
-                >
-                  <Icon name={kind.icon} size={16} />
-                  <span>{kind.label}</span>
-                </Link>
-              ))}
-              <Link
-                key={COMBINED_WEB_ITEM.id}
-                href={COMBINED_WEB_ITEM.href}
-                prefetch={false}
-                onClick={onClose}
-                aria-current={pathname.startsWith(COMBINED_WEB_ITEM.href) ? "page" : undefined}
-                className={cn(
-                  "flex h-7.5 items-center gap-2 pl-8 pr-2.5 rounded-sm text-[12.5px] transition-colors",
-                  pathname.startsWith(COMBINED_WEB_ITEM.href)
-                    ? "bg-primary/10 text-primary"
-                    : "text-text-muted hover:bg-surface-2 hover:text-text-main"
-                )}
-              >
-                <Icon name={COMBINED_WEB_ITEM.icon} size={16} />
-                <span>{COMBINED_WEB_ITEM.label}</span>
-              </Link>
-            </div>
-          )}
 
           {systemItems.map((item) => (
             <Link

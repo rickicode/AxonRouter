@@ -34,7 +34,13 @@ export default function ProvidersPage() {
  useEffect(() => { const t = setTimeout(() => setDebouncedSearchQuery(rawSearchQuery), SEARCH_DEBOUNCE_MS); return () => clearTimeout(t); }, [rawSearchQuery]);
 
  const searchQuery = debouncedSearchQuery;
- const matchSearch = (name) => matchesSearchQuery(name, searchQuery);
+ const matchSearch = (info, key) => {
+   const extra = [key, info?.alias, ...(info?.aliases || [])];
+   if (key === "opencode-zen" || key === "typesafe") {
+     extra.push("jev", "systemone", "classifier");
+   }
+   return matchesSearchQuery(info?.name, searchQuery, extra);
+ };
 
  // Pre-compute stats lookup map
  const statsMap = useMemo(() => {
@@ -141,12 +147,12 @@ export default function ProvidersPage() {
  };
 
  const compatibleProviders = providerNodes.filter((n) => n.type === "openai-compatible")
- .map((n) => ({ id: n.id, name: n.name || "OpenAI Compatible", color: "#10A37F", textIcon: "OC", apiType: n.apiType }))
- .filter((p) => matchSearch(p.name) && matchStatus(getProviderStats(p.id, "apikey")));
+   .map((n) => ({ id: n.id, name: n.name || "OpenAI Compatible", color: "#10A37F", textIcon: "OC", apiType: n.apiType }))
+   .filter((p) => matchSearch(p, p.id) && matchStatus(getProviderStats(p.id, "apikey")));
 
  const anthropicCompatibleProviders = providerNodes.filter((n) => n.type === "anthropic-compatible")
- .map((n) => ({ id: n.id, name: n.name || "Anthropic Compatible", color: "#D97757", textIcon: "AC" }))
- .filter((p) => matchSearch(p.name) && matchStatus(getProviderStats(p.id, "apikey")));
+   .map((n) => ({ id: n.id, name: n.name || "Anthropic Compatible", color: "#D97757", textIcon: "AC" }))
+   .filter((p) => matchSearch(p, p.id) && matchStatus(getProviderStats(p.id, "apikey")));
 
  const sortByPriority = (entries, authType) => [...entries].sort(([ka, a], [kb, b]) => {
  const pa = a.priority ?? 999, pb = b.priority ?? 999;
@@ -168,26 +174,26 @@ export default function ProvidersPage() {
  }, []);
 
  const oauthEntries = sortByPriority(Object.entries(OAUTH_PROVIDERS)
- .filter(([k, i]) => !i.hidden && matchSearch(i.name) && matchStatus(getProviderStats(k, dualAuthTypes(i, k)), i.noAuth)), "oauth");
+   .filter(([k, i]) => !i.hidden && matchSearch(i, k) && matchStatus(getProviderStats(k, dualAuthTypes(i, k)), i.noAuth)), "oauth");
  const freeEntries = Object.entries(FREE_PROVIDERS)
- .filter(([k, i]) => !i.hidden && matchSearch(i.name) && matchStatus(getProviderStats(k, dualAuthTypes(i, k)), i.noAuth))
- .sort(([, a], [, b]) => (b.noAuth ? 1 : 0) - (a.noAuth ? 1 : 0));
+   .filter(([k, i]) => !i.hidden && matchSearch(i, k) && matchStatus(getProviderStats(k, dualAuthTypes(i, k)), i.noAuth))
+   .sort(([, a], [, b]) => (b.noAuth ? 1 : 0) - (a.noAuth ? 1 : 0));
  const freeTierEntries = Object.entries(FREE_TIER_PROVIDERS)
- .filter(([k, i]) => !i.hidden && matchSearch(i.name) && (i.serviceKinds ?? ["llm"]).includes("llm") && matchStatus(getProviderStats(k, dualAuthTypes(i, k)), i.noAuth))
- .sort(([ka, a], [kb, b]) => {
- const pa = a.priority ?? 999, pb = b.priority ?? 999;
- if (pa !== pb) return pa - pb;
- const nd = (b.noAuth ? 1 : 0) - (a.noAuth ? 1 : 0); if (nd !== 0) return nd;
- const ca = getProviderStats(ka, dualAuthTypes(a, ka)).connected > 0 ? 0 : 1;
- const cb = getProviderStats(kb, dualAuthTypes(b, kb)).connected > 0 ? 0 : 1;
- return ca !== cb ? ca - cb : (a.name || "").localeCompare(b.name || "");
- });
+   .filter(([k, i]) => !i.hidden && matchSearch(i, k) && (i.serviceKinds ?? ["llm"]).includes("llm") && matchStatus(getProviderStats(k, dualAuthTypes(i, k)), i.noAuth))
+   .sort(([ka, a], [kb, b]) => {
+     const pa = a.priority ?? 999, pb = b.priority ?? 999;
+     if (pa !== pb) return pa - pb;
+     const nd = (b.noAuth ? 1 : 0) - (a.noAuth ? 1 : 0); if (nd !== 0) return nd;
+     const ca = getProviderStats(ka, dualAuthTypes(a, ka)).connected > 0 ? 0 : 1;
+     const cb = getProviderStats(kb, dualAuthTypes(b, kb)).connected > 0 ? 0 : 1;
+     return ca !== cb ? ca - cb : (a.name || "").localeCompare(b.name || "");
+   });
  const apikeyEntries = Object.entries(APIKEY_PROVIDERS)
- .filter(([k, i]) => !i.hidden && (i.serviceKinds ?? ["llm"]).includes("llm") && matchSearch(i.name) && matchStatus(getProviderStats(k, "apikey"), i.noAuth))
- .sort(([ka, a], [kb, b]) => {
- const ca = getProviderStats(ka, "apikey").total > 0 ? 0 : 1, cb = getProviderStats(kb, "apikey").total > 0 ? 0 : 1;
- return ca !== cb ? ca - cb : (a.name || "").localeCompare(b.name || "");
- });
+   .filter(([k, i]) => !i.hidden && (i.serviceKinds ?? ["llm"]).includes("llm") && matchSearch(i, k) && matchStatus(getProviderStats(k, "apikey"), i.noAuth))
+   .sort(([ka, a], [kb, b]) => {
+     const ca = getProviderStats(ka, "apikey").total > 0 ? 0 : 1, cb = getProviderStats(kb, "apikey").total > 0 ? 0 : 1;
+     return ca !== cb ? ca - cb : (a.name || "").localeCompare(b.name || "");
+   });
  const isFiltering = !!searchQuery.trim() || statusFilter !== "all";
 
  if (loading) return <div className="flex flex-col gap-3"><CardSkeleton /><CardSkeleton /></div>;

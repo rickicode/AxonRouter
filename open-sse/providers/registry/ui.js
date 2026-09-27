@@ -10910,9 +10910,10 @@ export const REGISTRY_UI = [
   },
   {
     id: "typesafe",
-    priority: 215,
+    priority: 35,
     alias: "typesafe",
     aliases: [
+      "jev",
       "ts",
       "typesafe-ai"
     ],
