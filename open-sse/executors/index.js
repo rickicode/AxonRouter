@@ -30,6 +30,7 @@ import { MorphExecutor } from "./morphllm.js";
 import { KiloCodeFreeExecutor } from "./kilocode-free.js";
 import { LlmTechFreeExecutor } from "./llmtech-free.js";
 import { TokenHarborExecutor } from "./tokenharbor.js";
+import { OpenRouterExecutor } from "./openrouter.js";
 const executors = {
   antigravity: new AntigravityExecutor(),
   azure: new AzureExecutor(),
@@ -61,6 +62,7 @@ const executors = {
   "codebuddy-intl": new CodeBuddyIntlExecutor(),
   tokenharbor: new TokenHarborExecutor(),
   th: new TokenHarborExecutor(),
+  openrouter: new OpenRouterExecutor(),
   workbuddy: new WorkBuddyExecutor(),
   trae: new TraeExecutor(),
   zed: new ZedExecutor(),
@@ -115,6 +117,7 @@ export { WorkBuddyExecutor } from "./workbuddy.js";
 export { default as TraeExecutor } from "./trae.js";
 export { default as ZedExecutor } from "./zed.js";
 export { default as WindsurfExecutor } from "./windsurf.js";
+export { OpenRouterExecutor } from "./openrouter.js";
 export { MorphExecutor } from "./morphllm.js";
 export { KiloCodeFreeExecutor } from "./kilocode-free.js";
 export { LlmTechFreeExecutor } from "./llmtech-free.js";

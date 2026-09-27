@@ -521,19 +521,16 @@ export default function ProviderTopology({ providers = [], activeRequests = [], 
  [visibleProviders, activeSet, lastSet, errorSet, totalActiveCount]
  );
 
- // Stable key — only remount when provider list changes
- const providersKey = useMemo(
- () => visibleProviders.map((p) => p.provider).sort().join(","),
- [visibleProviders]
- );
+ // Stable key — remove providerKey to prevent unmounts
+ const providersKey = "static-topology-key";
 
  const rfInstance = useRef(null);
  const containerRef = useRef(null);
  const reducedMotion = usePrefersReducedMotion();
- const fitOpts = useMemo(() => ({ padding: 0.2, duration: 200 }), []);
+ const fitOpts = useMemo(() => ({ padding: 0.2, duration: 0 }), []);
  const onInit = useCallback((instance) => {
  rfInstance.current = instance;
- setTimeout(() => instance.fitView(fitOpts), 50);
+ instance.fitView(fitOpts);
  }, [fitOpts]);
 
  // Re-fit on container resize — debounced so dragging window edges / mobile resize isn't refitting every frame

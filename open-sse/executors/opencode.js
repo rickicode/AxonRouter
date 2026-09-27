@@ -15,6 +15,13 @@ import {
 } from "../translator/formats/responsesApi.js";
 
 import { OPENCODE_AGENT_TOOLS } from "../config/opencodeAgentTools.js";
+import { proxyAwareFetch } from "../utils/proxyFetch.js";
+import { peekStreamHead } from "../utils/streamHandler.js";
+import { STREAM_COMMIT_PEEK_MS } from "../config/runtimeConfig.js";
+
+const HEDGE_DELAY_MS = 1000;
+const MAX_HEDGE_CONCURRENCY = 3;
+const MAX_TOTAL_HEDGE_ATTEMPTS = 4;
 
 export function appendMissingGateTools(existing, toWire) {
   const list = Array.isArray(existing) ? existing : [];
@@ -524,8 +531,158 @@ export class OpenCodeExecutor extends BaseExecutor {
     return injectReasoningContent({ provider: this.provider, model, body });
   }
 
-  async execute(args) {
-    return super.execute({ ...args, credentials: this.prepareRequestCredentials(args) });
+  async execute({ model, body, stream, credentials, signal, log, proxyOptions = null, providerSessionId, clientTool }) {
+    const activeTasks = new Map();
+    let winner = null;
+    let lastError = null;
+    let attemptIndex = 0;
+
+    const spawnAttempt = () => {
+      attemptIndex++;
+      const currentIdx = attemptIndex;
+      const attemptController = new AbortController();
+      const mergedSignal = signal
+        ? AbortSignal.any([signal, attemptController.signal])
+        : attemptController.signal;
+
+      const preparedCreds = this.prepareRequestCredentials({
+        body,
+        credentials,
+        providerSessionId: currentIdx > 1 ? undefined : providerSessionId,
+        clientTool,
+      });
+
+      const url = this.buildUrl(model);
+      const transformedBody = this.transformRequest(model, body, stream, preparedCreds);
+      const headers = this.buildHeaders(preparedCreds, stream, url);
+
+      const task = {
+        index: currentIdx,
+        controller: attemptController,
+        promise: null,
+      };
+
+      const fetchPromise = (async () => {
+        try {
+          const bodyStr = typeof transformedBody === "string" || transformedBody instanceof Uint8Array
+            ? transformedBody
+            : JSON.stringify(transformedBody);
+
+          const resp = await proxyAwareFetch(
+            url,
+            {
+              method: "POST",
+              headers,
+              body: bodyStr,
+              signal: mergedSignal,
+            },
+            proxyOptions
+          );
+
+          if (!resp.ok) {
+            const bodyText = await resp.text().catch(() => "");
+            return { ok: false, status: resp.status, error: `HTTP ${resp.status}: ${bodyText.slice(0, 200)}` };
+          }
+
+          let response = resp;
+          if (stream && resp.body) {
+            const peeked = await peekStreamHead(resp.body, STREAM_COMMIT_PEEK_MS);
+            if (peeked.failed) {
+              return { ok: false, status: 502, error: peeked.error?.message || "empty stream" };
+            }
+            response = new Response(peeked.stream, {
+              status: resp.status,
+              statusText: resp.statusText,
+              headers: resp.headers,
+            });
+          }
+
+          return {
+            ok: true,
+            response,
+            url,
+            headers,
+            transformedBody,
+          };
+        } catch (err) {
+          if (err.name === "AbortError" && attemptController.signal.aborted) {
+            return { ok: false, aborted: true };
+          }
+          return { ok: false, error: err.message };
+        }
+      })();
+
+      task.promise = fetchPromise
+        .then((res) => ({ task, res }))
+        .catch((err) => ({ task, res: { ok: false, error: err.message } }));
+
+      return task;
+    };
+
+    // Initial attempt
+    const initialTask = spawnAttempt();
+    activeTasks.set(initialTask.promise, initialTask);
+
+    while (!winner && activeTasks.size > 0) {
+      if (signal?.aborted) break;
+
+      const canHedgeMore = activeTasks.size < MAX_HEDGE_CONCURRENCY && attemptIndex < MAX_TOTAL_HEDGE_ATTEMPTS;
+
+      let timer = null;
+      const timeoutPromise = new Promise((resolve) => {
+        timer = setTimeout(() => resolve({ isTimeout: true }), HEDGE_DELAY_MS);
+      });
+
+      const raced = await Promise.race([
+        ...Array.from(activeTasks.keys()),
+        timeoutPromise,
+      ]);
+
+      if (timer) clearTimeout(timer);
+
+      if (raced && raced.isTimeout) {
+        if (canHedgeMore) {
+          log?.info?.("HEDGE", `[OpenCode] Upstream slow (> ${HEDGE_DELAY_MS}ms), spawning companion attempt #${attemptIndex + 1}...`);
+          const companionTask = spawnAttempt();
+          activeTasks.set(companionTask.promise, companionTask);
+        }
+        continue;
+      }
+
+      // One of the active tasks settled
+      const { task, res } = raced;
+      activeTasks.delete(task.promise);
+
+      if (res.ok) {
+        winner = res;
+        log?.info?.("HEDGE", `[OpenCode] Attempt #${task.index} won the race!`);
+        break;
+      } else {
+        lastError = res.error || "Attempt failed";
+        if (activeTasks.size === 0 && attemptIndex < MAX_TOTAL_HEDGE_ATTEMPTS) {
+          const companionTask = spawnAttempt();
+          activeTasks.set(companionTask.promise, companionTask);
+        }
+      }
+    }
+
+    // Cancel all remaining speculative attempts
+    for (const task of activeTasks.values()) {
+      try {
+        task.controller.abort();
+      } catch {}
+    }
+
+    if (winner) {
+      return {
+        response: winner.response,
+        url: winner.url,
+        headers: winner.headers,
+        transformedBody: winner.transformedBody,
+      };
+    }
+
+    throw new Error(`[OpenCode] All speculative attempts failed: ${lastError || "No response"}`);
   }
 
   buildUrl(model) {
