@@ -61,7 +61,7 @@ describe("handleDifficultyChat (smart routing)", () => {
     const calls = [];
     const handleSingleModel = vi.fn(async (b, m) => {
       calls.push(m);
-      if (m === "judge-model") return judgeRes('{"difficulty":"medium","ambiguity":"low","domain":"coding","confidence":0.9}');
+      if (m === "judge-model") return judgeRes('{"difficulty":"hard","ambiguity":"low","domain":"coding","confidence":0.9}');
       return okRes("pong");
     });
     const body = {
@@ -80,12 +80,11 @@ describe("handleDifficultyChat (smart routing)", () => {
       log: quietLog,
       comboName: "smart-model",
       judgeModel: "judge-model",
-      tuning: { easyModels: ["easy-a"], mediumModels: ["med-a"], hardModels: ["hard-a"] },
+      tuning: { easyModels: ["easy-a"], hardModels: ["hard-a"] },
     });
     expect(res.ok).toBe(true);
     expect(calls[0]).toBe("judge-model");
-    expect(calls).toContain("med-a");
-    expect(calls).not.toContain("hard-a");
+    expect(calls).toContain("hard-a");
   });
 
   it("tool history plus an explicit error stays hard without the judge", async () => {
@@ -149,7 +148,7 @@ describe("handleDifficultyChat (smart routing)", () => {
     const calls = [];
     const handleSingleModel = vi.fn(async (b, m) => {
       calls.push(m);
-      if (m === "judge-model") return judgeRes('{"difficulty":"medium","ambiguity":"low","domain":"coding","confidence":0.9}');
+      if (m === "judge-model") return judgeRes('{"difficulty":"hard","ambiguity":"low","domain":"coding","confidence":0.9}');
       return okRes("pong");
     });
     const big = "x".repeat(250000);
@@ -170,58 +169,56 @@ describe("handleDifficultyChat (smart routing)", () => {
       log: quietLog,
       comboName: "smart-model",
       judgeModel: "judge-model",
-      tuning: { easyModels: ["easy-a"], mediumModels: ["med-a"], hardModels: ["hard-a"] },
+      tuning: { easyModels: ["easy-a"], hardModels: ["hard-a"] },
     });
     expect(res.ok).toBe(true);
-    expect(calls).toEqual(["med-a"]);
+    expect(calls).toEqual(["hard-a"]);
   });
 
   it("ambiguous body asks the judge, then runs the judged tier", async () => {
     const calls = [];
     const handleSingleModel = vi.fn(async (b, m) => {
       calls.push(m);
-      if (m === "judge-model") return judgeRes('{"difficulty":"medium","ambiguity":"low"}');
+      if (m === "judge-model") return judgeRes('{"difficulty":"hard","ambiguity":"medium","domain":"coding","confidence":0.7}');
       return okRes("pong");
     });
     const body = {
-      messages: [{ role: "user", content: "Help me refactor this API endpoint handler to add pagination." }],
+      messages: [{ role: "user", content: "explain the difference between async and thread with examples" }],
       stream: false,
     };
     const res = await handleDifficultyChat({
       body,
-      models: ["easy-a", "med-a", "hard-a"],
+      models: ["easy-a", "hard-a"],
       handleSingleModel,
       log: quietLog,
       comboName: "smart-model",
       judgeModel: "judge-model",
-      tuning: { easyModels: ["easy-a"], mediumModels: ["med-a"], hardModels: ["hard-a"] },
+      tuning: { easyModels: ["easy-a"], hardModels: ["hard-a"] },
     });
     expect(res.ok).toBe(true);
     expect(calls[0]).toBe("judge-model"); // judge called first
-    expect(calls).toContain("med-a");     // medium tier runs
+    expect(calls).toContain("hard-a");     // hard tier runs
     expect(calls).not.toContain("easy-a");
-    expect(calls).not.toContain("hard-a");
   });
 
-  it("escalates easy→medium→hard on consecutive tier failure", async () => {
+  it("escalates easy→hard on consecutive tier failure", async () => {
     const calls = [];
     const handleSingleModel = vi.fn(async (b, m) => {
       calls.push(m);
-      if (m === "easy-a") return errRes(500);
-      if (m === "med-a") return errRes(500);
+      if (m === "easy-a") return failRes(503, "overloaded");
       return okRes("pong");
     });
-    const body = { messages: [{ role: "user", content: "hi" }], stream: false };
+    const body = { messages: [{ role: "user", content: "hello" }], stream: false };
     const res = await handleDifficultyChat({
       body,
-      models: ["easy-a", "med-a", "hard-a"],
+      models: ["easy-a", "hard-a"],
       handleSingleModel,
       log: quietLog,
       comboName: "smart-model",
-      tuning: { easyModels: ["easy-a"], mediumModels: ["med-a"], hardModels: ["hard-a"] },
+      tuning: { easyModels: ["easy-a"], hardModels: ["hard-a"] },
     });
     expect(res.ok).toBe(true);
-    expect(calls).toEqual(["easy-a", "med-a", "hard-a"]);
+    expect(calls).toEqual(["easy-a", "hard-a"]);
   });
 
   it("fails open to hard tier when judge is unusable", async () => {
@@ -242,7 +239,7 @@ describe("handleDifficultyChat (smart routing)", () => {
       log: quietLog,
       comboName: "smart-model",
       judgeModel: "judge-model",
-      tuning: { easyModels: ["easy-a"], hardModels: ["hard-a"] },
+      tuning: { easyModels: ["easy-a"], hardModels: ["hard-a"], policy: "capability_heavy" },
     });
     expect(res.ok).toBe(true);
     expect(calls).toContain("hard-a");

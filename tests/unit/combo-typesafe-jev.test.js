@@ -96,7 +96,7 @@ describe("TypeSafe Jev classifier and judgeMode cascade", () => {
       expect(res.ambiguity).toBe("low");
       expect(res.domain).toBe("coding");
       expect(res.confidence).toBe(0.92);
-      expect(res.tier).toBe("medium");
+      expect(res.tier).toBe("hard");
     });
 
     it("handles non-200 HTTP response gracefully and returns null", async () => {
@@ -164,7 +164,7 @@ describe("TypeSafe Jev classifier and judgeMode cascade", () => {
       });
 
       expect(res.ok).toBe(true);
-      expect(calls).toEqual(["med-a"]); // judge-model was NOT called
+      expect(calls).toEqual(["hard-a"]); // judge-model was NOT called
       const afterMetrics = getRoutingMetrics();
       expect(afterMetrics.jevUsed).toBe(beforeMetrics.jevUsed + 1);
       expect(afterMetrics.jevEscalated).toBe(beforeMetrics.jevEscalated);
@@ -253,7 +253,7 @@ describe("TypeSafe Jev classifier and judgeMode cascade", () => {
 
       expect(res.ok).toBe(true);
       expect(calls[0]).toBe("judge-model"); // fell back to judge
-      expect(calls).toContain("med-a");
+      expect(calls).toContain("hard-a");
       const afterMetrics = getRoutingMetrics();
       expect(afterMetrics.jevFallback).toBe(beforeMetrics.jevFallback + 1);
     });
@@ -419,7 +419,7 @@ describe("TypeSafe Jev classifier and judgeMode cascade", () => {
       expect(res.ok).toBe(true);
       expect(fetchSpy).not.toHaveBeenCalled(); // Jev fetch was never called
       expect(calls[0]).toBe("judge-model");
-      expect(calls).toContain("med-a");
+      expect(calls).toContain("hard-a");
 
       const afterMetrics = getRoutingMetrics();
       expect(afterMetrics.jevUsed).toBe(beforeMetrics.jevUsed);
@@ -463,7 +463,7 @@ describe("TypeSafe Jev classifier and judgeMode cascade", () => {
         expect(res.ok).toBe(true);
         expect(fetchSpy).not.toHaveBeenCalled(); // no Jev attempt without a key
         expect(calls[0]).toBe("judge-model"); // straight to the LLM judge
-        expect(calls).toContain("med-a");
+        expect(calls).toContain("hard-a");
       } finally {
         if (prevKey === undefined) delete process.env.TYPESAFE_API_KEY;
         else process.env.TYPESAFE_API_KEY = prevKey;

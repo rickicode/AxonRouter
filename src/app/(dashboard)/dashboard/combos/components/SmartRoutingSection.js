@@ -41,18 +41,6 @@ const TIER_CONFIG = [
     subtitle: "Short prompts, quick Q&A, lightweight edits, minimal token cost",
   },
   {
-    key: "medium",
-    label: "Medium Tier",
-    shortLabel: "Medium",
-    icon: "psychology",
-    badgeColor: "bg-amber-500/10 text-amber-400 border-amber-500/30",
-    headerBg: "bg-amber-500/10 text-amber-400",
-    cardBorder: "border-amber-500/30",
-    cardBg: "bg-amber-500/[0.03]",
-    title: "Standard Reasoning",
-    subtitle: "Typical coding, agent tasks, multi-turn chat, refactoring",
-  },
-  {
     key: "hard",
     label: "Hard Tier",
     shortLabel: "Hard",
@@ -62,7 +50,7 @@ const TIER_CONFIG = [
     cardBorder: "border-rose-500/30",
     cardBg: "bg-rose-500/[0.03]",
     title: "Frontier Capability",
-    subtitle: "Complex architecture, deep reasoning, large context, tool calling",
+    subtitle: "Complex architecture, deep reasoning, large context, coding & tool calling",
   },
 ];
 
@@ -446,28 +434,22 @@ export default function SmartRoutingSection({
     if (models.length === 0) return;
 
     const easy = [];
-    const medium = [];
     const hard = [];
 
     if (models.length === 1) {
       easy.push(models[0]);
-    } else if (models.length === 2) {
-      easy.push(models[0]);
-      hard.push(models[1]);
     } else {
-      const sliceSize = Math.ceil(models.length / 3);
-      easy.push(...models.slice(0, sliceSize));
-      medium.push(...models.slice(sliceSize, sliceSize * 2));
-      hard.push(...models.slice(sliceSize * 2));
+      const half = Math.ceil(models.length / 2);
+      easy.push(...models.slice(0, half));
+      hard.push(...models.slice(half));
     }
 
     onSetStrategy({
       easyModels: easy,
-      mediumModels: medium,
       hardModels: hard,
     });
-    syncComboModels(easy, medium, hard);
-    notify.success("Models distributed across Easy, Medium, and Hard tiers");
+    syncComboModels(easy, [], hard);
+    notify.success(`Auto-distributed ${models.length} models across 2 tiers (Easy & Hard)`);
   };
 
   const activeTierConfig = TIER_CONFIG.find((t) => t.key === activeTierModal);

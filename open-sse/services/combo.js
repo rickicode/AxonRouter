@@ -815,11 +815,11 @@ function heuristicDifficulty(body, policy = "balanced") {
     return { tier: "hard", source: "heuristic-complex", domain: "coding", ambiguity: "low", confidence: 0.95 };
   }
   if (userTokens <= 15 && CASUAL_OR_GREETING_REGEX.test(userText.trim())) {
-    const tier = policy === "capability_heavy" ? "medium" : "easy";
+    const tier = policy === "capability_heavy" ? "hard" : "easy";
     return { tier, source: "heuristic-smalltalk", domain: "general", ambiguity: "low", confidence: 1.0 };
   }
   if (userTokens <= 150 && TRIVIAL_CODING_REGEX.test(userText)) {
-    const tier = policy === "capability_heavy" ? "medium" : "easy";
+    const tier = policy === "capability_heavy" ? "hard" : "easy";
     return { tier, source: "heuristic-trivial", domain: "coding", ambiguity: "low", confidence: 0.95 };
   }
   if (hasCurrentTurnImages) {
@@ -836,38 +836,36 @@ function heuristicDifficulty(body, policy = "balanced") {
   return null;
 }
 
-// Morph-aligned: 2D matrix (Difficulty x Ambiguity) adjusted by Policy
+// 2-tier matrix (Difficulty x Ambiguity) adjusted by Policy
 // balanced (default), cost_efficient, capability_heavy
 function resolveTierMatrix(difficulty, ambiguity, domain, policy = "balanced") {
   const diff = String(difficulty || "").toLowerCase();
   const amb = String(ambiguity || "").toLowerCase();
   const pol = String(policy || "balanced").toLowerCase();
 
-  // High ambiguity always escalates to hard tier (Morph core principle)
+  // High ambiguity always escalates to hard tier
   if (amb === "high") return "hard";
 
   if (pol === "cost_efficient") {
     // Prefer cheaper tier whenever reasonable
     if (diff === "easy") return "easy";
-    if (diff === "medium") return amb === "low" ? "easy" : "medium";
-    return amb === "low" ? "medium" : "hard";
+    return amb === "low" ? "easy" : "hard";
   }
 
   if (pol === "capability_heavy") {
     // Escalate coding/design or medium to stronger tier
-    if (diff === "easy") return amb === "low" && domain === "general" ? "easy" : "medium";
+    if (diff === "easy") return amb === "low" && domain === "general" ? "easy" : "hard";
     return "hard";
   }
 
-  // balanced (default Morph matrix)
-  if (diff === "easy") return amb === "med" || amb === "medium" ? "medium" : "easy";
-  if (diff === "medium") return "medium";
+  // balanced (default 2-tier matrix)
+  if (diff === "easy") return amb === "med" || amb === "medium" ? "hard" : "easy";
   return "hard";
 }
 
 // Judge JSON prompt: asks for difficulty, ambiguity, domain, and confidence.
 const DIFFICULTY_JUDGE_PROMPT = `Classify this task. Reply with ONLY JSON, no markdown:
-{"difficulty":"easy|medium|hard","ambiguity":"low|medium|high","domain":"general|summary|coding|design|data","confidence":0.0-1.0}
+{"difficulty":"easy|hard","ambiguity":"low|medium|high","domain":"general|summary|coding|design|data","confidence":0.0-1.0}
 Task:`;
 
 export async function handleDifficultyChat({ body, models = [], handleSingleModel, log, comboName, judgeModel, tuning = {}, rotationBudget = null, externalSignal = null, onDecision = null, memberHealth = null }) {
@@ -878,12 +876,10 @@ export async function handleDifficultyChat({ body, models = [], handleSingleMode
   const requiredCapabilities = detectRequiredCapabilities(body);
   const cfg = { ...DIFFICULTY_DEFAULTS, ...(tuning || {}) };
   const easyTier = (Array.isArray(cfg.easyModels) ? cfg.easyModels : []).filter(Boolean);
-  const medTier = (Array.isArray(cfg.mediumModels) ? cfg.mediumModels : []).filter(Boolean);
   const hardTier = (Array.isArray(cfg.hardModels) ? cfg.hardModels : []).filter(Boolean);
-  const order = models && Array.isArray(models) && models.length > 0 ? models : [...easyTier, ...medTier, ...hardTier];
+  const order = models && Array.isArray(models) && models.length > 0 ? models : [...easyTier, ...hardTier];
   const tiers = [
     { name: "easy", models: easyTier.length ? easyTier : order.slice(0, 1) },
-    { name: "medium", models: medTier.length ? medTier : (easyTier.length ? order : order) },
     { name: "hard", models: hardTier.length ? hardTier : order },
   ];
 
@@ -961,7 +957,7 @@ export async function handleDifficultyChat({ body, models = [], handleSingleMode
     if (!jevRes) {
       bumpRoutingMetric("jevFallback");
       log.warn("DIFFICULTY", `Jev classifier failed (jev-only mode) — defaulting to fallback`, { comboName });
-      tier = cachedTier || (policy === "cost_efficient" ? "easy" : policy === "capability_heavy" ? "hard" : "medium");
+      tier = cachedTier || (policy === "capability_heavy" ? "hard" : "easy");
       source = "jev-fallback";
       domain = detectDomain(body);
       ambiguity = "high";
@@ -1002,7 +998,7 @@ export async function handleDifficultyChat({ body, models = [], handleSingleMode
         ambiguity = jr?.ambiguity || "low";
         confidence = jr?.confidence ?? 0.8;
       } else {
-        tier = cachedTier || (policy === "cost_efficient" ? "easy" : policy === "capability_heavy" ? "hard" : "medium");
+        tier = cachedTier || (policy === "capability_heavy" ? "hard" : "easy");
         source = "jev-fallback";
         domain = detectDomain(body);
         ambiguity = "high";
@@ -1047,7 +1043,8 @@ export async function handleDifficultyChat({ body, models = [], handleSingleMode
     ambiguity = typeof cached === "object" ? cached.ambiguity : "low";
     confidence = typeof cached === "object" ? cached.confidence : 1.0;
   } else {
-    tier = policy === "cost_efficient" ? "easy" : policy === "capability_heavy" ? "hard" : "medium";
+    tier = policy === "capability_heavy" ? "hard" : "easy";
+    source = "policy-fallback";
     domain = detectDomain(body);
   }
   if (!h && sKey) difficultyCacheSet(sKey, { tier, domain, ambiguity, confidence, policy, ...(cached?.winningModel ? { winningModel: cached.winningModel } : {}) });
@@ -1066,8 +1063,8 @@ export async function handleDifficultyChat({ body, models = [], handleSingleMode
 
   const stickyModel = (typeof cached === "object" && cached?.winningModel) ? cached.winningModel : null;
 
-  // Run selected tier sequentially; escalate up on total failure.
-  const startIdx = tier === "easy" ? 0 : tier === "hard" ? 2 : 1;
+  // Run selected tier sequentially; escalate up on total failure (2-tier).
+  const startIdx = tier === "easy" ? 0 : 1;
   let lastError = null;
   let lastStatus = null;
   for (let t = startIdx; t < tiers.length; t++) {
@@ -1242,7 +1239,7 @@ function normalizeJudgeOutput(content, fallbackDomain = "general") {
 // Call the judge LLM; returns { tier, source, domain, ambiguity, confidence } or fallback.
 async function classifyWithJudge(body, judgeModel, handleSingleModel, timeoutMs, log, comboName, policy = "balanced", stickyTier = null) {
   const prompt = `${DIFFICULTY_JUDGE_PROMPT}\n${extractJudgeInput(body)}`;
-  const policyFallback = stickyTier || (policy === "cost_efficient" ? "medium" : policy === "capability_heavy" ? "hard" : "medium");
+  const policyFallback = stickyTier || (policy === "capability_heavy" ? "hard" : "easy");
   const judgeBody = {
     messages: [
       { role: "system", content: "You are a classifier. Output ONLY a valid JSON object. No explanation, no thinking, no markdown." },
@@ -1413,9 +1410,8 @@ export async function classifyWithJev(body, optionsOrKey = {}, maybeOptions = {}
         type: "choice",
         instructions: "Classify the difficulty of this task.",
         criteria: {
-          easy: "Simple questions, greetings, trivial clarification, basic syntax, quick answer",
-          medium: "Moderate complexity, multi-step problem, standard coding or reasoning task",
-          hard: "Complex reasoning, intricate architecture, deep debugging, ambiguous edge case",
+          easy: "Simple questions, greetings, trivia, formatting, lightweight syntax, quick answers, casual chat",
+          hard: "Complex reasoning, system architecture, programming, debugging, algorithms, deep analysis, edge cases",
         },
       },
       ambiguity: {

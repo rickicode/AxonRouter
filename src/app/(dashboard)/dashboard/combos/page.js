@@ -789,15 +789,11 @@ function ComboCard({
             <div className="mt-1 flex min-w-0 flex-wrap items-center gap-2 text-xs text-text-muted">
               {isDifficulty ? (
                 <div className="flex items-center gap-2">
-                  <span>{totalTierModels || combo.models.length} model(s) in 3 tiers</span>
+                  <span>{totalTierModels || combo.models.length} model(s) in 2 tiers</span>
                   <span className="text-text-muted/30">•</span>
                   <span className="inline-flex items-center gap-1 font-medium text-emerald-400">
                     <span className="size-1.5 rounded-full bg-emerald-400"></span>
                     Easy: {easyCount}
-                  </span>
-                  <span className="inline-flex items-center gap-1 font-medium text-amber-400">
-                    <span className="size-1.5 rounded-full bg-amber-400"></span>
-                    Med: {mediumCount}
                   </span>
                   <span className="inline-flex items-center gap-1 font-medium text-rose-400">
                     <span className="size-1.5 rounded-full bg-rose-400"></span>

@@ -105,8 +105,8 @@ export default function ComboAnalyticsTab() {
  const topModel = sortedModels[0] || null;
 
  // Find top model per tier
- const tierTop = { easy: null, medium: null, hard: null };
- for (const tierKey of ["easy", "medium", "hard"]) {
+ const tierTop = { easy: null, hard: null };
+   for (const tierKey of ["easy", "hard"]) {
  const tierRows = difficultyModels.filter((dm) => dm.tier === tierKey);
  if (tierRows.length > 0) {
  const tierModels = {};
@@ -186,57 +186,40 @@ export default function ComboAnalyticsTab() {
  </div>
 
  {/* Metric Highlights: Leader per Tier */}
- <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
- <div className="rounded-sm border border-success/30 bg-surface p-3">
- <div className="flex items-center justify-between text-[11px] mb-1">
- <span className="font-medium text-success">Easy Tier Leader</span>
- <Icon className="text-success" name="bolt" size={18} />
- </div>
- {smartModelStats.tierTop.easy ? (
- <div>
- <code className="block text-xs font-mono font-medium text-text-main truncate" title={smartModelStats.tierTop.easy.model}>
- {smartModelStats.tierTop.easy.model}
- </code>
- <span className="text-[11px] text-text-muted">{smartModelStats.tierTop.easy.count} requests</span>
- </div>
- ) : (
- <span className="text-xs text-text-muted italic">No traffic yet</span>
- )}
- </div>
+ <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+   <div className="rounded-sm border border-success/30 bg-surface p-3">
+     <div className="flex items-center justify-between text-[11px] mb-1">
+       <span className="font-medium text-success">Easy Tier Leader</span>
+       <Icon className="text-success" name="bolt" size={18} />
+     </div>
+     {smartModelStats.tierTop.easy ? (
+       <div>
+         <code className="block text-xs font-mono font-medium text-text-main truncate" title={smartModelStats.tierTop.easy.model}>
+           {smartModelStats.tierTop.easy.model}
+         </code>
+         <span className="text-[11px] text-text-muted">{smartModelStats.tierTop.easy.count} requests</span>
+       </div>
+     ) : (
+       <span className="text-xs text-text-muted italic">No traffic yet</span>
+     )}
+   </div>
 
- <div className="rounded-sm border border-warning/30 bg-surface p-3">
- <div className="flex items-center justify-between text-[11px] mb-1">
- <span className="font-medium text-warning">Medium Tier Leader</span>
- <Icon className="text-warning" name="psychology" size={18} />
- </div>
- {smartModelStats.tierTop.medium ? (
- <div>
- <code className="block text-xs font-mono font-medium text-text-main truncate" title={smartModelStats.tierTop.medium.model}>
- {smartModelStats.tierTop.medium.model}
- </code>
- <span className="text-[11px] text-text-muted">{smartModelStats.tierTop.medium.count} requests</span>
- </div>
- ) : (
- <span className="text-xs text-text-muted italic">No traffic yet</span>
- )}
- </div>
-
- <div className="rounded-sm border border-danger/30 bg-surface p-3">
- <div className="flex items-center justify-between text-[11px] mb-1">
- <span className="font-medium text-danger">Hard Tier Leader</span>
- <Icon className="text-danger" name="diamond" size={18} />
- </div>
- {smartModelStats.tierTop.hard ? (
- <div>
- <code className="block text-xs font-mono font-medium text-text-main truncate" title={smartModelStats.tierTop.hard.model}>
- {smartModelStats.tierTop.hard.model}
- </code>
- <span className="text-[11px] text-text-muted">{smartModelStats.tierTop.hard.count} requests</span>
- </div>
- ) : (
- <span className="text-xs text-text-muted italic">No traffic yet</span>
- )}
- </div>
+   <div className="rounded-sm border border-danger/30 bg-surface p-3">
+     <div className="flex items-center justify-between text-[11px] mb-1">
+       <span className="font-medium text-danger">Hard Tier Leader</span>
+       <Icon className="text-danger" name="diamond" size={18} />
+     </div>
+     {smartModelStats.tierTop.hard ? (
+       <div>
+         <code className="block text-xs font-mono font-medium text-text-main truncate" title={smartModelStats.tierTop.hard.model}>
+           {smartModelStats.tierTop.hard.model}
+         </code>
+         <span className="text-[11px] text-text-muted">{smartModelStats.tierTop.hard.count} requests</span>
+       </div>
+     ) : (
+       <span className="text-xs text-text-muted italic">No traffic yet</span>
+     )}
+   </div>
  </div>
 
  {/* Leaderboard Table of Models in Smart Routing */}

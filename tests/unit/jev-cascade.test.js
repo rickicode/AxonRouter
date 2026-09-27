@@ -234,7 +234,7 @@ describe("Jev Decision Cascade & Fail-Open Verification", () => {
       expect(res.ok).toBe(true);
       expect(fetchSpy).toHaveBeenCalledTimes(0);
       expect(executedModels[0]).toBe("judge-llm-model");
-      expect(executedModels[1]).toBe("model-med-1");
+      expect(executedModels[1]).toBe("model-hard-1");
       expect(decisions[0].source).toBe("judge");
       expect(decisions[0].judgeUsed).toBe(true);
       expect(decisions[0].jevUsed).toBe(false);
@@ -364,7 +364,7 @@ describe("Jev Decision Cascade & Fail-Open Verification", () => {
       });
 
       expect(res.ok).toBe(true);
-      expect(executedModels).toEqual(["model-med-1"]);
+      expect(executedModels).toEqual(["model-hard-1"]);
       expect(executedModels).not.toContain("judge-llm-model");
       const routeDecision = decisions[0];
       expect(routeDecision.source).toBe("jev");
@@ -492,7 +492,7 @@ describe("Jev Decision Cascade & Fail-Open Verification", () => {
 
       expect(res.ok).toBe(true);
       expect(callLog[0]).toBe("judge-llm-model");
-      expect(callLog[1]).toBe("model-med-1");
+      expect(callLog[1]).toBe("model-hard-1");
     });
   });
 
@@ -543,7 +543,7 @@ describe("Jev Decision Cascade & Fail-Open Verification", () => {
 
       expect(res.ok).toBe(true);
       expect(callLog[0]).toBe("judge-llm-model"); // LLM judge invoked
-      expect(callLog[1]).toBe("model-med-1");
+      expect(callLog[1]).toBe("model-hard-1");
       const routeDecision = decisions[0];
       expect(routeDecision.source).toBe("judge");
       expect(routeDecision.judgeUsed).toBe(true);
@@ -712,12 +712,12 @@ describe("Jev Decision Cascade & Fail-Open Verification", () => {
 
       // Directly called the LLM judge
       expect(callLog[0]).toBe("judge-llm-model");
-      expect(callLog[1]).toBe("model-med-1");
+      expect(callLog[1]).toBe("model-hard-1");
 
       const routeDecision = decisions[0];
       expect(routeDecision).toBeDefined();
       expect(routeDecision.source).toBe("judge");
-      expect(routeDecision.tier).toBe("medium");
+      expect(routeDecision.tier).toBe("hard");
       expect(routeDecision.judgeUsed).toBe(true);
       expect(routeDecision.jevUsed).toBe(false);
       expect(routeDecision.judgeModel).toBe("judge-llm-model");
@@ -811,9 +811,9 @@ describe("Jev Decision Cascade & Fail-Open Verification", () => {
 
       expect(res.ok).toBe(true);
       expect(fetchSpy).not.toHaveBeenCalled();
-      // Routed directly to policy default (medium) without throwing
-      expect(callLog).toEqual(["model-med-1"]);
-      expect(decisions[0].tier).toBe("medium");
+      // Routed directly to policy default (easy under 2-tier balanced) without throwing
+      expect(callLog).toEqual(["model-easy-1"]);
+      expect(decisions[0].tier).toBe("easy");
     });
   });
 
