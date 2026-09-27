@@ -66,6 +66,7 @@ export function extractUsageFromResponse(responseBody) {
 
 export function buildRequestDetail(base, overrides = {}) {
   return {
+    id: overrides.id || base.id || undefined,
     provider: base.provider || "unknown",
     model: base.model || "unknown",
     connectionId: base.connectionId || undefined,
@@ -80,6 +81,7 @@ export function buildRequestDetail(base, overrides = {}) {
     response: base.response || {},
     pxpipe: base.pxpipe || undefined,
     status: base.status || "success",
+    endpoint: overrides.endpoint || base.endpoint || undefined,
     ...overrides
   };
 }

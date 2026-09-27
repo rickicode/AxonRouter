@@ -89,7 +89,7 @@ export async function handleStreamingResponse({ providerResponse, provider, mode
       response: { error: shortMsg, status, thinking: null },
       pxpipe,
       status: "error"
-    })).catch(() => { });
+    }, { id: streamDetailId, timestamp: streamTimestamp })).catch(() => { });
     return {
       success: false,
       response: new Response(JSON.stringify({ error: { message: `[${status} · ${provider}/${model}]: ${shortMsg}` } }), {
@@ -136,7 +136,7 @@ export async function handleStreamingResponse({ providerResponse, provider, mode
       response: { error: errMsg, status: 502, thinking: null },
       pxpipe,
       status: "error"
-    })).catch(() => { });
+    }, { id: streamDetailId, timestamp: streamTimestamp })).catch(() => { });
     return {
       success: false,
       status: 502,

@@ -302,9 +302,9 @@ export async function handleChat(request, clientRawRequest = null) {
             policy: diffCtx.policy || null,
           };
           const crr = clientRawRequest
-            ? { ...clientRawRequest, difficulty: diffPayload }
-            : { difficulty: diffPayload };
-          return handleSingleModelChat(b, m, crr, request, apiKey, modelStr, isTestRequest, rotationBudget, opts?.signal ?? null);
+            ? { ...clientRawRequest, difficulty: diffPayload, comboName: clientRawRequest.comboName || modelStr }
+            : { difficulty: diffPayload, comboName: modelStr };
+          return handleSingleModelChat(b, m, crr, request, apiKey, clientRawRequest?.comboName || modelStr, isTestRequest, rotationBudget, opts?.signal ?? null);
         },
         log,
         comboName: modelStr,

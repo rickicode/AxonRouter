@@ -453,6 +453,80 @@ export async function countAnalyticsEvents() {
   }
 }
 
+export async function getProviderProxyStats(providerId) {
+  let stats24h = { total: 0, success: 0, failure: 0, successRate: 100 };
+  let stats1h = { total: 0, success: 0, failure: 0, successRate: 100 };
+  let errorBreakdown = [];
+
+  try {
+    const db = await getAdapter();
+    const row24h = await db.get(
+      `SELECT
+         COUNT(*)::int AS total,
+         COUNT(*) FILTER (WHERE success = true)::int AS success_count,
+         COUNT(*) FILTER (WHERE success = false AND error_category != 'cancelled')::int AS failure_count,
+         COUNT(*) FILTER (WHERE error_category = 'cancelled')::int AS cancelled_count,
+         ROUND(
+           (COUNT(*) FILTER (WHERE success = true)::numeric / 
+            NULLIF(COUNT(*) FILTER (WHERE error_category != 'cancelled')::numeric, 0)) * 100, 
+           1
+         ) AS success_rate
+       FROM analytics_events
+       WHERE provider = $1 AND timestamp >= NOW() - INTERVAL '24 hours'`,
+      [providerId],
+    );
+    if (row24h && row24h.total > 0) {
+      stats24h = {
+        total: Number(row24h.total || 0),
+        success: Number(row24h.success_count || 0),
+        failure: Number(row24h.failure_count || 0),
+        cancelled: Number(row24h.cancelled_count || 0),
+        successRate: Number(row24h.success_rate ?? 100),
+      };
+    }
+
+    const row1h = await db.get(
+      `SELECT
+         COUNT(*)::int AS total,
+         COUNT(*) FILTER (WHERE success = true)::int AS success_count,
+         COUNT(*) FILTER (WHERE success = false AND error_category != 'cancelled')::int AS failure_count,
+         COUNT(*) FILTER (WHERE error_category = 'cancelled')::int AS cancelled_count,
+         ROUND(
+           (COUNT(*) FILTER (WHERE success = true)::numeric / 
+            NULLIF(COUNT(*) FILTER (WHERE error_category != 'cancelled')::numeric, 0)) * 100, 
+           1
+         ) AS success_rate
+       FROM analytics_events
+       WHERE provider = $1 AND timestamp >= NOW() - INTERVAL '1 hour'`,
+      [providerId],
+    );
+    if (row1h && row1h.total > 0) {
+      stats1h = {
+        total: Number(row1h.total || 0),
+        success: Number(row1h.success_count || 0),
+        failure: Number(row1h.failure_count || 0),
+        cancelled: Number(row1h.cancelled_count || 0),
+        successRate: Number(row1h.success_rate ?? 100),
+      };
+    }
+
+    const errRows = await db.all(
+      `SELECT error_category, COUNT(*)::int AS count
+       FROM analytics_events
+       WHERE provider = $1 AND success = false AND timestamp >= NOW() - INTERVAL '24 hours'
+       GROUP BY error_category
+       ORDER BY count DESC
+       LIMIT 5`,
+      [providerId],
+    );
+    errorBreakdown = (errRows || []).map((r) => ({ category: r.error_category || "unknown", count: Number(r.count || 0) }));
+  } catch (e) {
+    console.warn("[AnalyticsRepo] Error reading provider proxy stats:", e?.message);
+  }
+
+  return { stats24h, stats1h, errorBreakdown };
+}
+
 export const __test__ = {
   getBuffer: () => writeBuffer,
   clearBuffer: () => {

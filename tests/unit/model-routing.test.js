@@ -70,12 +70,12 @@ describe("model routing", () => {
       id: "openai-compatible-chat-test",
       type: "openai-compatible",
       name: "Compatible OCT",
-      prefix: "oct",
+      prefix: "mroct",
       apiType: "chat",
       baseUrl: "https://compatible.test/v1",
     });
 
-    await expect(ctx.getModelInfo("oct/gpt-image-1"))
+    await expect(ctx.getModelInfo("mroct/gpt-image-1"))
       .resolves.toEqual({
         provider: "openai-compatible-chat-test",
         model: "gpt-image-1",

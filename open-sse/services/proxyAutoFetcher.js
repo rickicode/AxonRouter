@@ -221,7 +221,7 @@ export async function reconcileProxyGroup(group, fetchedUrls, db) {
       const u = new URL(newUrl);
       hostLabel = u.port ? `${u.hostname}:${u.port}` : u.hostname;
       if (u.protocol.startsWith("socks")) {
-        type = "http";
+        type = "socks5";
       }
     } catch {}
 

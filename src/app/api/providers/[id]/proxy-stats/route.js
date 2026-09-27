@@ -2,7 +2,8 @@ import { NextResponse } from "@/lib/http/response.js";
 import { getSettings } from "@/lib/db/repos/settingsRepo.js";
 import { getProxyPools, getProxyPoolById } from "@/lib/db/repos/proxyPoolsRepo.js";
 import { getProxyGroupByName, getProxyGroupById } from "@/lib/db/repos/proxyGroupsRepo.js";
-import { getAdapter } from "@/lib/db/driver.js";
+import { getProviderProxyStats } from "@/lib/db/repos/analyticsRepo.js";
+import { countProviderConnections } from "@/lib/db/repos/connectionsRepo.js";
 
 export const dynamic = "force-dynamic";
 
@@ -14,7 +15,6 @@ export async function GET(request, context) {
       return NextResponse.json({ error: "Provider ID is required" }, { status: 400 });
     }
 
-    const db = await getAdapter();
     const settings = await getSettings();
     const providerStrategy = (settings.providerStrategies || {})[providerId] || {};
 
@@ -37,62 +37,7 @@ export async function GET(request, context) {
     };
 
     // 1. Success rate statistics from analytics_events (past 24h & past 1h)
-    let stats24h = { total: 0, success: 0, failure: 0, successRate: 100 };
-    let stats1h = { total: 0, success: 0, failure: 0, successRate: 100 };
-    let errorBreakdown = [];
-
-    try {
-      const row24h = await db.get(
-        `SELECT
-           COUNT(*)::int AS total,
-           COUNT(*) FILTER (WHERE success = true)::int AS success_count,
-           COUNT(*) FILTER (WHERE success = false)::int AS failure_count,
-           ROUND((COUNT(*) FILTER (WHERE success = true)::numeric / NULLIF(COUNT(*)::numeric, 0)) * 100, 1) AS success_rate
-         FROM analytics_events
-         WHERE provider = $1 AND timestamp >= NOW() - INTERVAL '24 hours'`,
-        [providerId],
-      );
-      if (row24h && row24h.total > 0) {
-        stats24h = {
-          total: Number(row24h.total || 0),
-          success: Number(row24h.success_count || 0),
-          failure: Number(row24h.failure_count || 0),
-          successRate: Number(row24h.success_rate || 0),
-        };
-      }
-
-      const row1h = await db.get(
-        `SELECT
-           COUNT(*)::int AS total,
-           COUNT(*) FILTER (WHERE success = true)::int AS success_count,
-           COUNT(*) FILTER (WHERE success = false)::int AS failure_count,
-           ROUND((COUNT(*) FILTER (WHERE success = true)::numeric / NULLIF(COUNT(*)::numeric, 0)) * 100, 1) AS success_rate
-         FROM analytics_events
-         WHERE provider = $1 AND timestamp >= NOW() - INTERVAL '1 hour'`,
-        [providerId],
-      );
-      if (row1h && row1h.total > 0) {
-        stats1h = {
-          total: Number(row1h.total || 0),
-          success: Number(row1h.success_count || 0),
-          failure: Number(row1h.failure_count || 0),
-          successRate: Number(row1h.success_rate || 0),
-        };
-      }
-
-      const errRows = await db.all(
-        `SELECT error_category, COUNT(*)::int AS count
-         FROM analytics_events
-         WHERE provider = $1 AND success = false AND timestamp >= NOW() - INTERVAL '24 hours'
-         GROUP BY error_category
-         ORDER BY count DESC
-         LIMIT 5`,
-        [providerId],
-      );
-      errorBreakdown = errRows.map((r) => ({ category: r.error_category || "unknown", count: Number(r.count || 0) }));
-    } catch (e) {
-      console.warn("[proxy-stats] Error reading analytics_events:", e?.message);
-    }
+    const { stats24h, stats1h, errorBreakdown } = await getProviderProxyStats(providerId);
 
     // 2. Proxy group or pool details & health info
     let groupHealth = null;
@@ -167,11 +112,7 @@ export async function GET(request, context) {
     // 3. Count connected accounts for this provider
     let connectionCount = 0;
     try {
-      const countRow = await db.get(
-        `SELECT COUNT(*)::int AS count FROM provider_connections WHERE provider = $1`,
-        [providerId],
-      );
-      connectionCount = Number(countRow?.count || 0);
+      connectionCount = await countProviderConnections(providerId);
     } catch {}
 
     return NextResponse.json({

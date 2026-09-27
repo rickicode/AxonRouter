@@ -558,9 +558,10 @@ export async function getProviderConnections(filter = {}) {
 }
 
 export async function countProviderConnections(filter = {}) {
+  const normFilter = typeof filter === "string" ? { provider: filter } : (filter || {});
   const db = await getAdapter();
   const params = [];
-  const where = buildConnectionFilterConditions(filter, params);
+  const where = buildConnectionFilterConditions(normFilter, params);
 
   const row = await db.get(
     `SELECT COUNT(*)::int AS count
