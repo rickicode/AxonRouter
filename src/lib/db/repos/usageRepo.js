@@ -668,7 +668,7 @@ export async function getActiveRequests() {
   return { activeRequests, recentRequests, errorProvider };
 }
 
-export async function saveFailedRequest({ provider, model, connectionId, apiKey, endpoint, errorStatus, isStream, error, account, comboName }) {
+export async function saveFailedRequest({ provider, model, connectionId, apiKey, endpoint, errorStatus, isStream, error, account, comboName, requestId }) {
   try {
     const ts = new Date().toISOString();
     const status = `error_${errorStatus || 502}`;
@@ -694,6 +694,7 @@ export async function saveFailedRequest({ provider, model, connectionId, apiKey,
       status,
       tokens: {},
       meta: { isStream: isStreamBool, failed: true, error: errorMsg, account: account || undefined, ...(comboName ? { comboName } : {}) },
+      requestId: requestId || null,
     }).catch(() => {}); // fire-and-forget: flush errors are logged in flushUsageQueue
 
     pushToRing({
@@ -712,6 +713,7 @@ export async function saveFailedRequest({ provider, model, connectionId, apiKey,
       meta: { isStream: isStreamBool, failed: true, error: errorMsg, account: account || undefined },
       isStream: isStreamBool,
       error: errorMsg,
+      requestId: requestId || null,
     });
 
     if (provider) {
@@ -1386,8 +1388,24 @@ export async function getRecentLogs(limit = 200) {
       const tk = row.tokens ?? {};
       const sent = row.prompt_tokens ?? tk.prompt_tokens ?? "-";
       const received = row.completion_tokens ?? tk.completion_tokens ?? "-";
+      const meta = typeof row.meta === "string" ? parseJson(row.meta, {}) : (row.meta || {});
+      const error = meta.error || row.error || null;
       const raw = `${ts} | ${m} | ${p} | ${account} | ${sent} | ${received} | ${row.status || "-"}`;
-      return { datetime: ts, model: m, provider: p, account, sent: String(sent), received: String(received), status: row.status || "-", raw };
+      return {
+        id: row.id,
+        requestId: row.request_id || null,
+        timestamp: row.timestamp,
+        datetime: ts,
+        model: m,
+        provider: p,
+        account,
+        sent: String(sent),
+        received: String(received),
+        status: row.status || "-",
+        error,
+        meta,
+        raw,
+      };
     });
   } catch (error) {
     console.error("[usageRepo] getRecentLogs failed:", error.message);

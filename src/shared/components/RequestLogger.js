@@ -5,8 +5,17 @@ import Card from "./Card";
 import Button from "./Button";
 import Modal from "./Modal";
 import Input from "./Input";
+import Badge from "./Badge";
 import Icon from "@/shared/components/Icon";
 import { cn } from "@/shared/utils/cn";
+
+function getStatusBadgeVariant(code) {
+  const num = Number(code);
+  if (num === 429) return "warning";
+  if (num >= 500) return "error";
+  if (num >= 400) return "warning";
+  return "error";
+}
 
 const LOGS_POLL_MS = 3000;
 
@@ -156,23 +165,112 @@ export default function RequestLogger({ detailsOpen = false, onToggleDetails, in
  };
  }, [autoRefresh, fetchLogs]);
 
- const handleOpenDetail = (log) => {
- setSelectedLog({
- raw: log.raw || `${log.datetime} | ${log.model} | ${log.provider} | ${log.account} | ${log.sent} | ${log.received} | ${log.status}`,
- datetime: log.datetime || "-",
- model: log.model || "-",
- provider: log.provider || "-",
- account: log.account || "-",
- sent: log.sent || "-",
- received: log.received || "-",
- status: log.status || "-",
- });
- setIsModalOpen(true);
- };
+ const [detailLoading, setDetailLoading] = useState(false);
+ const [copiedPayload, setCopiedPayload] = useState(false);
+
+ const handleOpenDetail = useCallback(async (log) => {
+   const isFailed = classifyStatus(log.status) === "failed" || Boolean(log.error);
+   const initialSelected = {
+     id: log.id,
+     requestId: log.requestId || null,
+     timestamp: log.timestamp || null,
+     raw: log.raw || `${log.datetime} | ${log.model} | ${log.provider} | ${log.account} | ${log.sent} | ${log.received} | ${log.status}`,
+     datetime: log.datetime || "-",
+     model: log.model || "-",
+     provider: log.provider || "-",
+     account: log.account || "-",
+     sent: log.sent || "-",
+     received: log.received || "-",
+     status: log.status || "-",
+     error: log.error || log.meta?.error || null,
+     meta: log.meta || null,
+     detail: null,
+   };
+
+   setSelectedLog(initialSelected);
+   setIsModalOpen(true);
+   setCopiedPayload(false);
+
+   if (!isFailed) return;
+
+   setDetailLoading(true);
+   try {
+     const targetId = log.requestId || log.id;
+     if (targetId) {
+       const res = await fetch(`/api/usage/request-details?id=${encodeURIComponent(targetId)}`);
+       if (res.ok) {
+         const json = await res.json();
+         if (json.detail) {
+           setSelectedLog((prev) => prev ? {
+             ...prev,
+             detail: json.detail,
+             error: json.detail.error || json.detail.response?.error || json.detail.response?.message || prev.error,
+           } : null);
+           return;
+         }
+       }
+     }
+
+     // Fallback: search recent failures for this provider & model
+     const params = new URLSearchParams({ limit: "15" });
+     if (log.provider && log.provider !== "-") params.set("provider", log.provider.toLowerCase());
+     if (log.model && log.model !== "-") params.set("model", log.model);
+
+     const failRes = await fetch(`/api/usage/analytics/failures?${params.toString()}`);
+     if (failRes.ok) {
+       const failJson = await failRes.json();
+       const failures = failJson.recentFailures || [];
+       if (failures.length > 0) {
+         const matched = failures.find((f) =>
+           (!log.model || log.model === "-" || f.model === log.model) &&
+           (!log.provider || log.provider === "-" || f.provider?.toLowerCase() === log.provider?.toLowerCase())
+         ) || failures[0];
+
+         if (matched) {
+           setSelectedLog((prev) => prev ? {
+             ...prev,
+             detail: matched,
+             error: matched.error || matched.response?.error || matched.response?.message || prev.error,
+           } : null);
+           return;
+         }
+       }
+     }
+
+     // Fallback 2: request-details?status=failed
+     const fallbackParams = new URLSearchParams({ status: "failed", pageSize: "15" });
+     if (log.provider && log.provider !== "-") fallbackParams.set("provider", log.provider.toLowerCase());
+     if (log.model && log.model !== "-") fallbackParams.set("model", log.model);
+     const rdRes = await fetch(`/api/usage/request-details?${fallbackParams.toString()}`);
+     if (rdRes.ok) {
+       const rdJson = await rdRes.json();
+       const details = rdJson.details || [];
+       if (details.length > 0) {
+         const matched = details.find((d) =>
+           (!log.model || log.model === "-" || d.model === log.model) &&
+           (!log.provider || log.provider === "-" || d.provider?.toLowerCase() === log.provider?.toLowerCase())
+         ) || details[0];
+         if (matched) {
+           setSelectedLog((prev) => prev ? {
+             ...prev,
+             detail: matched,
+             error: matched.error || matched.response?.error || matched.response?.message || prev.error,
+           } : null);
+         }
+       }
+     }
+   } catch (e) {
+     console.warn("[RequestLogger] Failed to fetch failure detail trace:", e);
+   } finally {
+     setDetailLoading(false);
+   }
+ }, []);
 
  const handleCloseModal = () => {
- setIsModalOpen(false);
- setSelectedLog(null);
+   setIsModalOpen(false);
+   setSelectedLog(null);
+   setDetailLoading(false);
+   setCopiedPayload(false);
  };
 
  // Derived: counts + filtered list (memoized so renders stay cheap at 200 rows)
@@ -341,13 +439,18 @@ Loading logs…
  >
  {/* Model + time */}
  <div className="flex items-start justify-between gap-2">
- <span className="font-mono text-xs font-medium text-text-main break-all min-w-0 flex-1">
- {log.model}
- </span>
- <span className="text-[11px] text-text-muted font-mono whitespace-nowrap shrink-0 text-right">
- {relativeTime(log.datetime) || log.datetime}
- </span>
+   <span className="font-mono text-xs font-medium text-text-main break-all min-w-0 flex-1">
+     {log.model}
+   </span>
+   <span className="text-[11px] text-text-muted font-mono whitespace-nowrap shrink-0 text-right">
+     {relativeTime(log.datetime) || log.datetime}
+   </span>
  </div>
+ {log.error && (
+   <p className="text-[11px] text-danger font-normal line-clamp-2 break-all">
+     {typeof log.error === "object" ? (log.error.message || JSON.stringify(log.error)) : log.error}
+   </p>
+ )}
 
  {/* Provider + account + tokens */}
  <div className="flex flex-wrap items-center gap-1.5 text-[11px]">
@@ -408,7 +511,12 @@ Loading logs…
  </div>
  </td>
  <td className="px-3 h-8 font-semibold break-all max-w-[260px] text-sm">
- {log.model}
+   <div>{log.model}</div>
+   {log.error && (
+     <div className="text-[11px] text-danger font-normal truncate max-w-[240px]" title={typeof log.error === "object" ? JSON.stringify(log.error) : log.error}>
+       {typeof log.error === "object" ? (log.error.message || JSON.stringify(log.error)) : log.error}
+     </div>
+   )}
  </td>
  <td className="px-3 h-8 whitespace-nowrap text-sm">
  <span className="px-1.5 py-1 rounded-sm bg-surface-2 border border-border text-[11px] font-medium text-text-muted">
@@ -448,65 +556,192 @@ Auto-refresh active (3s)
  </div>
 
  <Modal
- isOpen={isModalOpen}
- onClose={handleCloseModal}
-title={selectedLog?.status?.includes("FAILED") || selectedLog?.status?.includes("ERROR") ? "Request Error Details" : "Request Log Details"}
- size="full"
+   isOpen={isModalOpen}
+   onClose={handleCloseModal}
+   title={
+     selectedLog && (classifyStatus(selectedLog.status) === "failed" || selectedLog.error) ? (
+       <div className="flex items-center gap-2 min-w-0 pr-3">
+         <Icon name="error" size={18} className="text-danger shrink-0" />
+         <div className="min-w-0">
+           <div className="flex items-center gap-2">
+             <span className="text-sm font-semibold text-text-main truncate">
+               Request Error Details
+             </span>
+             <Badge
+               variant={getStatusBadgeVariant(
+                 selectedLog.detail?.response?.status ||
+                 selectedLog.detail?.statusCode ||
+                 selectedLog.status?.replace(/^error_/, "") ||
+                 "500"
+               )}
+               size="sm"
+             >
+               {String(
+                 selectedLog.detail?.response?.status ||
+                 selectedLog.detail?.statusCode ||
+                 selectedLog.status?.replace(/^error_/, "") ||
+                 "500"
+               )}
+             </Badge>
+           </div>
+           {selectedLog.model && selectedLog.model !== "-" && (
+             <p className="text-xs text-text-muted font-mono truncate">
+               {selectedLog.provider} / {selectedLog.model}
+             </p>
+           )}
+         </div>
+       </div>
+     ) : (
+       selectedLog?.status?.includes("FAILED") || selectedLog?.status?.includes("ERROR")
+         ? "Request Error Details"
+         : "Request Log Details"
+     )
+   }
+   size="full"
+   className="max-w-4xl"
  >
- {selectedLog && (
- <div className="flex flex-col gap-3">
- <StatusChip status={selectedLog.status} />
+   {selectedLog && (
+     <div className="flex flex-col gap-3">
+       {/* If error: Error highlights banner like Overview's FailureResponseModal */}
+       {(classifyStatus(selectedLog.status) === "failed" || selectedLog.error) && (() => {
+         const errorSummary =
+           selectedLog.error ||
+           selectedLog.detail?.error ||
+           selectedLog.detail?.response?.error ||
+           selectedLog.detail?.response?.message ||
+           (typeof selectedLog.detail?.response === "string" ? selectedLog.detail.response : null) ||
+           "Request failed with upstream error";
+         const errorStr = typeof errorSummary === "object"
+           ? (errorSummary.message || JSON.stringify(errorSummary))
+           : String(errorSummary);
 
- <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-3 text-sm">
- <div className="flex flex-col gap-1">
-<span className="text-[11px] font-medium text-text-muted">Time</span>
- <span className="font-mono text-text-main text-sm">{selectedLog.datetime}</span>
- </div>
- <div className="flex flex-col gap-1">
- <span className="text-[11px] font-medium text-text-muted">Provider</span>
- <span className="font-mono text-text-main text-sm">{selectedLog.provider}</span>
- </div>
- <div className="flex flex-col gap-1 sm:col-span-2">
- <span className="text-[11px] font-medium text-text-muted">Model</span>
- <span className="font-mono font-medium text-text-main break-all text-sm">{selectedLog.model}</span>
- </div>
- <div className="flex flex-col gap-1">
-<span className="text-[11px] font-medium text-text-muted">Account</span>
- <span className="font-mono text-text-main break-all text-sm" title={selectedLog.account}>{selectedLog.account}</span>
- </div>
- <div className="flex flex-col gap-1">
-<span className="text-[11px] font-medium text-text-muted">Tokens In / Out</span>
- <span className="font-mono text-sm">
- <span className="text-primary font-medium">{selectedLog.sent}↑</span>
- <span className="text-text-muted mx-1">/</span>
- <span className="text-success font-medium">{selectedLog.received}↓</span>
- </span>
- </div>
- </div>
+         return (
+           <div className="rounded-sm border border-danger/30 bg-danger/10 p-3.5 flex flex-col gap-1.5">
+             <div className="flex items-center justify-between gap-2">
+               <span className="text-xs font-semibold text-danger flex items-center gap-1.5">
+                 <Icon name="error" size={16} />
+                 Error Cause / Summary
+               </span>
+               {detailLoading && (
+                 <span className="text-[11px] text-danger/80 flex items-center gap-1 font-mono">
+                   <Icon name="progress_activity" size={14} className="animate-spin" />
+                   Fetching trace…
+                 </span>
+               )}
+             </div>
+             <p className="text-xs font-medium text-danger break-words leading-relaxed select-all">
+               {errorStr}
+             </p>
+           </div>
+         );
+       })()}
 
- <div className="flex flex-col gap-1.5">
- <div className="flex items-center justify-between">
- <span className="text-[11px] font-medium text-text-muted">Raw Log</span>
- <button
- type="button"
- onClick={() => navigator.clipboard?.writeText(selectedLog.raw || "")}
- className="text-[11px] text-primary hover:underline"
- >
-Copy
- </button>
- </div>
- <pre className="rounded-sm border border-border -subtle p-3 text-xs font-mono text-text-main whitespace-pre-wrap break-all bg-surface">
- {selectedLog.raw}
- </pre>
- </div>
+       {/* Status & key metrics */}
+       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 text-sm border border-border rounded-sm bg-surface-2/40 p-3">
+         <div className="flex flex-col gap-1">
+           <span className="text-[11px] font-medium text-text-muted">Status</span>
+           <div>
+             <StatusChip status={selectedLog.status} />
+           </div>
+         </div>
+         <div className="flex flex-col gap-1">
+           <span className="text-[11px] font-medium text-text-muted">Time</span>
+           <span className="font-mono text-text-main text-xs">{selectedLog.datetime}</span>
+         </div>
+         <div className="flex flex-col gap-1">
+           <span className="text-[11px] font-medium text-text-muted">Provider</span>
+           <span className="font-mono text-text-main text-xs">{selectedLog.provider}</span>
+         </div>
+         <div className="flex flex-col gap-1">
+           <span className="text-[11px] font-medium text-text-muted">Account</span>
+           <span className="font-mono text-text-main text-xs break-all" title={selectedLog.account}>
+             {selectedLog.account}
+           </span>
+         </div>
+         <div className="flex flex-col gap-1 sm:col-span-2">
+           <span className="text-[11px] font-medium text-text-muted">Model</span>
+           <span className="font-mono font-medium text-text-main break-all text-xs">
+             {selectedLog.model}
+           </span>
+         </div>
+         <div className="flex flex-col gap-1">
+           <span className="text-[11px] font-medium text-text-muted">Tokens In / Out</span>
+           <span className="font-mono text-xs">
+             <span className="text-primary font-medium">{selectedLog.sent}↑</span>
+             <span className="text-text-muted mx-1">/</span>
+             <span className="text-success font-medium">{selectedLog.received}↓</span>
+           </span>
+         </div>
+         {selectedLog.detail?.latency?.total ? (
+           <div className="flex flex-col gap-1">
+             <span className="text-[11px] font-medium text-text-muted">Latency</span>
+             <span className="font-mono text-text-main text-xs">
+               {Math.round(selectedLog.detail.latency.total)}ms
+               {selectedLog.detail.latency.ttft ? ` (TTFT: ${Math.round(selectedLog.detail.latency.ttft)}ms)` : ""}
+             </span>
+           </div>
+         ) : null}
+       </div>
 
- {(selectedLog.status.includes("FAILED") || selectedLog.status.includes("ERROR")) && (
- <p className="text-xs text-text-muted">
-Tip: Check <span className="font-mono">/dashboard/providers</span> for provider health and retry the request. Use the log timestamp to correlate with server console output.
- </p>
- )}
- </div>
- )}
+       {/* Error / Response Payload block */}
+       {(classifyStatus(selectedLog.status) === "failed" || selectedLog.error || selectedLog.detail) && (() => {
+         const payload =
+           selectedLog.detail?.response ||
+           selectedLog.detail?.providerResponse ||
+           selectedLog.detail?.error ||
+           (selectedLog.error ? { error: selectedLog.error, status: selectedLog.status } : null);
+
+         if (!payload) return null;
+
+         return (
+           <div className="flex flex-col gap-1.5">
+             <div className="flex items-center justify-between">
+               <span className="text-[11px] font-medium text-text-muted">Response / Error Payload</span>
+               <button
+                 type="button"
+                 onClick={() => {
+                   const text = typeof payload === "object" ? JSON.stringify(payload, null, 2) : String(payload);
+                   navigator.clipboard?.writeText(text);
+                   setCopiedPayload(true);
+                   setTimeout(() => setCopiedPayload(false), 2000);
+                 }}
+                 className="text-[11px] text-primary hover:underline flex items-center gap-1 font-medium"
+               >
+                 <Icon name={copiedPayload ? "check" : "content_copy"} size={14} />
+                 {copiedPayload ? "Copied!" : "Copy Payload"}
+               </button>
+             </div>
+             <pre className="max-h-[300px] overflow-auto rounded-sm border border-border bg-surface p-3 font-mono text-xs text-text-main whitespace-pre-wrap break-all select-all">
+               {typeof payload === "object" ? JSON.stringify(payload, null, 2) : String(payload)}
+             </pre>
+           </div>
+         );
+       })()}
+
+       {/* Raw Log */}
+       <div className="flex flex-col gap-1.5">
+         <div className="flex items-center justify-between">
+           <span className="text-[11px] font-medium text-text-muted">Raw Log</span>
+           <button
+             type="button"
+             onClick={() => navigator.clipboard?.writeText(selectedLog.raw || "")}
+             className="text-[11px] text-primary hover:underline"
+           >
+             Copy
+           </button>
+         </div>
+         <pre className="rounded-sm border border-border -subtle p-3 text-xs font-mono text-text-main whitespace-pre-wrap break-all bg-surface">
+           {selectedLog.raw}
+         </pre>
+       </div>
+
+       {(selectedLog.status.includes("FAILED") || selectedLog.status.includes("ERROR") || selectedLog.error) && (
+         <p className="text-xs text-text-muted">
+           Tip: Check <span className="font-mono">/dashboard/providers</span> for provider health and retry the request. Use the log timestamp to correlate with server console output.
+         </p>
+       )}
+     </div>
+   )}
  </Modal>
  </div>
  );

@@ -1,13 +1,44 @@
 import { NextResponse } from "@/lib/http/response.js";
-import { getRequestDetails } from "@/lib/usageDb";
+import { getRequestDetails, getRequestDetailById } from "@/lib/usageDb";
+
+export const dynamic = "force-dynamic";
 
 /**
  * GET /api/usage/request-details
- * Query parameters: page, pageSize (1-100), provider, model, connectionId, status, startDate, endDate
+ * Query parameters: id, page, pageSize (1-100), provider, model, connectionId, status, startDate, endDate
  */
 export async function GET(request) {
   try {
     const { searchParams } = new URL(request.url);
+    const showRaw = process.env.REQUEST_DETAILS_SHOW_RAW === "true";
+
+    const id = searchParams.get("id");
+    if (id) {
+      const detail = await getRequestDetailById(id);
+      if (!detail) {
+        return NextResponse.json(
+          { error: "Request detail not found" },
+          { status: 404 },
+        );
+      }
+      const redacted = { ...detail };
+      const isFailed = detail.status !== "success" || Boolean(detail.error || detail.response?.error);
+
+      for (const key of ["request", "providerRequest", "providerResponse", "response"]) {
+        if (redacted[key] !== undefined) {
+          if (showRaw || (isFailed && (key === "response" || key === "providerResponse"))) {
+            continue;
+          }
+          redacted[key] = { redacted: true };
+        }
+      }
+
+      if (isFailed) {
+        redacted.error = detail.response?.error || detail.error || (detail.status !== "success" ? `Error (${detail.status || 500})` : null);
+      }
+
+      return NextResponse.json({ detail: redacted });
+    }
     
     const pageRaw = parseInt(searchParams.get("page"));
     const page = Number.isNaN(pageRaw) ? 1 : pageRaw;
@@ -63,7 +94,6 @@ export async function GET(request) {
     // disabled, anyone) read every user's conversation history.
     // For failed requests the error response payload is always preserved
     // so operators can debug issues directly from the dashboard.
-    const showRaw = process.env.REQUEST_DETAILS_SHOW_RAW === "true";
 
     const redactedDetails = (result.details || []).map((d) => {
       if (showRaw) return d;
