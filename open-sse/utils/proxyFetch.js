@@ -328,7 +328,7 @@ export async function proxyAwareFetch(url, options = {}, proxyOptions = null) {
   // Fail-closed proxy: for keyless/noAuth providers the egress IP *is* the
   // identity (per-IP quota). A silent fallback to direct would burn the shared
   // server IP, so throw instead and let chatCore rotate to the next pool.
-  const failClosed = proxyOptions?.failClosedProxy === true;
+  const failClosed = proxyOptions?.failClosedProxy === true && Boolean(proxyUrl);
   const proxyFailed = (proxyError, bypassLabel) => {
     if (proxyOptions?.strictProxy === true) {
       throw new Error(`[ProxyFetch] Proxy required but failed (strictProxy=true): ${proxyError.message}`);

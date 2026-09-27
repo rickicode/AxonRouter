@@ -383,7 +383,7 @@ const buildProxyOptions = (psd = {}) => ({
   connectionNoProxy: psd?.connectionNoProxy || "",
   vercelRelayUrl: psd?.vercelRelayUrl || "",
   strictProxy: psd?.strictProxy === true,
-  failClosedProxy: psd?.failClosedProxy === true,
+  failClosedProxy: psd?.failClosedProxy === true && Boolean(psd?.connectionProxyUrl || psd?.proxyPoolId),
   proxyPoolId: psd?.proxyPoolId || psd?.connectionProxyPoolId || null,
   noFitPool: psd?.noFitPool === true,
 });
@@ -463,6 +463,7 @@ const tryNextPool = async (poolScoped, reasonMsg) => {
         proxyPoolId: null,
         strictProxy: false,
         noFitPool: false,
+        failClosedProxy: false,
       };
       proxyOptions = buildProxyOptions(credentials.providerSpecificData);
       return true;
@@ -520,12 +521,33 @@ const executeWithPoolFallback = async (attempt = 0) => {
       proxyOptions,
     });
   } catch (error) {
-    if (typeof resolveProxyConfig === "function" && attempt < MAX_POOL_RETRIES) {
-      let poolScoped = executor.parseError ? executor.parseError(error)?.poolScoped : null;
-      if (!poolScoped && proxyOptions?.proxyPoolId && isProxyNetworkError(error)) {
-        poolScoped = { poolId: proxyOptions.proxyPoolId, scope: proxyScope, reason: "proxy_connection_failed" };
+    let poolScoped = executor.parseError ? executor.parseError(error)?.poolScoped : null;
+    if (!poolScoped && proxyOptions?.proxyPoolId && isProxyNetworkError(error)) {
+      poolScoped = { poolId: proxyOptions.proxyPoolId, scope: proxyScope, reason: "proxy_connection_failed" };
+    }
+    if (poolScoped) {
+      if (typeof resolveProxyConfig === "function" && attempt < MAX_POOL_RETRIES) {
+        if (await tryNextPool(poolScoped, error.message)) {
+          return executeWithPoolFallback(attempt + 1);
+        }
       }
-      if (poolScoped && await tryNextPool(poolScoped, error.message)) {
+      // If pool retries are exhausted or no pool left, attempt direct fallback
+      const isStrict = credentials?.providerSpecificData?.strictProxy === true || proxyOptions?.strictProxy === true;
+      if (!isStrict && !failedPoolIds.has("__direct__")) {
+        failedPoolIds.add("__direct__");
+        log?.warn?.("PROXY", `${provider.toUpperCase()} | max proxy pool retries reached or no pool left (${poolScoped.reason}) — falling back to direct egress`);
+        credentials.providerSpecificData = {
+          ...(credentials.providerSpecificData || {}),
+          connectionProxyEnabled: false,
+          connectionProxyUrl: "",
+          connectionNoProxy: "",
+          vercelRelayUrl: "",
+          proxyPoolId: null,
+          strictProxy: false,
+          noFitPool: false,
+          failClosedProxy: false,
+        };
+        proxyOptions = buildProxyOptions(credentials.providerSpecificData);
         return executeWithPoolFallback(attempt + 1);
       }
     }
@@ -536,8 +558,28 @@ const executeWithPoolFallback = async (attempt = 0) => {
   // free per-IP limit) — parse once, retry via another pool when possible.
   if (!result.response.ok) {
     const parsed = await parseUpstreamError(result.response, executor);
-    if (parsed.poolScoped && typeof resolveProxyConfig === "function" && attempt < MAX_POOL_RETRIES) {
-      if (await tryNextPool(parsed.poolScoped, parsed.message)) return executeWithPoolFallback(attempt + 1);
+    if (parsed.poolScoped) {
+      if (typeof resolveProxyConfig === "function" && attempt < MAX_POOL_RETRIES) {
+        if (await tryNextPool(parsed.poolScoped, parsed.message)) return executeWithPoolFallback(attempt + 1);
+      }
+      const isStrict = credentials?.providerSpecificData?.strictProxy === true || proxyOptions?.strictProxy === true;
+      if (!isStrict && !failedPoolIds.has("__direct__")) {
+        failedPoolIds.add("__direct__");
+        log?.warn?.("PROXY", `${provider.toUpperCase()} | max proxy pool retries reached or no pool left (${parsed.poolScoped.reason}) — falling back to direct egress`);
+        credentials.providerSpecificData = {
+          ...(credentials.providerSpecificData || {}),
+          connectionProxyEnabled: false,
+          connectionProxyUrl: "",
+          connectionNoProxy: "",
+          vercelRelayUrl: "",
+          proxyPoolId: null,
+          strictProxy: false,
+          noFitPool: false,
+          failClosedProxy: false,
+        };
+        proxyOptions = buildProxyOptions(credentials.providerSpecificData);
+        return executeWithPoolFallback(attempt + 1);
+      }
     }
     parsedNonOk = parsed;
   }
