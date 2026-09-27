@@ -226,7 +226,10 @@ export async function reconcileProxyGroup(group, fetchedUrls, db) {
     } catch {}
 
     const id = crypto.randomUUID();
-    const name = `Auto-${group.name || group.id}-${hostLabel}`;
+    // Short, readable, index-stable name. Long "Auto-<group>-<host:port>" names
+    // made the group card's pool chips wrap and blow up row height.
+    const seq = i + 1;
+    const name = `${group.name || "Auto"} #${seq}`;
     newPools.push({
       id,
       name,

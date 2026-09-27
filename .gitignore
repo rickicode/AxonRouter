@@ -94,3 +94,5 @@ benchmark_*.py
 benchmark_*.json
 benchmark_store.db
 *.dump
+
+.impeccable/

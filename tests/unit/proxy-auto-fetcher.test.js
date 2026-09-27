@@ -252,7 +252,9 @@ user:pass@10.0.0.4:8080
       // Verify that new pool was inserted
       const added = mockPoolsTable.find((p) => p.proxy_url === "http://10.0.0.3:8080");
       expect(added).toBeDefined();
-      expect(added.name).toBe("Auto-Test Group-10.0.0.3:8080");
+      // Pool names are short group-relative indices ("Test Group #N"),
+      // recomputed across retained+new pools each sync.
+      expect(added.name).toBe("Test Group #1");
       expect(added.test_status).toBe("unknown");
       expect(added.is_active).toBe(true);
 

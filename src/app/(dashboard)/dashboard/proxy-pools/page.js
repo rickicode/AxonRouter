@@ -1408,8 +1408,8 @@ function ProxyPoolsContent() {
             </Button>
           </div>
         ) : activeTab === "groups" ? (
-          <div className="flex items-center gap-2">
-            <Button size="sm" icon="add" onClick={openCreateGroupModal}>
+          <div className="flex items-center gap-2 shrink-0">
+            <Button size="sm" icon="add" onClick={openCreateGroupModal} className="whitespace-nowrap">
               Add Custom Group
             </Button>
           </div>
@@ -1982,35 +1982,35 @@ function ProxyPoolsContent() {
  <h3 className="font-medium text-sm text-text-main">{grp.name}</h3>
  <p className="mt-1 text-xs text-text-muted">{grp.description}</p>
  </div>
- <div className="mt-4 pt-3 border-t border-border flex items-center justify-between text-xs h-8">
- <div>
- <span className="text-text-muted">Active Pools: </span>
- <span className="font-medium text-text-main font-mono">
- {grp.activeCount} / {grp.poolCount}
- </span>
- </div>
- <div className="flex items-center gap-2">
- <button
- type="button"
- onClick={() => {
- setGroupFilter(`default:${grp.type}`);
- setActiveTab("pools");
- }}
-                    className="min-h-11 sm:min-h-8 px-2 rounded-sm text-xs text-text-muted hover:text-text-main flex items-center gap-1 font-medium hover:bg-surface-2"
-                    title="View all pools in this group"
-                  >
-                    <Icon name="visibility" size={18} />
-                    <span>View ({grp.poolCount})</span>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => openEditGroupModal(grp)}
-                    className="min-h-11 sm:min-h-8 px-2 rounded-sm text-xs text-primary hover:underline flex items-center gap-1 font-medium hover:bg-primary/10"
-                  >
-                    <Icon name="tune" size={18} />
-                    <span>Configure</span>
-                  </button>
- </div>
+ <div className="mt-3 pt-2.5 border-t border-border flex items-center justify-between text-xs gap-1">
+   <div className="flex items-baseline gap-1 text-[11px] shrink-0 font-mono">
+     <span className="text-text-muted">Pools:</span>
+     <span className="font-semibold text-text-main">
+       {grp.activeCount ?? 0}/{grp.poolCount ?? 0}
+     </span>
+   </div>
+   <div className="flex items-center gap-1 shrink-0">
+     <button
+       type="button"
+       onClick={() => {
+         setGroupFilter(`default:${grp.type}`);
+         setActiveTab("pools");
+       }}
+       className="px-1.5 py-0.5 rounded-sm text-[11px] text-text-muted hover:text-text-main flex items-center gap-0.5 font-medium hover:bg-surface-2 transition-colors"
+       title="View all pools in this group"
+     >
+       <Icon name="visibility" size={13} />
+       <span>View</span>
+     </button>
+     <button
+       type="button"
+       onClick={() => openEditGroupModal(grp)}
+       className="px-1.5 py-0.5 rounded-sm text-[11px] text-primary hover:underline flex items-center gap-0.5 font-medium hover:bg-primary/10 transition-colors"
+     >
+       <Icon name="tune" size={13} />
+       <span>Config</span>
+     </button>
+   </div>
  </div>
  </Card>
  );
@@ -2021,16 +2021,20 @@ function ProxyPoolsContent() {
  {/* Custom Groups */}
  <Card>
  <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between mb-3">
- <div>
- <h2 className="text-sm font-semibold text-text-main flex items-center gap-2">
- <Icon className="text-primary" name="folder_special" size={18} />
- <span>Custom Groups</span>
- </h2>
- <p className="text-xs text-text-muted">
- Custom groups allow bundling specific proxies with configurable sticky session limits.
- </p>
- </div>
- <Button size="sm" icon="add" onClick={openCreateGroupModal}>Add Custom Group</Button>
+   <div className="min-w-0">
+     <h2 className="text-sm font-semibold text-text-main flex items-center gap-2">
+       <Icon className="text-primary" name="folder_special" size={18} />
+       <span>Custom Groups</span>
+     </h2>
+     <p className="text-xs text-text-muted mt-0.5">
+       Custom groups allow bundling specific proxies with configurable sticky session limits.
+     </p>
+   </div>
+   <div className="shrink-0">
+     <Button size="sm" icon="add" onClick={openCreateGroupModal} className="whitespace-nowrap">
+       Add Custom Group
+     </Button>
+   </div>
  </div>
 
  {loadingGroups ? (
@@ -2047,13 +2051,18 @@ function ProxyPoolsContent() {
  ) : (
  <div className="flex flex-col divide-y divide-border">
  {proxyGroups.customGroups.map((grp) => {
- const poolNames = (grp.poolIds || [])
+ const poolIds = grp.poolIds || [];
+ // Cap rendered pool-name chips; a subscription group can hold thousands of
+ // pools and rendering them all (each a DOM node) freezes the tab.
+ const PREVIEW = 8;
+ const poolNames = poolIds
+ .slice(0, PREVIEW + 1)
  .map((id) => proxyPools.find((p) => p.id === id)?.name)
  .filter(Boolean);
 
  return (
- <div key={grp.id} className="py-3 first:pt-0 last:pb-0 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
- <div className="min-w-0 flex-1">
+   <div key={grp.id} className="py-4 first:pt-0 last:pb-0 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+     <div className="min-w-0 flex-1">
  <div className="flex flex-wrap items-center gap-2 mb-1">
  <span className="font-semibold text-sm text-text-main">{grp.name}</span>
  {grp.isSticky ? (
@@ -2066,7 +2075,7 @@ function ProxyPoolsContent() {
    Auto-Sync ({formatSyncInterval(grp.fetchIntervalMs)})
  </Badge>
  )}
- <span className="text-xs text-text-muted font-mono">
+ <span className="text-xs text-text-muted font-mono whitespace-nowrap">
  {grp.activeCount} active / {grp.poolCount} total
  </span>
  </div>
@@ -2086,59 +2095,60 @@ function ProxyPoolsContent() {
  </div>
  )}
  {poolNames.length > 0 && (
- <div className="flex flex-wrap gap-1 mt-1.5">
+ <div className="flex flex-wrap gap-1 mt-1.5 max-h-[88px] overflow-hidden">
  {poolNames.slice(0, 8).map((name) => (
- <span key={name} className="inline-flex items-center rounded-sm bg-surface px-2 py-1 text-[11px] text-text-muted">
+ <span key={name} className="inline-flex items-center rounded-sm bg-surface px-2 py-1 text-[11px] text-text-muted max-w-[160px] truncate">
  {name}
  </span>
  ))}
- {poolNames.length > 8 && (
+ {poolIds.length > 8 && (
  <button
  type="button"
  onClick={() => {
  setGroupFilter(`custom:${grp.id}`);
  setActiveTab("pools");
  }}
- className="inline-flex items-center rounded-sm bg-primary/10 hover:bg-primary/10 px-2 py-1 text-[11px] text-primary font-medium cursor-pointer"
+ className="inline-flex items-center rounded-sm bg-primary/10 hover:bg-primary/10 px-2 py-1 text-[11px] text-primary font-medium cursor-pointer shrink-0"
+ title={`View all ${poolIds.length} proxies in this group`}
  >
- +{poolNames.length - 8} more (view all)
+ +{poolIds.length - 8} more
  </button>
  )}
  </div>
  )}
  </div>
 
- <div className="flex items-center gap-1 self-end sm:self-center">
- {grp.fetchUrl && (
- <Button
- size="sm"
- variant="secondary"
- icon="refresh"
- loading={syncingGroupId === grp.id}
- onClick={() => handleSyncGroup(grp)}
- title="Sync proxies from URL now"
- >
- Sync Now
- </Button>
- )}
- <Button
- size="sm"
- variant="secondary"
- icon="visibility"
- onClick={() => {
- setGroupFilter(`custom:${grp.id}`);
- setActiveTab("pools");
- }}
- title={`View proxies in ${grp.name}`}
- >
- View Proxies ({grp.poolCount})
- </Button>
- <Button size="sm" variant="ghost" icon="edit" onClick={() => openEditGroupModal(grp)}>
- Edit
- </Button>
- <Button size="sm" variant="ghost" icon="delete" onClick={() => handleDeleteGroup(grp)} className="text-danger hover:text-danger">
- Delete
- </Button>
+ <div className="flex flex-wrap items-center gap-1.5 sm:gap-2 self-start sm:self-center shrink-0">
+   {grp.fetchUrl && (
+     <Button
+       size="sm"
+       variant="secondary"
+       icon="refresh"
+       loading={syncingGroupId === grp.id}
+       onClick={() => handleSyncGroup(grp)}
+       title="Sync proxies from URL now"
+     >
+       Sync Now
+     </Button>
+   )}
+   <Button
+     size="sm"
+     variant="secondary"
+     icon="visibility"
+     onClick={() => {
+       setGroupFilter(`custom:${grp.id}`);
+       setActiveTab("pools");
+     }}
+     title={`View proxies in ${grp.name}`}
+   >
+     View ({grp.poolCount})
+   </Button>
+   <Button size="sm" variant="ghost" icon="edit" onClick={() => openEditGroupModal(grp)}>
+     Edit
+   </Button>
+   <Button size="sm" variant="ghost" icon="delete" onClick={() => handleDeleteGroup(grp)} className="text-danger hover:text-danger">
+     Delete
+   </Button>
  </div>
  </div>
  );
