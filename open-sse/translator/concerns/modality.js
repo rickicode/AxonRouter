@@ -39,7 +39,7 @@ function capForOpenAIBlock(block) {
 // Claude content block -> required capability.
 function capForClaudeBlock(block) {
   const t = block?.type;
-  if (t === "image") return "vision";
+  if (t === "image" || t === "image_url") return "vision";
   if (t === "document") return "pdf";
   return null;
 }
@@ -49,8 +49,30 @@ function capForClaudeBlock(block) {
 function filterBlocks(blocks, capOf, caps, removed, isLast) {
   const out = [];
   for (const block of blocks) {
+    if (!block || typeof block !== "object") {
+      out.push(block);
+      continue;
+    }
     const cap = capOf(block);
     if (cap && caps[cap] === false) { removed.add(cap); continue; }
+
+    // Recursively sanitize tool_result blocks (Claude and OpenAI hybrid)
+    if (block.type === "tool_result") {
+      const sanitized = { ...block };
+      if (Array.isArray(sanitized.content)) {
+        const subRemoved = new Set();
+        sanitized.content = filterBlocks(sanitized.content, capOf, caps, subRemoved, isLast);
+        for (const c of subRemoved) removed.add(c);
+      } else if (typeof sanitized.content === "string") {
+        if (caps.vision === false && sanitized.content.includes("data:image/")) {
+          sanitized.content = sanitized.content.replace(/data:image\/[a-zA-Z0-9+.-]+;base64,[A-Za-z0-9+/=]+/g, ph("vision", isLast));
+          removed.add("vision");
+        }
+      }
+      out.push(sanitized);
+      continue;
+    }
+
     out.push(block);
   }
   for (const cap of removed) out.push({ type: "text", text: ph(cap, isLast) });
@@ -75,7 +97,12 @@ function stripOpenAI(body, caps) {
         );
       }
     }
-    if (!Array.isArray(msg.content)) return;
+    if (!Array.isArray(msg.content)) {
+      if (typeof msg.content === "string" && caps.vision === false && msg.content.includes("data:image/")) {
+        msg.content = msg.content.replace(/data:image\/[a-zA-Z0-9+.-]+;base64,[A-Za-z0-9+/=]+/g, ph("vision", i === last));
+      }
+      return;
+    }
     const removed = new Set();
     msg.content = filterBlocks(msg.content, capForOpenAIBlock, caps, removed, i === last);
   });

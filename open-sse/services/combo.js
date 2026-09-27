@@ -872,6 +872,10 @@ Task:`;
 
 export async function handleDifficultyChat({ body, models = [], handleSingleModel, log, comboName, judgeModel, tuning = {}, rotationBudget = null, externalSignal = null, onDecision = null, memberHealth = null }) {
   const notify = (d) => { try { onDecision && onDecision(d); } catch {} };
+  // Capability gating (same contract as handleComboChat): detected ONCE from the
+  // request body, then applied to every tier's candidate list before any sort.
+  // Empty set => reorderByCapabilities early-returns and behavior is unchanged.
+  const requiredCapabilities = detectRequiredCapabilities(body);
   const cfg = { ...DIFFICULTY_DEFAULTS, ...(tuning || {}) };
   const easyTier = (Array.isArray(cfg.easyModels) ? cfg.easyModels : []).filter(Boolean);
   const medTier = (Array.isArray(cfg.mediumModels) ? cfg.mediumModels : []).filter(Boolean);
@@ -1070,6 +1074,19 @@ export async function handleDifficultyChat({ body, models = [], handleSingleMode
     const tierCfg = tiers[t];
     let candidateModels = [...tierCfg.models];
     const now = Date.now();
+
+    // 0. Capability gate: float models that satisfy the request's required
+    // capabilities to the front of THIS tier (stable, never drops a model, so
+    // tier escalation is untouched). Runs before cache affinity + health sort
+    // so the gate's ordering wins the tie when those sorts are neutral.
+    if (requiredCapabilities.size > 0) {
+      const before = tierCfg.models.join(",");
+      const gated = reorderByCapabilities(candidateModels, requiredCapabilities);
+      if (gated.join(",") !== before) {
+        candidateModels = gated;
+        log.info("DIFFICULTY", `Capability gate: [${[...requiredCapabilities].join(",")}] reorder ${tierCfg.name} tier [${candidateModels.join(", ")}]`);
+      }
+    }
 
     // 1. Prompt-Cache Affinity: prioritize sticky model from previous turn if in tier and healthy
     if (stickyModel && candidateModels.includes(stickyModel)) {

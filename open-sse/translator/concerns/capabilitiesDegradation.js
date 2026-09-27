@@ -36,8 +36,12 @@ export function deriveRequiredCapabilities(body, options = {}) {
     else if (mime.startsWith("video/")) required.add("videoInput");
   };
 
-  const scanBlock = (b) => {
-    if (!b || typeof b !== "object") return;
+  // Max nesting depth when walking tool_result payloads. Guards against
+  // pathological or circular structures (bounded work, no infinite loop).
+  const MAX_SCAN_DEPTH = 5;
+
+  const scanBlock = (b, depth = 0) => {
+    if (!b || typeof b !== "object" || depth > MAX_SCAN_DEPTH) return;
     const t = b.type;
     if (t === "image_url" || t === "image" || t === "input_image") required.add("vision");
     if (t === "input_audio" || t === "audio_url" || t === "audio") required.add("audioInput");
@@ -57,18 +61,47 @@ export function deriveRequiredCapabilities(body, options = {}) {
     if (t === "tool_use" || t === "tool_result") {
       required.add("tools");
     }
+    if (t === "tool_result") {
+      const inspectNested = (val) => {
+        if (!val) return;
+        if (Array.isArray(val)) {
+          scanContent(val, depth + 1);
+        } else if (typeof val === "object") {
+          scanBlock(val, depth + 1);
+        } else if (typeof val === "string") {
+          scanContent(val, depth + 1);
+          if (val.length < 500_000) {
+            const trimmed = val.trim();
+            if ((trimmed.startsWith("{") && trimmed.endsWith("}")) || (trimmed.startsWith("[") && trimmed.endsWith("]"))) {
+              try {
+                const parsed = JSON.parse(trimmed);
+                if (parsed && typeof parsed === "object") {
+                  inspectNested(parsed);
+                }
+              } catch {}
+            }
+          }
+        }
+      };
+      if (b.content !== undefined) inspectNested(b.content);
+      if (b.output !== undefined) inspectNested(b.output);
+    }
     if (t === "thinking") {
       required.add("reasoning");
     }
   };
 
-  const scanContent = (content) => {
+  const scanContent = (content, depth = 0) => {
+    if (!content || depth > MAX_SCAN_DEPTH) return;
     if (Array.isArray(content)) {
-      for (const b of content) scanBlock(b);
+      for (const b of content) scanBlock(b, depth);
+    } else if (typeof content === "object") {
+      scanBlock(content, depth);
     } else if (typeof content === "string") {
       if (content.includes("data:image/")) required.add("vision");
-      else if (content.includes("data:audio/")) required.add("audioInput");
-      else if (content.includes("data:application/pdf")) required.add("pdf");
+      if (content.includes("data:audio/")) required.add("audioInput");
+      if (content.includes("data:application/pdf")) required.add("pdf");
+      if (content.includes("data:video/")) required.add("videoInput");
     }
   };
 

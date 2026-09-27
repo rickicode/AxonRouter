@@ -453,4 +453,39 @@ describe("handleDifficultyChat (smart routing)", () => {
     expect(memberHealth.checkAvailability).toHaveBeenCalledWith("easy-exhausted");
     expect(memberHealth.onSuccess).toHaveBeenCalledWith("easy-ok");
   });
+
+  it("capability gate: prioritizes vision-capable model in easy tier when body has image", async () => {
+    const calls = [];
+    const handleSingleModel = vi.fn(async (b, m) => {
+      calls.push(m);
+      return okRes("pong");
+    });
+
+    // easy-novision is listed first in easyModels, but request requires vision.
+    // easy-vision has vision capability, easy-novision does not.
+    // Using real model identifiers that map to capabilities:
+    // llm7-free/GLM-5.3-Flash (vision: false) vs google/gemini-2.5-flash (vision: true)
+    const res = await handleDifficultyChat({
+      body: {
+        messages: [{
+          role: "user",
+          content: [
+            { type: "text", text: "check this image" },
+            { type: "image_url", image_url: { url: "data:image/png;base64,AAAA" } }
+          ]
+        }],
+        stream: false
+      },
+      models: ["llm7-free/GLM-5.3-Flash", "google/gemini-2.5-flash"],
+      handleSingleModel,
+      log: quietLog,
+      comboName: "smart-model",
+      tuning: { easyModels: ["llm7-free/GLM-5.3-Flash", "google/gemini-2.5-flash"] },
+    });
+
+    expect(res.ok).toBe(true);
+    // Even though llm7-free/GLM-5.3-Flash is listed first in tuning.easyModels,
+    // the capability gate must reorder google/gemini-2.5-flash to the front!
+    expect(calls[0]).toBe("google/gemini-2.5-flash");
+  });
 });

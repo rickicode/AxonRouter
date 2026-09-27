@@ -18,6 +18,57 @@ describe("Capability Degradation Concern", () => {
     });
 
     it("detects vision, audioInput, and pdf modalities across formats", () => {
+      // Claude format with image in message content
+      const claude = {
+        messages: [
+          {
+            role: "user",
+            content: [
+              { type: "text", text: "what is this?" },
+              { type: "image", source: { type: "base64", media_type: "image/png", data: "..." } },
+            ],
+          },
+        ],
+      };
+      assert.equal(deriveRequiredCapabilities(claude).has("vision"), true);
+
+      // Claude format with image inside nested tool_result content
+      const claudeNestedTool = {
+        messages: [
+          {
+            role: "user",
+            content: [
+              {
+                type: "tool_result",
+                tool_use_id: "call_1",
+                content: [
+                  { type: "text", text: "Here is a screenshot:" },
+                  { type: "image", source: { type: "base64", media_type: "image/png", data: "..." } },
+                ],
+              },
+            ],
+          },
+        ],
+      };
+      assert.equal(deriveRequiredCapabilities(claudeNestedTool).has("vision"), true);
+      assert.equal(deriveRequiredCapabilities(claudeNestedTool).has("tools"), true);
+
+      // OpenAI format with image inside tool role message
+      const openaiToolRole = {
+        messages: [
+          {
+            role: "tool",
+            tool_call_id: "call_1",
+            content: [
+              { type: "text", text: "screenshot" },
+              { type: "image_url", image_url: { url: "https://example.com/screenshot.png" } },
+            ],
+          },
+        ],
+      };
+      assert.equal(deriveRequiredCapabilities(openaiToolRole).has("vision"), true);
+      assert.equal(deriveRequiredCapabilities(openaiToolRole).has("tools"), true);
+
       const openai = {
         messages: [
           {
@@ -188,6 +239,42 @@ describe("Capability Degradation Concern", () => {
       assert.equal(body.max_tokens, 8192);
       assert.equal(res.degradedCapabilities.includes("clamp:max_tokens"), true);
     });
+
+    it("recursively strips images inside tool_result when target lacks vision", () => {
+      const body = {
+        messages: [
+          {
+            role: "user",
+            content: [
+              {
+                type: "tool_result",
+                tool_use_id: "call_1",
+                content: [
+                  { type: "text", text: "preview screenshot" },
+                  { type: "image", source: { type: "base64", media_type: "image/png", data: "AAAA" } },
+                ],
+              },
+            ],
+          },
+        ],
+      };
+
+      const caps = { tools: true, vision: false };
+      const res = degradeRequestForCapabilities(body, FORMATS.CLAUDE, caps);
+
+      assert.equal(res.degraded, true);
+      assert.equal(res.degradedCapabilities.includes("vision"), true);
+
+      const jsonStr = JSON.stringify(body);
+      assert.equal(jsonStr.includes("image/png"), false);
+      assert.equal(jsonStr.includes("AAAA"), false);
+
+      const toolResult = body.messages[0].content[0];
+      assert.equal(toolResult.type, "tool_result");
+      assert.equal(toolResult.content.length, 2);
+      assert.equal(toolResult.content[1].type, "text");
+      assert.match(toolResult.content[1].text, /image omitted/);
+    });
   });
 
   describe("Combo routing prioritization with tools capability", () => {
@@ -199,6 +286,16 @@ describe("Capability Degradation Concern", () => {
 
       assert.equal(reordered[0], "openai/gpt-4o");
       assert.equal(reordered.includes("openai/gpt-image-1"), true); // kept as fallback
+    });
+
+    it("prioritizes vision-capable models when request requires vision", () => {
+      // llm7-free/GLM-5.3-Flash has vision: false, google/gemini-2.5-flash has vision: true
+      const models = ["llm7-free/GLM-5.3-Flash", "google/gemini-2.5-flash"];
+      const required = new Set(["vision"]);
+      const reordered = reorderByCapabilities(models, required);
+
+      assert.equal(reordered[0], "google/gemini-2.5-flash");
+      assert.equal(reordered[1], "llm7-free/GLM-5.3-Flash");
     });
   });
 });
