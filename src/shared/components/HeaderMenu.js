@@ -4,7 +4,7 @@ import { useState, useEffect, useRef } from "react";
 import PropTypes from "prop-types";
 import { useTheme } from "@/shared/hooks/useTheme";
 import ChangelogModal from "./ChangelogModal";
-import { ConfirmModal } from "./Modal";
+
 import Icon from "@/shared/components/Icon";
 
 function MenuItem({ icon, label, onClick, trailing, danger }) {
@@ -86,17 +86,7 @@ className="flex size-10 items-center justify-center text-text-muted hover:bg-sur
  </div>
 
  <ChangelogModal isOpen={changelogOpen} onClose={() => setChangelogOpen(false)} />
- <ConfirmModal
- isOpen={shutdownOpen}
- onClose={() => setShutdownOpen(false)}
- onConfirm={handleShutdown}
- title="Close Proxy"
- message="Are you sure you want to close the proxy server?"
- confirmText="Close"
- cancelText="Cancel"
- variant="danger"
- loading={isShuttingDown}
- />
+ 
  </>
  );
 }
