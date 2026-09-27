@@ -464,11 +464,11 @@ export async function getProviderProxyStats(providerId) {
       `SELECT
          COUNT(*)::int AS total,
          COUNT(*) FILTER (WHERE success = true)::int AS success_count,
-         COUNT(*) FILTER (WHERE success = false AND error_category != 'cancelled')::int AS failure_count,
+         COUNT(*) FILTER (WHERE success = false AND error_category IS DISTINCT FROM 'cancelled')::int AS failure_count,
          COUNT(*) FILTER (WHERE error_category = 'cancelled')::int AS cancelled_count,
          ROUND(
            (COUNT(*) FILTER (WHERE success = true)::numeric / 
-            NULLIF(COUNT(*) FILTER (WHERE error_category != 'cancelled')::numeric, 0)) * 100, 
+            NULLIF(COUNT(*) FILTER (WHERE error_category IS DISTINCT FROM 'cancelled')::numeric, 0)) * 100, 
            1
          ) AS success_rate
        FROM analytics_events
@@ -489,11 +489,11 @@ export async function getProviderProxyStats(providerId) {
       `SELECT
          COUNT(*)::int AS total,
          COUNT(*) FILTER (WHERE success = true)::int AS success_count,
-         COUNT(*) FILTER (WHERE success = false AND error_category != 'cancelled')::int AS failure_count,
+         COUNT(*) FILTER (WHERE success = false AND error_category IS DISTINCT FROM 'cancelled')::int AS failure_count,
          COUNT(*) FILTER (WHERE error_category = 'cancelled')::int AS cancelled_count,
          ROUND(
            (COUNT(*) FILTER (WHERE success = true)::numeric / 
-            NULLIF(COUNT(*) FILTER (WHERE error_category != 'cancelled')::numeric, 0)) * 100, 
+            NULLIF(COUNT(*) FILTER (WHERE error_category IS DISTINCT FROM 'cancelled')::numeric, 0)) * 100, 
            1
          ) AS success_rate
        FROM analytics_events
