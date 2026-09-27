@@ -18,10 +18,10 @@ const CLIToolsPageClient = lazy(() => import("@/app/(dashboard)/dashboard/cli-to
 const ToolDetailClient = lazy(() => import("@/app/(dashboard)/dashboard/cli-tools/[toolId]/ToolDetailClient.js"));
 const CombosPage = lazy(() => import("@/app/(dashboard)/dashboard/combos/page.js"));
 const ConsoleLogPage = lazy(() => import("@/app/(dashboard)/dashboard/console-log/page.js"));
-const MediaKindPage = lazy(() => import("@/app/(dashboard)/dashboard/media-providers/[kind]/page.js"));
-const MediaKindIdPage = lazy(() => import("@/app/(dashboard)/dashboard/media-providers/[kind]/[id]/page.js"));
-const MediaComboPage = lazy(() => import("@/app/(dashboard)/dashboard/media-providers/combo/[...id]/page.js"));
-const MediaWebPage = lazy(() => import("@/app/(dashboard)/dashboard/media-providers/web/page.js"));
+const MediaKindPage = lazy(() => import("@/app/(dashboard)/dashboard/capabilities-providers/[kind]/page.js"));
+const MediaKindIdPage = lazy(() => import("@/app/(dashboard)/dashboard/capabilities-providers/[kind]/[id]/page.js"));
+const MediaComboPage = lazy(() => import("@/app/(dashboard)/dashboard/capabilities-providers/combo/[...id]/page.js"));
+const MediaWebPage = lazy(() => import("@/app/(dashboard)/dashboard/capabilities-providers/web/page.js"));
 const ProvidersPage = lazy(() => import("@/app/(dashboard)/dashboard/providers/page.js"));
 const ProviderNewPage = lazy(() => import("@/app/(dashboard)/dashboard/providers/new/page.js"));
 const ProviderDetailPage = lazy(() => import("@/app/(dashboard)/dashboard/providers/[id]/page.js"));
@@ -152,10 +152,10 @@ createRoot(document.getElementById("root")).render(
             <Route path="/dashboard/cli-tools/:toolId" element={<ToolIdPage />} />
             <Route path="/dashboard/combos" element={<Shell><CombosPage /></Shell>} />
             <Route path="/dashboard/console-log" element={<Shell><ConsoleLogPage /></Shell>} />
-            <Route path="/dashboard/media-providers/web" element={<Shell><MediaWebPage /></Shell>} />
-            <Route path="/dashboard/media-providers/combo/*" element={<Shell><MediaComboPage /></Shell>} />
-            <Route path="/dashboard/media-providers/:kind" element={<Shell><MediaKindPage /></Shell>} />
-            <Route path="/dashboard/media-providers/:kind/:id" element={<Shell><MediaKindIdPage /></Shell>} />
+            <Route path="/dashboard/capabilities-providers/web" element={<Shell><MediaWebPage /></Shell>} />
+            <Route path="/dashboard/capabilities-providers/combo/*" element={<Shell><MediaComboPage /></Shell>} />
+            <Route path="/dashboard/capabilities-providers/:kind" element={<Shell><MediaKindPage /></Shell>} />
+            <Route path="/dashboard/capabilities-providers/:kind/:id" element={<Shell><MediaKindIdPage /></Shell>} />
             <Route path="/dashboard/providers" element={<Shell><ProvidersPage /></Shell>} />
             <Route path="/dashboard/providers/new" element={<Shell><ProviderNewPage /></Shell>} />
             <Route path="/dashboard/providers/:id" element={<Shell><ProviderDetailPage /></Shell>} />

@@ -11,7 +11,7 @@ import { MEDIA_PROVIDER_KINDS } from "@/shared/constants/providers";
 import Icon from "@/shared/components/Icon";
 
 const VISIBLE_MEDIA_KINDS = ["embedding", "image", "video", "tts", "stt"];
-const COMBINED_WEB_ITEM = { id: "web", label: "Web Fetch & Search", icon: "travel_explore", href: "/dashboard/media-providers/web" };
+const COMBINED_WEB_ITEM = { id: "web", label: "Web Fetch & Search", icon: "travel_explore", href: "/dashboard/capabilities-providers/web" };
 
 // Core & Routing
 const coreRoutingItems = [
@@ -158,18 +158,18 @@ export default function Sidebar({ onClose }) {
             </Link>
           ))}
 
-          {/* Media Providers accordion */}
+          {/* Capabilities Providers accordion */}
           <button
             onClick={() => setMediaOpen((v) => !v)}
             className={cn(
               "flex h-8 items-center gap-2.5 px-2.5 rounded-sm text-[13px] font-medium transition-colors",
-              pathname.startsWith("/dashboard/media-providers")
+              pathname.startsWith("/dashboard/capabilities-providers")
                 ? "bg-primary/10 text-primary"
                 : "text-text-muted hover:bg-surface-2 hover:text-text-main"
             )}
           >
-            <Icon name="perm_media" size={18} />
-            <span className="flex-1 text-left">Media Providers</span>
+            <Icon name="extension" size={18} />
+            <span className="flex-1 text-left">Capabilities Providers</span>
             <Icon name="expand_more" size={18} className="transition-transform" />
           </button>
           
@@ -178,13 +178,13 @@ export default function Sidebar({ onClose }) {
               {MEDIA_PROVIDER_KINDS.filter((k) => VISIBLE_MEDIA_KINDS.includes(k.id)).map((kind) => (
                 <Link
                   key={kind.id}
-                  href={`/dashboard/media-providers/${kind.id}`}
+                  href={`/dashboard/capabilities-providers/${kind.id}`}
                   prefetch={false}
                   onClick={onClose}
-                  aria-current={pathname.startsWith(`/dashboard/media-providers/${kind.id}`) ? "page" : undefined}
+                  aria-current={pathname.startsWith(`/dashboard/capabilities-providers/${kind.id}`) ? "page" : undefined}
                   className={cn(
                     "flex h-7.5 items-center gap-2 pl-8 pr-2.5 rounded-sm text-[12.5px] transition-colors",
-                    pathname.startsWith(`/dashboard/media-providers/${kind.id}`)
+                    pathname.startsWith(`/dashboard/capabilities-providers/${kind.id}`)
                       ? "bg-primary/10 text-primary"
                       : "text-text-muted hover:bg-surface-2 hover:text-text-main"
                   )}

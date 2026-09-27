@@ -42,7 +42,7 @@ async function probeWebProvider(provider, apiKey) {
   return res.status !== 401 && res.status !== 403;
 }
 
-// Probe a media provider (tts/embedding/stt/image/video) using *Config.
+// Probe a capabilities provider (tts/embedding/stt/image/video) using *Config.
 // Returns true if API key is accepted; null to skip (let default handler decide).
 async function probeMediaProvider(provider, apiKey) {
   const p = AI_PROVIDERS[provider];

@@ -673,7 +673,7 @@
   "Maximum request detail records to keep (older records are auto-deleted)": "Rekam detail permintaan maksimal untuk disimpan (rekam lama otomatis dihapus)",
   "Maximum size for each JSON field (request/response) before truncation": "Ukuran maksimum untuk setiap bidang JSON (permintaan/respons) sebelum pemotongan",
   "Maximum time to wait before flushing buffer (prevents data loss during low traffic)": "Waktu maksimum untuk menunggu sebelum mem-flush buffer (mencegah kehilangan data saat lalu lintas rendah)",
-  "Media Providers": "Penyedia Media",
+  "Capabilities Providers": "Penyedia Kapabilitas",
   "Menu": "Menu",
   "Message AI": "Pesan AI",
   "Messages": "Pesan",

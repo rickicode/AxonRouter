@@ -10,6 +10,17 @@ import { MODEL_FAILOVER_THRESHOLD } from "../config/errorConfig.js";
 import { getCapabilitiesForModel } from "../providers/capabilities.js";
 import { extractTextContent } from "../translator/formats/gemini.js";
 import { deriveRequiredCapabilities } from "../translator/concerns/capabilitiesDegradation.js";
+import { resolveJevTarget } from "./jevUpstream.js";
+import {
+  TYPESAFE_SYSTEMONE_URL,
+  ZEN_SYSTEMONE_URL,
+  DEFAULT_JEV_MODEL,
+  isKnownJevEndpoint,
+} from "../config/jevModels.js";
+
+// Kept as a public export (tests + docs reference it); the value now lives with the
+// other System One constants in config/jevModels.js.
+export { TYPESAFE_SYSTEMONE_URL, ZEN_SYSTEMONE_URL };
 
 // Hard capabilities = input modalities; missing one drops request data (e.g. image
 // stripped). Must be prioritized. Soft (e.g. search) only degrades a feature.
@@ -653,6 +664,14 @@ const DIFFICULTY_DEFAULTS = {
   judgeTimeoutMs: 4000,
   contextLockTokens: 60000,   // >= this => skip classify, keep session tier
   classifyReuseMs: 30 * 60 * 1000, // how long a per-session tier decision is cached
+  judgeMode: "two-layer",
+  typeSafeApiKey: "",
+  // Jev classifier upstream. jevModel is what the combo model picker stores; the
+  // endpoint is derived from it (Zen vs TypeSafe) by resolveJevTarget(). jevEndpoint
+  // is an optional hint and only the two known System One URLs are honoured.
+  jevModel: DEFAULT_JEV_MODEL,
+  jevConfidenceThreshold: 0.7,
+  jevTimeoutMs: 2500,
 };
 
 // Session filter keys cache by session_id / conversation_id / x-pplx-session / user when known,
@@ -865,6 +884,41 @@ export async function handleDifficultyChat({ body, models = [], handleSingleMode
   ];
 
   const policy = cfg.policy || "balanced";
+  const explicitMode = tuning?.judgeMode || cfg.judgeMode;
+  const requestedMode = String(explicitMode || "two-layer").toLowerCase().trim();
+  // Resolve the System One upstream once per classification: which endpoint, model
+  // and key the judge uses (TypeSafe connection pool vs OpenCode Zen). Fail-open —
+  // a missing upstream just means "no Jev". llm-only never calls Jev, so it never
+  // touches the connection pool either.
+  const jevTarget =
+    requestedMode === "two-layer" || requestedMode === "jev-only"
+      ? await resolveJevTarget(
+          {
+            model: cfg.jevModel,
+            endpoint: cfg.jevEndpoint || cfg.typeSafeEndpoint,
+            apiKey: cfg.typeSafeApiKey || cfg.apiKey,
+            zenApiKey: cfg.zenApiKey,
+            mode: cfg.jevMode,
+            comboName,
+          },
+          log
+        )
+      : null;
+  // two-layer cannot run without a Jev upstream (Zen connection, TypeSafe connection
+  // pool, or a configured key — otherwise every classification would 401/timeout), so
+  // degrade to llm-only whether the mode came from settings or was passed explicitly:
+  // the outcome is the same LLM-judge path minus the dead roundtrip.
+  const degradedToLlm = requestedMode === "two-layer" && !jevTarget?.available;
+  if (degradedToLlm && tuning?.judgeMode) {
+    log?.info?.(
+      "DIFFICULTY",
+      `judgeMode "two-layer" has no Jev upstream (${jevTarget?.reason || "unavailable"}) — running llm-only`,
+      { comboName }
+    );
+  }
+  const judgeMode = degradedToLlm ? "llm-only" : requestedMode;
+  const mode = judgeMode;
+
   const sKey = sessionKeyOf(body);
   const bodyTokens = estimateBodyTokens(body);
   let tier = null;
@@ -891,6 +945,90 @@ export async function handleDifficultyChat({ body, models = [], handleSingleMode
     domain = typeof cached === "object" ? cached.domain : "general";
     ambiguity = typeof cached === "object" ? cached.ambiguity : "low";
     confidence = typeof cached === "object" ? cached.confidence : 1.0;
+  } else if (mode === "jev-only") {
+    const jevRes = await classifyWithJev(body, {
+      // endpoint + model + API key already resolved once (TypeSafe pool vs Zen)
+      target: jevTarget,
+      timeoutMs: cfg.jevTimeoutMs,
+      policy,
+      log,
+      comboName,
+    });
+    if (!jevRes) {
+      bumpRoutingMetric("jevFallback");
+      log.warn("DIFFICULTY", `Jev classifier failed (jev-only mode) — defaulting to fallback`, { comboName });
+      tier = cachedTier || (policy === "cost_efficient" ? "easy" : policy === "capability_heavy" ? "hard" : "medium");
+      source = "jev-fallback";
+      domain = detectDomain(body);
+      ambiguity = "high";
+      confidence = 0.0;
+    } else if (jevRes.confidence >= (cfg.jevConfidenceThreshold ?? 0.7)) {
+      bumpRoutingMetric("jevUsed");
+      tier = jevRes.tier;
+      source = "jev";
+      domain = jevRes.domain;
+      ambiguity = jevRes.ambiguity;
+      confidence = jevRes.confidence;
+    } else {
+      bumpRoutingMetric("jevEscalated");
+      log.info("DIFFICULTY", `Jev confidence ${jevRes.confidence} < threshold ${cfg.jevConfidenceThreshold ?? 0.7} (jev-only mode) — escalating to hard`, { comboName });
+      tier = "hard";
+      source = "jev-low-conf";
+      domain = jevRes.domain;
+      ambiguity = jevRes.ambiguity;
+      confidence = jevRes.confidence;
+    }
+  } else if (mode === "two-layer") {
+    const jevRes = await classifyWithJev(body, {
+      // endpoint + model + API key already resolved once (TypeSafe pool vs Zen)
+      target: jevTarget,
+      timeoutMs: cfg.jevTimeoutMs,
+      policy,
+      log,
+      comboName,
+    });
+    if (!jevRes) {
+      bumpRoutingMetric("jevFallback");
+      log.warn("DIFFICULTY", `Jev classifier failed — falling back to LLM judge`, { comboName });
+      if (judgeModel) {
+        const jr = await classifyWithJudge(body, judgeModel, handleSingleModel, cfg.judgeTimeoutMs, log, comboName, policy, cachedTier);
+        tier = jr?.tier || cachedTier || (policy === "cost_efficient" ? "easy" : "medium");
+        source = jr?.source || "judge";
+        domain = jr?.domain || detectDomain(body);
+        ambiguity = jr?.ambiguity || "low";
+        confidence = jr?.confidence ?? 0.8;
+      } else {
+        tier = cachedTier || (policy === "cost_efficient" ? "easy" : policy === "capability_heavy" ? "hard" : "medium");
+        source = "jev-fallback";
+        domain = detectDomain(body);
+        ambiguity = "high";
+        confidence = 0.0;
+      }
+    } else if (jevRes.confidence >= (cfg.jevConfidenceThreshold ?? 0.7)) {
+      bumpRoutingMetric("jevUsed");
+      tier = jevRes.tier;
+      source = "jev";
+      domain = jevRes.domain;
+      ambiguity = jevRes.ambiguity;
+      confidence = jevRes.confidence;
+    } else {
+      bumpRoutingMetric("jevEscalated");
+      log.info("DIFFICULTY", `Jev confidence ${jevRes.confidence} < threshold ${cfg.jevConfidenceThreshold ?? 0.7} — escalating to LLM judge`, { comboName });
+      if (judgeModel) {
+        const jr = await classifyWithJudge(body, judgeModel, handleSingleModel, cfg.judgeTimeoutMs, log, comboName, policy, cachedTier);
+        tier = jr?.tier || cachedTier || (policy === "cost_efficient" ? "easy" : "medium");
+        source = jr?.source || "judge";
+        domain = jr?.domain || detectDomain(body);
+        ambiguity = jr?.ambiguity || "low";
+        confidence = jr?.confidence ?? 0.8;
+      } else {
+        tier = "hard";
+        source = "jev-low-conf";
+        domain = jevRes.domain;
+        ambiguity = jevRes.ambiguity;
+        confidence = jevRes.confidence;
+      }
+    }
   } else if (judgeModel) {
     const jr = await classifyWithJudge(body, judgeModel, handleSingleModel, cfg.judgeTimeoutMs, log, comboName, policy, cachedTier);
     tier = jr?.tier || cachedTier || (policy === "cost_efficient" ? "easy" : "medium");
@@ -919,6 +1057,7 @@ export async function handleDifficultyChat({ body, models = [], handleSingleMode
     policy,
     judgeUsed: source === "judge",
     judgeModel: source === "judge" ? judgeModel : null,
+    jevUsed: source === "jev",
   });
 
   const stickyModel = (typeof cached === "object" && cached?.winningModel) ? cached.winningModel : null;
@@ -1180,6 +1319,194 @@ function extractJudgeInput(body) {
     return userText.slice(0, 2000);
   } catch {
     return "";
+  }
+}
+
+/**
+ * Call the System One (Jev) classifier client.
+ *
+ * The upstream is dynamic — resolveJevTarget() (services/jevUpstream.js) picks:
+ *   • TypeSafe direct  https://api.typesafe.ai/v1/systemone, model "jev-latest",
+ *     key from the "typesafe" connection pool (round-robin) → options.apiKey
+ *     (settings.typeSafeApiKey / combo override) → TYPESAFE_API_KEY env;
+ *   • OpenCode Zen     https://opencode.ai/zen/v1/systemone, model "jev-1.13-free"
+ *     (default) or "jev-1.13", key from the "opencode-zen" connection pool — used
+ *     when that connection is active or mode is "free-zen".
+ * handleDifficultyChat() resolves the target once per classification and hands it
+ * over as options.target; direct callers resolve it here.
+ * Returns { tier, difficulty, ambiguity, domain, confidence, source: "jev", raw } or null.
+ */
+export async function classifyWithJev(body, optionsOrKey = {}, maybeOptions = {}) {
+  const options = typeof optionsOrKey === "string" ? { apiKey: optionsOrKey, ...maybeOptions } : (optionsOrKey || {});
+  const timeoutMs = options.timeoutMs || 2500;
+  const policy = options.policy || "balanced";
+  const log = options.log || null;
+  const comboName = options.comboName || "default";
+
+  let state = "";
+  if (typeof body === "string") {
+    state = body;
+  } else if (body && typeof body === "object") {
+    state = extractJudgeInput(body);
+    if (!state && typeof body.prompt === "string") {
+      state = body.prompt;
+    }
+  }
+
+  if (!state) {
+    log?.warn?.("DIFFICULTY", `[classifyWithJev] Empty state extracted from body`, { comboName });
+    return null;
+  }
+
+  // Endpoint + model + API key. handleDifficultyChat passes an already resolved
+  // target; direct callers get one resolved here (fail-open, no throw).
+  const target = options.target?.endpoint
+    ? options.target
+    : await resolveJevTarget(
+        {
+          model: options.model,
+          endpoint: options.endpoint,
+          mode: options.mode,
+          apiKey: options.apiKey,
+          comboName,
+        },
+        log
+      );
+  if (!target?.available) {
+    log?.warn?.(
+      "DIFFICULTY",
+      `[classifyWithJev] No Jev upstream available (${target?.reason || "unavailable"})`,
+      { comboName }
+    );
+    return null;
+  }
+  const endpoint = target.endpoint;
+  const apiKey = target.apiKey;
+
+  const payload = {
+    model: target.model,
+    state,
+    questions: options.questions || {
+      difficulty: {
+        type: "choice",
+        instructions: "Classify the difficulty of this task.",
+        criteria: {
+          easy: "Simple questions, greetings, trivial clarification, basic syntax, quick answer",
+          medium: "Moderate complexity, multi-step problem, standard coding or reasoning task",
+          hard: "Complex reasoning, intricate architecture, deep debugging, ambiguous edge case",
+        },
+      },
+      ambiguity: {
+        type: "choice",
+        instructions: "Evaluate the ambiguity of the request.",
+        criteria: {
+          low: "Clear, specific, and well-specified requirements",
+          medium: "Somewhat open-ended or partially specified requirements",
+          high: "Vague, contradictory, or missing critical context",
+        },
+      },
+      domain: {
+        type: "choice",
+        instructions: "Classify the primary domain of this task.",
+        criteria: {
+          general: "General conversation, facts, or questions",
+          summary: "Summarization, synthesis, translation, or rewriting",
+          coding: "Programming, code generation, debugging, software engineering",
+          design: "Architecture, system design, UI/UX, or technical design",
+          data: "Data analysis, math, SQL, data manipulation",
+        },
+      },
+    },
+  };
+
+  const headers = {
+    "Content-Type": "application/json",
+  };
+  if (apiKey) {
+    headers["Authorization"] = `Bearer ${apiKey}`;
+  }
+
+  try {
+    const controller = new AbortController();
+    const timer = setTimeout(() => {
+      try { controller.abort(new Error("jev_timeout")); } catch {}
+    }, timeoutMs);
+    if (timer.unref) timer.unref();
+
+    const fetchPromise = Promise.resolve().then(() =>
+      fetch(endpoint, {
+        method: "POST",
+        headers,
+        body: JSON.stringify(payload),
+        signal: controller.signal,
+      })
+    );
+
+    const res = await withTimeout(fetchPromise, timeoutMs + 200);
+    clearTimeout(timer);
+
+    if (!res || res.__error || res.__timeout || !res.ok) {
+      const errText = res && typeof res.text === "function" ? await res.text().catch(() => "") : (res?.__error?.message || "timeout/failed");
+      log?.warn?.("DIFFICULTY", `Jev HTTP ${res?.status || "error"}: ${String(errText).slice(0, 150)}`, { comboName });
+      return null;
+    }
+
+    const data = await res.json();
+    const answers = data?.answers || {};
+    const diffAns = answers.difficulty || {};
+    const ambAns = answers.ambiguity || {};
+    const domAns = answers.domain || {};
+
+    let diffRaw = diffAns.choice || diffAns.answer || data.difficulty || data.tier || null;
+    let ambRaw = ambAns.choice || ambAns.answer || data.ambiguity || "low";
+    let domRaw = domAns.choice || domAns.answer || data.domain || (typeof body === "object" ? detectDomain(body) : "general");
+    let confRaw = typeof diffAns.confidence === "number"
+      ? diffAns.confidence
+      : (typeof data.confidence === "number" ? data.confidence : 0.85);
+
+    if (typeof diffRaw === "string") {
+      diffRaw = diffRaw.toLowerCase().trim();
+      if (diffRaw !== "easy" && diffRaw !== "medium" && diffRaw !== "hard") {
+        const m = diffRaw.match(/\b(easy|medium|hard)\b/i);
+        diffRaw = m ? m[1].toLowerCase() : null;
+      }
+    } else {
+      diffRaw = null;
+    }
+
+    if (!diffRaw) {
+      log?.warn?.("DIFFICULTY", "Jev response missing valid difficulty choice", { comboName, data });
+      return null;
+    }
+
+    if (typeof ambRaw === "string") {
+      ambRaw = ambRaw.toLowerCase().trim();
+      if (ambRaw === "med") ambRaw = "medium";
+      if (!["low", "medium", "high"].includes(ambRaw)) ambRaw = "low";
+    } else {
+      ambRaw = "low";
+    }
+
+    if (typeof domRaw === "string") {
+      domRaw = domRaw.toLowerCase().trim();
+    } else {
+      domRaw = typeof body === "object" ? detectDomain(body) : "general";
+    }
+
+    const tier = resolveTierMatrix(diffRaw, ambRaw, domRaw, policy);
+
+    return {
+      tier,
+      difficulty: diffRaw,
+      ambiguity: ambRaw,
+      domain: domRaw,
+      confidence: confRaw,
+      source: "jev",
+      raw: data,
+    };
+  } catch (e) {
+    log?.warn?.("DIFFICULTY", `Jev request failed: ${e.message}`, { comboName });
+    return null;
   }
 }
 

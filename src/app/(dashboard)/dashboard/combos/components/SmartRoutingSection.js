@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import PropTypes from "prop-types";
 import {
   DndContext,
@@ -19,9 +19,13 @@ import {
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { restrictToVerticalAxis, restrictToParentElement } from "@dnd-kit/modifiers";
-import { Modal, ModelSelectModal, CapacityBadges, Button, Input } from "@/shared/components";
+import { Modal, ModelSelectModal, CapacityBadges, Button, Input, Toggle } from "@/shared/components";
 import { useNotificationStore } from "@/store/notificationStore";
 import Icon from "@/shared/components/Icon";
+import {
+  JEV_MODEL_CHOICES,
+  DEFAULT_JEV_MODEL,
+} from "open-sse/config/jevModels.js";
 
 const TIER_CONFIG = [
   {
@@ -67,6 +71,36 @@ const POLICY_DESCRIPTIONS = {
   cost_efficient: "Cost Efficient: Aggressively routes toward Easy and Medium tiers. Escalates to Hard only when strictly required.",
   capability_heavy: "Capability Heavy: Biases toward Frontier / Hard models for tasks requiring maximum reasoning depth.",
 };
+
+const JUDGE_MODES = [
+  {
+    value: "two-layer",
+    label: "Two-Layer (Jev + LLM)",
+    shortLabel: "Two-Layer",
+    badgeLabel: "Two-Layer (Jev + LLM)",
+    icon: "layers",
+    badgeClass: "bg-primary/10 text-primary border-primary/30",
+    description: "Primary fast classification via TypeSafe Jev classifier (<50ms). Automatically escalates to LLM judge if confidence falls below threshold or Jev fails.",
+  },
+  {
+    value: "jev-only",
+    label: "Jev Only (<50ms)",
+    shortLabel: "Jev Only",
+    badgeLabel: "Jev Only",
+    icon: "bolt",
+    badgeClass: "bg-cyan-500/10 text-cyan-400 border-cyan-500/30",
+    description: "Pure classifier mode via TypeSafe Jev. Ultra-low latency (<50ms) with zero LLM judge token consumption. Escalates to Hard tier if confidence is below threshold.",
+  },
+  {
+    value: "llm-only",
+    label: "LLM Only",
+    shortLabel: "LLM Only",
+    badgeLabel: "LLM Only",
+    icon: "smart_toy",
+    badgeClass: "bg-purple-500/10 text-purple-400 border-purple-500/30",
+    description: "Standard LLM judge classification. Directly invokes configured judge model without calling TypeSafe Jev.",
+  },
+];
 
 // Sortable item component with drag handle for reordering inside tier modal
 function SortableTierModelRow({ id, model, index, onRemove, getCaps }) {
@@ -157,6 +191,171 @@ export default function SmartRoutingSection({
 
   const judge = strategy.judgeModel || "";
   const policy = strategy.difficultyPolicy || "balanced";
+
+  // Difficulty judge controls (judgeMode / Jev confidence threshold / TypeSafe API key).
+  // Defaults are instance-wide (GET|PATCH /api/settings); a combo may opt out of them
+  // with a per-combo override stored on its own strategy, which chat.js reads before
+  // falling back to the global settings.
+  const [globalJudge, setGlobalJudge] = useState(null); // null until /api/settings answers
+  const [globalJudgeError, setGlobalJudgeError] = useState("");
+  const [judgeSaving, setJudgeSaving] = useState(false);
+  const [keyDraft, setKeyDraft] = useState("");
+  const [thresholdDraft, setThresholdDraft] = useState(null);
+
+  const comboKeyConfigured =
+    strategy.typeSafeKeyConfigured === true || typeof strategy.typeSafeApiKey === "string";
+  const comboOverrideActive =
+    comboKeyConfigured ||
+    strategy.judgeMode != null ||
+    strategy.jevConfidenceThreshold != null ||
+    strategy.jevModel != null;
+
+  const globalMode = globalJudge?.judgeMode || "two-layer";
+  const globalThreshold =
+    typeof globalJudge?.jevConfidenceThreshold === "number" ? globalJudge.jevConfidenceThreshold : 0.7;
+  const globalKeyConfigured = globalJudge?.typeSafeKeyConfigured === true;
+
+  const judgeMode =
+    comboOverrideActive && strategy.judgeMode != null ? strategy.judgeMode : globalMode;
+  const threshold =
+    comboOverrideActive && typeof strategy.jevConfidenceThreshold === "number"
+      ? strategy.jevConfidenceThreshold
+      : globalThreshold;
+  const keySource = comboKeyConfigured ? "combo" : globalKeyConfigured ? "global" : "none";
+
+  // Jev classifier model: combo override > global setting > default. The endpoint is
+  // derived from the model (OpenCode Zen vs TypeSafe AI), never edited by hand.
+  const globalJevModel = globalJudge?.jevModel || DEFAULT_JEV_MODEL;
+  const jevModel =
+    comboOverrideActive && strategy.jevModel != null ? strategy.jevModel : globalJevModel;
+  const activeJevChoice =
+    JEV_MODEL_CHOICES.find((c) => c.value === jevModel) || JEV_MODEL_CHOICES[0];
+  const jevEndpoint = activeJevChoice.endpoint;
+
+  const activeJudgeMode = JUDGE_MODES.find((m) => m.value === judgeMode) || JUDGE_MODES[0];
+  const thresholdApplies = judgeMode !== "llm-only"; // LLM Only never calls Jev
+  const shownThreshold = thresholdDraft ?? threshold;
+
+  const loadGlobalJudge = async () => {
+    try {
+      const res = await fetch("/api/settings", { cache: "no-store" });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || "Failed to load judge settings");
+      setGlobalJudge({
+        judgeMode: data.judgeMode || "two-layer",
+        jevConfidenceThreshold:
+          typeof data.jevConfidenceThreshold === "number" ? data.jevConfidenceThreshold : 0.7,
+        jevModel: data.jevModel || DEFAULT_JEV_MODEL,
+        typeSafeKeyConfigured: data.typeSafeKeyConfigured === true,
+      });
+      setGlobalJudgeError("");
+    } catch (error) {
+      setGlobalJudgeError(error?.message || "Global judge settings unavailable");
+    }
+  };
+
+  useEffect(() => {
+    loadGlobalJudge();
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const saveGlobalJudge = async (patch) => {
+    setJudgeSaving(true);
+    try {
+      const res = await fetch("/api/settings", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(patch),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || "Failed to save judge settings");
+      await loadGlobalJudge();
+      notify.success("Saved global difficulty judge settings");
+    } catch (error) {
+      notify.error(error?.message || "Failed to save difficulty judge settings");
+    } finally {
+      setJudgeSaving(false);
+    }
+  };
+
+  const handleJudgeModeChange = (value) => {
+    if (comboOverrideActive) onSetStrategy({ judgeMode: value });
+    else saveGlobalJudge({ judgeMode: value });
+  };
+
+  const handleJevModelChange = (value) => {
+    const choice = JEV_MODEL_CHOICES.find((c) => c.value === value) || JEV_MODEL_CHOICES[0];
+    if (comboOverrideActive) {
+      // The endpoint follows the model — stored alongside it so combo config stays
+      // self-describing.
+      onSetStrategy({ jevModel: choice.value, jevEndpoint: choice.endpoint });
+    } else {
+      saveGlobalJudge({ jevModel: choice.value });
+    }
+  };
+
+  // The slider edits a local draft so a drag does not fire one PATCH per pixel;
+  // the value is committed once the pointer / keyboard interaction is released.
+  const handleThresholdRelease = () => {
+    if (thresholdDraft === null) return;
+    const num = Number(thresholdDraft);
+    setThresholdDraft(null);
+    if (!Number.isFinite(num) || num === threshold) return;
+    const next = Math.min(1, Math.max(0, num));
+    if (comboOverrideActive) onSetStrategy({ jevConfidenceThreshold: next });
+    else saveGlobalJudge({ jevConfidenceThreshold: next });
+  };
+
+  const handleToggleComboOverride = (checked) => {
+    const comboName = combo?.name || "this combo";
+    if (checked) {
+      // Freeze the currently effective values so turning the override on never
+      // changes routing behaviour on its own.
+      onSetStrategy({
+        judgeMode,
+        jevConfidenceThreshold: threshold,
+        jevModel,
+        jevEndpoint,
+      });
+      notify.success(`Judge settings now override the global defaults for "${comboName}"`);
+    } else {
+      // undefined is dropped by JSON.stringify, so the keys are really removed
+      // and the combo falls back to the global settings.
+      const patch = {
+        judgeMode: undefined,
+        jevConfidenceThreshold: undefined,
+        jevModel: undefined,
+        jevEndpoint: undefined,
+      };
+      if (comboKeyConfigured) {
+        patch.typeSafeApiKey = ""; // "" clears the combo key (global key takes over)
+        patch.typeSafeKeyConfigured = false;
+      }
+      onSetStrategy(patch);
+      notify.success(`Judge settings now inherit the global defaults for "${comboName}"`);
+    }
+  };
+
+  const handleSaveKey = () => {
+    const value = keyDraft.trim();
+    if (!value) return;
+    if (comboOverrideActive) {
+      onSetStrategy({ typeSafeApiKey: value, typeSafeKeyConfigured: true });
+      notify.success(`TypeSafe API key saved for "${combo?.name || "this combo"}"`);
+    } else {
+      saveGlobalJudge({ typeSafeApiKey: value });
+    }
+    setKeyDraft("");
+  };
+
+  const handleClearKey = () => {
+    setKeyDraft("");
+    if (comboKeyConfigured) {
+      onSetStrategy({ typeSafeApiKey: "", typeSafeKeyConfigured: false });
+      notify.success("Cleared this combo's TypeSafe API key");
+    } else if (globalKeyConfigured) {
+      saveGlobalJudge({ typeSafeApiKey: "" });
+    }
+  };
 
   const easyModels = useMemo(() => (Array.isArray(strategy.easyModels) ? strategy.easyModels : []), [strategy.easyModels]);
   const mediumModels = useMemo(() => (Array.isArray(strategy.mediumModels) ? strategy.mediumModels : []), [strategy.mediumModels]);
@@ -285,8 +484,14 @@ export default function SmartRoutingSection({
           <div className="min-w-0 flex-1">
             <div className="flex items-center gap-1.5">
               <span className="text-xs font-semibold text-text-main">Judge Model</span>
+              <span
+                className={`rounded-sm border px-1.5 py-0.5 text-[10px] font-medium ${activeJudgeMode.badgeClass}`}
+                title={activeJudgeMode.description}
+              >
+                {activeJudgeMode.shortLabel}
+              </span>
               <span className="text-[11px] text-text-muted hidden sm:inline">
-                — Classifies prompt complexity into Easy, Medium, or Hard
+                — LLM classifier for the Easy, Medium, or Hard tiers
               </span>
             </div>
             <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
@@ -313,6 +518,14 @@ export default function SmartRoutingSection({
               ) : (
                 <span className="text-[11px] text-text-muted italic">(Uses combo&apos;s first healthy model)</span>
               )}
+              {judgeMode === "jev-only" && (
+                <span
+                  className="text-[11px] text-amber-400/90 italic"
+                  title="Jev Only mode classifies prompts through TypeSafe Jev without calling the LLM judge"
+                >
+                  (not used in Jev Only mode)
+                </span>
+              )}
             </div>
           </div>
         </div>
@@ -335,6 +548,233 @@ export default function SmartRoutingSection({
           <p className="text-[11px] text-text-muted line-clamp-1" title={POLICY_DESCRIPTIONS[policy]}>
             {POLICY_DESCRIPTIONS[policy]}
           </p>
+        </div>
+      </div>
+
+      {/* Difficulty Judge: judgeMode, Jev confidence threshold, TypeSafe API key */}
+      <div className="flex flex-col gap-3 rounded-md border border-border bg-surface p-3">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div className="flex min-w-0 items-start gap-2.5">
+            <div className="flex size-9 shrink-0 items-center justify-center rounded-md bg-cyan-500/10 text-cyan-400 border border-cyan-500/20">
+              <Icon name="layers" size={18} />
+            </div>
+            <div className="min-w-0">
+              <div className="flex items-center gap-1.5">
+                <span className="text-xs font-semibold text-text-main">Difficulty Judge</span>
+                <span className="text-[11px] text-text-muted hidden sm:inline">
+                  — Who classifies the prompt: TypeSafe Jev, the LLM judge, or both
+                </span>
+              </div>
+              <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
+                <span
+                  className={`inline-flex items-center gap-1 rounded-sm border px-2 py-0.5 text-[10px] font-medium ${activeJudgeMode.badgeClass}`}
+                >
+                  <Icon name={activeJudgeMode.icon} size={14} />
+                  {activeJudgeMode.badgeLabel}
+                </span>
+                <span
+                  className={`inline-flex items-center gap-1 rounded-sm border px-2 py-0.5 text-[10px] font-medium ${
+                    comboOverrideActive
+                      ? "border-amber-500/30 bg-amber-500/10 text-amber-400"
+                      : "border-border bg-surface-3 text-text-muted"
+                  }`}
+                  title={
+                    comboOverrideActive
+                      ? "This combo stores its own judgeMode, Jev threshold and TypeSafe key"
+                      : "This combo follows the global judge settings"
+                  }
+                >
+                  <Icon name={comboOverrideActive ? "tune" : "hub"} size={14} />
+                  {comboOverrideActive ? "Combo override" : "Global default"}
+                </span>
+                <span
+                  className={`inline-flex items-center gap-1 rounded-sm border px-2 py-0.5 text-[10px] font-medium ${
+                    keySource === "none"
+                      ? "border-rose-500/30 bg-rose-500/10 text-rose-400"
+                      : "border-emerald-500/30 bg-emerald-500/10 text-emerald-400"
+                  }`}
+                  title="TypeSafe API key used by the Jev classifier"
+                >
+                  <Icon name="key" size={14} />
+                  {keySource === "none"
+                    ? "No TypeSafe key"
+                    : `TypeSafe key: ${keySource === "combo" ? "combo" : "global"}`}
+                </span>
+                {globalJudgeError && (
+                  <span className="text-[10px] font-medium text-danger" title={globalJudgeError}>
+                    {globalJudgeError}
+                  </span>
+                )}
+              </div>
+            </div>
+          </div>
+
+          {/* Scope switch: global defaults vs per-combo override */}
+          <div className="flex items-center gap-2 rounded-sm border border-border bg-surface-2 px-2.5 py-1.5">
+            <span className="text-[11px] text-text-muted">Global</span>
+            <Toggle
+              size="sm"
+              checked={comboOverrideActive}
+              onChange={handleToggleComboOverride}
+              aria-label="Override judge settings for this combo"
+              title="Store judgeMode, Jev threshold and TypeSafe key on this combo instead of the global defaults"
+            />
+            <span className="text-[11px] font-medium text-text-main">Combo override</span>
+          </div>
+        </div>
+
+        {/* Judge Mode */}
+        <div className="flex flex-col gap-1.5 border-t border-border/50 pt-2.5 sm:flex-row sm:items-start sm:gap-3">
+          <span className="text-xs font-semibold text-text-main sm:w-32 sm:shrink-0 sm:pt-1.5">
+            Judge Mode
+          </span>
+          <div className="flex min-w-0 flex-1 flex-col gap-1.5">
+            <div className="flex flex-wrap items-center gap-2">
+              <select
+                value={activeJudgeMode.value}
+                onChange={(e) => handleJudgeModeChange(e.target.value)}
+                disabled={judgeSaving}
+                className="rounded-sm border border-border bg-surface px-2.5 h-7 text-xs font-medium text-text-main focus:border-primary focus:ring-1 focus:ring-primary focus:outline-none transition-all disabled:opacity-50"
+              >
+                {JUDGE_MODES.map((m) => (
+                  <option key={m.value} value={m.value}>
+                    {m.label}
+                  </option>
+                ))}
+              </select>
+              <span className="text-[10px] text-text-muted">
+                {comboOverrideActive ? "Applies to this combo" : "Applies to every combo"}
+              </span>
+            </div>
+            <p className="text-[11px] text-text-muted">{activeJudgeMode.description}</p>
+          </div>
+        </div>
+
+        {/* Jev classifier model + auto-derived upstream endpoint */}
+        <div className="flex flex-col gap-1.5 border-t border-border/50 pt-2.5 sm:flex-row sm:items-start sm:gap-3">
+          <span className="text-xs font-semibold text-text-main sm:w-32 sm:shrink-0 sm:pt-1.5">
+            Jev Model
+          </span>
+          <div className="flex min-w-0 flex-1 flex-col gap-1.5">
+            <div className="flex flex-wrap items-center gap-2">
+              <select
+                value={activeJevChoice.value}
+                onChange={(e) => handleJevModelChange(e.target.value)}
+                disabled={judgeSaving}
+                aria-label="Jev classifier model"
+                className="rounded-sm border border-border bg-surface px-2.5 h-7 text-xs font-medium text-text-main focus:border-primary focus:ring-1 focus:ring-primary focus:outline-none transition-all disabled:opacity-50"
+              >
+                {JEV_MODEL_CHOICES.map((c) => (
+                  <option key={c.value} value={c.value}>
+                    {c.label}
+                  </option>
+                ))}
+              </select>
+              <span
+                className="inline-flex max-w-full items-center gap-1 rounded-sm border border-border bg-surface-2 px-2 py-0.5 font-mono text-[10px] text-text-muted"
+                title="Upstream endpoint derived from the selected model"
+              >
+                <Icon name="hub" size={12} />
+                <span className="truncate">{jevEndpoint}</span>
+              </span>
+            </div>
+            <p className="text-[11px] text-text-muted">
+              {activeJevChoice.value === "jev-latest"
+                ? "Direct TypeSafe: keys come from the TypeSafe connection pool (multi-key, round-robin), then this combo/global key, then TYPESAFE_API_KEY."
+                : "OpenCode Zen: used when an OpenCode Zen connection is active (free tier needs no key); jev-1.13 charges usage to that connection."}
+            </p>
+          </div>
+        </div>
+
+        {/* Jev confidence threshold */}
+        <div className="flex flex-col gap-1.5 border-t border-border/50 pt-2.5 sm:flex-row sm:items-start sm:gap-3">
+          <span className="text-xs font-semibold text-text-main sm:w-32 sm:shrink-0 sm:pt-1">
+            Jev Threshold
+          </span>
+          <div className="flex min-w-0 flex-1 flex-col gap-1.5">
+            <div className="flex items-center gap-3">
+              <input
+                type="range"
+                min="0"
+                max="1"
+                step="0.05"
+                value={shownThreshold}
+                disabled={!thresholdApplies || judgeSaving}
+                onChange={(e) => setThresholdDraft(Number(e.target.value))}
+                onPointerUp={handleThresholdRelease}
+                onKeyUp={handleThresholdRelease}
+                onBlur={handleThresholdRelease}
+                aria-label="Jev confidence threshold"
+                title="Minimum TypeSafe Jev confidence required to accept a classification"
+                className="h-1.5 min-w-[140px] flex-1 cursor-pointer accent-primary disabled:cursor-not-allowed disabled:opacity-50"
+              />
+              <span className="w-20 shrink-0 rounded-sm border border-border bg-surface-2 px-1.5 py-1 text-center font-mono text-[11px] font-medium text-text-main">
+                {Number(shownThreshold).toFixed(2)}
+              </span>
+            </div>
+            <p className="text-[11px] text-text-muted">
+              {thresholdApplies
+                ? `Jev must reach ${(threshold * 100).toFixed(0)}% confidence to accept a tier. Below it: ${
+                    judgeMode === "jev-only"
+                      ? "escalate straight to the Hard tier"
+                      : "escalate to the LLM judge"
+                  }.`
+                : "Ignored in LLM Only mode — Jev is never called."}
+            </p>
+          </div>
+        </div>
+
+        {/* TypeSafe API key */}
+        <div className="flex flex-col gap-1.5 border-t border-border/50 pt-2.5 sm:flex-row sm:items-start sm:gap-3">
+          <span className="text-xs font-semibold text-text-main sm:w-32 sm:shrink-0 sm:pt-1.5">
+            TypeSafe API Key
+          </span>
+          <div className="flex min-w-0 flex-1 flex-col gap-1.5">
+            <div className="flex flex-wrap items-center gap-2">
+              <Input
+                type="password"
+                value={keyDraft}
+                onChange={(e) => setKeyDraft(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    e.preventDefault();
+                    handleSaveKey();
+                  }
+                }}
+                placeholder={
+                  keySource === "none"
+                    ? "ts-… key for api.typesafe.ai"
+                    : "Enter a new key to replace the saved one"
+                }
+                autoComplete="off"
+                spellCheck={false}
+                disabled={judgeSaving}
+                className="w-full sm:w-72"
+                inputClassName="h-8 text-xs font-mono"
+              />
+              <Button
+                size="sm"
+                variant="secondary"
+                icon="key"
+                disabled={!keyDraft.trim() || judgeSaving}
+                onClick={handleSaveKey}
+              >
+                Save Key
+              </Button>
+              {keySource !== "none" && (
+                <Button size="sm" variant="ghost" onClick={handleClearKey} disabled={judgeSaving}>
+                  Clear
+                </Button>
+              )}
+            </div>
+            <p className="text-[11px] text-text-muted">
+              {keySource === "none"
+                ? "Needed for Jev: without it Two-Layer degrades to LLM Only and Jev Only falls back to the policy default."
+                : keySource === "combo"
+                  ? `Stored on "${combo?.name || "this combo"}" and overrides the global key.`
+                  : "Stored globally — used by every combo without its own key."}
+            </p>
+          </div>
         </div>
       </div>
 

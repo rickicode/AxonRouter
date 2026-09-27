@@ -44,7 +44,7 @@ function page(label) {
 }
 
 function mediaKindLabel(kind) {
-  return MEDIA_PROVIDER_KINDS.find((item) => item.id === kind)?.label || "Media Provider";
+  return MEDIA_PROVIDER_KINDS.find((item) => item.id === kind)?.label || "Capabilities";
 }
 
 const EXACT_TITLES = {
@@ -63,7 +63,7 @@ const EXACT_TITLES = {
   "/dashboard/console-log": "Console Log",
   "/dashboard/settings": "Settings",
   "/dashboard/settings/pricing": "Pricing Settings",
-  "/dashboard/media-providers/web": "Web Fetch & Search",
+  "/dashboard/capabilities-providers/web": "Web Fetch & Search",
 };
 
 /** Derive the document title for the current location. */
@@ -84,10 +84,10 @@ export function titleForRoute(pathname = "/", search = "") {
   if (EXACT_TITLES[path]) return page(EXACT_TITLES[path]);
 
   if (path.startsWith("/dashboard/cli-tools/")) return page("CLI Tool");
-  if (path.startsWith("/dashboard/media-providers/combo")) return page("Media Combo Provider");
+  if (path.startsWith("/dashboard/capabilities-providers/combo")) return page("Capabilities Combo Provider");
   if (path.startsWith("/dashboard/providers/")) return page("Provider Detail");
 
-  const mediaMatch = path.match(/^\/dashboard\/media-providers\/([^/]+)(?:\/(.*))?$/);
+  const mediaMatch = path.match(/^\/dashboard\/capabilities-providers\/([^/]+)(?:\/(.*))?$/);
   if (mediaMatch) {
     const label = mediaKindLabel(mediaMatch[1]);
     return page(mediaMatch[2] ? `${label} Provider` : label);

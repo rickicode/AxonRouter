@@ -674,7 +674,7 @@
   "Maximum request detail records to keep (older records are auto-deleted)": "要保留的最大请求详细记录（较旧的记录会自动删除）",
   "Maximum size for each JSON field (request/response) before truncation": "截断前每个 JSON 字段（请求/响应）的最大大小",
   "Maximum time to wait before flushing buffer (prevents data loss during low traffic)": "刷新缓冲区之前等待的最长时间（防止低流量期间数据丢失）",
-  "Media Providers": "媒体提供商",
+  "Capabilities Providers": "能力提供商",
   "Menu": "菜单",
   "Message AI": "向 AI 发送消息",
   "Messages": "消息",

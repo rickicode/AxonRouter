@@ -1,4 +1,5 @@
 import { getAdapter } from "../driver.js";
+import { DEFAULT_JEV_MODEL } from "open-sse/config/jevModels.js";
 import { parseJson } from "../helpers/jsonCol.js";
 import { getCatalog, invalidateCatalog } from "@/lib/cache/client.js";
 
@@ -10,6 +11,14 @@ const DEFAULT_SETTINGS = {
   comboStrategy: "fallback",
   comboStickyRoundRobinLimit: 1,
   comboStrategies: {},
+  // Difficulty / smart-routing judge (see open-sse/services/combo.js DIFFICULTY_DEFAULTS).
+  // judgeMode: "two-layer" (Jev primary -> LLM fallback) | "jev-only" | "llm-only".
+  judgeMode: "two-layer",
+  // Jev classifier upstream model (combo model picker). Endpoint follows the model:
+  // jev-1.13-free / jev-1.13 → OpenCode Zen, jev-latest → TypeSafe AI.
+  jevModel: DEFAULT_JEV_MODEL,
+  typeSafeApiKey: "",
+  jevConfidenceThreshold: 0.7,
   defaultProxyGroupSettings: {},
   capacityAdapter: {
     vision: { enabled: true, roundRobin: false, models: [] },

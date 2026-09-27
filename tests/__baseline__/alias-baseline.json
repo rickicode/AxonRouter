@@ -112,9 +112,6 @@
     "qianfan": "baidu",
     "baidu": "baidu",
     "ernie": "baidu",
-    "dv": "devin-cli",
-    "devin": "devin-cli",
-    "devin-cli": "devin-cli",
     "morph": "morph",
     "morphllm": "morph"
   },
@@ -149,7 +146,6 @@
     "cursor": "cu",
     "deepgram": "deepgram",
     "deepseek": "deepseek",
-    "devin-cli": "dv",
     "featherless": "featherless",
     "fireworks": "fireworks",
     "freebuff": "fb",

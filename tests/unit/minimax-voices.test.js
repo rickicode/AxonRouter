@@ -5,7 +5,7 @@ vi.mock("../../src/lib/localDb.js", () => ({
 }));
 
 import { getProviderConnections } from "../../src/lib/localDb.js";
-import { GET } from "../../src/app/api/media-providers/tts/minimax/voices/route.js";
+import { GET } from "../../src/app/api/capabilities-providers/tts/minimax/voices/route.js";
 
 const originalFetch = global.fetch;
 
@@ -35,7 +35,7 @@ describe("MiniMax voices API", () => {
       )
     );
 
-    const response = await GET(new Request("http://localhost/api/media-providers/tts/minimax/voices"));
+    const response = await GET(new Request("http://localhost/api/capabilities-providers/tts/minimax/voices"));
     const body = await response.json();
 
     expect(response.status).toBe(200);
@@ -72,7 +72,7 @@ describe("MiniMax voices API", () => {
       )
     );
 
-    const response = await GET(new Request("http://localhost/api/media-providers/tts/minimax/voices?provider=minimax-cn"));
+    const response = await GET(new Request("http://localhost/api/capabilities-providers/tts/minimax/voices?provider=minimax-cn"));
     const body = await response.json();
 
     expect(response.status).toBe(200);

@@ -35,21 +35,8 @@ MenuItem.propTypes = {
 export default function HeaderMenu({ onLogout }) {
  const [isOpen, setIsOpen] = useState(false);
  const [changelogOpen, setChangelogOpen] = useState(false);
- const [shutdownOpen, setShutdownOpen] = useState(false);
- const [isShuttingDown, setIsShuttingDown] = useState(false);
  const { toggleTheme, isDark } = useTheme();
  const menuRef = useRef(null);
-
- const handleShutdown = async () => {
- setIsShuttingDown(true);
- try {
- await fetch("/api/version/shutdown", { method: "POST" });
- } catch (e) {
- // Expected to fail as server shuts down; ignore error
- }
- setIsShuttingDown(false);
- setShutdownOpen(false);
- };
 
  useEffect(() => {
  const handleClickOutside = (e) => {
@@ -87,12 +74,6 @@ className="flex size-10 items-center justify-center text-text-muted hover:bg-sur
  icon={isDark ? "light_mode" : "dark_mode"}
  label="Theme"
  onClick={() => { toggleTheme(); close(); }}
- />
- <MenuItem
- icon="power_settings_new"
- label="Shutdown"
- danger
- onClick={() => { close(); setShutdownOpen(true); }}
  />
  <MenuItem
  icon="logout"

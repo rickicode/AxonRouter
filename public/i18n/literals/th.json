@@ -673,7 +673,7 @@
   "Maximum request detail records to keep (older records are auto-deleted)": "จำนวน request detail records สูงสุดที่จะเก็บ (records เก่าจะถูกลบอัตโนมัติ)",
   "Maximum size for each JSON field (request/response) before truncation": "ขนาดสูงสุดสำหรับ JSON field แต่ละตัว (request/response) ก่อนถูกตัด",
   "Maximum time to wait before flushing buffer (prevents data loss during low traffic)": "เวลาสูงสุดที่จะรอก่อน flush buffer (ป้องกันข้อมูลสูญหายในช่วง traffic ต่ำ)",
-  "Media Providers": "Media Providers",
+  "Capabilities Providers": "Capabilities Providers",
   "Menu": "เมนู",
   "Message AI": "ส่งข้อความหา AI",
   "Messages": "ข้อความ",

@@ -44,7 +44,7 @@ export async function synthesizeViaConfig(provider, text, model, credentials) {
   return handler({ baseUrl: cfg.baseUrl, apiKey, text, modelId, voiceId });
 }
 
-// Voice fetchers (used by /api/media-providers/tts/voices route)
+// Voice fetchers (used by /api/capabilities-providers/tts/voices route)
 export const VOICE_FETCHERS = {
   "edge-tts": fetchEdgeTtsVoices,
   "local-device": fetchLocalDeviceVoices,

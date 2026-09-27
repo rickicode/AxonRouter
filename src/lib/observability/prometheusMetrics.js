@@ -82,6 +82,9 @@ export async function renderPrometheusMetrics() {
     { key: "comboDeadMemberSkips", name: "axonrouter_routing_combo_dead_member_skips_total", type: "counter", help: "Dead combo members skipped" },
     { key: "comboExhaustedMemberSkips", name: "axonrouter_routing_combo_exhausted_member_skips_total", type: "counter", help: "Exhausted combo members skipped" },
     { key: "comboClientAbortStops", name: "axonrouter_routing_combo_client_abort_stops_total", type: "counter", help: "Combo loops halted due to client disconnect" },
+    { key: "jevUsed", name: "axonrouter_routing_jev_used_total", type: "counter", help: "Total classifications routed via TypeSafe Jev" },
+    { key: "jevEscalated", name: "axonrouter_routing_jev_escalated_total", type: "counter", help: "Jev classifications escalated to LLM judge due to low confidence" },
+    { key: "jevFallback", name: "axonrouter_routing_jev_fallback_total", type: "counter", help: "Jev classifications fallen back to LLM judge due to error/timeout" },
     { key: "avgUpstreamAttemptsPerCombo", name: "axonrouter_routing_avg_upstream_attempts_per_combo", type: "gauge", help: "Average upstream attempts per combo request" },
   ];
 

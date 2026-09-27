@@ -17,8 +17,8 @@ import Icon from "@/shared/components/Icon";
 const getPageInfo = (pathname) => {
  if (!pathname) return { title: "", description: "", breadcrumbs: [] };
 
- // Media provider detail: /dashboard/media-providers/[kind]/[id]
- const mediaDetailMatch = pathname.match(/\/media-providers\/([^/]+)\/([^/]+)$/);
+ // Capabilities provider detail: /dashboard/capabilities-providers/[kind]/[id]
+ const mediaDetailMatch = pathname.match(/\/capabilities-providers\/([^/]+)\/([^/]+)$/);
  if (mediaDetailMatch) {
  const kindId = mediaDetailMatch[1];
  const providerId = mediaDetailMatch[2];
@@ -28,15 +28,15 @@ const getPageInfo = (pathname) => {
  title: provider?.name || providerId,
  description: "",
  breadcrumbs: [
- { label: "Media Providers", href: `/dashboard/media-providers/${kindId}` },
- { label: kindConfig?.label || kindId, href: `/dashboard/media-providers/${kindId}` },
+ { label: "Capabilities Providers", href: `/dashboard/capabilities-providers/${kindId}` },
+ { label: kindConfig?.label || kindId, href: `/dashboard/capabilities-providers/${kindId}` },
  { label: provider?.name || providerId, image: getProviderIconSrc(providerId) },
  ],
  };
  }
 
- // Media provider kind: /dashboard/media-providers/[kind]
- const mediaKindMatch = pathname.match(/\/media-providers\/([^/]+)$/);
+ // Capabilities provider kind: /dashboard/capabilities-providers/[kind]
+ const mediaKindMatch = pathname.match(/\/capabilities-providers\/([^/]+)$/);
  if (mediaKindMatch) {
  const kindId = mediaKindMatch[1];
  const kindConfig = MEDIA_PROVIDER_KINDS.find((k) => k.id === kindId);
@@ -69,7 +69,7 @@ const getPageInfo = (pathname) => {
  }
  }
 
- if (pathname.includes("/providers") && !pathname.includes("/media-providers"))
+ if (pathname.includes("/providers") && !pathname.includes("/capabilities-providers"))
  return {
  title: "Providers",
  description: "Manage your AI provider connections",
@@ -258,7 +258,9 @@ function HeaderSearch() {
 	const query = useHeaderSearchStore((s) => s.query);
 	const placeholder = useHeaderSearchStore((s) => s.placeholder);
 	const setQuery = useHeaderSearchStore((s) => s.setQuery);
-	const inputRef = useRef(null);
+	const [isMobileExpanded, setIsMobileExpanded] = useState(false);
+	const desktopInputRef = useRef(null);
+	const mobileInputRef = useRef(null);
 
 	// Global "/" keyboard shortcut to focus search
 	useEffect(() => {
@@ -271,7 +273,12 @@ function HeaderSearch() {
 				!document.activeElement?.isContentEditable
 			) {
 				e.preventDefault();
-				inputRef.current?.focus();
+				if (window.innerWidth < 640) {
+					setIsMobileExpanded(true);
+					setTimeout(() => mobileInputRef.current?.focus(), 50);
+				} else {
+					desktopInputRef.current?.focus();
+				}
 			}
 		};
 
@@ -279,56 +286,140 @@ function HeaderSearch() {
 		return () => window.removeEventListener("keydown", handleKeyDown);
 	}, [visible]);
 
+	useEffect(() => {
+		if (!visible) {
+			setIsMobileExpanded(false);
+		}
+	}, [visible]);
+
+	useEffect(() => {
+		if (isMobileExpanded) {
+			mobileInputRef.current?.focus();
+		}
+	}, [isMobileExpanded]);
+
 	if (!visible) return null;
 
-	const handleInputKeyDown = (e) => {
+	const handleDesktopKeyDown = (e) => {
 		if (e.key === "Escape") {
 			if (query) {
 				setQuery("");
 			} else {
-				inputRef.current?.blur();
+				desktopInputRef.current?.blur();
+			}
+		}
+	};
+
+	const handleMobileKeyDown = (e) => {
+		if (e.key === "Escape") {
+			if (query) {
+				setQuery("");
+			} else {
+				setIsMobileExpanded(false);
 			}
 		}
 	};
 
 	return (
-		<div
-			role="search"
-			className="group relative flex items-center w-36 sm:w-52 md:w-64 transition-all duration-200 ease-out focus-within:w-48 sm:focus-within:w-64 md:focus-within:w-76"
-		>
-			<Icon
-				name="search"
-				size={16}
-				className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-text-muted/70 group-focus-within:text-primary transition-colors"
-			/>
-			<input
-				ref={inputRef}
-				type="text"
-				value={query}
-				onChange={(e) => setQuery(e.target.value)}
-				onKeyDown={handleInputKeyDown}
-				placeholder={placeholder || "Search..."}
-				className="h-8 w-full rounded-sm border border-border/80 bg-surface-2/50 pl-8 pr-7 text-xs sm:text-sm text-text-main placeholder:text-text-muted/60 outline-none transition-all hover:bg-surface-2 hover:border-border focus:border-primary/60 focus:bg-surface focus:ring-2 focus:ring-primary/15"
-				aria-label={placeholder || "Search"}
-			/>
-			{query ? (
-				<button
-					type="button"
-					onClick={() => {
-						setQuery("");
-						inputRef.current?.focus();
-					}}
-					className="absolute right-1.5 top-1/2 -translate-y-1/2 flex size-5 items-center justify-center rounded-sm text-text-muted/70 hover:bg-surface-3 hover:text-text-main transition-colors"
-					aria-label="Clear search"
-				>
-					<Icon name="close" size={13} />
-				</button>
-			) : (
-				<kbd className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 hidden sm:inline-flex items-center justify-center min-w-4 h-4 px-1 rounded-[3px] border border-border/70 bg-surface text-[10px] font-mono text-text-muted/70 select-none shadow-2xs">
-					/
-				</kbd>
+		<>
+			{/* Mobile Search Button (visible on mobile when collapsed) */}
+			<button
+				type="button"
+				onClick={() => setIsMobileExpanded(true)}
+				className={`flex sm:hidden size-10 items-center justify-center rounded-sm transition-colors relative ${
+					query ? "text-primary bg-primary/10" : "text-text-muted hover:bg-surface-2 hover:text-text-main"
+				}`}
+				title={placeholder || "Search"}
+				aria-label="Open search"
+			>
+				<Icon name="search" size={18} />
+				{query && (
+					<span className="absolute top-2 right-2 size-1.5 rounded-full bg-primary" />
+				)}
+			</button>
+
+			{/* Mobile Search Expanded Bar (overlays header on mobile) */}
+			{isMobileExpanded && (
+				<div className="absolute inset-x-0 top-0 z-30 flex h-full items-center gap-2 bg-bg px-3.5 sm:hidden animate-in fade-in duration-150">
+					<div className="relative flex flex-1 items-center">
+						<Icon
+							name="search"
+							size={16}
+							className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-primary"
+						/>
+						<input
+							ref={mobileInputRef}
+							type="text"
+							value={query}
+							onChange={(e) => setQuery(e.target.value)}
+							onKeyDown={handleMobileKeyDown}
+							placeholder={placeholder || "Search..."}
+							className="h-10 w-full rounded-sm border border-border bg-surface pl-9 pr-8 text-sm text-text-main placeholder:text-text-muted/60 outline-none focus:border-primary focus:ring-2 focus:ring-primary/15"
+							aria-label={placeholder || "Search"}
+						/>
+						{query && (
+							<button
+								type="button"
+								onClick={() => {
+									setQuery("");
+									mobileInputRef.current?.focus();
+								}}
+								className="absolute right-2 top-1/2 -translate-y-1/2 flex size-6 items-center justify-center rounded-sm text-text-muted hover:bg-surface-3 hover:text-text-main transition-colors"
+								aria-label="Clear search"
+							>
+								<Icon name="close" size={14} />
+							</button>
+						)}
+					</div>
+					<button
+						type="button"
+						onClick={() => setIsMobileExpanded(false)}
+						className="flex h-10 px-2.5 items-center justify-center text-xs font-medium text-text-muted hover:text-text-main hover:bg-surface-2 rounded-sm shrink-0 transition-colors"
+					>
+						Cancel
+					</button>
+				</div>
 			)}
-		</div>
+
+			{/* Desktop Search Bar (hidden on mobile, visible on sm and up) */}
+			<div
+				role="search"
+				className="group relative hidden sm:flex items-center w-52 md:w-64 transition-all duration-200 ease-out focus-within:w-64 md:focus-within:w-76"
+			>
+				<Icon
+					name="search"
+					size={16}
+					className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-text-muted/70 group-focus-within:text-primary transition-colors"
+				/>
+				<input
+					ref={desktopInputRef}
+					type="text"
+					value={query}
+					onChange={(e) => setQuery(e.target.value)}
+					onKeyDown={handleDesktopKeyDown}
+					placeholder={placeholder || "Search..."}
+					className="h-8 w-full rounded-sm border border-border/80 bg-surface-2/50 pl-8 pr-7 text-xs sm:text-sm text-text-main placeholder:text-text-muted/60 outline-none transition-all hover:bg-surface-2 hover:border-border focus:border-primary/60 focus:bg-surface focus:ring-2 focus:ring-primary/15"
+					aria-label={placeholder || "Search"}
+				/>
+				{query ? (
+					<button
+						type="button"
+						onClick={() => {
+							setQuery("");
+							desktopInputRef.current?.focus();
+						}}
+						className="absolute right-1.5 top-1/2 -translate-y-1/2 flex size-5 items-center justify-center rounded-sm text-text-muted/70 hover:bg-surface-3 hover:text-text-main transition-colors"
+						aria-label="Clear search"
+					>
+						<Icon name="close" size={13} />
+					</button>
+				) : (
+					<kbd className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 hidden sm:inline-flex items-center justify-center min-w-4 h-4 px-1 rounded-[3px] border border-border/70 bg-surface text-[10px] font-mono text-text-muted/70 select-none shadow-2xs">
+						/
+					</kbd>
+				)}
+			</div>
+		</>
 	);
 }
 

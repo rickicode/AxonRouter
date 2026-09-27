@@ -674,7 +674,7 @@
   "Maximum request detail records to keep (older records are auto-deleted)": "ចំនួន Records ព័ត៌មានលម្អិតសំណើអតិបរមាដែលត្រូវរក្សា (Records ចាស់នឹងត្រូវលុបដោយស្វ័យប្រវត្តិ)",
   "Maximum size for each JSON field (request/response) before truncation": "ទំហំអតិបរមាសម្រាប់ JSON Field នីមួយៗ (សំណើ/ការឆ្លើយតប) មុនពេលកាត់ខ្លី",
   "Maximum time to wait before flushing buffer (prevents data loss during low traffic)": "រយៈពេលរង់ចាំអតិបរមាមុនពេល Flush Buffer (ការពារការបាត់ទិន្នន័យនៅពេល Traffic ទាប)",
-  "Media Providers": "អ្នកផ្តល់សេវាមេឌៀ",
+  "Capabilities Providers": "អ្នកផ្តល់សមត្ថភាព",
   "Menu": "ម៉ឺនុយ",
   "Message AI": "ផ្ញើសារទៅ AI",
   "Messages": "សារ",

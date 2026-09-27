@@ -58,19 +58,19 @@ className="inline-flex min-h-11 items-center gap-1 text-sm text-text-muted hover
  )}
  </div>
  <div className="min-w-0">
- <div className="flex items-center gap-3 flex-wrap">
- <h2 className="truncate text-sm font-semibold">{providerInfo.name}</h2>
- {(providerInfo.notice?.apiKeyUrl || providerInfo.notice?.signupUrl || providerInfo.website) && (
- <a
- href={providerInfo.notice?.apiKeyUrl || providerInfo.notice?.signupUrl || providerInfo.website}
- target="_blank"
- rel="noopener noreferrer"
-className="text-xs text-primary hover:underline inline-flex min-h-11 items-center gap-1 sm:min-h-0"
- >
- <Icon className="text-sm" name="open_in_new" size={18} />
- {providerInfo.notice?.apiKeyUrl ? "Get API Key" : "Sign up / Learn more"}
- </a>
- )}
+ <div className="flex items-center gap-2.5 flex-wrap">
+   <h2 className="truncate text-sm font-semibold">{providerInfo.name}</h2>
+   {(providerInfo.notice?.apiKeyUrl || providerInfo.notice?.signupUrl || providerInfo.website) && (
+     <a
+       href={providerInfo.notice?.apiKeyUrl || providerInfo.notice?.signupUrl || providerInfo.website}
+       target="_blank"
+       rel="noopener noreferrer"
+       className="inline-flex items-center gap-1 text-xs text-primary hover:text-primary-hover hover:underline transition-colors py-0.5"
+     >
+       <Icon name="open_in_new" size={13} className="shrink-0" />
+       <span>{providerInfo.notice?.apiKeyUrl ? "Get API Key" : "Sign up / Learn more"}</span>
+     </a>
+   )}
  </div>
           <p className="text-text-muted text-xs">
             {isFreeNoAuth
@@ -89,20 +89,23 @@ className="text-xs text-primary hover:underline inline-flex min-h-11 items-cente
  )}
 
  {providerInfo.notice?.text && !providerInfo.deprecated && (
- <div className="flex flex-col gap-2 rounded-sm border border-primary/30 bg-primary/10 px-3 py-2 sm:flex-row sm:items-center">
- <Icon className="text-primary shrink-0" name="info" size={18} />
- <p className="min-w-0 flex-1 text-xs text-primary">{providerInfo.notice.text}</p>
- {providerInfo.notice.apiKeyUrl && (
- <a
- href={providerInfo.notice.apiKeyUrl}
- target="_blank"
- rel="noopener noreferrer"
-className="inline-flex justify-center rounded-sm bg-primary px-2 min-h-11 text-xs font-medium text-white hover:bg-primary-hover sm:min-h-9 sm:py-1"
- >
- Get API Key →
- </a>
- )}
- </div>
+   <div className="flex flex-col gap-2.5 rounded-sm border border-primary/30 bg-primary/10 p-3 sm:flex-row sm:items-center sm:justify-between">
+     <div className="flex items-start sm:items-center gap-2.5 min-w-0 flex-1">
+       <Icon className="text-primary shrink-0 mt-0.5 sm:mt-0" name="info" size={18} />
+       <p className="min-w-0 flex-1 text-xs text-primary leading-normal">{providerInfo.notice.text}</p>
+     </div>
+     {providerInfo.notice.apiKeyUrl && (
+       <a
+         href={providerInfo.notice.apiKeyUrl}
+         target="_blank"
+         rel="noopener noreferrer"
+         className="inline-flex shrink-0 items-center justify-center gap-1.5 self-start sm:self-auto sm:ml-4 rounded-sm bg-primary px-3 h-8 text-xs font-medium text-black hover:bg-primary-hover transition-colors whitespace-nowrap"
+       >
+         <span>Get API Key</span>
+         <Icon name="arrow_forward" size={14} className="shrink-0" />
+       </a>
+     )}
+   </div>
  )}
 
  {isCompatible && providerNode && (

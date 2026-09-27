@@ -28,7 +28,7 @@ No coral, no cream, no traffic lights. Dark-only; no light mode.
 
 ## Pages to check
 
-`dashboard`, `endpoint`, `providers`, `providers/new`, `providers/[id]`, `combos`, `usage`, `benchmark`, `quota`, `token-saver`, `proxy-fitness`, `cli-tools`, `cli-tools/[toolId]`, `console-log`, `translator`, `proxy-pools`, `skills`, `profile`, `mitm`, `pxpipe`, `media-providers` kind, id, web, combo, `basic-chat`.
+`dashboard`, `endpoint`, `providers`, `providers/new`, `providers/[id]`, `combos`, `usage`, `benchmark`, `quota`, `token-saver`, `proxy-fitness`, `cli-tools`, `cli-tools/[toolId]`, `console-log`, `translator`, `proxy-pools`, `skills`, `profile`, `mitm`, `pxpipe`, `capabilities-providers` kind, id, web, combo, `basic-chat`.
 
 ## Out
 

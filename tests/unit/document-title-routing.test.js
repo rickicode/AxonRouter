@@ -23,7 +23,7 @@ describe("documentTitle routing contracts", () => {
       ["/dashboard/console-log", "Console Log · AxonRouter"],
       ["/dashboard/settings", "Settings · AxonRouter"],
       ["/dashboard/settings/pricing", "Pricing Settings · AxonRouter"],
-      ["/dashboard/media-providers/web", "Web Fetch & Search · AxonRouter"],
+      ["/dashboard/capabilities-providers/web", "Web Fetch & Search · AxonRouter"],
     ]);
 
     for (const [route, expected] of routeTitles) {
@@ -42,9 +42,9 @@ describe("documentTitle routing contracts", () => {
   it("handles dynamic detail routes with descriptive titles", () => {
     expect(titleForRoute("/dashboard/providers/prov-123")).toBe("Provider Detail · AxonRouter");
     expect(titleForRoute("/dashboard/cli-tools/codex")).toBe("CLI Tool · AxonRouter");
-    expect(titleForRoute("/dashboard/media-providers/tts")).toBe("Text To Speech · AxonRouter");
-    expect(titleForRoute("/dashboard/media-providers/tts/tts-node-1")).toBe("Text To Speech Provider · AxonRouter");
-    expect(titleForRoute("/dashboard/media-providers/combo/audio-combo")).toBe("Media Combo Provider · AxonRouter");
+    expect(titleForRoute("/dashboard/capabilities-providers/tts")).toBe("Text To Speech · AxonRouter");
+    expect(titleForRoute("/dashboard/capabilities-providers/tts/tts-node-1")).toBe("Text To Speech Provider · AxonRouter");
+    expect(titleForRoute("/dashboard/capabilities-providers/combo/audio-combo")).toBe("Capabilities Combo Provider · AxonRouter");
   });
 
   it("normalizes trailing slashes", () => {

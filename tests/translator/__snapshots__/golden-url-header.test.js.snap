@@ -1488,6 +1488,25 @@ exports[`GOLDEN buildHeaders (default executor providers) > trae → headers (ap
 }
 `;
 
+exports[`GOLDEN buildHeaders (default executor providers) > typesafe → headers (apiKey / oauth) 1`] = `
+{
+  "apiKey": {
+    "Accept": "text/event-stream",
+    "Authorization": "Bearer <TOK>",
+    "Content-Type": "application/json",
+  },
+  "nonStream": {
+    "Authorization": "Bearer <TOK>",
+    "Content-Type": "application/json",
+  },
+  "oauth": {
+    "Accept": "text/event-stream",
+    "Authorization": "Bearer <TOK>",
+    "Content-Type": "application/json",
+  },
+}
+`;
+
 exports[`GOLDEN buildHeaders (default executor providers) > unikey → headers (apiKey / oauth) 1`] = `
 {
   "apiKey": {
@@ -2165,6 +2184,13 @@ exports[`GOLDEN buildUrl (default executor providers) > trae → url (stream + n
 {
   "nonStream": "https://core-normal.trae.ai/api/remote/v1",
   "stream": "https://core-normal.trae.ai/api/remote/v1",
+}
+`;
+
+exports[`GOLDEN buildUrl (default executor providers) > typesafe → url (stream + non-stream) 1`] = `
+{
+  "nonStream": "https://api.typesafe.ai/v1",
+  "stream": "https://api.typesafe.ai/v1",
 }
 `;
 

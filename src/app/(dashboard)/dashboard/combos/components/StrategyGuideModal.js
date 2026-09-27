@@ -35,10 +35,10 @@ const STRATEGIES = [
     icon: "auto_awesome",
     color: "text-emerald-400 bg-emerald-500/10 border-emerald-500/30",
     badge: "Cost & Speed Optimization",
-    summary: "Evaluates prompt complexity into Easy, Medium, or Hard tiers using a fast judge.",
-    mechanism: "An ultra-fast classifier analyzes prompt intent and token count. Simple queries route to cheap, ultra-low-latency models (Easy), typical coding/tasks to balanced models (Medium), and hard architecture problems to frontier models (Hard).",
+    summary: "Classifies prompt complexity into Easy, Medium, or Hard with the TypeSafe Jev classifier, the LLM judge, or both.",
+    mechanism: "An ultra-fast classifier analyzes prompt intent and token count. Judge Mode picks who answers: Two-Layer calls TypeSafe Jev first (<50ms) and escalates to the LLM judge when confidence drops below the Jev threshold, Jev Only skips the LLM judge, and LLM Only runs the judge model alone. Simple queries route to cheap, ultra-low-latency models (Easy), typical coding/tasks to balanced models (Medium), and hard architecture problems to frontier models (Hard).",
     pros: ["Cuts overall API billing by 40-70%", "Sub-second responses for simple queries", "Frontier reasoning reserved when actually needed"],
-    cons: ["Adds ~15-30ms classifier latency before routing"],
+    cons: ["Adds ~15-30ms classifier latency before routing", "Without a TypeSafe API key, Jev never runs: Two-Layer degrades to LLM Only and Jev Only falls back to the policy default tier"],
     recommendedFor: "AI coding assistants (Cline, Cursor, Copilot), multi-agent swarms, and general-purpose chat endpoints.",
   },
   {

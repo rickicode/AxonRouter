@@ -26,6 +26,9 @@ const counters = {
   difficultyMemberSucceeded: 0,
   difficultyJudgeFailed: 0,
   difficultyJudgeUnparsed: 0,
+  jevUsed: 0,
+  jevEscalated: 0,
+  jevFallback: 0,
 };
 
 export function bumpRoutingMetric(name, by = 1) {

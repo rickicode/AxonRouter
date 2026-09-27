@@ -567,7 +567,7 @@
   "Maximum request detail records to keep (older records are auto-deleted)": "Número máximo de registros de detalhes de solicitação a manter (registros antigos são excluídos automaticamente)",
   "Maximum size for each JSON field (request/response) before truncation": "Tamanho máximo para cada campo JSON (solicitação/resposta) antes do truncamento",
   "Maximum time to wait before flushing buffer (prevents data loss during low traffic)": "Tempo máximo de espera antes de liberar o buffer (evita perda de dados durante baixo tráfego)",
-  "Media Providers": "Provedores de Mídia",
+  "Capabilities Providers": "Provedores de Capacidades",
   "Menu": "Menu",
   "Message AI": "IA de Mensagens",
   "Messages": "Mensagens",

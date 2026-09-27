@@ -36,7 +36,6 @@ function getLocalDbFn(name) {
 // quota resets on a timer — must never carry account-level "exhausted".
 export const NEVER_ACCOUNT_EXHAUSTED_PROVIDERS = new Set([
   // registry category "free" (free-only pools)
-  "devin-cli",
   "freebuff",
   "gemini-cli",
   "opencode",

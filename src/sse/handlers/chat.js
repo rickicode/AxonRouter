@@ -314,6 +314,14 @@ export async function handleChat(request, clientRawRequest = null) {
           mediumModels: comboStrategies[modelStr]?.mediumModels,
           hardModels: comboStrategies[modelStr]?.hardModels,
           policy: comboStrategies[modelStr]?.difficultyPolicy || "balanced",
+          // Judge settings: a combo-level override wins over the global setting.
+          judgeMode: comboStrategies[modelStr]?.judgeMode ?? settings.judgeMode,
+          typeSafeApiKey: comboStrategies[modelStr]?.typeSafeApiKey ?? settings.typeSafeApiKey,
+          jevConfidenceThreshold: comboStrategies[modelStr]?.jevConfidenceThreshold ?? settings.jevConfidenceThreshold,
+          // Jev classifier model picker: combo override > global setting > default
+          // ("jev-1.13-free" on OpenCode Zen). The endpoint follows the model.
+          jevModel: comboStrategies[modelStr]?.jevModel ?? settings.jevModel,
+          jevEndpoint: comboStrategies[modelStr]?.jevEndpoint,
         },
         onDecision: (d) => Object.assign(diffCtx, d),
         rotationBudget,
@@ -481,6 +489,13 @@ export async function handleSingleModelChat(body, modelStr, clientRawRequest = n
             mediumModels: comboStrategies[modelStr]?.mediumModels,
             hardModels: comboStrategies[modelStr]?.hardModels,
             policy: comboStrategies[modelStr]?.difficultyPolicy || "balanced",
+            // Judge settings: a combo-level override wins over the global setting.
+            judgeMode: comboStrategies[modelStr]?.judgeMode ?? chatSettings.judgeMode,
+            typeSafeApiKey: comboStrategies[modelStr]?.typeSafeApiKey ?? chatSettings.typeSafeApiKey,
+            jevConfidenceThreshold: comboStrategies[modelStr]?.jevConfidenceThreshold ?? chatSettings.jevConfidenceThreshold,
+            // Jev classifier model picker: combo override > global setting > default.
+            jevModel: comboStrategies[modelStr]?.jevModel ?? chatSettings.jevModel,
+            jevEndpoint: comboStrategies[modelStr]?.jevEndpoint,
           },
           onDecision: (d) => Object.assign(diffCtx, d),
           rotationBudget,

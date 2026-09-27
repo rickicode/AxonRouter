@@ -134,7 +134,7 @@ describe("Xiaomi MiMo TTS", () => {
     expect(user.content).toBe("Speak in English.");
   });
 
-  it("wires the provider into media-providers TTS (serviceKind, adapter, UI config)", () => {
+  it("wires the provider into capabilities-providers TTS (serviceKind, adapter, UI config)", () => {
     expect(AI_PROVIDERS["xiaomi-mimo"].serviceKinds).toContain("tts");
     expect(AI_PROVIDERS["xiaomi-mimo"].ttsConfig.baseUrl).toBe("https://api.xiaomimimo.com/v1/chat/completions");
     expect(getTtsAdapter("xiaomi-mimo")).toBeTruthy();

@@ -724,6 +724,12 @@ function ComboCard({
   }, [strategy.easyModels, strategy.mediumModels, strategy.hardModels]);
 
   const badge = getComboBadge(combo, strategy);
+  // Mirrors the per-combo judge override exposed in SmartRoutingSection.
+  const judgeOverrideActive =
+    strategy.judgeMode != null ||
+    strategy.jevConfidenceThreshold != null ||
+    strategy.typeSafeKeyConfigured === true ||
+    typeof strategy.typeSafeApiKey === "string";
 
   return (
     <Card padding="none" className="group rounded-lg border border-border bg-surface transition-all hover:border-border/80 overflow-hidden shadow-sm">
@@ -765,6 +771,16 @@ function ComboCard({
                 <span className="inline-flex items-center gap-1 rounded bg-amber-500/10 px-1.5 py-0.5 text-[11px] font-medium text-amber-400 border border-amber-500/30">
                   <Icon name="groups" size={18} />
                   Fusion
+                </span>
+              )}
+
+              {isDifficulty && judgeOverrideActive && (
+                <span
+                  className="inline-flex items-center gap-1 rounded bg-amber-500/10 px-1.5 py-0.5 text-[11px] font-medium text-amber-400 border border-amber-500/30"
+                  title="This combo overrides the global judge mode, Jev threshold and/or TypeSafe API key"
+                >
+                  <Icon name="tune" size={14} />
+                  Judge Override
                 </span>
               )}
             </div>
