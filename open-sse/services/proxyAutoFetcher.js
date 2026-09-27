@@ -243,22 +243,40 @@ export async function reconcileProxyGroup(group, fetchedUrls, db) {
 
   // Execute in transaction
   await db.transaction(async (tx) => {
-    // Insert new pools
-    for (const p of newPools) {
+    // Insert new pools in chunks to avoid query bloat and transaction timeouts
+    const INSERT_CHUNK_SIZE = 250;
+    for (let i = 0; i < newPools.length; i += INSERT_CHUNK_SIZE) {
+      const chunk = newPools.slice(i, i + INSERT_CHUNK_SIZE);
+      const valueClauses = [];
+      const params = [];
+      let pIdx = 1;
+
+      for (const p of chunk) {
+        valueClauses.push(
+          `($${pIdx}, $${pIdx + 1}, $${pIdx + 2}, $${pIdx + 3}, $${pIdx + 4}, $${pIdx + 5}, $${pIdx + 6}, '{}'::jsonb, NOW(), NOW())`
+        );
+        params.push(p.id, p.name, p.proxyUrl, p.group, p.type, p.isActive, p.testStatus);
+        pIdx += 7;
+      }
+
       await tx.run(
         `INSERT INTO proxy_pools (id, name, proxy_url, "group", type, is_active, test_status, data, created_at, updated_at)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, '{}'::jsonb, NOW(), NOW())`,
-        [p.id, p.name, p.proxyUrl, p.group, p.type, p.isActive, p.testStatus]
+         VALUES ${valueClauses.join(", ")}`,
+        params
       );
     }
 
-    // Delete obsolete pools
+    // Delete obsolete pools in chunks
     if (obsoletePools.length > 0) {
       const obsoleteIds = obsoletePools.map((p) => p.id);
-      await tx.run(
-        `DELETE FROM proxy_pools WHERE id = ANY($1::text[])`,
-        [obsoleteIds]
-      );
+      const DELETE_CHUNK_SIZE = 1000;
+      for (let i = 0; i < obsoleteIds.length; i += DELETE_CHUNK_SIZE) {
+        const chunk = obsoleteIds.slice(i, i + DELETE_CHUNK_SIZE);
+        await tx.run(
+          `DELETE FROM proxy_pools WHERE id = ANY($1::text[])`,
+          [chunk]
+        );
+      }
     }
 
     // Update proxy_groups setting pool_ids, last_fetched_at, updated_at

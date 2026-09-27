@@ -346,16 +346,18 @@ user:pass@10.0.0.4:8080
           const tx = {
             async run(q, p = []) {
               if (q.includes("INSERT INTO proxy_pools")) {
-                const [id, name, proxyUrl, group, type, isActive, testStatus] = p;
-                mockPools.push({
-                  id,
-                  name,
-                  proxy_url: proxyUrl,
-                  group,
-                  type,
-                  is_active: isActive,
-                  test_status: testStatus,
-                });
+                for (let i = 0; i < p.length; i += 7) {
+                  const [id, name, proxyUrl, group, type, isActive, testStatus] = p.slice(i, i + 7);
+                  mockPools.push({
+                    id,
+                    name,
+                    proxy_url: proxyUrl,
+                    group,
+                    type,
+                    is_active: isActive,
+                    test_status: testStatus,
+                  });
+                }
               } else if (q.includes("DELETE FROM proxy_pools")) {
                 const idsToDelete = p[0] || [];
                 mockPools = mockPools.filter((x) => !idsToDelete.includes(x.id));
