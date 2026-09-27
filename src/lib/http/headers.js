@@ -99,16 +99,28 @@ export function runWithRequestContext(request, fn) {
   return requestContextStorage.run(store, async () => {
     const res = await fn();
     const setCookies = cookieJar.getSetCookieHeaders();
-    if (setCookies.length > 0 && res instanceof Response) {
-      const newHeaders = new Headers(res.headers);
-      for (const c of setCookies) {
-        newHeaders.append("set-cookie", c);
+    if (setCookies.length > 0 && res && res.headers) {
+      const existing = new Set(res.headers.getSetCookie ? res.headers.getSetCookie() : []);
+      if (typeof res.headers.append === "function") {
+        for (const c of setCookies) {
+          if (!existing.has(c)) {
+            res.headers.append("set-cookie", c);
+          }
+        }
+      } else {
+        const newHeaders = new Headers(res.headers);
+        for (const c of setCookies) {
+          if (!existing.has(c)) {
+            newHeaders.append("set-cookie", c);
+          }
+        }
+        const ResponseCtor = res.constructor || globalThis.Response;
+        return new ResponseCtor(res.body, {
+          status: res.status,
+          statusText: res.statusText,
+          headers: newHeaders,
+        });
       }
-      return new Response(res.body, {
-        status: res.status,
-        statusText: res.statusText,
-        headers: newHeaders,
-      });
     }
     return res;
   });

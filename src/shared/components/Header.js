@@ -183,18 +183,15 @@ export default function Header({ onMenuClick, showMenuButton = true }) {
  return () => {
  cancelled = true;
  };
- }, []);
-
- const handleLogout = async () => {
- try {
- const res = await fetch("/api/auth/logout", { method: "POST" });
- if (res.ok) {
- window.location.assign("/login");
- }
- } catch (err) {
- console.error("Failed to logout:", err);
- }
- };
+ }, []);  const handleLogout = async () => {
+    try {
+      await fetch("/api/auth/logout", { method: "POST" });
+    } catch (err) {
+      console.error("Failed to logout:", err);
+    } finally {
+      window.location.replace("/login");
+    }
+  };
 
  return (
     <header className="flex h-16 min-h-16 shrink-0 items-center gap-3 border-b border-border bg-bg px-3.5 z-20">

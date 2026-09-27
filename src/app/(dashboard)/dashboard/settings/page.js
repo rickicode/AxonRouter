@@ -829,17 +829,15 @@ export default function ProfilePage() {
    } finally {
      setPruningLoading(false);
    }
- };
- const handleLogout = async () => {
- try {
- const res = await fetch("/api/auth/logout", { method: "POST" });
- if (res.ok) {
- window.location.assign("/login");
- }
- } catch (err) {
- console.error("Failed to logout:", err);
- }
- };
+ };  const handleLogout = async () => {
+    try {
+      await fetch("/api/auth/logout", { method: "POST" });
+    } catch (err) {
+      console.error("Failed to logout:", err);
+    } finally {
+      window.location.replace("/login");
+    }
+  };
 
  return (
  <div className="flex w-full flex-col gap-3">
