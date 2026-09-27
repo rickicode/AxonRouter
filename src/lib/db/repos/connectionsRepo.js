@@ -937,6 +937,43 @@ export async function createProviderConnection(data = {}) {
   const input = normalizePatch(data);
   const now = new Date().toISOString();
 
+  // Auto-inherit provider-level proxy strategy if no explicit proxy is configured
+  const psd = { ...(input.providerSpecificData || input.data?.providerSpecificData || {}) };
+  const hasProxyConfig =
+    Boolean(psd.proxyGroup) ||
+    Boolean(psd.proxyPoolId && psd.proxyPoolId !== "__none__") ||
+    (Array.isArray(psd.proxyPoolIds) && psd.proxyPoolIds.length > 0) ||
+    Boolean(psd.connectionProxyUrl) ||
+    Boolean(input.proxyPoolId && input.proxyPoolId !== "__none__") ||
+    Boolean(input.proxyGroup);
+
+  if (!hasProxyConfig && input.provider) {
+    try {
+      const { getSettings } = await import("./settingsRepo.js");
+      const settings = await getSettings();
+      const strategy = (settings?.providerStrategies || {})[input.provider] || {};
+      if (strategy.proxyGroup) {
+        input.providerSpecificData = {
+          ...psd,
+          proxyGroup: strategy.proxyGroup,
+          proxyRotationStrategy: strategy.rotateStrategy || "smart",
+        };
+      } else if (strategy.proxyPoolId && strategy.proxyPoolId !== "__none__") {
+        input.providerSpecificData = {
+          ...psd,
+          proxyPoolId: strategy.proxyPoolId,
+        };
+      } else if (strategy.rotateStrategy && strategy.rotateStrategy !== "none") {
+        input.providerSpecificData = {
+          ...psd,
+          proxyRotationStrategy: strategy.rotateStrategy,
+        };
+      }
+    } catch {
+      // Advisory fallback, continue without blocking
+    }
+  }
+
   return db.transaction(async (tx) => {
     let existing = null;
     if (input.authType === "oauth" && input.email) {

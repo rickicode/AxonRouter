@@ -187,12 +187,14 @@ export default function ConnectionsSection(d) {
  const activePools = proxyPools.filter((p) => p.isActive === true);
 
  return (
- <>
- {isFreeNoAuth ? (
- <NoAuthProxyCard providerId={providerId} />
- ) : (
- <Card>
- <ConnectionsCardHeader
+   <div className="flex flex-col gap-4">
+     {isFreeNoAuth ? (
+       <NoAuthProxyCard providerId={providerId} isFreeNoAuth={true} />
+     ) : (
+       <>
+         <NoAuthProxyCard providerId={providerId} isFreeNoAuth={false} />
+         <Card>
+           <ConnectionsCardHeader
  connections={connections} proxyPools={proxyPools}
  providerStrategy={providerStrategy} oneByOneRunning={oneByOneRunning}
  oneByOneStopping={oneByOneStopping} handleBulkResetStatus={handleBulkResetStatus}
@@ -362,9 +364,10 @@ className="inline-flex items-center gap-1 rounded-sm border border-border bg-sur
             </div>
           )}
         </>
- )}
- </Card>
- )}
+      )}
+    </Card>
+    </>
+  )}
 
  {/* Bulk Proxy Modal */}
  <Modal
@@ -486,6 +489,6 @@ className="inline-flex items-center gap-1 rounded-sm border border-border bg-sur
  <Button onClick={closeBulkProxyModal} variant="ghost" fullWidth disabled={bulkUpdatingProxy}>Cancel</Button>
  </div>
  </Modal>
- </>
+ </div>
  );
-}
+ }

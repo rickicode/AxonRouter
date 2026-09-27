@@ -955,12 +955,31 @@ export async function getProviderCredentials(provider, excludeConnectionIds = nu
     // through here so callers never see a raw DB row. Function declaration
     // (hoisted) because the LKG fast path above uses it before this line.
     async function finalizeSelection(connection) {
-    // Scope the region-aware picker to this provider/model (e.g. freebuff::gpt-5.6-luna)
-    const hasPoolConfig = connection.providerSpecificData?.proxyPoolIds?.length || connection.providerSpecificData?.proxyGroup;
-    const psdForProxy = hasPoolConfig
-      ? { ...connection.providerSpecificData, proxyPoolScope: `${providerId}::${model || ""}` }
-      : connection.providerSpecificData;
-    const resolvedProxy = await resolveConnectionProxyConfig(psdForProxy || {}, connection.id);
+      let psd = { ...(connection.providerSpecificData || {}) };
+      const hasConnectionProxy =
+        Boolean(psd.proxyGroup) ||
+        Boolean(psd.proxyPoolId && psd.proxyPoolId !== "__none__") ||
+        (Array.isArray(psd.proxyPoolIds) && psd.proxyPoolIds.length > 0) ||
+        Boolean(psd.connectionProxyUrl);
+
+      // Inherit provider-level default proxy strategy if connection doesn't specify one
+      if (!hasConnectionProxy && providerOverride) {
+        if (providerOverride.proxyGroup) {
+          psd.proxyGroup = providerOverride.proxyGroup;
+          psd.proxyRotationStrategy = providerOverride.rotateStrategy || "smart";
+        } else if (providerOverride.proxyPoolId && providerOverride.proxyPoolId !== "__none__") {
+          psd.proxyPoolId = providerOverride.proxyPoolId;
+        } else if (providerOverride.rotateStrategy && providerOverride.rotateStrategy !== "none") {
+          psd.proxyRotationStrategy = providerOverride.rotateStrategy;
+        }
+      }
+
+      // Scope the region-aware picker to this provider/model (e.g. freebuff::gpt-5.6-luna)
+      const hasPoolConfig = psd?.proxyPoolIds?.length || psd?.proxyGroup;
+      const psdForProxy = hasPoolConfig
+        ? { ...psd, proxyPoolScope: `${providerId}::${model || ""}` }
+        : psd;
+      const resolvedProxy = await resolveConnectionProxyConfig(psdForProxy || {}, connection.id);
 
     return {
       authType: connection.authType,
@@ -975,7 +994,7 @@ export async function getProviderCredentials(provider, excludeConnectionIds = nu
       connectionName: connection.displayName || connection.name || connection.email || connection.id,
       copilotToken: connection.providerSpecificData?.copilotToken,
       providerSpecificData: {
-        ...(connection.providerSpecificData || {}),
+        ...psd,
         connectionProxyEnabled: resolvedProxy.connectionProxyEnabled,
         connectionProxyUrl: resolvedProxy.connectionProxyUrl,
         connectionNoProxy: resolvedProxy.connectionNoProxy,
