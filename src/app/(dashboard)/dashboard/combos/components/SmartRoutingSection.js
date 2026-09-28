@@ -232,32 +232,13 @@ export default function SmartRoutingSection({
   const [judgeSaving, setJudgeSaving] = useState(false);
   const [thresholdDraft, setThresholdDraft] = useState(null);
 
-  const comboOverrideActive =
-    strategy.judgeMode != null ||
-    strategy.jevConfidenceThreshold != null ||
-    strategy.jevModel != null ||
-    strategy.jevProvider != null;
-
-  const globalMode = globalJudge?.judgeMode || "two-layer";
-  const globalThreshold =
-    typeof globalJudge?.jevConfidenceThreshold === "number" ? globalJudge.jevConfidenceThreshold : 0.7;
-
-  const judgeMode =
-    comboOverrideActive && strategy.judgeMode != null ? strategy.judgeMode : globalMode;
-  const threshold =
-    comboOverrideActive && typeof strategy.jevConfidenceThreshold === "number"
-      ? strategy.jevConfidenceThreshold
-      : globalThreshold;
-
-  // Classifier upstream selection: the picker value is "<providerId>|<modelId>" so
-  // two providers serving the same model id (oc/ and ocz/ both serve jev-1.13-free)
-  // stay distinguishable. Both halves persist in the strategy.
-  const globalJevModel = globalJudge?.jevModel || DEFAULT_JEV_MODEL;
-  const globalJevProvider = globalJudge?.jevProvider || "";
-  const jevModel =
-    comboOverrideActive && strategy.jevModel != null ? strategy.jevModel : globalJevModel;
-  const jevProvider =
-    comboOverrideActive && strategy.jevProvider != null ? strategy.jevProvider : globalJevProvider;
+  // Jev classifier model from strategy, falling back to global or default
+  const jevModel = strategy.jevModel || globalJudge?.jevModel || DEFAULT_JEV_MODEL;
+  const jevProvider = strategy.jevProvider || globalJudge?.jevProvider || "";
+  const judgeMode = strategy.judgeMode || globalJudge?.judgeMode || "two-layer";
+  const threshold = typeof strategy.jevConfidenceThreshold === "number"
+    ? strategy.jevConfidenceThreshold
+    : (typeof globalJudge?.jevConfidenceThreshold === "number" ? globalJudge.jevConfidenceThreshold : 0.7);
   const activeJevChoice =
     JEV_MODEL_CHOICES.find((c) => c.value === jevModel && (!jevProvider || c.provider === jevProvider))
     || JEV_MODEL_CHOICES.find((c) => c.value === jevModel)
@@ -284,8 +265,6 @@ export default function SmartRoutingSection({
           typeof data.jevConfidenceThreshold === "number" ? data.jevConfidenceThreshold : 0.7,
         jevModel: data.jevModel || DEFAULT_JEV_MODEL,
         jevProvider: data.jevProvider || "",
-        jevApiKeys: {},
-        jevApiKeysConfigured: Array.isArray(data.jevApiKeysConfigured) ? data.jevApiKeysConfigured : [],
       });
       setGlobalJudgeError("");
     } catch (error) {
@@ -317,8 +296,7 @@ export default function SmartRoutingSection({
   };
 
   const handleJudgeModeChange = (value) => {
-    if (comboOverrideActive) onSetStrategy({ judgeMode: value });
-    else saveGlobalJudge({ judgeMode: value });
+    onSetStrategy({ judgeMode: value });
   };
 
   const handleSelectJevModel = (m) => {
@@ -349,52 +327,20 @@ export default function SmartRoutingSection({
 
     const endpoint = choice.endpoint || "";
 
-    if (comboOverrideActive) {
-      onSetStrategy({
-        jevModel: newModel,
-        jevProvider: newProvider || undefined,
-        jevEndpoint: endpoint || undefined,
-      });
-      notify.success(`Selected Jev classifier: ${choice.providerLabel || newProvider} / ${newModel}`);
-    } else {
-      saveGlobalJudge({
-        jevModel: newModel,
-        jevProvider: newProvider || "",
-      });
-    }
+    onSetStrategy({
+      jevModel: newModel,
+      jevProvider: newProvider || undefined,
+      jevEndpoint: endpoint || undefined,
+    });
+    notify.success(`Selected Jev classifier: ${choice.providerLabel || newProvider} / ${newModel}`);
   };
-
   const handleThresholdRelease = () => {
     if (thresholdDraft === null) return;
     const num = Number(thresholdDraft);
     setThresholdDraft(null);
     if (!Number.isFinite(num) || num === threshold) return;
     const next = Math.min(1, Math.max(0, num));
-    if (comboOverrideActive) onSetStrategy({ jevConfidenceThreshold: next });
-    else saveGlobalJudge({ jevConfidenceThreshold: next });
-  };
-
-  const handleToggleComboOverride = (checked) => {
-    const comboName = combo?.name || "this combo";
-    if (checked) {
-      onSetStrategy({
-        judgeMode,
-        jevConfidenceThreshold: threshold,
-        jevModel,
-        jevProvider: selectedProviderId || undefined,
-        jevEndpoint,
-      });
-      notify.success(`Classifier settings overridden for "${comboName}"`);
-    } else {
-      onSetStrategy({
-        judgeMode: undefined,
-        jevConfidenceThreshold: undefined,
-        jevModel: undefined,
-        jevProvider: undefined,
-        jevEndpoint: undefined,
-      });
-      notify.success(`Classifier settings now inherit global defaults for "${comboName}"`);
-    }
+    onSetStrategy({ jevConfidenceThreshold: next });
   };
 
   const easyModels = useMemo(
@@ -495,48 +441,34 @@ export default function SmartRoutingSection({
 
   return (
     <div className="mt-3 flex flex-col gap-3.5 rounded-lg border border-border bg-surface-2 p-3 sm:p-4">
-      {/* 1. Header Control Bar: Policy, Scope Toggle, Mode, Jev Classifier, Judge LLM */}
+      {/* 1. Header Control Bar: Policy, Mode, Jev Classifier, Judge LLM */}
       <div className="flex flex-col gap-3 rounded-md border border-border bg-surface p-3">
-        {/* Row 1: Policy (left) + Configuration Scope Toggle (right) */}
-        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between border-b border-border/40 pb-2.5">
-          <div className="flex flex-col gap-1.5 sm:flex-row sm:items-center sm:gap-3">
-            <span className="text-xs font-semibold text-text-main shrink-0 flex items-center gap-1.5">
-              <Icon name="tune" size={16} className="text-primary" />
-              <span>Policy:</span>
-            </span>
-            <div className="flex flex-wrap items-center gap-1.5">
-              {ROUTING_POLICIES.map((p) => {
-                const active = policy === p.key;
-                return (
-                  <button
-                    key={p.key}
-                    type="button"
-                    onClick={() => onSetStrategy({ difficultyPolicy: p.key })}
-                    title={p.desc}
-                    className={`inline-flex items-center gap-1.5 rounded-sm px-2.5 py-1 text-xs font-medium transition-all ${
-                      active
-                        ? "bg-primary text-white shadow-xs font-semibold"
-                        : "bg-surface-2 border border-border text-text-muted hover:border-border/80 hover:text-text-main"
-                    }`}
-                  >
-                    <Icon name={p.icon} size={14} />
-                    <span>{p.label}</span>
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-
-          {/* Scope Toggle: Global vs Combo Override */}
-          <div className="flex items-center gap-2 self-start sm:self-auto">
-            <span className="text-[11px] text-text-muted">Global</span>
-            <Toggle
-              size="sm"
-              checked={comboOverrideActive}
-              onChange={handleToggleComboOverride}
-              aria-label="Override classifier settings for this combo"
-            />
-            <span className="text-[11px] font-medium text-text-main">Combo Override</span>
+        {/* Row 1: Policy Selector */}
+        <div className="flex flex-col gap-1.5 sm:flex-row sm:items-center sm:gap-3 border-b border-border/40 pb-2.5">
+          <span className="text-xs font-semibold text-text-main shrink-0 flex items-center gap-1.5">
+            <Icon name="tune" size={16} className="text-primary" />
+            <span>Policy:</span>
+          </span>
+          <div className="flex flex-wrap items-center gap-1.5">
+            {ROUTING_POLICIES.map((p) => {
+              const active = policy === p.key;
+              return (
+                <button
+                  key={p.key}
+                  type="button"
+                  onClick={() => onSetStrategy({ difficultyPolicy: p.key })}
+                  title={p.desc}
+                  className={`inline-flex items-center gap-1.5 rounded-sm px-2.5 py-1 text-xs font-medium transition-all ${
+                    active
+                      ? "bg-primary text-white shadow-xs font-semibold"
+                      : "bg-surface-2 border border-border text-text-muted hover:border-border/80 hover:text-text-main"
+                  }`}
+                >
+                  <Icon name={p.icon} size={14} />
+                  <span>{p.label}</span>
+                </button>
+              );
+            })}
           </div>
         </div>
 

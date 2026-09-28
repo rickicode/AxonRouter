@@ -774,7 +774,7 @@ function ComboCard({
               {isDifficulty && judgeOverrideActive && (
                 <span
                   className="inline-flex items-center gap-1 rounded bg-amber-500/10 px-1.5 py-0.5 text-[11px] font-medium text-amber-400 border border-amber-500/30"
-                  title="This combo overrides the global judge mode, Jev threshold and/or TypeSafe API key"
+                  title="This combo overrides the global judge mode, Jev threshold, or classifier model"
                 >
                   <Icon name="tune" size={14} />
                   Judge Override
