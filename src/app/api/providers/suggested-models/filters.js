@@ -73,5 +73,16 @@ export const FILTERS = {
         name: m.name || m.id,
         contextLength: m.context_length || 131072,
       })),
+
+  "cline-free": (models) => {
+    const list = Array.isArray(models) ? models : (models?.free || []);
+    return list
+      .filter((m) => Boolean(m.id))
+      .map((m) => ({
+        id: m.id,
+        name: m.name || m.id,
+        description: m.description,
+      }));
+  },
 };
 

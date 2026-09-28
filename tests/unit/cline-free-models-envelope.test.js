@@ -304,14 +304,13 @@ describe("cline & cline-free registry models ordering and cleanup", () => {
     // Dead / timeout model removed
     expect(modelIds).not.toContain("nex-agi/nex-n2.5-mini:free");
 
-    // New working free model added
-    expect(modelIds).toContain("z-ai/glm-5.2:free");
-
-    // Top free models placed first
-    expect(modelIds[0]).toBe("z-ai/glm-5.2:free");
-    expect(modelIds[1]).toBe("z-ai/glm-5.3-flash");
-    expect(modelIds).not.toContain("deepseek/deepseek-v4.1-flash");
-    expect(modelIds).toContain("google/gemma-4-26b-a4b-it:free");
+    // Official Cline free models
+    expect(modelIds).toContain("stealth/pixel-canary");
+    expect(modelIds).toContain("stealth/space-bunny-alpha");
+    expect(modelIds).toContain("cline-free/mimo-v2.6-flash");
+    expect(modelIds).toContain("cline-free/deepseek-v4.1-flash");
+    expect(modelIds).toContain("cline-free/gemini-3.8-flash");
+    expect(modelIds).toContain("cline-free/muse-spark-1.3-contributor");
   });
 
   it("cline provider lists free models first before paid flagship models", async () => {

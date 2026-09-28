@@ -8807,110 +8807,33 @@ export const REGISTRY_UI = [
     ],
     passthroughModels: true,
     modelsFetcher: {
-      url: "https://api.cline.bot/api/v1/models",
+      url: "https://api.cline.bot/api/v1/ai/cline/recommended-models",
       type: "cline-free"
     },
     models: [
       {
-        id: "z-ai/glm-5.2:free",
-        name: "GLM 5.2 (Free)"
+        id: "stealth/pixel-canary",
+        name: "Pixel Canary (Free)"
       },
       {
-        id: "z-ai/glm-5.3-flash",
-        name: "GLM 5.3 Flash (Free Daily Limit)"
+        id: "stealth/space-bunny-alpha",
+        name: "Space Bunny Alpha (Free)"
       },
       {
-        id: "z-ai/glm-4.7-flash",
-        name: "GLM 4.7 Flash"
+        id: "cline-free/mimo-v2.6-flash",
+        name: "MiMo-V2.6-Flash (Free)"
       },
       {
-        id: "z-ai/glm-4.5",
-        name: "GLM 4.5"
+        id: "cline-free/deepseek-v4.1-flash",
+        name: "DeepSeek V4.1 Flash (Free)"
       },
       {
-        id: "google/gemma-4-26b-a4b-it:free",
-        name: "Gemma 4 26B (Free)"
+        id: "cline-free/gemini-3.8-flash",
+        name: "Gemini 3.8 Flash (Free)"
       },
       {
-        id: "google/gemma-4-31b-it:free",
-        name: "Gemma 4 31B (Free)"
-      },
-      {
-        id: "nvidia/nemotron-3-super-120b-a12b:free",
-        name: "Nemotron 3 Super 120B (Free)"
-      },
-      {
-        id: "nvidia/nemotron-3-ultra-550b-a55b:free",
-        name: "Nemotron 3 Ultra 550B (Free)"
-      },
-      {
-        id: "nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free",
-        name: "Nemotron 3 Nano Omni Reasoning (Free)"
-      },
-      {
-        id: "nvidia/nemotron-3.5-lightning:free",
-        name: "Nemotron 3.5 Lightning (Free)"
-      },
-      {
-        id: "nvidia/nemotron-3.5-content-safety:free",
-        name: "Nemotron 3.5 Content Safety (Free)"
-      },
-      {
-        id: "thinkingmachines/inkling:free",
-        name: "Inkling (Free)"
-      },
-      {
-        id: "thinkingmachines/inkling-small:free",
-        name: "Inkling Small (Free)"
-      },
-      {
-        id: "poolside/laguna-xs-2.1:free",
-        name: "Laguna XS 2.1 (Free)"
-      },
-      {
-        id: "poolside/laguna-s-2.1:free",
-        name: "Laguna S 2.1 (Free)"
-      },
-      {
-        id: "cohere/north-mini-code:free",
-        name: "North Mini Code (Free)"
-      },
-      {
-        id: "nex-agi/nex-n2.5-pro:free",
-        name: "Nex N2.5 Pro (Free)"
-      },
-      {
-        id: "liquid/lfm-2.5-2.6b:free",
-        name: "LFM 2.5 2.6B (Free)"
-      },
-      {
-        id: "dots-studio/dots-3-note-preview:free",
-        name: "Dots 3 Note Preview (Free)"
-      },
-      {
-        id: "inclusionai/ling-3.0-flash-vl:free",
-        name: "Ling 3.0 Flash VL (Free)"
-      },
-      {
-        id: "inclusionai/ling-3.0-flash-fin:free",
-        name: "Ling 3.0 Flash Fin (Free)"
-      },
-      {
-        id: "inclusionai/ling-3.0-flash-sante:free",
-        name: "Ling 3.0 Flash Santé (Free)"
-      },
-      {
-        id: "deepseek/deepseek-v4-flash-0731:free",
-        name: "DeepSeek V4 Flash (Free)"
-      },
-      {
-        id: "moonshotai/kimi-k3",
-        name: "Kimi K3 (Free)",
-        contextLength: 262144
-      },
-      {
-        id: "openrouter/free",
-        name: "OpenRouter Free"
+        id: "cline-free/muse-spark-1.3-contributor",
+        name: "Muse Spark 1.3 Contributor (Free)"
       }
     ]
   },
