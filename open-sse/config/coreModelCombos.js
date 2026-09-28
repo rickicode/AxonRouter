@@ -18,18 +18,15 @@
 
 export const CORE_MODEL_COMBOS = {
   "deepseek-v4-flash": [
-    "cline-free/deepseek/deepseek-v4-flash",
-    "cline-free/deepseek/deepseek-v4.1-flash",
-    "uk/deepseek/deepseek-v4-flash",
     "th/deepseek-v4.1-flash:free",
     "kilocode/deepseek/deepseek-chat",
     "openrouter/deepseek/deepseek-v4-flash-0731:free",
+    "cline-free/deepseek/deepseek-v4.1-flash",
   ],
   "deepseek-v4-pro": [
-    "uk/deepseek/deepseek-v4-pro",
     "th/deepseek-v4.1-flash:free",
-    "cline-free/deepseek/deepseek-v4.1-flash",
     "kilocode/deepseek/deepseek-reasoner",
+    "cline-free/deepseek/deepseek-v4.1-flash",
   ],
 };
 
@@ -69,31 +66,27 @@ export const GENERAL_LATEST_COMBOS = {
   ],
   "gemini-pro-latest": [
     "ag/gemini-3.1-pro-low",
-    "uk/google/gemini-3.1-pro-preview",
+    "ag/gemini-3.8-flash-high",
   ],
   "claude-latest": [
-    "uk/claude-opus-4-8",
     "ag/claude-opus-4-6-thinking",
   ],
   "glm-latest": [
-    "cline-free/z-ai/glm-5.3-flash",
+    "cf/@cf/zai-org/glm-4.7-flash",
     "ocz/glm-5.3-flash",
-    "cline-free/z-ai/glm-5.2:free",
-    "kilocode/z-ai/glm-5.2:free",
+    "runanywhere/glm-5.3-flash",
+    "th/glm-5.3-flash",
   ],
   "deepseek-flash-latest": [
-    "cline-free/deepseek/deepseek-v4-flash",
-    "cline-free/deepseek/deepseek-v4.1-flash",
-    "uk/deepseek/deepseek-v4-flash",
     "th/deepseek-v4.1-flash:free",
     "kilocode/deepseek/deepseek-chat",
     "openrouter/deepseek/deepseek-v4-flash-0731:free",
+    "cline-free/deepseek/deepseek-v4.1-flash",
   ],
   "deepseek-pro-latest": [
-    "uk/deepseek/deepseek-v4-pro",
     "th/deepseek-v4.1-flash:free",
-    "cline-free/deepseek/deepseek-v4.1-flash",
     "kilocode/deepseek/deepseek-reasoner",
+    "cline-free/deepseek/deepseek-v4.1-flash",
   ],
   "gpt-latest": [
     "cx/gpt-5.5",
@@ -102,7 +95,6 @@ export const GENERAL_LATEST_COMBOS = {
     "cx/gpt-5.5-review",
     "cx/gpt-5.6-terra-review",
     "cx/gpt-5.6-luna-review",
-    "uk/gpt-5.6-luna",
   ],
   "open-weight-latest": [
     "cline-free/cohere/north-mini-code:free",
