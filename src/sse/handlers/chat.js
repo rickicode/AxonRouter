@@ -34,6 +34,7 @@ import {
   setProviderDead,
   isProviderDead,
   clearProviderDead,
+  setProviderModelCooldown,
 } from "@/lib/cache/client.js";
 import { bumpRoutingMetric } from "open-sse/services/routingMetrics.js";
 
@@ -1064,6 +1065,12 @@ export async function handleSingleModelChat(body, modelStr, clientRawRequest = n
       lastStatus = effectiveStatus || result.status;
       if (excludeConnectionIds.size >= MAX_FALLBACK_ATTEMPTS) {
         log.warn("FALLBACK", `Reached maximum fallback attempts (${MAX_FALLBACK_ATTEMPTS}), stopping`);
+        if (provider === "tokenharbor" && (effectiveStatus === 429 || lastStatus === 429) && /model is at capacity|at capacity for your account|retry in about/i.test(String(lastError || ""))) {
+          const retryMatch = String(lastError).match(/retry in about (\d+) seconds/i);
+          const retrySecs = retryMatch ? parseInt(retryMatch[1], 10) : 30;
+          setProviderModelCooldown(provider, model, retrySecs).catch(() => {});
+          log.warn("FALLBACK", `[TokenHarbor] All ${MAX_FALLBACK_ATTEMPTS} attempted accounts reached model capacity for ${model}. Set ${retrySecs}s model cooldown.`);
+        }
         return errorResponse(lastStatus || HTTP_STATUS.SERVICE_UNAVAILABLE, `Max fallback attempts (${MAX_FALLBACK_ATTEMPTS}) reached: ${lastError}`);
       }
       continue;

@@ -1590,20 +1590,13 @@ export async function markAccountUnavailable(connectionId, status, errorText, pr
     const isModelCapacity = status === 429 && /model is at capacity|at capacity for your account|retry in about/i.test(lowerErr);
     lockAll = status !== 429; // Lock akun jika quota habis, hanya model jika rate-limit 429
     isExhausted = status !== 429;
-    // When upstream model itself is at capacity, do NOT fallback to sibling accounts of the same provider
-    shouldFallback = !isModelCapacity;
+    // Allow fallback to try other accounts up to MAX_FALLBACK_ATTEMPTS (10 accounts)
+    shouldFallback = true;
     const retryMatch = lowerErr.match(/retry in about (\d+) seconds/i);
     const retrySecs = retryMatch ? parseInt(retryMatch[1], 10) : 30;
     cooldownMs = resetsAtMs && resetsAtMs > Date.now()
       ? resetsAtMs - Date.now()
-      : (status === 429 ? retrySecs * 1000 : 7 * 24 * 60 * 60 * 1000); // 30s untuk rate-limit / model capacity
-    if (isModelCapacity && model) {
-      setProviderModelCooldown(providerId, model, retrySecs).catch(() => {});
-      clearAvailabilityMemo(providerId, model);
-      if (model.includes("/")) clearAvailabilityMemo(providerId, model.split("/").pop());
-      else clearAvailabilityMemo(providerId, `deepseek/${model}`);
-      log.warn("AUTH", `[TokenHarbor] Model ${model} is at capacity. Cooldown set for ${retrySecs}s across all accounts.`);
-    }
+      : (status === 429 ? retrySecs * 1000 : 7 * 24 * 60 * 60 * 1000); // 30s model lock untuk akun ini
   }
   const isQuotaExhausted = /resource.*exhausted|quota.*exhausted|exhausted.*capacity|capacity.*exhausted|quota.*reset|daily.*limit|limit reached/i.test(lowerErr);
   if (providerId === "antigravity" && isQuotaExhausted && model) {

@@ -3,13 +3,12 @@ import { PROVIDERS } from "../providers/index.js";
 import { proxyAwareFetch } from "../utils/proxyFetch.js";
 import { resolveConnectionProxyConfig } from "@/lib/network/connectionProxy.js";
 import { getProviderCredentials, markAccountUnavailable } from "@/sse/services/auth.js";
-import { peekStreamHead } from "../utils/streamHandler.js";
+import { setProviderModelCooldown } from "@/lib/cache/client.js";
 import { STREAM_COMMIT_PEEK_MS } from "../config/runtimeConfig.js";
 
 const HEDGE_DELAY_MS = 1000;
 const MAX_HEDGE_CONCURRENCY = 4;
-const MAX_TOTAL_HEDGE_ATTEMPTS = 8;
-
+const MAX_TOTAL_HEDGE_ATTEMPTS = 10;
 export class TokenHarborExecutor extends BaseExecutor {
   constructor() {
     super("tokenharbor", PROVIDERS.tokenharbor || { baseUrl: "https://tokenharbor.ai/v1/chat/completions" });
@@ -54,6 +53,7 @@ export class TokenHarborExecutor extends BaseExecutor {
     let lastFailedResponse = null;
     let lastFailedUrl = null;
     let lastFailedHeaders = null;
+    let capacityFailures = 0;
     const spawnAttempt = (creds, pOptions) => {
       const connId = creds?.connectionId || "default";
       const connName = creds?.connectionName || creds?.name || creds?.email || (connId.length > 8 ? connId.slice(0, 8) : connId);
@@ -203,13 +203,9 @@ export class TokenHarborExecutor extends BaseExecutor {
           lastFailedUrl = res.url;
           lastFailedHeaders = res.headers;
         }
-
-        // Upstream model capacity overload (HTTP 429):
-        // TokenHarbor's capacity for this model is saturated.
-        // Halt speculative hedging to avoid burning sibling accounts and allow combo fallback.
         if (res.isModelCapacity) {
-          log?.warn?.("HEDGE", `[TokenHarbor] Model ${model} is at capacity upstream. Halting speculative hedging.`);
-          break;
+          capacityFailures++;
+          log?.info?.("HEDGE", `[TokenHarbor] Account ${res.connName} at model capacity (${capacityFailures}/${MAX_TOTAL_HEDGE_ATTEMPTS}). Trying next account...`);
         }
         if (activeTasks.size === 0 && triedConnectionIds.size < MAX_TOTAL_HEDGE_ATTEMPTS) {
           try {
@@ -243,6 +239,13 @@ export class TokenHarborExecutor extends BaseExecutor {
       try {
         task.controller.abort();
       } catch {}
+    }
+    // If all 10 attempted accounts failed due to model capacity, enforce a 30s provider-wide cooldown for this model
+    if (capacityFailures >= MAX_TOTAL_HEDGE_ATTEMPTS && !winner) {
+      const retryMatch = lastError?.match(/retry in about (\d+) seconds/i);
+      const retrySecs = retryMatch ? parseInt(retryMatch[1], 10) : 30;
+      setProviderModelCooldown("tokenharbor", model, retrySecs).catch(() => {});
+      log?.warn?.("HEDGE", `[TokenHarbor] All ${MAX_TOTAL_HEDGE_ATTEMPTS} attempted accounts reached model capacity for ${model}. Setting 30s model cooldown.`);
     }
 
     if (winner) {
