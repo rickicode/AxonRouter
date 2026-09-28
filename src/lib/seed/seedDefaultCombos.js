@@ -16,16 +16,26 @@ const AUTO_CODING_STRATEGY = {
   judgeModel: "judge-router",
   difficultyPolicy: "balanced",
   easyModels: [
-    "th/deepseek/deepseek-v4.1-flash:free",
-    "oc/mimo-v2.6-flash-free",
-    "runanywhere/glm-5.3-flash",
-    "th/mimo-v2.6-flash:free",
+    "cline-free/cohere/north-mini-code:free",
+    "cline-free/google/gemma-4-31b-it:free",
+    "cline-free/inclusionai/ling-3.0-flash-fin:free",
+    "cline-free/inclusionai/ling-3.0-flash-vl:free",
+    "kcf/cohere/north-mini-code:free",
+    "kcf/inclusionai/ling-3.0-flash-fin:free",
+    "kcf/inclusionai/ling-3.0-flash-vl:free",
+  ],
+  mediumModels: [
+    "cline-free/deepseek/deepseek-v4-flash",
+    "cx/gpt-5.5",
+    "cx/gpt-5.6-luna",
+    "cline-free/poolside/laguna-s-2.1:free",
   ],
   hardModels: [
-    "frontier",
     "ag/gemini-3.8-flash-high",
-    "gcli/grok-4.7-xhigh",
-    "ag/claude-opus-4-6-thinking",
+    "gcli/grok-4.7",
+    "ocz/muse-spark-1.3-contributor-free",
+    "cline-free/nex-agi/nex-n2.5-pro:free",
+    "kcf/poolside/laguna-s-2.1:free",
   ],
 };
 

@@ -39,10 +39,6 @@ const BUILTIN_MODEL_ALIASES = {
   "meta/muse-spark-1.3-contributor": "cline-free/meta/muse-spark-1.3-contributor",
   "upstage/solar-pro4": "cline-free/upstage/solar-pro4",
   "solar-pro4": "cline-free/upstage/solar-pro4",
-  "uk/claude-haiku-4-5-20251001": "ag/gemini-3.8-flash-high",
-  "claude-haiku-4-5-20251001": "ag/gemini-3.8-flash-high",
-  "claude-haiku-4-5": "ag/gemini-3.8-flash-high",
-  "writer": "auto/writing",
 };
 /**
  * Resolve provider alias to provider ID

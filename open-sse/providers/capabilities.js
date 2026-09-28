@@ -129,9 +129,9 @@ export const MODEL_CAPABILITIES = {
   // Gemini image-gen / OpenAI image / xai image variants
   "gpt-image-1":       { imageOutput: true, tools: false },
 
-  // GLM vision variants (text GLM has no vision) — only V variants support vision;
-  // 5.3-Flash is pure text/reasoning.
-  "glm-5.3-flash":     { vision: false, reasoning: true, thinkingFormat: "zai", contextWindow: 1000000, maxOutput: 131072 },
+  // GLM vision variants (text GLM has no vision) — 5.3-Flash and 5V-Turbo are
+  // natively multimodal per z.ai, and 5.3-Flash carries the full 1M window.
+  "glm-5.3-flash":     { vision: true, videoInput: true, pdf: true, reasoning: true, thinkingFormat: "zai", contextWindow: 1000000, maxOutput: 131072 },
   "glm-4.6v":          { vision: true, videoInput: true, reasoning: true, thinkingFormat: "zai", contextWindow: 128000, maxOutput: 32768 },
   "glm-4.5v":          { vision: true, videoInput: true, reasoning: true, thinkingFormat: "zai", contextWindow: 64000, maxOutput: 16384 },
 
@@ -261,8 +261,8 @@ export const PROVIDER_CAPABILITIES = {
     // their thinking is switchable; the hy* models are forced always-on.
     "hy3":                { vision: true, reasoning: true, thinkingFormat: "openai", thinkingCanDisable: false, contextWindow: 192000, maxOutput: 64000 },
     "hy4-preview":        { vision: true, reasoning: true, thinkingFormat: "openai", thinkingCanDisable: false, contextWindow: 1000000, maxOutput: 64000 },
-    "glm-5.3":            { vision: false, reasoning: true, thinkingFormat: "openai", thinkingCanDisable: true, contextWindow: 1000000, maxOutput: 48000 },
-    "glm-5.3-flash":      { vision: false, reasoning: true, thinkingFormat: "openai", thinkingCanDisable: true, contextWindow: 1000000, maxOutput: 32000 },
+    "glm-5.3":            { vision: true, reasoning: true, thinkingFormat: "openai", thinkingCanDisable: true, contextWindow: 1000000, maxOutput: 48000 },
+    "glm-5.3-flash":      { vision: true, reasoning: true, thinkingFormat: "openai", thinkingCanDisable: true, contextWindow: 1000000, maxOutput: 32000 },
     "kimi-k3-1":          { vision: true, reasoning: true, thinkingFormat: "openai", thinkingCanDisable: false, contextWindow: 1000000, maxOutput: 32000 },
     "deepseek-v4-pro":    { vision: true, reasoning: true, thinkingFormat: "openai", thinkingCanDisable: true, contextWindow: 1000000, maxOutput: 50000 },
     // deepseek-v4.1-flash replaces v4-flash (dropped from the server list;
