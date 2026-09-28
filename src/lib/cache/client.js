@@ -226,6 +226,81 @@ export async function isModelInCooldown(connId, model) {
     return false;
   }
 }
+function canonicalProvModelKeys(provider, model) {
+  const normProv = String(provider || "").toLowerCase();
+  const normModel = String(model || "").toLowerCase();
+  const keys = new Set([`cooldown:pmodel:${normProv}:${normModel}`]);
+  // Handle provider/model prefix redundancy (e.g. deepseek/deepseek-v4.1-flash:free vs deepseek-v4.1-flash:free)
+  if (normModel.includes("/")) {
+    const bare = normModel.split("/").pop();
+    keys.add(`cooldown:pmodel:${normProv}:${bare}`);
+  } else if (normProv === "tokenharbor" && normModel.startsWith("deepseek-")) {
+    keys.add(`cooldown:pmodel:${normProv}:deepseek/${normModel}`);
+  } else if (normProv === "tokenharbor" && normModel.startsWith("mimo-")) {
+    keys.add(`cooldown:pmodel:${normProv}:xiaomi/${normModel}`);
+  } else if (normProv === "tokenharbor" && normModel.startsWith("qwen")) {
+    keys.add(`cooldown:pmodel:${normProv}:qwen/${normModel}`);
+  }
+  return Array.from(keys);
+}
+
+/**
+ * Provider-wide model cooldown (e.g. when upstream returns "model is at capacity").
+ * Affects ALL accounts of this provider for this model.
+ */
+export async function setProviderModelCooldown(provider, model, cooldownSeconds) {
+  if (!provider || !model) return false;
+  try {
+    const keys = canonicalProvModelKeys(provider, model);
+    const ttl = Math.max(1, Math.ceil(cooldownSeconds));
+    const until = Date.now() + ttl * 1000;
+    const valkey = getValkey();
+    if (valkey) {
+      for (const k of keys) {
+        valkey.set(k, String(until), "EX", ttl).catch(() => {});
+      }
+    }
+    for (const k of keys) {
+      memSet(k, String(until), ttl);
+    }
+    publishValkey("axon:events:cooldown", { type: "set_prov_model", provider, model, ttl, until }).catch(() => {});
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+export async function getProviderModelCooldown(provider, model) {
+  if (!provider || !model) return null;
+  try {
+    const keys = canonicalProvModelKeys(provider, model);
+    for (const k of keys) {
+      const memVal = memGet(k);
+      if (memVal) {
+        const until = Number(memVal);
+        if (until > Date.now()) return until;
+      }
+    }
+    const valkey = getValkey();
+    if (valkey) {
+      for (const k of keys) {
+        try {
+          const res = await valkey.get(k);
+          if (res) {
+            const until = Number(res);
+            if (until > Date.now()) {
+              memSet(k, res, Math.ceil((until - Date.now()) / 1000));
+              return until;
+            }
+          }
+        } catch {}
+      }
+    }
+    return null;
+  } catch {
+    return null;
+  }
+}
 
 /**
  * Consecutive upstream-failure counter per provider/model (combo failover).

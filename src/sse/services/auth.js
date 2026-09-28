@@ -40,6 +40,8 @@ import {
   incrModelFailCount,
   resetModelFailCount,
   incrSharedCounter,
+  setProviderModelCooldown,
+  getProviderModelCooldown,
 } from "@/lib/cache/client.js";
 import { providerAllowsAccountExhausted, isCreditQuotaErrorText, isAccountFullyExhausted } from "./accountExhaustionPolicy.js";
 import * as log from "../utils/logger.js";
@@ -326,9 +328,25 @@ function memoVerdictTtl(retryAfter) {
 export async function checkModelAvailability(provider, model) {
   const providerId = resolveProviderId(provider);
   if (FREE_PROVIDERS[providerId]?.noAuth) return { available: true };
-
   const key = `${providerId}|${model || "*"}`;
   const now = Date.now();
+
+  // Provider-wide model capacity cooldown (e.g. TokenHarbor 429 "model is at capacity")
+  // Check this before availabilityMemo so active capacity cooldowns take immediate effect
+  const provModelUntil = model ? await getProviderModelCooldown(providerId, model) : null;
+  if (provModelUntil && provModelUntil > now) {
+    const retryAfter = new Date(provModelUntil).toISOString();
+    const result = {
+      available: false,
+      retryAfter,
+      retryAfterHuman: formatRetryAfter(retryAfter),
+      code: "MODEL_CAPACITY_COOLDOWN",
+      message: `${providerId}/${model} is temporarily at capacity upstream (retry in ${Math.ceil((provModelUntil - now) / 1000)}s).`,
+    };
+    memoAvailability(key, { verdict: "blocked", until: provModelUntil, result });
+    return result;
+  }
+
   const memo = availabilityMemo.get(key);
   if (memo && memo.until > now) {
     return memo.verdict === "ok" ? { available: true } : { ...memo.result };
@@ -1569,14 +1587,23 @@ export async function markAccountUnavailable(connectionId, status, errorText, pr
   const isTokenHarborFreeExhausted = providerId === "tokenharbor"
     && (/used this period's free allowance|free allowance|free_tier_limit|free_quota_exceeded|free_tier_limit_reached|rate.?limit|model is at capacity|at capacity for your account/i.test(lowerErr) || (status === 402 && /balance is at \$0|balance is at 0/i.test(lowerErr)));
   if (isTokenHarborFreeExhausted) {
+    const isModelCapacity = status === 429 && /model is at capacity|at capacity for your account|retry in about/i.test(lowerErr);
     lockAll = status !== 429; // Lock akun jika quota habis, hanya model jika rate-limit 429
     isExhausted = status !== 429;
-    shouldFallback = true;
+    // When upstream model itself is at capacity, do NOT fallback to sibling accounts of the same provider
+    shouldFallback = !isModelCapacity;
     const retryMatch = lowerErr.match(/retry in about (\d+) seconds/i);
     const retrySecs = retryMatch ? parseInt(retryMatch[1], 10) : 30;
     cooldownMs = resetsAtMs && resetsAtMs > Date.now()
       ? resetsAtMs - Date.now()
       : (status === 429 ? retrySecs * 1000 : 7 * 24 * 60 * 60 * 1000); // 30s untuk rate-limit / model capacity
+    if (isModelCapacity && model) {
+      setProviderModelCooldown(providerId, model, retrySecs).catch(() => {});
+      clearAvailabilityMemo(providerId, model);
+      if (model.includes("/")) clearAvailabilityMemo(providerId, model.split("/").pop());
+      else clearAvailabilityMemo(providerId, `deepseek/${model}`);
+      log.warn("AUTH", `[TokenHarbor] Model ${model} is at capacity. Cooldown set for ${retrySecs}s across all accounts.`);
+    }
   }
   const isQuotaExhausted = /resource.*exhausted|quota.*exhausted|exhausted.*capacity|capacity.*exhausted|quota.*reset|daily.*limit|limit reached/i.test(lowerErr);
   if (providerId === "antigravity" && isQuotaExhausted && model) {
