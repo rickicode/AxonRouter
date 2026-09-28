@@ -34,58 +34,13 @@ function getLocalDbFn(name) {
 
 // Providers whose free models keep serving after paid credits die, or whose
 // quota resets on a timer — must never carry account-level "exhausted".
-export const NEVER_ACCOUNT_EXHAUSTED_PROVIDERS = new Set([
-  // registry category "free" (free-only pools)
-  "freebuff",
-  "gemini-cli",
-  "opencode",
-  "kiro",
-  "kilocode-free",
-  "ovhcloud-free",
-  "llmtech-free",
-  "llm7-free",
-
-  // registry category "freeTier" — except cloudflare-ai, whose daily neuron
-  // budget is pooled across every model (true account-wide exhaustion)
-  "coqui",
-  "searxng",
-  "byteplus",
-  "api-airforce",
-  "edge-tts",
-  "kimchi",
-  "vertex",
-  "nvidia",
-  "tortoise",
-  "kilo-gateway",
-  "bazaarlink",
-  "local-device",
-  "gemini",
-  "ollama",
-  "google-tts",
-  "poolside",
-  "openrouter",
-
-  // free models survive paid-credit death / model-scoped billing
-  "cline",
-  "cline-free",
-  "kilocode",
-  "opencode-zen",
-  "bai",
-
-  // timed recovery (monthly cap) -> "unavailable", never terminal
-  "github",
-]);
-
-/**
- * Check if a provider can ever have an account marked as "exhausted".
- *
- * @param {string|null} providerId
- * @returns {boolean}
- */
-export function providerAllowsAccountExhausted(providerId) {
-  if (!providerId) return false;
-  return !NEVER_ACCOUNT_EXHAUSTED_PROVIDERS.has(providerId);
-}
+// Single source of truth lives in the dependency-free domain leaf so
+// `@/domain/quotaCache.js` can enforce the same policy without a cycle.
+import {
+  NEVER_ACCOUNT_EXHAUSTED_PROVIDERS,
+  providerAllowsAccountExhausted,
+} from "@/domain/accountExhaustionProviders.js";
+export { NEVER_ACCOUNT_EXHAUSTED_PROVIDERS, providerAllowsAccountExhausted };
 
 const CREDIT_QUOTA_RE =
   /credit|balance|insufficient|exhaust|deplet|billing|payment|quota|allocation|neurons|预扣费额度失败|剩余额度|额度不足/i;

@@ -9,6 +9,7 @@ import {
   checkModelAvailability,
 } from "../services/auth.js";
 import { markAccountExhaustedFrom429, markAccountExhaustedFromCredits, refreshQuota } from "@/domain/quotaCache.js";
+import { providerAllowsAccountExhausted } from "@/domain/accountExhaustionProviders.js";
 import { canonicalFreebuffModel } from "open-sse/executors/freebuff.js";
 import { getSettings, lockAccountToModel, lockProxyPoolForScope } from "@/lib/localDb";
 import { recordRuntimeProxySuccess } from "@/lib/network/proxyHealth.js";
@@ -908,12 +909,19 @@ export async function handleSingleModelChat(body, modelStr, clientRawRequest = n
       if (fbResetMs) resetsAtMs = fbResetMs;
     }
     if (!isTestRequest && effectiveStatus === 402) {
-      await markAccountExhaustedFromCredits({
-        connectionId: credentials.connectionId,
-        provider,
-        model,
-        resetAtMs: resetsAtMs,
-      });
+      // Account-wide credit exhaustion only applies to providers whose paid
+      // balance gates EVERY model. Free-model providers (cline-free,
+      // gemini-cli, llm7-free, ...) keep serving their free pool after paid
+      // credits die, so this 402 is model-scoped: `markAccountUnavailable`
+      // below already locks just the offending model.
+      if (providerAllowsAccountExhausted(provider)) {
+        await markAccountExhaustedFromCredits({
+          connectionId: credentials.connectionId,
+          provider,
+          model,
+          resetAtMs: resetsAtMs,
+        });
+      }
     }
     // Strict probe pin: report the pinned account's actual upstream outcome
     // without touching ANY routing state — no locks, no cooldowns, no token

@@ -6,6 +6,8 @@
  * - lazy dynamic imports to avoid circular deps on hot path
  */
 
+import { providerAllowsAccountExhausted } from "./accountExhaustionProviders.js";
+
 const ACTIVE_TTL_MS = 5 * 60 * 1000;
 const EXHAUSTED_TTL_MS = 5 * 60 * 1000;
 const EXHAUSTED_REFRESH_MS = 5 * 60 * 1000;
@@ -231,6 +233,12 @@ function persistAsync(connectionId, provider, quotas, exhausted, nextResetAt, ex
       const conn = await getProviderConnectionById(connectionId).catch(() => null);
       if (!conn) return;
       const patch = {};
+      // Some providers (cline-free, gemini-cli, llm7-free, ...) keep serving
+      // FREE models after paid credits hit zero, so a credit error on one paid
+      // model must never become a terminal account-wide "exhausted" state.
+      // Their per-model failure is already carried by the routing layer's
+      // modelLock; writing testStatus here poisons every free model too.
+      const allowsAccountExhausted = providerAllowsAccountExhausted(conn.provider || provider);
       if (exhausted) {
         // Per-model durable locks so routing SQL (model_locks JSONB) skips
         // exhausted pairs even before the next snapshot hydration.
@@ -242,7 +250,7 @@ function persistAsync(connectionId, provider, quotas, exhausted, nextResetAt, ex
           }
         }
       }
-      if (exhausted && conn.testStatus !== "exhausted") {
+      if (exhausted && allowsAccountExhausted && conn.testStatus !== "exhausted") {
         patch.testStatus = "exhausted";
         if (nextResetAt) patch.lockedAllUntil = nextResetAt;
       } else if (!exhausted && (conn.testStatus === "exhausted" || conn.testStatus === "unavailable")) {
@@ -314,6 +322,11 @@ export function markAccountExhaustedFrom429(connectionId, provider, resetAtMs = 
     connectionId = o.connectionId ?? o.id ?? null;
   }
   if (!connectionId || !provider) return null;
+  // Providers whose free models survive paid-credit death (cline-free, gemini-cli,
+  // llm7-free, ...) must never be marked account-wide exhausted: the failure is
+  // model-scoped and the routing layer already holds the per-model lock. Marking
+  // here would block every free model on the same account.
+  if (!providerAllowsAccountExhausted(provider)) return null;
   const state = getState();
   const now = Date.now();
   let effectiveResetAtMs = resetAtMs;
