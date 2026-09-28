@@ -36,6 +36,9 @@ export default {
   },
   forceStream: true,
   models: [
+    // System One (Jev) classifier models
+    { id: "jev-1.13-free", name: "Jev 1.13 Free (System One)", targetFormat: "systemone", kind: "jev", default: true },
+    { id: "jev-1.13", name: "Jev 1.13 (System One)", targetFormat: "systemone", kind: "jev" },
     // Muse Spark models are served by /zen/v1/responses, union-alpha by
     // /zen/v1/messages (Claude transport — reverse-engineered from the
     // genuine CLI 1.18.31, 2026-09-17); the rest stay on /chat/completions,

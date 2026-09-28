@@ -43,8 +43,8 @@ export default {
     // System One (Jev) classifier models — consumed by the combo Difficulty Judge
     // (open-sse/services/combo.js → classifyWithJev), not by the chat pipeline.
     // Zen upstream: https://opencode.ai/zen/v1/systemone (jev-1.13-free needs no key).
-    { id: "jev-1.13-free", name: "Jev 1.13 Free (System One)", targetFormat: "systemone", default: true },
-    { id: "jev-1.13", name: "Jev 1.13 (System One)", targetFormat: "systemone" },
+    { id: "jev-1.13-free", name: "Jev 1.13 Free (System One)", targetFormat: "systemone", kind: "jev", default: true },
+    { id: "jev-1.13", name: "Jev 1.13 (System One)", targetFormat: "systemone", kind: "jev" },
 
     // OpenAI / Codex / Responses models (served by /zen/v1/responses)
     { id: "gpt-6-astra", name: "GPT 6 Astra", targetFormat: "openai-responses", supportedFormats: ["openai-responses"] },

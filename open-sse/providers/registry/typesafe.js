@@ -36,6 +36,6 @@ export default {
     validateUrl: "https://api.typesafe.ai/v1/models",
   },
   models: [
-    { id: "jev-latest", name: "Jev Latest (System One)" },
+    { id: "jev-latest", name: "Jev Latest (System One)", kind: "jev", targetFormat: "systemone", default: true },
   ],
 };

@@ -42,7 +42,7 @@ describe("typesafe provider registry entry", () => {
     expect(entry.display.notice.apiKeyUrl).toBe("https://console.typesafe.ai");
     expect(entry.transport.baseUrl).toBe("https://api.typesafe.ai/v1");
     expect(entry.transport.validateUrl).toBe("https://api.typesafe.ai/v1/models");
-    expect(entry.models).toEqual([{ id: "jev-latest", name: "Jev Latest (System One)" }]);
+    expect(entry.models).toEqual([{ id: "jev-latest", name: "Jev Latest (System One)", kind: "jev", targetFormat: "systemone", default: true }]);
   });
 
   it("is exposed to the dashboard through REGISTRY_UI (providers + capabilities menus)", () => {

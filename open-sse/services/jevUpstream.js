@@ -119,8 +119,17 @@ function settingKey(options, provider) {
  */
 export async function resolveJevTarget(options = {}, log = null) {
   const comboName = options.comboName || "default";
-  const requested = typeof options.model === "string" ? options.model.trim() : "";
-  const requestedProvider = typeof options.provider === "string" ? options.provider.trim() : "";
+  let requested = typeof options.model === "string" ? options.model.trim() : "";
+  let requestedProvider = typeof options.provider === "string" ? options.provider.trim() : "";
+  if (!requestedProvider && requested.includes("/")) {
+    const slash = requested.indexOf("/");
+    const prefix = requested.slice(0, slash);
+    const matched = jevProviderById(prefix);
+    if (matched) {
+      requestedProvider = matched.provider;
+      requested = requested.slice(slash + 1);
+    }
+  }
   const explicitEndpoint = typeof options.endpoint === "string" ? options.endpoint.trim() : "";
   const modelMeta = jevModelMeta(requested);
 

@@ -2,7 +2,6 @@
 
 import { useState, useMemo, useEffect } from "react";
 import PropTypes from "prop-types";
-import Link from "@/lib/ui/link.jsx";
 import {
   DndContext,
   closestCenter,
@@ -20,7 +19,7 @@ import {
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { restrictToVerticalAxis, restrictToParentElement } from "@dnd-kit/modifiers";
-import { ModelSelectModal, CapacityBadges, Button, Input, Toggle } from "@/shared/components";
+import { ModelSelectModal, CapacityBadges, Button, Toggle } from "@/shared/components";
 import { useNotificationStore } from "@/store/notificationStore";
 import Icon from "@/shared/components/Icon";
 import {
@@ -219,9 +218,9 @@ export default function SmartRoutingSection({
   getCaps,
 }) {
   const [showJudgeSelect, setShowJudgeSelect] = useState(false);
+  const [showJevSelect, setShowJevSelect] = useState(false);
   const [activeTierPicker, setActiveTierPicker] = useState(null); // "easy" | "hard" | null
-  const [quickInputTier, setQuickInputTier] = useState({ easy: "", hard: "" });
-  const [showAdvancedClassifier, setShowAdvancedClassifier] = useState(false);
+
   const notify = useNotificationStore();
 
   const judge = strategy.judgeModel || "";
@@ -232,7 +231,6 @@ export default function SmartRoutingSection({
   const [globalJudgeError, setGlobalJudgeError] = useState("");
   const [judgeSaving, setJudgeSaving] = useState(false);
   const [thresholdDraft, setThresholdDraft] = useState(null);
-  const [keyDraft, setKeyDraft] = useState(null);
 
   const comboOverrideActive =
     strategy.judgeMode != null ||
@@ -269,26 +267,7 @@ export default function SmartRoutingSection({
   const selectedProvider = JEV_PROVIDERS.find((p) => p.provider === selectedProviderId) || null;
   const jevEndpoint = activeJevChoice?.endpoint || selectedProvider?.endpoint || "";
 
-  // Per-provider credentials: combo override map when overridden, else the global map.
-  const providerKeys =
-    comboOverrideActive && strategy.jevApiKeys
-      ? strategy.jevApiKeys
-      : (globalJudge?.jevApiKeys || {});
-  const providerKeyConfigured = (providerId) =>
-    Boolean(providerKeys?.[providerId]) ||
-    (globalJudge?.jevApiKeysConfigured || []).includes(providerId);
-  const providerKeyValue = (providerId) => providerKeys?.[providerId] || "";
 
-  // Live availability per registered classifier provider.
-  const providerStatus = (provider) => {
-    const conns = activeProviders.filter(
-      (p) => p.provider === provider.provider && p.isActive !== false
-    ).length;
-    if (!provider.keyPool) return { kind: "keyless", count: 0 };
-    if (conns > 0) return { kind: "pool", count: conns };
-    if (providerKeyConfigured(provider.provider)) return { kind: "key", count: 0 };
-    return { kind: "missing", count: 0 };
-  };
 
   const activeJudgeMode = JUDGE_MODES.find((m) => m.value === judgeMode) || JUDGE_MODES[0];
   const thresholdApplies = judgeMode !== "llm-only";
@@ -342,22 +321,47 @@ export default function SmartRoutingSection({
     else saveGlobalJudge({ judgeMode: value });
   };
 
-  const handleJevModelChange = (value) => {
-    const choice = JEV_MODEL_CHOICES.find((c) => `${c.provider}|${c.value}` === value) || JEV_MODEL_CHOICES[0];
-    if (!choice) return;
-    if (comboOverrideActive) {
-      onSetStrategy({ jevModel: choice.value, jevProvider: choice.provider, jevEndpoint: choice.endpoint });
+  const handleSelectJevModel = (m) => {
+    if (!m?.value && !m?.id) return;
+    const rawVal = m.value || m.id;
+    let newProvider = "";
+    let newModel = rawVal;
+    if (rawVal.includes("/")) {
+      const slash = rawVal.indexOf("/");
+      const prefix = rawVal.slice(0, slash);
+      const bare = rawVal.slice(slash + 1);
+      const foundProv = jevProviderById(prefix);
+      if (foundProv) {
+        newProvider = foundProv.provider;
+        newModel = bare;
+      }
     } else {
-      saveGlobalJudge({ jevModel: choice.value, jevProvider: choice.provider });
+      const meta = jevModelMeta(rawVal);
+      if (meta) {
+        newProvider = meta.provider;
+        newModel = meta.value;
+      }
     }
-  };
 
-  const handleProviderKeyChange = (providerId) => {
-    const draft = keyDraft?.[providerId];
-    if (draft === undefined) return;
-    const map = { ...(providerKeys || {}), [providerId]: draft };
-    if (comboOverrideActive) onSetStrategy({ jevApiKeys: map });
-    else saveGlobalJudge({ jevApiKeys: map });
+    const choice = JEV_MODEL_CHOICES.find((c) => c.value === newModel && (!newProvider || c.provider === newProvider))
+      || JEV_MODEL_CHOICES.find((c) => c.value === newModel)
+      || { value: newModel, provider: newProvider, endpoint: "" };
+
+    const endpoint = choice.endpoint || "";
+
+    if (comboOverrideActive) {
+      onSetStrategy({
+        jevModel: newModel,
+        jevProvider: newProvider || undefined,
+        jevEndpoint: endpoint || undefined,
+      });
+      notify.success(`Selected Jev classifier: ${choice.providerLabel || newProvider} / ${newModel}`);
+    } else {
+      saveGlobalJudge({
+        jevModel: newModel,
+        jevProvider: newProvider || "",
+      });
+    }
   };
 
   const handleThresholdRelease = () => {
@@ -379,7 +383,6 @@ export default function SmartRoutingSection({
         jevModel,
         jevProvider: selectedProviderId || undefined,
         jevEndpoint,
-        ...(Object.keys(providerKeys || {}).length ? { jevApiKeys: providerKeys } : {}),
       });
       notify.success(`Classifier settings overridden for "${comboName}"`);
     } else {
@@ -389,7 +392,6 @@ export default function SmartRoutingSection({
         jevModel: undefined,
         jevProvider: undefined,
         jevEndpoint: undefined,
-        jevApiKeys: undefined,
       });
       notify.success(`Classifier settings now inherit global defaults for "${comboName}"`);
     }
@@ -493,62 +495,178 @@ export default function SmartRoutingSection({
 
   return (
     <div className="mt-3 flex flex-col gap-3.5 rounded-lg border border-border bg-surface-2 p-3 sm:p-4">
-      {/* 1. Header Control Bar: Routing Policy Chips + Judge Model */}
-      <div className="flex flex-col gap-3 rounded-md border border-border bg-surface p-3 lg:flex-row lg:items-center lg:justify-between">
-        {/* Left: Routing Policy Segmented Control */}
-        <div className="flex flex-col gap-1.5 sm:flex-row sm:items-center sm:gap-3">
-          <span className="text-xs font-semibold text-text-main shrink-0 flex items-center gap-1.5">
-            <Icon name="tune" size={16} className="text-primary" />
-            <span>Policy:</span>
-          </span>
-          <div className="flex flex-wrap items-center gap-1.5">
-            {ROUTING_POLICIES.map((p) => {
-              const active = policy === p.key;
-              return (
-                <button
-                  key={p.key}
-                  type="button"
-                  onClick={() => onSetStrategy({ difficultyPolicy: p.key })}
-                  title={p.desc}
-                  className={`inline-flex items-center gap-1.5 rounded-sm px-2.5 py-1 text-xs font-medium transition-all ${
-                    active
-                      ? "bg-primary text-white shadow-xs font-semibold"
-                      : "bg-surface-2 border border-border text-text-muted hover:border-border/80 hover:text-text-main"
-                  }`}
-                >
-                  <Icon name={p.icon} size={14} />
-                  <span>{p.label}</span>
-                </button>
-              );
-            })}
+      {/* 1. Header Control Bar: Policy, Scope Toggle, Mode, Jev Classifier, Judge LLM */}
+      <div className="flex flex-col gap-3 rounded-md border border-border bg-surface p-3">
+        {/* Row 1: Policy (left) + Configuration Scope Toggle (right) */}
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between border-b border-border/40 pb-2.5">
+          <div className="flex flex-col gap-1.5 sm:flex-row sm:items-center sm:gap-3">
+            <span className="text-xs font-semibold text-text-main shrink-0 flex items-center gap-1.5">
+              <Icon name="tune" size={16} className="text-primary" />
+              <span>Policy:</span>
+            </span>
+            <div className="flex flex-wrap items-center gap-1.5">
+              {ROUTING_POLICIES.map((p) => {
+                const active = policy === p.key;
+                return (
+                  <button
+                    key={p.key}
+                    type="button"
+                    onClick={() => onSetStrategy({ difficultyPolicy: p.key })}
+                    title={p.desc}
+                    className={`inline-flex items-center gap-1.5 rounded-sm px-2.5 py-1 text-xs font-medium transition-all ${
+                      active
+                        ? "bg-primary text-white shadow-xs font-semibold"
+                        : "bg-surface-2 border border-border text-text-muted hover:border-border/80 hover:text-text-main"
+                    }`}
+                  >
+                    <Icon name={p.icon} size={14} />
+                    <span>{p.label}</span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Scope Toggle: Global vs Combo Override */}
+          <div className="flex items-center gap-2 self-start sm:self-auto">
+            <span className="text-[11px] text-text-muted">Global</span>
+            <Toggle
+              size="sm"
+              checked={comboOverrideActive}
+              onChange={handleToggleComboOverride}
+              aria-label="Override classifier settings for this combo"
+            />
+            <span className="text-[11px] font-medium text-text-main">Combo Override</span>
           </div>
         </div>
 
-        {/* Right: Judge Model Selector */}
-        <div className="flex flex-wrap items-center gap-2 border-t border-border/50 pt-2 lg:border-t-0 lg:pt-0">
-          <span className="text-xs font-medium text-text-muted shrink-0">Judge:</span>
-          <button
-            type="button"
-            onClick={() => setShowJudgeSelect(true)}
-            className="inline-flex max-w-full items-center gap-1.5 rounded-sm border border-primary/30 bg-primary/10 px-2.5 h-7 font-mono text-xs font-medium text-primary hover:border-primary hover:bg-primary/15 transition-all"
-            title="Click to select custom judge model"
-          >
-            <Icon name="gavel" size={15} />
-            <span className="truncate">{judge || "Auto (First in Combo)"}</span>
-            {judge ? <CapacityBadges caps={getCaps?.(judge)} /> : null}
-          </button>
-          {judge ? (
-            <button
-              type="button"
-              onClick={() => onSetStrategy({ judgeModel: "" })}
-              className="inline-flex items-center gap-1 rounded-sm px-1.5 h-7 text-xs text-text-muted hover:text-danger hover:bg-danger/10 transition-colors"
-              title="Reset to Auto"
-            >
-              <Icon name="restart_alt" size={15} />
-              <span>Reset</span>
-            </button>
-          ) : null}
+        {/* Row 2: Mode (left) + Model Pickers (right: Jev Classifier & Judge LLM) */}
+        <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+          {/* Mode Selector */}
+          <div className="flex flex-col gap-1.5 sm:flex-row sm:items-center sm:gap-3">
+            <span className="text-xs font-semibold text-text-main shrink-0 flex items-center gap-1.5">
+              <Icon name="layers" size={16} className="text-primary" />
+              <span>Mode:</span>
+            </span>
+            <div className="flex flex-wrap items-center gap-1.5">
+              {JUDGE_MODES.map((m) => {
+                const active = judgeMode === m.value;
+                return (
+                  <button
+                    key={m.value}
+                    type="button"
+                    onClick={() => handleJudgeModeChange(m.value)}
+                    title={m.description}
+                    disabled={judgeSaving}
+                    className={`inline-flex items-center gap-1.5 rounded-sm px-2.5 py-1 text-xs font-medium transition-all ${
+                      active
+                        ? "bg-primary text-white shadow-xs font-semibold"
+                        : "bg-surface-2 border border-border text-text-muted hover:border-border/80 hover:text-text-main"
+                    }`}
+                  >
+                    <Icon name={m.icon} size={14} />
+                    <span>{m.shortLabel}</span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Model Pickers: Jev Classifier & Judge LLM */}
+          <div className="flex flex-wrap items-center gap-2.5 sm:gap-3">
+            {/* Jev Classifier Model Selector (Only if mode !== 'llm-only') */}
+            {judgeMode !== "llm-only" && (
+              <div className="flex items-center gap-1.5">
+                <span className="text-xs font-medium text-text-muted shrink-0 flex items-center gap-1">
+                  <Icon name="psychology" size={14} className="text-cyan-400" />
+                  <span>Jev:</span>
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setShowJevSelect(true)}
+                  className="inline-flex max-w-[200px] sm:max-w-[260px] items-center gap-1.5 rounded-sm border border-cyan-500/30 bg-cyan-500/10 px-2.5 h-7 font-mono text-xs font-medium text-cyan-400 hover:border-cyan-400 hover:bg-cyan-500/15 transition-all truncate"
+                  title="Click to select Jev classifier model via modal"
+                >
+                  <span className="truncate">
+                    {activeJevChoice ? `${activeJevChoice.providerLabel} / ${jevModel}` : (jevModel || "Auto (Jev Free)")}
+                  </span>
+                </button>
+                {jevModel && jevModel !== DEFAULT_JEV_MODEL ? (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (comboOverrideActive) onSetStrategy({ jevModel: "", jevProvider: "" });
+                      else saveGlobalJudge({ jevModel: "", jevProvider: "" });
+                    }}
+                    className="inline-flex items-center gap-1 rounded-sm px-1.5 h-7 text-xs text-text-muted hover:text-danger hover:bg-danger/10 transition-colors"
+                    title="Reset Jev model to default"
+                  >
+                    <Icon name="restart_alt" size={15} />
+                  </button>
+                ) : null}
+              </div>
+            )}
+
+            {/* Judge LLM Selector (Only if mode !== 'jev-only') */}
+            {judgeMode !== "jev-only" && (
+              <div className="flex items-center gap-1.5">
+                <span className="text-xs font-medium text-text-muted shrink-0 flex items-center gap-1">
+                  <Icon name="gavel" size={14} className="text-primary" />
+                  <span>Judge:</span>
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setShowJudgeSelect(true)}
+                  className="inline-flex max-w-[200px] sm:max-w-[260px] items-center gap-1.5 rounded-sm border border-primary/30 bg-primary/10 px-2.5 h-7 font-mono text-xs font-medium text-primary hover:border-primary hover:bg-primary/15 transition-all truncate"
+                  title="Click to select custom judge model"
+                >
+                  <span className="truncate">{judge || "Auto (First in Combo)"}</span>
+                  {judge ? <CapacityBadges caps={getCaps?.(judge)} /> : null}
+                </button>
+                {judge ? (
+                  <button
+                    type="button"
+                    onClick={() => onSetStrategy({ judgeModel: "" })}
+                    className="inline-flex items-center gap-1 rounded-sm px-1.5 h-7 text-xs text-text-muted hover:text-danger hover:bg-danger/10 transition-colors"
+                    title="Reset to Auto"
+                  >
+                    <Icon name="restart_alt" size={15} />
+                  </button>
+                ) : null}
+              </div>
+            )}
+          </div>
         </div>
+
+        {/* Row 3: Threshold Slider (when two-layer or jev-only) */}
+        {thresholdApplies && (
+          <div className="flex flex-col gap-1.5 border-t border-border/40 pt-2.5 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-medium text-text-muted">Jev Threshold:</span>
+              <span className="font-mono text-xs font-bold text-primary">
+                {(Number(shownThreshold) * 100).toFixed(0)}% ({Number(shownThreshold).toFixed(2)})
+              </span>
+              <span className="text-[11px] text-text-muted hidden md:inline">
+                (below this confidence, escalates to {judgeMode === "jev-only" ? "Hard tier" : "Judge LLM"})
+              </span>
+            </div>
+            <div className="w-full sm:w-48">
+              <input
+                type="range"
+                min="0"
+                max="1"
+                step="0.05"
+                value={shownThreshold}
+                disabled={judgeSaving}
+                onChange={(e) => setThresholdDraft(Number(e.target.value))}
+                onPointerUp={handleThresholdRelease}
+                onKeyUp={handleThresholdRelease}
+                onBlur={handleThresholdRelease}
+                className="h-1.5 w-full cursor-pointer accent-primary"
+              />
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Auto-distribute Banner when both tiers are empty */}
@@ -712,268 +830,6 @@ export default function SmartRoutingSection({
         })}
       </div>
 
-      {/* 3. Classifier & System One Settings (Compact Accordion) */}
-      <div className="rounded-md border border-border bg-surface overflow-hidden">
-        {/* Collapsed Bar / Summary Header */}
-        <div
-          onClick={() => setShowAdvancedClassifier(!showAdvancedClassifier)}
-          className="flex flex-wrap items-center justify-between gap-2.5 p-3 cursor-pointer hover:bg-surface-2/60 transition-colors"
-        >
-          <div className="flex items-center gap-2.5 min-w-0">
-            <div className="flex size-7 shrink-0 items-center justify-center rounded-md bg-cyan-500/10 text-cyan-400 border border-cyan-500/20">
-              <Icon name="psychology" size={16} />
-            </div>
-            <div className="min-w-0">
-              <div className="flex flex-wrap items-center gap-2">
-                <span className="text-xs font-semibold text-text-main">Jev Classifier</span>
-                <span className={`rounded-sm border px-1.5 py-0.2 text-[10px] font-medium ${activeJudgeMode.badgeClass}`}>
-                  {activeJudgeMode.shortLabel}
-                </span>
-                <span className="rounded-sm border border-border bg-surface-2 px-1.5 py-0.2 font-mono text-[10px] text-text-muted">
-                  {activeJevChoice ? `${activeJevChoice.providerLabel} / ${jevModel}` : jevModel}
-                </span>
-                {thresholdApplies && (
-                  <span className="rounded-sm border border-border bg-surface-2 px-1.5 py-0.2 text-[10px] text-text-muted">
-                    Threshold: {(threshold * 100).toFixed(0)}%
-                  </span>
-                )}
-                {comboOverrideActive ? (
-                  <span className="rounded-sm border border-amber-500/30 bg-amber-500/10 px-1.5 py-0.2 text-[10px] font-medium text-amber-400">
-                    Combo Override
-                  </span>
-                ) : (
-                  <span className="rounded-sm border border-border bg-surface-2 px-1.5 py-0.2 text-[10px] text-text-muted">
-                    Global Default
-                  </span>
-                )}
-              </div>
-            </div>
-          </div>
-
-          <div className="flex items-center gap-3 shrink-0">
-            {/* Classifier upstream status, derived from the registry declaration */}
-            {(() => {
-              const status = selectedProvider ? providerStatus(selectedProvider) : null;
-              const label = selectedProvider?.label || "no classifier upstream";
-              if (!status) {
-                return (
-                  <span className="inline-flex items-center gap-1 rounded bg-amber-500/10 border border-amber-500/20 px-2 py-0.5 text-[11px] font-medium text-amber-400">
-                    <Icon name="warning" size={13} />
-                    <span>No Jev upstream registered</span>
-                  </span>
-                );
-              }
-              if (status.kind === "keyless") {
-                return (
-                  <span className="inline-flex items-center gap-1 rounded bg-cyan-500/10 border border-cyan-500/20 px-2 py-0.5 text-[11px] font-medium text-cyan-400">
-                    <Icon name="verified" size={13} />
-                    <span>{label} · keyless</span>
-                  </span>
-                );
-              }
-              if (status.kind === "pool") {
-                return (
-                  <span className="inline-flex items-center gap-1 rounded bg-emerald-500/10 border border-emerald-500/20 px-2 py-0.5 text-[11px] font-medium text-emerald-400">
-                    <Icon name="check_circle" size={13} />
-                    <span>{label} ({status.count} active)</span>
-                  </span>
-                );
-              }
-              if (status.kind === "key") {
-                return (
-                  <span className="inline-flex items-center gap-1 rounded bg-emerald-500/10 border border-emerald-500/20 px-2 py-0.5 text-[11px] font-medium text-emerald-400">
-                    <Icon name="key" size={13} />
-                    <span>{label} · key configured</span>
-                  </span>
-                );
-              }
-              return (
-                <span className="inline-flex items-center gap-1 rounded bg-amber-500/10 border border-amber-500/20 px-2 py-0.5 text-[11px] font-medium text-amber-400">
-                  <Icon name="warning" size={13} />
-                  <span>{label}: no key or connection</span>
-                </span>
-              );
-            })()}
-
-            <button
-              type="button"
-              className="text-text-muted hover:text-text-main transition-colors p-1"
-              aria-label={showAdvancedClassifier ? "Collapse classifier settings" : "Expand classifier settings"}
-            >
-              <Icon name={showAdvancedClassifier ? "expand_less" : "expand_more"} size={18} />
-            </button>
-          </div>
-        </div>
-
-        {/* Expanded Classifier Settings */}
-        {showAdvancedClassifier && (
-          <div className="border-t border-border/60 bg-surface-2/40 p-3.5 flex flex-col gap-3.5 text-xs">
-            {/* Scope Switch: Global vs Combo Override */}
-            <div className="flex items-center justify-between gap-3 bg-surface p-2.5 rounded border border-border">
-              <div>
-                <span className="font-semibold text-text-main">Configuration Scope</span>
-                <p className="text-[11px] text-text-muted">
-                  {comboOverrideActive
-                    ? "This combo uses dedicated classifier settings."
-                    : "This combo inherits the instance-wide global settings."}
-                </p>
-              </div>
-              <div className="flex items-center gap-2">
-                <span className="text-[11px] text-text-muted">Global</span>
-                <Toggle
-                  size="sm"
-                  checked={comboOverrideActive}
-                  onChange={handleToggleComboOverride}
-                  aria-label="Override classifier settings for this combo"
-                />
-                <span className="text-[11px] font-medium text-text-main">Combo Override</span>
-              </div>
-            </div>
-
-            {/* Judge Mode & Model in a clean 2-column grid */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              {/* Judge Mode */}
-              <div className="flex flex-col gap-1.5">
-                <label className="font-semibold text-text-main">Judge Mode</label>
-                <select
-                  value={activeJudgeMode.value}
-                  onChange={(e) => handleJudgeModeChange(e.target.value)}
-                  disabled={judgeSaving}
-                  className="rounded-sm border border-border bg-surface px-2.5 h-8 text-xs font-medium text-text-main focus:border-primary focus:ring-1 focus:ring-primary focus:outline-none transition-all disabled:opacity-50"
-                >
-                  {JUDGE_MODES.map((m) => (
-                    <option key={m.value} value={m.value}>
-                      {m.label}
-                    </option>
-                  ))}
-                </select>
-                <p className="text-[10px] text-text-muted">{activeJudgeMode.description}</p>
-              </div>
-
-              {/* Jev Model — every provider the registry declares as a classifier upstream */}
-              <div className="flex flex-col gap-1.5">
-                <label className="font-semibold text-text-main">Classifier Upstream</label>
-                <select
-                  value={activeJevChoice ? `${activeJevChoice.provider}|${activeJevChoice.value}` : ""}
-                  onChange={(e) => handleJevModelChange(e.target.value)}
-                  disabled={judgeSaving || JEV_MODEL_CHOICES.length === 0}
-                  className="rounded-sm border border-border bg-surface px-2.5 h-8 text-xs font-medium text-text-main focus:border-primary focus:ring-1 focus:ring-primary focus:outline-none transition-all disabled:opacity-50"
-                >
-                  {JEV_MODEL_CHOICES.map((c) => (
-                    <option key={`${c.provider}|${c.value}`} value={`${c.provider}|${c.value}`}>
-                      {c.label}
-                    </option>
-                  ))}
-                </select>
-                <span className="text-[10px] text-text-muted font-mono truncate">
-                  Endpoint: {jevEndpoint || "none registered"}
-                </span>
-              </div>
-            </div>
-
-            {/* Per-provider credentials: key-backed classifier providers only. */}
-            {JEV_PROVIDERS.filter((p) => p.keyPool).length > 0 && (
-              <div className="flex flex-col gap-2 border-t border-border/40 pt-3">
-                <span className="font-semibold text-text-main">Provider Keys</span>
-                <p className="text-[10px] text-text-muted">
-                  Leave blank to keep using the stored value. Keys stored here are never sent back to the browser.
-                </p>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                  {JEV_PROVIDERS.filter((p) => p.keyPool).map((p) => {
-                    const status = providerStatus(p);
-                    return (
-                      <div key={p.provider} className="flex flex-col gap-1">
-                        <div className="flex items-center justify-between gap-2">
-                          <label className="text-[11px] font-medium text-text-main truncate" title={p.label}>
-                            {p.label}
-                          </label>
-                          {status.kind === "pool" ? (
-                            <span className="shrink-0 rounded-sm border border-emerald-500/30 bg-emerald-500/10 px-1.5 py-0.2 text-[10px] text-emerald-400">
-                              {status.count} connection{status.count === 1 ? "" : "s"}
-                            </span>
-                          ) : status.kind === "key" ? (
-                            <span className="shrink-0 rounded-sm border border-emerald-500/30 bg-emerald-500/10 px-1.5 py-0.2 text-[10px] text-emerald-400">
-                              key set
-                            </span>
-                          ) : (
-                            <span className="shrink-0 rounded-sm border border-amber-500/30 bg-amber-500/10 px-1.5 py-0.2 text-[10px] text-amber-400">
-                              not configured
-                            </span>
-                          )}
-                        </div>
-                        <Input
-                          type="password"
-                          value={keyDraft?.[p.provider] ?? providerKeyValue(p.provider)}
-                          placeholder={status.kind === "missing" ? "Paste API key" : "••••••"}
-                          disabled={judgeSaving}
-                          onChange={(e) =>
-                            setKeyDraft((prev) => ({ ...(prev || {}), [p.provider]: e.target.value }))
-                          }
-                          onBlur={() => handleProviderKeyChange(p.provider)}
-                          className="h-8 text-xs font-mono"
-                        />
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-            )}
-
-            {/* Threshold Slider */}
-            {thresholdApplies && (
-              <div className="flex flex-col gap-1.5 border-t border-border/40 pt-3">
-                <div className="flex items-center justify-between">
-                  <label className="font-semibold text-text-main">
-                    Jev Confidence Threshold
-                  </label>
-                  <span className="font-mono text-xs font-bold text-primary">
-                    {(Number(shownThreshold) * 100).toFixed(0)}% ({Number(shownThreshold).toFixed(2)})
-                  </span>
-                </div>
-                <input
-                  type="range"
-                  min="0"
-                  max="1"
-                  step="0.05"
-                  value={shownThreshold}
-                  disabled={judgeSaving}
-                  onChange={(e) => setThresholdDraft(Number(e.target.value))}
-                  onPointerUp={handleThresholdRelease}
-                  onKeyUp={handleThresholdRelease}
-                  onBlur={handleThresholdRelease}
-                  className="h-1.5 w-full cursor-pointer accent-primary"
-                />
-                <p className="text-[10px] text-text-muted">
-                  Classifications below this threshold automatically escalate to the LLM judge (or Hard tier in Jev Only mode).
-                </p>
-              </div>
-            )}
-
-            {/* Capabilities links, one per registered classifier provider */}
-            <div className="flex flex-col gap-2 border-t border-border/40 pt-3 text-[11px]">
-              <div className="flex items-center gap-2 text-text-muted">
-                <Icon name="key" size={14} className="text-text-muted" />
-                <span>
-                  Provider accounts and pooled API keys are managed in{" "}
-                  <strong className="text-text-main">Capabilities Providers &gt; Jev Classifier</strong>.
-                </span>
-              </div>
-              <div className="flex flex-wrap items-center gap-2">
-                {JEV_PROVIDERS.map((p) => (
-                  <Link
-                    key={p.provider}
-                    href={`/dashboard/capabilities-providers/jev/${p.provider}`}
-                    className="inline-flex items-center gap-1 font-semibold text-primary hover:underline"
-                  >
-                    <span>{p.label}</span>
-                    <Icon name="arrow_forward" size={13} />
-                  </Link>
-                ))}
-              </div>
-            </div>
-          </div>
-        )}
-      </div>
 
       {/* Model Selection Modal for adding models to Easy or Hard tier */}
       {activeTierPicker && (
@@ -1001,6 +857,22 @@ export default function SmartRoutingSection({
           activeProviders={activeProviders}
           title="Select Judge Model (Smart Routing)"
           addedModelValues={judge ? [judge] : []}
+          closeOnSelect={true}
+        />
+      )}
+      {/* Jev Classifier Model Select Modal */}
+      {showJevSelect && (
+        <ModelSelectModal
+          isOpen={showJevSelect}
+          onClose={() => setShowJevSelect(false)}
+          onSelect={(m) => {
+            handleSelectJevModel(m);
+            setShowJevSelect(false);
+          }}
+          activeProviders={activeProviders}
+          title="Select Jev Classifier Model"
+          kindFilter="jev"
+          addedModelValues={jevModel ? [jevModel, `${selectedProvider?.alias}/${jevModel}`] : []}
           closeOnSelect={true}
         />
       )}

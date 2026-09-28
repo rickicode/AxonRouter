@@ -50,7 +50,7 @@ export const JEV_PROVIDERS = REGISTRY_UI
 /** Classifier provider entry for a provider id, or null. */
 export function jevProviderById(providerId) {
   if (!providerId) return null;
-  return JEV_PROVIDERS.find((p) => p.provider === providerId) || null;
+  return JEV_PROVIDERS.find((p) => p.provider === providerId || p.alias === providerId) || null;
 }
 
 /** Every (provider, model) pair the picker can offer, in provider priority order. */

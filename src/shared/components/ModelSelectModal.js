@@ -190,7 +190,7 @@ export default function ModelSelectModal({
  // Kinds where the provider IS the model (no per-model selection needed)
  const PROVIDER_AS_MODEL_KINDS = new Set(["webSearch", "webFetch"]);
  // Kinds that map directly to model.type field
- const TYPED_KINDS = new Set(["image", "tts", "stt", "embedding", "imageToText"]);
+ const TYPED_KINDS = new Set(["image", "tts", "stt", "embedding", "imageToText", "jev"]);
  // For these kinds, providers without hardcoded models can still be picked (provider-as-model fallback)
  const ALLOW_PROVIDER_FALLBACK_KINDS = new Set(["tts", "image", "webFetch"]);
 
@@ -212,10 +212,16 @@ export default function ModelSelectModal({
  ? NO_AUTH_PROVIDER_IDS.filter((id) => (AI_PROVIDERS[id]?.serviceKinds || ["llm"]).includes(kindFilter))
  : NO_AUTH_PROVIDER_IDS;
 
+ // For jev kind, all providers that declare serviceKinds 'jev' should be selectable
+ const jevProviderIds = kindFilter === "jev"
+ ? Object.keys(allProviders).filter((id) => (allProviders[id]?.serviceKinds || []).includes("jev"))
+ : [];
+
  // Only show connected providers (including both standard and custom)
  const providerIdsToShow = new Set([
  ...activeConnectionIds, // Only connected providers
  ...noAuthIds, // No-auth providers (kind-filtered)
+ ...jevProviderIds, // Jev providers (when picking classifier)
  ]);
 
  // Sort by PROVIDER_ORDER

@@ -5189,6 +5189,19 @@ export const REGISTRY_UI = [
     },
     models: [
       {
+        id: "jev-1.13-free",
+        name: "Jev 1.13 Free (System One)",
+        targetFormat: "systemone",
+        kind: "jev",
+        default: true
+      },
+      {
+        id: "jev-1.13",
+        name: "Jev 1.13 (System One)",
+        targetFormat: "systemone",
+        kind: "jev"
+      },
+      {
         id: "muse-spark-1.2-contributor-free",
         name: "Muse Spark 1.2 Contributor Free",
         targetFormat: "openai-responses"
@@ -9460,12 +9473,14 @@ export const REGISTRY_UI = [
         id: "jev-1.13-free",
         name: "Jev 1.13 Free (System One)",
         targetFormat: "systemone",
+        kind: "jev",
         default: true
       },
       {
         id: "jev-1.13",
         name: "Jev 1.13 (System One)",
-        targetFormat: "systemone"
+        targetFormat: "systemone",
+        kind: "jev"
       },
       {
         id: "gpt-6-astra",
@@ -10903,7 +10918,10 @@ export const REGISTRY_UI = [
     models: [
       {
         id: "jev-latest",
-        name: "Jev Latest (System One)"
+        name: "Jev Latest (System One)",
+        kind: "jev",
+        targetFormat: "systemone",
+        default: true
       }
     ]
   }
