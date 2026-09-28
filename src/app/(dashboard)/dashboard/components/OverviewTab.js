@@ -613,7 +613,6 @@ export default function OverviewTab({
                         <Badge
                           variant={isOk ? "success" : "error"}
                           size="sm"
-                          dot
                           className={!isOk ? "cursor-pointer" : undefined}
                         >
                           {isOk ? "200 OK" : req.status || "Failed"}

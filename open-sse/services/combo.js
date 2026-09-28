@@ -665,11 +665,14 @@ const DIFFICULTY_DEFAULTS = {
   contextLockTokens: 60000,   // >= this => skip classify, keep session tier
   classifyReuseMs: 30 * 60 * 1000, // how long a per-session tier decision is cached
   judgeMode: "two-layer",
-  typeSafeApiKey: "",
-  // Jev classifier upstream. jevModel is what the combo model picker stores; the
-  // endpoint is derived from it (Zen vs TypeSafe) by resolveJevTarget(). jevEndpoint
-  // is an optional hint and only the two known System One URLs are honoured.
+  // Jev classifier upstream. jevModel (+ optional jevProvider) is what the combo
+  // model picker stores; endpoint, family and key source are derived from the
+  // provider registry by resolveJevTarget(). jevApiKeys carries per-provider
+  // caller credentials ({ [providerId]: key }); jevEndpoint is a legacy hint.
   jevModel: DEFAULT_JEV_MODEL,
+  jevProvider: "",
+  jevApiKeys: null,
+  jevEndpoint: "",
   jevConfidenceThreshold: 0.7,
   jevTimeoutMs: 2500,
 };
@@ -853,13 +856,13 @@ function resolveTierMatrix(difficulty, ambiguity, domain, policy = "balanced") {
   }
 
   if (pol === "capability_heavy") {
-    // Escalate coding/design or medium to stronger tier
+    // Escalate coding/design or anything not plainly conversational
     if (diff === "easy") return amb === "low" && domain === "general" ? "easy" : "hard";
     return "hard";
   }
 
   // balanced (default 2-tier matrix)
-  if (diff === "easy") return amb === "med" || amb === "medium" ? "hard" : "easy";
+  if (diff === "easy") return amb === "low" ? "easy" : "hard";
   return "hard";
 }
 
@@ -895,9 +898,10 @@ export async function handleDifficultyChat({ body, models = [], handleSingleMode
       ? await resolveJevTarget(
           {
             model: cfg.jevModel,
+            provider: cfg.jevProvider || cfg.jevFamily,
             endpoint: cfg.jevEndpoint || cfg.typeSafeEndpoint,
-            apiKey: cfg.typeSafeApiKey || cfg.apiKey,
-            zenApiKey: cfg.zenApiKey,
+            apiKey: cfg.jevApiKey || cfg.apiKey,
+            apiKeys: cfg.jevApiKeys,
             mode: cfg.jevMode,
             comboName,
           },
@@ -992,7 +996,7 @@ export async function handleDifficultyChat({ body, models = [], handleSingleMode
       log.warn("DIFFICULTY", `Jev classifier failed — falling back to LLM judge`, { comboName });
       if (judgeModel) {
         const jr = await classifyWithJudge(body, judgeModel, handleSingleModel, cfg.judgeTimeoutMs, log, comboName, policy, cachedTier);
-        tier = jr?.tier || cachedTier || (policy === "cost_efficient" ? "easy" : "medium");
+        tier = jr?.tier || cachedTier || "hard";
         source = jr?.source || "judge";
         domain = jr?.domain || detectDomain(body);
         ambiguity = jr?.ambiguity || "low";
@@ -1016,7 +1020,7 @@ export async function handleDifficultyChat({ body, models = [], handleSingleMode
       log.info("DIFFICULTY", `Jev confidence ${jevRes.confidence} < threshold ${cfg.jevConfidenceThreshold ?? 0.7} — escalating to LLM judge`, { comboName });
       if (judgeModel) {
         const jr = await classifyWithJudge(body, judgeModel, handleSingleModel, cfg.judgeTimeoutMs, log, comboName, policy, cachedTier);
-        tier = jr?.tier || cachedTier || (policy === "cost_efficient" ? "easy" : "medium");
+        tier = jr?.tier || cachedTier || "hard";
         source = jr?.source || "judge";
         domain = jr?.domain || detectDomain(body);
         ambiguity = jr?.ambiguity || "low";
@@ -1031,7 +1035,7 @@ export async function handleDifficultyChat({ body, models = [], handleSingleMode
     }
   } else if (judgeModel) {
     const jr = await classifyWithJudge(body, judgeModel, handleSingleModel, cfg.judgeTimeoutMs, log, comboName, policy, cachedTier);
-    tier = jr?.tier || cachedTier || (policy === "cost_efficient" ? "easy" : "medium");
+    tier = jr?.tier || cachedTier || "hard";
     source = jr?.source || "judge";
     domain = jr?.domain || detectDomain(body);
     ambiguity = jr?.ambiguity || "low";
@@ -1059,6 +1063,9 @@ export async function handleDifficultyChat({ body, models = [], handleSingleMode
     judgeUsed: source === "judge",
     judgeModel: source === "judge" ? judgeModel : null,
     jevUsed: source === "jev",
+    jevProvider: source === "jev" ? (jevTarget?.provider || null) : null,
+    jevEndpoint: source === "jev" ? (jevTarget?.endpoint || null) : null,
+    jevModel: source === "jev" ? (jevTarget?.model || null) : null,
   });
 
   const stickyModel = (typeof cached === "object" && cached?.winningModel) ? cached.winningModel : null;
@@ -1208,9 +1215,9 @@ function normalizeJudgeOutput(content, fallbackDomain = "general") {
   let dom = parsed?.domain || null;
   let conf = typeof parsed?.confidence === "number" ? parsed.confidence : null;
   if (!diff) {
-    const diffMatch = cleaned.match(/(?:difficulty|tier)\s*[:=]?\s*(?:it's\s+|is\s+|be\s+)?["']?(easy|medium|hard)["']?/i)
-      || content.match(/(?:difficulty|tier)\s*[:=]?\s*(?:it's\s+|is\s+|be\s+)?["']?(easy|medium|hard)["']?/i)
-      || cleaned.match(/\b(easy|medium|hard)\b/i);
+    const diffMatch = cleaned.match(/(?:difficulty|tier)\s*[:=]?\s*(?:it's\s+|is\s+|be\s+)?["']?(easy|hard)["']?/i)
+      || content.match(/(?:difficulty|tier)\s*[:=]?\s*(?:it's\s+|is\s+|be\s+)?["']?(easy|hard)["']?/i)
+      || cleaned.match(/\b(easy|hard)\b/i);
     if (diffMatch) diff = diffMatch[1].toLowerCase();
   }
   if (!amb) {
@@ -1225,7 +1232,10 @@ function normalizeJudgeOutput(content, fallbackDomain = "general") {
   }
   if (diff) {
     diff = diff.toLowerCase().trim();
-    if (diff !== "easy" && diff !== "medium" && diff !== "hard") diff = null;
+    // Classifier may still answer "medium" (older upstream prompt); collapse the
+    // three-value scale onto the two tiers the router actually runs.
+    if (diff === "medium") diff = "hard";
+    if (diff !== "easy" && diff !== "hard") diff = null;
   }
   if (!diff) return null;
   return {
@@ -1344,15 +1354,18 @@ function extractJudgeInput(body) {
 /**
  * Call the System One (Jev) classifier client.
  *
- * The upstream is dynamic — resolveJevTarget() (services/jevUpstream.js) picks:
- *   • TypeSafe direct  https://api.typesafe.ai/v1/systemone, model "jev-latest",
- *     key from the "typesafe" connection pool (round-robin) → options.apiKey
- *     (settings.typeSafeApiKey / combo override) → TYPESAFE_API_KEY env;
- *   • OpenCode Zen     https://opencode.ai/zen/v1/systemone, model "jev-1.13-free"
- *     (default) or "jev-1.13", key from the "opencode-zen" connection pool — used
- *     when that connection is active or mode is "free-zen".
- * handleDifficultyChat() resolves the target once per classification and hands it
- * over as options.target; direct callers resolve it here.
+ * The upstream is not hardcoded: resolveJevTarget() (services/jevUpstream.js)
+ * selects among the providers the registry declares as classifier upstreams
+ * (`serviceKinds` containing "jev" + a `jevConfig` block), by provider priority:
+ *   • OpenCode Free      https://opencode.ai/zen/v1/systemone — no key at all;
+ *   • TypeSafe AI        https://api.typesafe.ai/v1/systemone — key from the
+ *     "typesafe" connection pool (round-robin) → caller setting → env;
+ *   • OpenCode Zen       https://opencode.ai/zen/v1/systemone — key from the
+ *     "opencode-zen" connection pool (jev-1.13 is the paid model).
+ * A requested model id (options.model) pins its declaring provider; otherwise the
+ * highest-priority usable provider wins. handleDifficultyChat() resolves the
+ * target once per classification and hands it over as options.target; direct
+ * callers resolve it here.
  * Returns { tier, difficulty, ambiguity, domain, confidence, source: "jev", raw } or null.
  */
 export async function classifyWithJev(body, optionsOrKey = {}, maybeOptions = {}) {
@@ -1384,9 +1397,11 @@ export async function classifyWithJev(body, optionsOrKey = {}, maybeOptions = {}
     : await resolveJevTarget(
         {
           model: options.model,
+          provider: options.provider,
           endpoint: options.endpoint,
           mode: options.mode,
           apiKey: options.apiKey,
+          apiKeys: options.apiKeys,
           comboName,
         },
         log

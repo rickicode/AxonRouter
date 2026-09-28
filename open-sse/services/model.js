@@ -30,15 +30,13 @@ const BUILTIN_MODEL_ALIASES = {
   "grok-4.6-medium": "gcli/grok-4.6-medium",
   "grok-4.6-low": "gcli/grok-4.6-low",
   "grok-4.5": "gcli/grok-4.5",
-  "z-ai/glm-5.3-flash": "cline-free/z-ai/glm-5.3-flash",
-  "poolside/laguna-s-2.1:free": "cline-free/poolside/laguna-s-2.1:free",
-  "poolside/laguna-s-2.1": "cline-free/poolside/laguna-s-2.1:free",
-  "laguna-s-2.1:free": "cline-free/poolside/laguna-s-2.1:free",
-  "laguna-s-2.1": "cline-free/poolside/laguna-s-2.1:free",
+  "stealth/pixel-canary": "cline-free/stealth/pixel-canary",
+  "pixel-canary": "cline-free/stealth/pixel-canary",
+  "stealth/space-bunny-alpha": "cline-free/stealth/space-bunny-alpha",
+  "space-bunny-alpha": "cline-free/stealth/space-bunny-alpha",
   "deepseek/deepseek-v4.1-flash": "cline-free/deepseek/deepseek-v4.1-flash",
-  "meta/muse-spark-1.3-contributor": "cline-free/meta/muse-spark-1.3-contributor",
-  "upstage/solar-pro4": "cline-free/upstage/solar-pro4",
-  "solar-pro4": "cline-free/upstage/solar-pro4",
+  "meta/muse-spark-1.3-contributor": "cline-free/muse-spark-1.3-contributor",
+  "mimo-v2.6-flash": "cline-free/mimo-v2.6-flash",
 };
 /**
  * Resolve provider alias to provider ID

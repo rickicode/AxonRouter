@@ -13,28 +13,6 @@ export default function RealtimeRequestRow({ req, onOpenError }) {
 
  return (
  <tr className={cn("", !isOk && "row-failed")}>
- {/* Status Dot + Text */}
- <td className="h-8 px-3 text-center text-sm">
- {!isOk ? (
- <button
- type="button"
- onClick={() => onOpenError(r)}
- className="inline-flex items-center justify-center size-5 rounded-sm bg-danger/10 text-danger hover:bg-danger/10 cursor-pointer"
- title={`Failed (${r.status || "error"}) - Click to view error`}
- aria-label={`Failed (${r.status || "error"}) - Click to view error`}
- >
- <Icon name="close" size={18} />
- </button>
- ) : (
- <span
- className="inline-flex items-center justify-center size-5 rounded-sm bg-success/10 text-success"
- title="Success (200 OK)"
- >
-<Icon name="check" size={18} />
- </span>
- )}
- </td>
-
  {/* Format Type (STREAM vs JSON) */}
  <td className="h-8 px-3 text-sm">
  {r.isStream ? (
@@ -144,10 +122,9 @@ export function RealtimeRequestCardMobile({ req, onOpenError }) {
         className="flex w-full flex-col gap-1 px-3 py-2 text-left"
       >
         <span className="flex min-w-0 items-center gap-2">
-<span className={`flex shrink-0 items-center gap-1.5 ${isOk ? "text-success" : "text-danger"}`} aria-label={isOk ? "Success" : "Failed"}>
-  <span className={`size-2 rounded-full ${isOk ? "bg-success" : "bg-danger"}`} />
-  <span className="text-[10px] font-medium sm:text-xs">{isOk ? "OK" : "Failed"}</span>
-</span>
+          <span className={`flex shrink-0 items-center ${isOk ? "text-success" : "text-danger"}`} aria-label={isOk ? "Success" : "Failed"}>
+            <span className="text-[10px] font-medium sm:text-xs">{isOk ? "OK" : "Failed"}</span>
+          </span>
           <span className="truncate font-mono text-xs font-medium text-text-main" title={r.model}>
             {r.model}
           </span>

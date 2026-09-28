@@ -1,5 +1,6 @@
 "use client";
 
+import { copyToClipboard } from "@/shared/utils/clipboard";
 import { useState } from "react";
 import Modal from "@/shared/components/Modal";
 import Badge from "@/shared/components/Badge";
@@ -20,10 +21,10 @@ export default function FailureResponseModal({
 
  const selected = failures[selectedIndex] || failures[0] || null;
 
- const handleCopy = (payload) => {
+ const handleCopy = async (payload) => {
  if (!payload) return;
  const text = typeof payload === "object" ? JSON.stringify(payload, null, 2) : String(payload);
- navigator.clipboard?.writeText(text);
+ await copyToClipboard(text);
  setCopied(true);
  setTimeout(() => setCopied(false), 2000);
  };

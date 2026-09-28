@@ -138,7 +138,6 @@ describe("Jev Decision Cascade & Fail-Open Verification", () => {
           judgeMode: "two-layer",
           // jevModel omitted -> defaults to jev-1.13-free
           easyModels: ["model-easy-1"],
-          mediumModels: ["model-med-1"],
           hardModels: ["model-hard-1"],
         },
         onDecision: (d) => decisions.push(d),
@@ -182,7 +181,6 @@ describe("Jev Decision Cascade & Fail-Open Verification", () => {
           judgeMode: "two-layer",
           jevModel: "jev-latest",
           easyModels: ["model-easy-1"],
-          mediumModels: ["model-med-1"],
           hardModels: ["model-hard-1"],
         },
         onDecision: (d) => decisions.push(d),
@@ -199,10 +197,10 @@ describe("Jev Decision Cascade & Fail-Open Verification", () => {
       expect(decisions[0].judgeUsed).toBe(false);
     });
 
-    it("degrades two-layer directly to llm-only with 0 fetch when no key and no connection exist", async () => {
+    it("degrades two-layer to llm-only with 0 fetch when the pinned TypeSafe upstream has no key and no connection", async () => {
+      // A keyless default upstream (OpenCode Free) always exists, so degradation
+      // only happens when the pinned provider itself is unusable.
       setJevConnectionLoader(async () => []);
-      delete process.env.TYPESAFE_API_KEY;
-      delete process.env.OPENCODE_ZEN_API_KEY;
 
       const fetchSpy = vi.spyOn(globalThis, "fetch");
       const executedModels = [];
@@ -219,13 +217,13 @@ describe("Jev Decision Cascade & Fail-Open Verification", () => {
           return okRes("ans");
         },
         log: quietLog,
-        comboName: "no-key-no-conn-combo",
+        comboName: "pinned-unusable-combo",
         judgeModel: "judge-llm-model",
         tuning: {
           judgeMode: "two-layer",
-          typeSafeApiKey: "",
+          jevProvider: "typesafe",
+          jevApiKeys: {},
           easyModels: ["model-easy-1"],
-          mediumModels: ["model-med-1"],
           hardModels: ["model-hard-1"],
         },
         onDecision: (d) => decisions.push(d),
@@ -280,10 +278,10 @@ describe("Jev Decision Cascade & Fail-Open Verification", () => {
         judgeModel: "judge-llm-model",
         tuning: {
           judgeMode: "two-layer",
-          typeSafeApiKey: "ts-live-key",
+          jevProvider: "typesafe",
+          jevApiKeys: { typesafe: "ts-live-key" },
           jevConfidenceThreshold: 0.7,
           easyModels: ["model-easy-1"],
-          mediumModels: ["model-med-1"],
           hardModels: ["model-hard-1"],
         },
         onDecision: (d) => {
@@ -306,6 +304,7 @@ describe("Jev Decision Cascade & Fail-Open Verification", () => {
       expect(routeDecision.confidence).toBe(0.96);
       expect(routeDecision.judgeUsed).toBe(false);
       expect(routeDecision.jevUsed).toBe(true);
+      expect(routeDecision.jevProvider).toBe("typesafe");
       expect(routeDecision.judgeModel).toBeNull();
 
       // Verify routing metrics
@@ -352,10 +351,10 @@ describe("Jev Decision Cascade & Fail-Open Verification", () => {
         judgeModel: "judge-llm-model",
         tuning: {
           judgeMode: "two-layer",
-          typeSafeApiKey: "ts-key-abc",
+          jevProvider: "typesafe",
+          jevApiKeys: { typesafe: "ts-key-abc" },
           jevConfidenceThreshold: 0.85,
           easyModels: ["model-easy-1"],
-          mediumModels: ["model-med-1"],
           hardModels: ["model-hard-1"],
         },
         onDecision: (d) => {
@@ -415,10 +414,10 @@ describe("Jev Decision Cascade & Fail-Open Verification", () => {
         judgeModel: "judge-llm-model",
         tuning: {
           judgeMode: "two-layer",
-          typeSafeApiKey: "ts-live-key",
+          jevProvider: "typesafe",
+          jevApiKeys: { typesafe: "ts-live-key" },
           jevConfidenceThreshold: 0.7,
           easyModels: ["model-easy-1"],
-          mediumModels: ["model-med-1"],
           hardModels: ["model-hard-1"],
         },
         onDecision: (d) => {
@@ -482,10 +481,10 @@ describe("Jev Decision Cascade & Fail-Open Verification", () => {
         judgeModel: "judge-llm-model",
         tuning: {
           judgeMode: "two-layer",
-          typeSafeApiKey: "ts-key",
+          jevProvider: "typesafe",
+          jevApiKeys: { typesafe: "ts-key" },
           jevConfidenceThreshold: 0.80,
           easyModels: ["model-easy-1"],
-          mediumModels: ["model-med-1"],
           hardModels: ["model-hard-1"],
         },
       });
@@ -531,9 +530,9 @@ describe("Jev Decision Cascade & Fail-Open Verification", () => {
         judgeModel: "judge-llm-model",
         tuning: {
           judgeMode: "two-layer",
-          typeSafeApiKey: "ts-key-live",
+          jevProvider: "typesafe",
+          jevApiKeys: { typesafe: "ts-key-live" },
           easyModels: ["model-easy-1"],
-          mediumModels: ["model-med-1"],
           hardModels: ["model-hard-1"],
         },
         onDecision: (d) => {
@@ -586,9 +585,9 @@ describe("Jev Decision Cascade & Fail-Open Verification", () => {
         judgeModel: "judge-llm-model",
         tuning: {
           judgeMode: "two-layer",
-          typeSafeApiKey: "ts-key-live",
+          jevProvider: "typesafe",
+          jevApiKeys: { typesafe: "ts-key-live" },
           easyModels: ["model-easy-1"],
-          mediumModels: ["model-med-1"],
           hardModels: ["model-hard-1"],
         },
       });
@@ -644,10 +643,10 @@ describe("Jev Decision Cascade & Fail-Open Verification", () => {
         judgeModel: "judge-llm-model",
         tuning: {
           judgeMode: "two-layer",
-          typeSafeApiKey: "ts-key-live",
+          jevProvider: "typesafe",
+          jevApiKeys: { typesafe: "ts-key-live" },
           jevTimeoutMs: 50, // Short timeout for rapid test
           easyModels: ["model-easy-1"],
-          mediumModels: ["model-med-1"],
           hardModels: ["model-hard-1"],
         },
       });
@@ -661,9 +660,8 @@ describe("Jev Decision Cascade & Fail-Open Verification", () => {
     });
   });
 
-  describe("Kasus 4: TANPA TYPESAFE_API_KEY -> mode llm-only (fail-open)", () => {
-    it("degrades two-layer directly to llm-only when apiKey is empty and process.env.TYPESAFE_API_KEY is unset", async () => {
-      delete process.env.TYPESAFE_API_KEY;
+  describe("Kasus 4: pinned provider without credentials -> mode llm-only (fail-open)", () => {
+    it("degrades a pinned TypeSafe provider with no key to llm-only and still runs the LLM judge", async () => {
       const fetchSpy = vi.spyOn(globalThis, "fetch");
       const callLog = [];
       const decisions = [];
@@ -695,9 +693,9 @@ describe("Jev Decision Cascade & Fail-Open Verification", () => {
         judgeModel: "judge-llm-model",
         tuning: {
           judgeMode: "two-layer",
-          typeSafeApiKey: "", // No key provided
+          jevProvider: "typesafe",
+          jevApiKeys: {},
           easyModels: ["model-easy-1"],
-          mediumModels: ["model-med-1"],
           hardModels: ["model-hard-1"],
         },
         onDecision: (d) => {
@@ -723,8 +721,7 @@ describe("Jev Decision Cascade & Fail-Open Verification", () => {
       expect(routeDecision.judgeModel).toBe("judge-llm-model");
     });
 
-    it("degrades to llm-only when typeSafeApiKey is undefined in tuning and env var is not set", async () => {
-      delete process.env.TYPESAFE_API_KEY;
+    it("degrades to llm-only when the pinned TypeSafe provider has no jevApiKeys entry and env var is not set", async () => {
       const fetchSpy = vi.spyOn(globalThis, "fetch");
       const callLog = [];
 
@@ -755,9 +752,9 @@ describe("Jev Decision Cascade & Fail-Open Verification", () => {
         judgeModel: "judge-llm-model",
         tuning: {
           judgeMode: "two-layer",
-          // typeSafeApiKey omitted
+          jevProvider: "typesafe",
+          // jevApiKeys omitted
           easyModels: ["model-easy-1"],
-          mediumModels: ["model-med-1"],
           hardModels: ["model-hard-1"],
         },
       });
@@ -769,7 +766,6 @@ describe("Jev Decision Cascade & Fail-Open Verification", () => {
     });
 
     it("operates fail-open even when neither TypeSafe key nor judgeModel is provided (policy fallback)", async () => {
-      delete process.env.TYPESAFE_API_KEY;
       const fetchSpy = vi.spyOn(globalThis, "fetch");
       const callLog = [];
       const decisions = [];
@@ -798,10 +794,10 @@ describe("Jev Decision Cascade & Fail-Open Verification", () => {
         judgeModel: null, // No LLM judge either
         tuning: {
           judgeMode: "two-layer",
-          typeSafeApiKey: "",
-          policy: "balanced", // Should fall back to medium
+          jevProvider: "typesafe",
+          jevApiKeys: {},
+          policy: "balanced", // balanced two-tier default: easy
           easyModels: ["model-easy-1"],
-          mediumModels: ["model-med-1"],
           hardModels: ["model-hard-1"],
         },
         onDecision: (d) => {

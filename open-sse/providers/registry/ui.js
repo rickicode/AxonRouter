@@ -5157,6 +5157,22 @@ export const REGISTRY_UI = [
     priority: 40,
     alias: "oc",
     uiAlias: "oc",
+    serviceKinds: ["llm", "jev"],
+    jevConfig: {
+      endpoint: "https://opencode.ai/zen/v1/systemone",
+      models: [
+        {
+          id: "jev-1.13-free",
+          name: "Jev 1.13 Free (System One)",
+          default: true
+        },
+        {
+          id: "jev-1.13",
+          name: "Jev 1.13 (System One)",
+          requiresKey: true
+        }
+      ]
+    },
     category: "free",
     display: {
       name: "OpenCode Free",
@@ -9406,6 +9422,22 @@ export const REGISTRY_UI = [
     ],
     uiAlias: "ocz",
     serviceKinds: ["llm", "jev"],
+    jevConfig: {
+      endpoint: "https://opencode.ai/zen/v1/systemone",
+      models: [
+        {
+          id: "jev-1.13-free",
+          name: "Jev 1.13 Free (System One)",
+          default: true
+        },
+        {
+          id: "jev-1.13",
+          name: "Jev 1.13 (System One)",
+          requiresKey: true
+        }
+      ],
+      keyPool: true
+    },
     category: "apikey",
     display: {
       name: "OpenCode Zen",
@@ -10843,6 +10875,18 @@ export const REGISTRY_UI = [
     ],
     uiAlias: "ts",
     serviceKinds: ["llm", "jev"],
+    jevConfig: {
+      endpoint: "https://api.typesafe.ai/v1/systemone",
+      models: [
+        {
+          id: "jev-latest",
+          name: "Jev Latest (System One)",
+          default: true,
+          requiresKey: true
+        }
+      ],
+      keyPool: true
+    },
     category: "apikey",
     display: {
       name: "TypeSafe AI (Jev)",

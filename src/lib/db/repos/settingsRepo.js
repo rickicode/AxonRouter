@@ -14,10 +14,12 @@ const DEFAULT_SETTINGS = {
   // Difficulty / smart-routing judge (see open-sse/services/combo.js DIFFICULTY_DEFAULTS).
   // judgeMode: "two-layer" (Jev primary -> LLM fallback) | "jev-only" | "llm-only".
   judgeMode: "two-layer",
-  // Jev classifier upstream model (combo model picker). Endpoint follows the model:
-  // jev-1.13-free / jev-1.13 → OpenCode Zen, jev-latest → TypeSafe AI.
+  // Jev classifier upstream (combo classifier picker). jevModel selects the
+  // model, jevProvider optionally pins a registered classifier provider; the
+  // endpoint and key source follow the provider registry (open-sse/config/jevModels.js).
   jevModel: DEFAULT_JEV_MODEL,
-  typeSafeApiKey: "",
+  jevProvider: "",
+  jevApiKeys: {},
   jevConfidenceThreshold: 0.7,
   defaultProxyGroupSettings: {},
   capacityAdapter: {

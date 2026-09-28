@@ -12,6 +12,14 @@ export default {
   },
   category: "free",
   noAuth: true,
+  serviceKinds: ["llm", "jev"],
+  jevConfig: {
+    endpoint: "https://opencode.ai/zen/v1/systemone",
+    models: [
+      { id: "jev-1.13-free", name: "Jev 1.13 Free (System One)", default: true },
+      { id: "jev-1.13", name: "Jev 1.13 (System One)", requiresKey: true },
+    ],
+  },
   transport: {
     baseUrl: "https://opencode.ai",
     headers: {

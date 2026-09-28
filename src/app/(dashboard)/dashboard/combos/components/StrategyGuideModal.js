@@ -23,12 +23,12 @@ const STRATEGIES = [
     ],
     pros: [
       "Saves 40-70% on token expenditure without sacrificing output quality on hard problems",
-      "Sub-50ms classification speed via Jev System One (TypeSafe / OpenCode Zen)",
+      "Sub-50ms classification speed via Jev System One (any registered classifier provider: OpenCode Free, OpenCode Zen, TypeSafe AI)",
       "Eliminates middle-tier ambiguity: clear binary choice between speed and frontier power",
       "Per-session tier stickiness preserves prompt caching on large agent threads",
     ],
     cons: [
-      "Requires an active Jev provider in Capabilities (TypeSafe AI or OpenCode Zen) for sub-50ms fast-path; otherwise uses LLM judge or policy default tier",
+      "Requires at least one classifier upstream in Capabilities > Jev Classifier (OpenCode Free is keyless; OpenCode Zen / TypeSafe AI need a key) for the sub-50ms fast-path; otherwise the LLM judge or the policy default tier is used",
       "Adds minimal classifier overhead (~15-30ms) before initial prompt dispatch",
     ],
     recommendedFor: "AI coding assistants (Cline, Cursor, Copilot, Codex), multi-agent swarms, and production API gateways handling varied prompt loads.",

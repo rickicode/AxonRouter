@@ -1,7 +1,7 @@
 # TypeSafe Jev / System One Routing & Multi-Upstream Cascade
 
 Dokumentasi fitur **Jev routing** (difficulty classification cascade) di AxonRouter.
-Sumber kode diverifikasi pada 2026-09-27 terhadap tree `/workspaces/AxonRouter`
+Sumber kode diverifikasi pada 2026-09-28 terhadap tree `/workspaces/AxonRouter`
 (`open-sse/services/combo.js`, `open-sse/services/jevUpstream.js`, `open-sse/config/jevModels.js`, dan konsumennya).
 
 ---
@@ -10,32 +10,56 @@ Sumber kode diverifikasi pada 2026-09-27 terhadap tree `/workspaces/AxonRouter`
 
 System One (Jev) adalah layanan klasifikasi kesulitan (difficulty, ambiguity, domain) eksternal berlatensi rendah yang dipanggil AxonRouter lewat protokol HTTP REST standar sebelum mengeksekusi LLM besar.
 
-### 1.1 Dua Upstream Endpoint
+### 1.1 Upstream ditentukan oleh registry (bukan hardcode)
 
-AxonRouter mendukung dua penyedia hulu (upstream) untuk System One:
+Daftar upstream Jev **tidak lagi ditulis di kode**. Setiap provider di registry yang mendeklarasikan
+`serviceKinds` memuat `"jev"` **dan** blok `jevConfig` otomatis menjadi kandidat upstream:
 
-1. **OpenCode Zen (Default, Cost 0)**
-   - Endpoint: `https://opencode.ai/zen/v1/systemone`
-   - Model default: `jev-1.13-free` (live-verified, cost 0, tidak memotong kuota berbayar)
-   - Model berbayar: `jev-1.13` (pay-as-you-go, butuh Zen API key)
-   - Otentikasi: Menggunakan koneksi pool `opencode-zen` di menu Providers / Capabilities, atau header kosong untuk tier gratis bila mode `free-zen` aktif.
-
-2. **TypeSafe AI Direct (Fallback / Enterprise)**
-   - Endpoint: `https://api.typesafe.ai/v1/systemone`
-   - Model: `jev-latest`
-   - Otentikasi: Membutuhkan API key (`Authorization: Bearer <apiKey>`). Tanpa API key valid, server TypeSafe mengembalikan status `401 Unauthorized`.
-   - Multi API Key: Menggunakan koneksi pool `typesafe` (round-robin multi-key) di menu Providers / Capabilities, setting global/combo, atau env `TYPESAFE_API_KEY`.
-
-Konstanta endpoint dan model didefinisikan secara modular di `open-sse/config/jevModels.js`:
 ```js
-export const TYPESAFE_SYSTEMONE_URL = "https://api.typesafe.ai/v1/systemone";
-export const ZEN_SYSTEMONE_URL = "https://opencode.ai/zen/v1/systemone";
-export const JEV_MODEL_TYPESAFE = "jev-latest";
-export const JEV_MODEL_ZEN_FREE = "jev-1.13-free";
-export const JEV_MODEL_ZEN = "jev-1.13";
-export const DEFAULT_JEV_MODEL = JEV_MODEL_ZEN_FREE;
+// open-sse/providers/registry/opencode.js (keyless — tanpa keyPool)
+serviceKinds: ["llm", "jev"],
+jevConfig: {
+  endpoint: "https://opencode.ai/zen/v1/systemone",
+  models: [
+    { id: "jev-1.13-free", name: "Jev 1.13 Free (System One)", default: true },
+    { id: "jev-1.13", name: "Jev 1.13 (System One)", requiresKey: true },
+  ],
+},
 ```
-Kedua URL juga di-re-export dari `open-sse/services/combo.js`.
+
+`open-sse/config/jevModels.js` menurunkan seluruh katalog dari proyeksi registry yang aman untuk klien
+(`REGISTRY_UI`): `JEV_PROVIDERS` (urut prioritas), `JEV_MODEL_CHOICES`, `JEV_ALL_MODELS`,
+`DEFAULT_JEV_MODEL`, `jevEndpointForModel()`, `jevProviderById()`, `jevModelMeta()`, dan
+`isKnownJevEndpoint()`. **Menambah upstream Jev baru = mengedit registry saja.**
+
+Semantik field `jevConfig`:
+
+| Field | Arti |
+|---|---|
+| `endpoint` | URL `…/v1/systemone` absolut milik provider |
+| `models[].id` / `.name` | id model dan label picker |
+| `models[].default` | nilai default picker bila provider ini terpilih |
+| `models[].requiresKey` | model tidak bisa dipakai tanpa key |
+| `keyPool` | `true` = provider menyediakan key dari connection pool; **dihilangkan** = keyless |
+
+Upstream yang terdaftar saat ini:
+
+1. **OpenCode Free — `oc/` (keyless, prioritas 40)**
+   - Endpoint: `https://opencode.ai/zen/v1/systemone`
+   - Model default: `jev-1.13-free` (live-verified: `200` tanpa header `Authorization`)
+   - Model berbayar: `jev-1.13` (`requiresKey`, butuh workspace/key Zen)
+   - Tanpa `keyPool` — tidak pernah butuh koneksi maupun API key.
+2. **TypeSafe AI — `ts/` (keyPool, prioritas 35)**
+   - Endpoint: `https://api.typesafe.ai/v1/systemone`, model `jev-latest`
+   - Membutuhkan key (`Authorization: Bearer <apiKey>`); tanpa key asli → `403`/`401`.
+3. **OpenCode Zen — `ocz/` (keyPool, prioritas 205)**
+   - Endpoint: `https://opencode.ai/zen/v1/systemone`, model `jev-1.13-free` / `jev-1.13`
+   - Key dari pool `opencode-zen`; model `jev-1.13` `requiresKey`.
+
+`oc/` dan `ocz/` memang **provider yang berbeda** dengan registry entry terpisah, tetapi keduanya
+menyajikan System One pada endpoint yang sama. Karena itu nilai picker disimpan sebagai pasangan
+**provider + model** (`jevProvider` + `jevModel`), bukan hanya id model — dua upstream yang menyajikan
+id model yang sama tetap bisa dibedakan dan di-pin secara eksplisit.
 
 ### 1.2 Bentuk Permintaan (Wire Payload)
 
@@ -49,9 +73,8 @@ Dibangun di `classifyWithJev` (`open-sse/services/combo.js`):
       "type": "choice",
       "instructions": "Classify the difficulty of this task.",
       "criteria": {
-        "easy": "Simple questions, greetings, trivial clarification, basic syntax, quick answer",
-        "medium": "Moderate complexity, multi-step problem, standard coding or reasoning task",
-        "hard": "Complex reasoning, intricate architecture, deep debugging, ambiguous edge case"
+        "easy": "Simple questions, greetings, trivia, formatting, lightweight syntax, quick answers, casual chat",
+        "hard": "Complex reasoning, system architecture, programming, debugging, algorithms, deep analysis, edge cases"
       }
     },
     "ambiguity": {
@@ -81,12 +104,14 @@ Dibangun di `classifyWithJev` (`open-sse/services/combo.js`):
 ### 1.3 Bentuk Respons dan Normalisasi
 
 Respons diproses di `classifyWithJev`:
-- `answers.difficulty.choice` (atau `.answer`, `data.difficulty`, `data.tier`): dinormalkan ke `"easy" | "medium" | "hard"`. Jika tidak ada pilihan valid, dianggap error dan return `null`.
+- `answers.difficulty.choice` (atau `.answer`, `data.difficulty`, `data.tier`): dinormalkan; nilai `medium`
+  dipetakan ke `hard` di `normalizeJudgeOutput`/`resolveTierMatrix` karena router hanya menjalankan dua tier.
 - `answers.ambiguity.choice`: dinormalkan ke `"low" | "medium" | "high"` (default `"low"`).
 - `answers.domain.choice`: dinormalkan ke string domain (default heuristik `detectDomain(body)`).
 - `answers.difficulty.confidence`: angka float 0..1 (default fallback `0.85`).
 
-Hasil akhir klasifikasi diumpankan ke `resolveTierMatrix(diff, amb, domain, policy)` untuk menghasilkan `tier` final (`"easy" | "medium" | "hard"`).
+Hasil akhir diumpankan ke `resolveTierMatrix(diff, amb, domain, policy)` untuk menghasilkan `tier` final
+(`"easy" | "hard"`). Judul difficulty yang dikirim ke upstream hanya menawarkan `easy|hard`.
 
 ---
 
@@ -94,14 +119,26 @@ Hasil akhir klasifikasi diumpankan ke `resolveTierMatrix(diff, amb, domain, poli
 
 ### 2.1 Upstream Resolver (`resolveJevTarget`)
 
-Modul `open-sse/services/jevUpstream.js` memisahkan logika pemilihan target upstream per klasifikasi:
-1. Membaca model yang diminta (`jevModel` dari tuning combo atau setting).
-2. Mengecek pool koneksi aktif di database (`loadPool("opencode-zen")` dan `loadPool("typesafe")`).
-3. Mendukung multi-key round-robin: setiap panggilan menggunakan kunci berikutnya secara bergiliran (`peekKey` + `commitRotate`).
-4. Hierarchy fallback:
-   - Model `jev-1.13-free` / `jev-1.13`: prioritas ke OpenCode Zen (`https://opencode.ai/zen/v1/systemone`). Bila Zen tidak ada upstream (tanpa koneksi & bukan mode free-zen), fallback ke TypeSafe jika ada key.
-   - Model `jev-latest`: prioritas ke TypeSafe (`https://api.typesafe.ai/v1/systemone`).
-   - Tanpa key & tanpa koneksi: `resolveJevTarget` mengembalikan `available: false` (fail-open tanpa error), sehingga cascade langsung terdegradasi ke `llm-only` tanpa melakukan fetch jaringan (0 fetch).
+Modul `open-sse/services/jevUpstream.js` memilih di antara deklarasi registry; modul ini tidak lagi
+menulis daftar provider di dalam kode.
+1. Membaca `model` dan `provider` yang diminta (dari tuning combo atau setting global).
+2. Membentuk urutan kandidat:
+   - **`provider` eksplisit = pin keras.** Bila diisi, HANYA provider itu yang dicoba; pin yang tidak
+     terkonfigurasi akan terdegradasi ke LLM judge, bukan diam-diam berpindah ke upstream lain.
+   - Tanpa pin: provider dari `endpoint` eksplisit → provider yang mendeklarasikan `model` yang diminta →
+     sisa provider menurut prioritas registry.
+3. Memuat pool koneksi hanya untuk provider yang `keyPool: true` (`loadPool(provider.id)`), dengan rotasi
+   *round-robin* multi-key (`peekKey` + `commitRotate`).
+4. Urutan sumber key: connection pool → key pemanggil (`jevApiKeys[provider]`) → env provider
+   (`<PROVIDER_ID>_API_KEY`, mis. `TYPESAFE_API_KEY`).
+5. Provider keyless (tanpa `keyPool`) selalu `available`; model dengan `requiresKey: true` butuh key.
+
+Hierarchy fallback yang berlaku sekarang:
+- Default `jev-1.13-free`: provider keyless `oc/` (prioritas 40) menjawab tanpa key apa pun.
+- Model `jev-1.13` (`requiresKey`): hanya provider yang punya key (`oc/` dengan key, atau `ocz/` pool).
+- Model `jev-latest`: provider `ts/` (TypeSafe), butuh key.
+- Semua kandidat tidak tersedia (mis. pin `ts/` tanpa key): `available: false` (fail-open tanpa error),
+  cascade terdegradasi ke `llm-only` **tanpa fetch jaringan** (0 fetch).
 
 ### 2.2 Diagram Alur Keputusan
 
@@ -109,9 +146,9 @@ Modul `open-sse/services/jevUpstream.js` memisahkan logika pemilihan target upst
 Chat Request (comboStrategy === "difficulty")
   │
   ├─ (1) Mode Check: tuning.judgeMode ?? cfg.judgeMode ("two-layer" | "jev-only" | "llm-only")
-  │       └─ resolveJevTarget({ model, apiKey, ... })
-  │            ├─ Ada Upstream (Zen pool / TypeSafe pool / API Key) ──► Target Siap
-  │            └─ Tanpa Key & Tanpa Koneksi ──► degradedToLlm = true ──► Mode jadi "llm-only" (0 fetch)
+  │       └─ resolveJevTarget({ model, provider, apiKeys, ... })
+  │            ├─ Ada upstream usable (keyless / pool / key pemanggil / env) ──► Target Siap
+  │            └─ Semua kandidat tidak usable (biasanya karena provider di-pin) ──► degradedToLlm = true ──► Mode jadi "llm-only" (0 fetch)
   │
   ├─ (2) Heuristic Difficulty Check
   │       └─ Match pattern ──► Selesai (Source: "heuristic")
@@ -135,7 +172,7 @@ Chat Request (comboStrategy === "difficulty")
   │       └─ [Mode "llm-only"]
   │            └─ classifyWithJudge() langsung tanpa memanggil Jev
   │
-  └─ (5) Eksekusi Model Sesuai Tier Terpilih ("easy" | "medium" | "hard")
+  └─ (5) Eksekusi Model Sesuai Tier Terpilih ("easy" | "hard")
 ```
 
 ---
@@ -145,19 +182,27 @@ Chat Request (comboStrategy === "difficulty")
 ### 3.1 Model Picker & Default Upstream
 
 Pada menu Dashboard **Combos -> Smart Routing Section**:
-- Pilihan model classifier (`jevModel`):
-  1. `OpenCode Zen / jev-1.13-free (Default, Free)` -> `https://opencode.ai/zen/v1/systemone`
-  2. `OpenCode Zen / jev-1.13 (Pay-as-you-go)` -> `https://opencode.ai/zen/v1/systemone`
-  3. `TypeSafe AI / jev-latest (Direct TypeSafe)` -> `https://api.typesafe.ai/v1/systemone`
-- Nilai default sistem adalah `jev-1.13-free` (`DEFAULT_JEV_MODEL`).
+- Pilihan classifier adalah pasangan **provider + model**; nilai yang disimpan tetap dua field
+  (`jevProvider` + `jevModel`), sehingga `oc/jev-1.13-free` dan `ocz/jev-1.13-free` — endpoint yang sama,
+  id model yang sama — tetap dapat dibedakan dan di-pin.
+- Pilihan yang muncul diturunkan otomatis dari registry:
+  1. `OpenCode Free / jev-1.13-free (Default, Free)` -> `https://opencode.ai/zen/v1/systemone` (keyless)
+  2. `OpenCode Free / jev-1.13 (key required)` -> `https://opencode.ai/zen/v1/systemone`
+  3. `OpenCode Zen / jev-1.13-free (Free)` -> `https://opencode.ai/zen/v1/systemone`
+  4. `OpenCode Zen / jev-1.13 (key required)` -> `https://opencode.ai/zen/v1/systemone`
+  5. `TypeSafe AI (Jev) / jev-latest (key required)` -> `https://api.typesafe.ai/v1/systemone`
+- Nilai default sistem adalah `jev-1.13-free` pada provider keyless (`DEFAULT_JEV_MODEL`).
+- Provider baru muncul di picker begitu registry-nya mendeklarasikan `serviceKinds: ["jev"]` + `jevConfig`.
 
 ### 3.2 Dukungan Multi API Key (Connection Pool)
 
-Dukungan multi API key untuk provider `typesafe` dan `opencode-zen` diintegrasikan penuh ke sistem koneksi AxonRouter:
-- Pengguna dapat menambahkan lebih dari satu API key untuk provider `typesafe` atau `opencode-zen`.
+Dukungan multi API key berlaku untuk semua provider yang menandai `keyPool: true` (`typesafe`,
+`opencode-zen`):
+- Pengguna dapat menambahkan lebih dari satu API key untuk provider tersebut.
 - Setiap koneksi disimpan di database PostgreSQL (`connectionsRepo.js`) dengan status aktif/inaktif dan atribut cooldown.
 - Service `open-sse/services/jevUpstream.js` memuat pool koneksi ini dan melakukan rotasi *round-robin* otomatis antar permintaan klasifikasi.
 - Bila satu key mengalami rate limit atau error kuota, sistem memutar ke key berikutnya dalam pool.
+- Provider keyless (mis. `oc/`) tidak pernah memuat pool: tidak butuh koneksi maupun key.
 
 ### 3.3 Rename Menu: Media Providers -> Capabilities
 
@@ -172,10 +217,11 @@ Untuk merefleksikan fungsinya yang mencakup multi-modalitas dan routing khusus (
 |---|---|---|
 | `judgeMode` | `"two-layer"` | Pilihan mode: `"two-layer"`, `"jev-only"`, `"llm-only"` |
 | `jevModel` | `"jev-1.13-free"` | Model klasifikasi Jev yang digunakan |
+| `jevProvider` | `""` | Provider upstream yang di-pin; `""` = pilih otomatis menurut prioritas registry |
+| `jevApiKeys` | `{}` | Key per provider: `{ [providerId]: key }`; key provider yang dihilangkan tetap tersimpan |
 | `jevConfidenceThreshold` | `0.7` | Ambang batas confidence untuk eskalasi ke LLM judge / tier hard |
 | `jevTimeoutMs` | `2500` | Batas waktu respon System One sebelum timeout fallback |
 | `judgeTimeoutMs` | `4000` | Batas waktu respon LLM judge |
-| `typeSafeApiKey` | `""` | Kunci API khusus TypeSafe (opsional jika menggunakan connection pool) |
 
 ---
 
@@ -198,7 +244,11 @@ Metrik ini diekspos melalui:
 
 AxonRouter menjamin prinsip **Zero Request Failure** akibat kegagalan komponen klasifikasi:
 1. **Tanpa Key & Tanpa Koneksi**:
-   - Jika `judgeMode = "two-layer"` namun pengguna tidak memiliki koneksi aktif `opencode-zen` maupun `typesafe`, dan tidak ada API key di settings maupun environment, mode secara otomatis diturunkan (*fail-open degrade*) ke `llm-only` tanpa melakukan fetch jaringan (0 fetch). Request klien diproses tanpa gangguan.
+   - Secara default (`jevProvider = ""`) provider keyless `oc/` selalu tersedia, jadi klasifikasi Jev tetap
+     jalan gratis tanpa key maupun koneksi.
+   - Degradasi ke `llm-only` (0 fetch) hanya terjadi bila **semua kandidat tidak usable** — kasus paling
+     umum adalah `jevProvider` di-pin ke provider ber-key (mis. `typesafe`) tanpa key, koneksi, maupun env.
+     Request klien tetap diproses tanpa gangguan.
 2. **Jev Timeout atau Network Error**:
    - Jika request ke endpoint upstream (`api.typesafe.ai` atau `opencode.ai`) mengalami timeout (`> 2500ms`), koneksi terputus, atau mengembalikan respons selain 200, status `jevFallback` di-increment dan kendali langsung diserahkan ke fallback LLM judge.
 3. **Malfungsi Format / JSON Rusak**:
@@ -211,14 +261,19 @@ AxonRouter menjamin prinsip **Zero Request Failure** akibat kegagalan komponen k
 Suite pengujian komprehensif memvalidasi cascade multi-upstream ini di `tests/`:
 
 1. `tests/unit/jev-cascade.test.js`:
-   - Pengujian default model `jev-1.13-free` memanggil endpoint OpenCode Zen `https://opencode.ai/zen/v1/systemone`.
+   - Pengujian default model `jev-1.13-free` memanggil endpoint keyless `https://opencode.ai/zen/v1/systemone`.
    - Pengujian model `jev-latest` memanggil endpoint TypeSafe `https://api.typesafe.ai/v1/systemone`.
    - Pengujian high confidence (`jevUsed`), low confidence (`jevEscalated`), timeout/error (`jevFallback`).
-   - Pengujian kondisi tanpa key & tanpa koneksi yang mendegradasi ke `llm-only` (0 fetch).
+   - Pengujian kondisi provider di-pin tanpa key yang mendegradasi ke `llm-only` (0 fetch).
 2. `tests/unit/jev-multi-provider.test.js`:
    - Validasi rotasi round-robin multi-key pool untuk provider `typesafe` dan `opencode-zen`.
+   - Validasi routing keyless `oc/` (tanpa header `Authorization`) dan pinning provider eksplisit.
    - Validasi prioritas upstream dan degradasi cascade.
 3. `tests/unit/combo-typesafe-jev.test.js`:
    - Validasi integrasi `classifyWithJev` dan ketiga mode cascade (`two-layer`, `jev-only`, `llm-only`).
 4. `tests/unit/typesafe-provider.test.js`:
-   - Validasi registrasi provider `typesafe` dan model Jev di registry dan UI.
+   - Validasi registrasi ketiga provider classifier (`opencode`, `opencode-zen`, `typesafe`), blok `jevConfig`
+     di registry dan `REGISTRY_UI`, serta katalog `JEV_MODEL_CHOICES`.
+5. `tests/unit/settings-judge.test.js` dan `tests/unit/chat-judge-settings.test.js`:
+   - Validasi default & validasi setting `jevProvider` / `jevApiKeys`, redaksi `jevApiKeysConfigured`, dan
+     penerusan tuning dari `chat.js` ke `handleDifficultyChat`.

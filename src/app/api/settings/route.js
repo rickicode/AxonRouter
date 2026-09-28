@@ -2,7 +2,7 @@ import { NextResponse } from "@/lib/http/response.js";
 import { getSettings, updateSettings } from "@/lib/localDb";
 import { applyOutboundProxyEnv } from "@/lib/network/outboundProxy";
 import { resetComboRotation } from "open-sse/services/combo.js";
-import { JEV_ALL_MODELS, isKnownJevEndpoint } from "open-sse/config/jevModels.js";
+import { JEV_ALL_MODELS, JEV_PROVIDERS, isKnownJevEndpoint, jevProviderById } from "open-sse/config/jevModels.js";
 import bcrypt from "bcryptjs";
 
 export const dynamic = "force-dynamic";
@@ -15,24 +15,26 @@ const SETTINGS_RESPONSE_HEADERS = {
 // Secrets must never be mass-assigned from request body (CWE-915)
 const PROTECTED_SETTING_KEYS = ["password"];
 
-// Combo-level TypeSafe keys are secrets as well: hand out only their presence so the
-// dashboard can badge them without ever receiving the value.
+// Combo-level classifier keys are secrets as well: hand out only which providers
+// have one, never the value.
 function redactComboStrategies(strategies) {
   if (!strategies || typeof strategies !== "object") return strategies;
   return Object.fromEntries(
     Object.entries(strategies).map(([name, strat]) => {
-      if (!strat || typeof strat !== "object" || !strat.typeSafeApiKey) {
+      if (!strat || typeof strat !== "object" || !strat.jevApiKeys) {
         return [name, strat];
       }
-      const { typeSafeApiKey, ...rest } = strat;
-      return [name, { ...rest, typeSafeKeyConfigured: true }];
+      const { jevApiKeys, ...rest } = strat;
+      const configured = Object.keys(jevApiKeys).filter((k) => jevApiKeys[k]);
+      return [name, { ...rest, jevApiKeysConfigured: configured }];
     })
   );
 }
 
-// The dashboard posts the whole comboStrategies map but can never echo back a combo
-// key it did not receive, so an omitted typeSafeApiKey keeps the stored value and an
-// explicit "" is what clears it. The derived typeSafeKeyConfigured flag is never stored.
+// The dashboard posts the whole comboStrategies map but can never echo back a
+// classifier key it did not receive, so an omitted jevApiKeys entry keeps the
+// stored key and an explicit "" is what clears it. Derived *Configured flags are
+// never stored.
 function mergeComboStrategies(stored = {}, incoming = {}) {
   const merged = {};
   for (const [name, strat] of Object.entries(incoming || {})) {
@@ -42,31 +44,47 @@ function mergeComboStrategies(stored = {}, incoming = {}) {
     }
     const prev = stored?.[name] && typeof stored[name] === "object" ? stored[name] : {};
     const next = { ...strat };
-    // Jev classifier picker: only known model ids / System One endpoints are stored.
+    // Jev classifier picker: only registered models / providers / endpoints are stored.
     if (next.jevModel !== undefined && !JEV_ALL_MODELS.includes(next.jevModel)) delete next.jevModel;
+    if (next.jevProvider !== undefined && !jevProviderById(next.jevProvider)) delete next.jevProvider;
     if (next.jevEndpoint !== undefined && !isKnownJevEndpoint(next.jevEndpoint)) delete next.jevEndpoint;
-    delete next.typeSafeKeyConfigured;
-    if (!Object.prototype.hasOwnProperty.call(next, "typeSafeApiKey")) {
-      if (typeof prev.typeSafeApiKey === "string" && prev.typeSafeApiKey) {
-        next.typeSafeApiKey = prev.typeSafeApiKey;
-      }
-    } else {
-      const key = next.typeSafeApiKey == null ? "" : String(next.typeSafeApiKey).trim();
-      if (key) next.typeSafeApiKey = key;
-      else delete next.typeSafeApiKey;
-    }
+    delete next.jevApiKeysConfigured;
+    next.jevApiKeys = mergeJevApiKeys(prev.jevApiKeys, next.jevApiKeys);
+    if (Object.keys(next.jevApiKeys).length === 0) delete next.jevApiKeys;
     merged[name] = next;
   }
   return merged;
 }
 
+// Merge { providerId: key } maps. A provider NAMED in `incoming` is authoritative:
+// a non-empty value stores the new key and "" clears it (that is the only way the
+// dashboard can clear a key it never receives back). A provider omitted from
+// `incoming` keeps its stored key.
+function mergeJevApiKeys(stored, incoming) {
+  const prev = stored && typeof stored === "object" ? stored : {};
+  if (incoming === undefined) return { ...prev };
+  if (!incoming || typeof incoming !== "object") return {};
+  const out = {};
+  const named = new Set();
+  for (const [provider, key] of Object.entries(incoming)) {
+    if (!jevProviderById(provider)) continue;
+    named.add(provider);
+    const trimmed = key == null ? "" : String(key).trim();
+    if (trimmed) out[provider] = trimmed;
+  }
+  for (const [provider, key] of Object.entries(prev)) {
+    if (!named.has(provider) && typeof key === "string" && key) out[provider] = key;
+  }
+  return out;
+}
+
 export async function GET() {
   try {
     const settings = await getSettings();
-    const { password, oidcClientSecret, typeSafeApiKey, ...safeSettings } = settings;
+    const { password, oidcClientSecret, jevApiKeys, ...safeSettings } = settings;
     safeSettings.oidcConfigured = !!(safeSettings.oidcIssuerUrl && safeSettings.oidcClientId && oidcClientSecret);
-    // TypeSafe key is a secret: expose only whether one is configured.
-    safeSettings.typeSafeKeyConfigured = !!typeSafeApiKey;
+    // Classifier provider keys are secrets: expose only which providers have one.
+    safeSettings.jevApiKeysConfigured = Object.keys(jevApiKeys || {}).filter((k) => jevApiKeys[k]);
     safeSettings.comboStrategies = redactComboStrategies(safeSettings.comboStrategies);
     
     const enableRequestLogs = process.env.ENABLE_REQUEST_LOGS === "true";
@@ -143,6 +161,17 @@ export async function PATCH(request) {
         );
       }
     }
+    if (Object.prototype.hasOwnProperty.call(body, "jevProvider")) {
+      // "" clears the pin and lets the resolver pick by priority.
+      if (body.jevProvider === "" || body.jevProvider == null) {
+        body.jevProvider = "";
+      } else if (!jevProviderById(body.jevProvider)) {
+        return NextResponse.json(
+          { error: `Invalid jevProvider: expected one of ${JEV_PROVIDERS.map((p) => p.provider).join(", ")}` },
+          { status: 400 }
+        );
+      }
+    }
     if (Object.prototype.hasOwnProperty.call(body, "jevConfidenceThreshold")) {
       const threshold = Number(body.jevConfidenceThreshold);
       if (!Number.isFinite(threshold) || threshold < 0 || threshold > 1) {
@@ -153,9 +182,10 @@ export async function PATCH(request) {
       }
       body.jevConfidenceThreshold = threshold;
     }
-    if (Object.prototype.hasOwnProperty.call(body, "typeSafeApiKey")) {
-      // "" clears the key (falls back to TYPESAFE_API_KEY env).
-      body.typeSafeApiKey = body.typeSafeApiKey == null ? "" : String(body.typeSafeApiKey).trim();
+    if (Object.prototype.hasOwnProperty.call(body, "jevApiKeys")) {
+      // { [providerId]: key }; "" clears a provider key, omitted providers keep theirs.
+      const current = await getSettings();
+      body.jevApiKeys = mergeJevApiKeys(current.jevApiKeys || {}, body.jevApiKeys);
     }
 
     // Combo-level keys: the client cannot echo back what GET redacted, so re-attach the
@@ -186,9 +216,9 @@ export async function PATCH(request) {
     }
 
 
-    const { password, oidcClientSecret, typeSafeApiKey, ...safeSettings } = settings;
+    const { password, oidcClientSecret, jevApiKeys, ...safeSettings } = settings;
     safeSettings.oidcConfigured = !!(safeSettings.oidcIssuerUrl && safeSettings.oidcClientId && oidcClientSecret);
-    safeSettings.typeSafeKeyConfigured = !!typeSafeApiKey;
+    safeSettings.jevApiKeysConfigured = Object.keys(jevApiKeys || {}).filter((k) => jevApiKeys[k]);
     safeSettings.comboStrategies = redactComboStrategies(safeSettings.comboStrategies);
     return NextResponse.json(safeSettings, { headers: SETTINGS_RESPONSE_HEADERS });
   } catch (error) {

@@ -318,7 +318,6 @@ function CombosContent({ activeTab }) {
         if (Array.isArray(c.models) && c.models.some((m) => m.toLowerCase().includes(q))) return true;
         const strat = comboStrategies[c.name] || {};
         if (strat.easyModels?.some((m) => m.toLowerCase().includes(q))) return true;
-        if (strat.mediumModels?.some((m) => m.toLowerCase().includes(q))) return true;
         if (strat.hardModels?.some((m) => m.toLowerCase().includes(q))) return true;
         return false;
       });
@@ -712,23 +711,22 @@ function ComboCard({
   const stickyValue = stickyDraft ?? strategy.stickyLimit ?? "";
 
   const easyCount = Array.isArray(strategy.easyModels) ? strategy.easyModels.length : 0;
-  const mediumCount = Array.isArray(strategy.mediumModels) ? strategy.mediumModels.length : 0;
   const hardCount = Array.isArray(strategy.hardModels) ? strategy.hardModels.length : 0;
   const totalTierModels = useMemo(() => {
     const set = new Set([
       ...(Array.isArray(strategy.easyModels) ? strategy.easyModels : []),
-      ...(Array.isArray(strategy.mediumModels) ? strategy.mediumModels : []),
       ...(Array.isArray(strategy.hardModels) ? strategy.hardModels : []),
     ]);
     return set.size;
-  }, [strategy.easyModels, strategy.mediumModels, strategy.hardModels]);
+  }, [strategy.easyModels, strategy.hardModels]);
 
   const badge = getComboBadge(combo, strategy);
   // Mirrors the per-combo judge override exposed in SmartRoutingSection.
   const judgeOverrideActive =
     strategy.judgeMode != null ||
     strategy.jevConfidenceThreshold != null ||
-    strategy.jevModel != null;
+    strategy.jevModel != null ||
+    strategy.jevProvider != null;
 
   return (
     <Card padding="none" className="group rounded-lg border border-border bg-surface transition-all hover:border-border/80 overflow-hidden shadow-sm">

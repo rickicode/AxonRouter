@@ -33,10 +33,19 @@ export function checkFallbackError(status, errorText, backoffLevel = 0) {
   if (status === 499 || lowerError.includes("request aborted") || lowerError.includes("client disconnected") || lowerError.includes("client closed request")) {
     return { shouldFallback: false, cooldownMs: 0, lockAll: false, disableAccount: false };
   }
-
+  const numStatus = Number(status);
+  // Pure client parameter / request errors (must be >= 16, invalid_request_error, context length)
+  if (lowerError.includes("invalid_request_error") || (numStatus === 400 && (lowerError.includes("context length") || lowerError.includes("must be >=") || lowerError.includes("max_output_tokens")))) {
+    return { shouldFallback: false, cooldownMs: 0, lockAll: false, disableAccount: false };
+  }
   for (const rule of ERROR_RULES) {
     // Text-based rule: match substring in error message
     if (rule.text && lowerError && lowerError.includes(rule.text)) {
+      // In 400 or 422, rules that would disable an account for invalid_api_key / invalid_token
+      // (e.g. OpenRouter metadata.previous_errors) MUST NOT match
+      if (rule.disableAccount && (numStatus === 400 || numStatus === 422) && !/\b(banned|suspended)\b/i.test(rule.text)) {
+        continue;
+      }
       if (rule.backoff) {
         const newLevel = Math.min(backoffLevel + 1, BACKOFF_CONFIG.maxLevel);
         return { shouldFallback: true, cooldownMs: getQuotaCooldown(newLevel), newBackoffLevel: newLevel, lockAll: !!rule.lockAll, disableAccount: !!rule.disableAccount, isExhausted: !!rule.isExhausted };
@@ -44,7 +53,6 @@ export function checkFallbackError(status, errorText, backoffLevel = 0) {
       const canFallback = rule.shouldFallback !== false;
       return { shouldFallback: canFallback, cooldownMs: rule.cooldownMs || 0, lockAll: !!rule.lockAll, disableAccount: !!rule.disableAccount, isExhausted: !!rule.isExhausted, isToolIncompatibility: !!rule.isToolIncompatibility };
     }
-
     // Status-based rule: match HTTP status code
     if (rule.status && rule.status === status) {
       if (rule.backoff) {
@@ -80,9 +88,16 @@ export function checkFallbackError(status, errorText, backoffLevel = 0) {
  * Such accounts must be disabled (isActive: false, testStatus: "disabled").
  */
 export function isFatalAuthError(status, errorText) {
-  if (status === 401) return true;
+  const numStatus = Number(status);
+  // Client parameter errors (499, 404, 413) are never fatal account auth failures
+  if (numStatus === 499 || numStatus === 404 || numStatus === 413) return false;
+  if (numStatus === 401) return true;
   const str = typeof errorText === "string" ? errorText : (errorText ? JSON.stringify(errorText) : "");
-  if (!str) return false;
+  // In HTTP 400 or 422, "invalid_api_key" from aggregator metadata (e.g. OpenRouter previous_errors)
+  // must never disable the account. Only explicit account suspension/ban or 401/403 can disable.
+  if (numStatus === 400 || numStatus === 422) {
+    return /\b(account has been banned|account has been deleted|user has been suspended|account suspended|banned|suspended)\b/i.test(str);
+  }
   return /\b(invalid_grant|invalid_api_key|invalid api key|invalid token|token revoked|revoked|unauthenticated|unauthorized|unrecoverable_refresh_error|refresh_token_reused|account has been banned|account has been deleted|user has been suspended|account suspended|banned|suspended|validation_required)\b/i.test(str)
     || /invalid authentication credential|verify.*account|verification required/i.test(str);
 }

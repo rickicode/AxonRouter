@@ -8,6 +8,14 @@ export default {
   ],
   uiAlias: "ocz",
   serviceKinds: ["llm", "jev"],
+  jevConfig: {
+    endpoint: "https://opencode.ai/zen/v1/systemone",
+    models: [
+      { id: "jev-1.13-free", name: "Jev 1.13 Free (System One)", default: true },
+      { id: "jev-1.13", name: "Jev 1.13 (System One)", requiresKey: true },
+    ],
+    keyPool: true,
+  },
   display: {
     name: "OpenCode Zen",
     icon: "terminal",

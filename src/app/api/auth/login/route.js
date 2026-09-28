@@ -51,18 +51,15 @@ export async function POST(request) {
     }
 
     let isValid = false;
-    if (process.env.INITIAL_PASSWORD && password === process.env.INITIAL_PASSWORD) {
-      isValid = true;
-      const isStoredMatching = storedHash ? await bcrypt.compare(password, storedHash).catch(() => false) : false;
-      if (!isStoredMatching) {
-        const newHash = await bcrypt.hash(password, 10);
-        await updateSettings({ password: newHash }).catch(() => {});
-      }
-    } else if (storedHash) {
+    if (storedHash) {
       isValid = await bcrypt.compare(password, storedHash);
     } else {
       const initialPassword = process.env.INITIAL_PASSWORD || "12345677";
       isValid = password === initialPassword;
+      if (isValid) {
+        const newHash = await bcrypt.hash(password, 10);
+        await updateSettings({ password: newHash }).catch(() => {});
+      }
     }
     if (isValid) {
       recordSuccess(ip);

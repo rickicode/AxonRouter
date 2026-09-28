@@ -140,7 +140,9 @@ const sizes = {
   md: "max-w-md",
   lg: "max-w-lg",
   xl: "max-w-xl",
-  full: "max-w-4xl",
+  "2xl": "max-w-2xl",
+  "3xl": "max-w-3xl",
+  full: "max-w-5xl",
 };
 
 export function ConfirmModal({

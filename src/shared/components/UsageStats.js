@@ -113,8 +113,7 @@ function RecentRequests({ requests = [] }) {
  {requests.slice(0, 20).map((r, i) => {
  const ok = !r.status || r.status === "ok" || r.status === "success";
  return (
- <div key={i} className="flex min-h-11 items-center gap-2.5 px-1 py-2">
- <span className={`size-2 shrink-0 rounded-full ${ok ? "bg-success" : "bg-danger"}`} />
+ <div key={i} className={`flex min-h-11 items-center gap-2.5 px-2 py-2 rounded-sm ${!ok ? "border-l-2 border-danger bg-danger/5" : ""}`}>
  <div className="min-w-0 flex-1">
  <p className="truncate font-mono text-xs text-text-main" title={r.model}>{r.model}</p>
         <p className="mt-0.5 font-mono text-[11px] tabular-nums">
@@ -132,7 +131,6 @@ function RecentRequests({ requests = [] }) {
  <table className="data-table data-table-plain w-full min-w-[300px] text-xs" aria-label="Recent requests">
  <thead className="sticky top-0 z-10">
  <tr>
- <th scope="col" className="py-2 text-left text-text-muted w-2 h-8 text-xs font-medium"></th>
  <th scope="col" className="py-2 text-left text-text-muted h-8 text-xs font-medium">Model</th>
  <th scope="col" className="py-2 text-right text-text-muted whitespace-nowrap h-8 text-xs font-medium">In / Out</th>
  <th scope="col" className="py-2 text-right text-text-muted h-8 text-xs font-medium">When</th>
@@ -143,9 +141,6 @@ function RecentRequests({ requests = [] }) {
  const ok = !r.status || r.status === "ok" || r.status === "success";
  return (
  <tr key={i} className={` ${!ok ? "row-failed" : ""}`}>
- <td className="py-2 h-8 px-3 text-sm">
- <span className={`block w-1.5 h-1.5 rounded-full ${ok ? "bg-success" : "bg-danger"}`} />
- </td>
         <td className="py-2 font-mono truncate max-w-[160px] sm:max-w-[240px] lg:max-w-[260px] xl:max-w-[280px] h-8 px-3 text-sm" title={r.model}>{r.model}</td>
         <td className="py-2 text-right whitespace-nowrap h-8 px-3 text-sm">
           <span className="text-primary" title={`In: ${Number(r.promptTokens || 0).toLocaleString("en-US")}`}>{formatTokens(r.promptTokens)}↑</span>
@@ -468,12 +463,25 @@ export default function UsageStats({
  })
  .then((data) => {
  if (ctrl.signal.aborted) return;
- if (data) {
- hasLoadedStats.current = true;
- setStats((prev) => ({ ...prev, ...data }));
- setStatsError(null);
- }
- })
+        if (data) {
+          hasLoadedStats.current = true;
+          setStats((prev) => {
+            const prevRecent = prev?.recentRequests || [];
+            const prevActive = prev?.activeRequests || [];
+            return {
+              ...(prev || {}),
+              ...data,
+              activeRequests: (data.activeRequests && data.activeRequests.length > 0)
+                ? data.activeRequests
+                : prevActive,
+              recentRequests: (data.recentRequests && data.recentRequests.length > 0)
+                ? data.recentRequests
+                : prevRecent,
+            };
+          });
+          setStatsError(null);
+        }
+      })
  .catch((err) => {
  if (err.name === "AbortError" || ctrl.signal.aborted) return;
  console.error("Failed to fetch usage stats:", err);
@@ -530,27 +538,32 @@ export default function UsageStats({
  function connect() {
  es = new EventSource("/api/usage/stream");
 
- es.onmessage = (e) => {
- try {
- const data = JSON.parse(e.data);
- // Always merge only real-time fields, never overwrite full stats from REST
- setStats((prev) => {
- if (!prev) return prev;
- return {
- ...prev,
- activeRequests: data.activeRequests,
- recentRequests: data.recentRequests,
- errorProvider: data.errorProvider,
- pending: data.pending,
- last10Minutes: data.last10Minutes,
- };
- });
- if (hasLoadedStats.current) setLoading(false);
- } catch (err) {
- console.error("[SSE CLIENT] parse error:", err);
- }
- };
-
+      es.onmessage = (e) => {
+        try {
+          const data = JSON.parse(e.data);
+          // Always merge real-time fields; initialize state if REST fetch has not resolved yet
+          setStats((prev) => {
+            const base = prev || {
+              summary: {},
+              models: [],
+              providers: [],
+              hourly: [],
+            };
+            return {
+              ...base,
+              activeRequests: data.activeRequests || [],
+              recentRequests: data.recentRequests || base.recentRequests || [],
+              errorProvider: data.errorProvider ?? base.errorProvider,
+              pending: data.pending ?? base.pending,
+              last10Minutes: data.last10Minutes || base.last10Minutes || [],
+            };
+          });
+          hasLoadedStats.current = true;
+          setLoading(false);
+        } catch (err) {
+          console.error("[SSE CLIENT] parse error:", err);
+        }
+      };
  es.onerror = () => {
  if (document.hidden) return; // pause while hidden
  setLoading(false);
@@ -564,23 +577,52 @@ export default function UsageStats({
  attempt = 0; // reset backoff on successful open
  };
  }
+      // Immediate hydration for active & recent requests on mount so users
+      // never wait for SSE handshake or page refresh
+      const syncActiveRequests = () => {
+        if (typeof document !== "undefined" && document.hidden) return;
+        fetch("/api/usage/active-requests", { cache: "no-store" })
+          .then((r) => (r.ok ? r.json() : null))
+          .then((data) => {
+            if (!data) return;
+            setStats((prev) => {
+              const base = prev || { summary: {}, models: [], providers: [], hourly: [] };
+              return {
+                ...base,
+                activeRequests: data.activeRequests || [],
+                recentRequests: (data.recentRequests && data.recentRequests.length > 0) ? data.recentRequests : (base.recentRequests || []),
+                errorProvider: data.errorProvider ?? base.errorProvider,
+              };
+            });
+          })
+          .catch(() => {});
+      };
 
- connect();
+      syncActiveRequests();
+      connect();
 
- const onVisibility = () => {
- if (!document.hidden && es?.readyState === EventSource.CLOSED) {
- attempt = 0;
- connect();
- }
- };
- document.addEventListener("visibilitychange", onVisibility);
+      // High-reliability live sync every 2.5s to ensure realtime requests NEVER lag or disappear
+      const heartbeat = setInterval(() => {
+        syncActiveRequests();
+      }, 2500);
+      const onVisibility = () => {
+        if (!document.hidden) {
+          syncActiveRequests();
+          if (es?.readyState === EventSource.CLOSED) {
+            attempt = 0;
+            connect();
+          }
+        }
+      };
+      document.addEventListener("visibilitychange", onVisibility);
 
- return () => {
- clearTimeout(retryTimer);
- document.removeEventListener("visibilitychange", onVisibility);
- es?.close();
- };
- }, []);
+      return () => {
+        clearInterval(heartbeat);
+        clearTimeout(retryTimer);
+        document.removeEventListener("visibilitychange", onVisibility);
+        es?.close();
+      };
+    }, []);
 
  const toggleSort = useCallback((tableType, field) => {
  const params = new URLSearchParams(searchParams.toString());

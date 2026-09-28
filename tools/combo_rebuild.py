@@ -98,7 +98,6 @@ def build_plan(out, run):
                 "difficultyPolicy": "balanced",
                 "judgeModel": "judge-router",
                 "easyModels": (coding[-8:] or FREE_FAMILY) + FREE_FAMILY,
-                "mediumModels": (coding[6:16] or GLM_FAMILY) + GLM_FAMILY + DEEPSEEK_FAMILY,
                 "hardModels": (coding[:8] or CLAUDE_FAMILY) + CLAUDE_FAMILY + GEMINI_FAMILY,
             },
         },
@@ -110,7 +109,6 @@ def build_plan(out, run):
                 "difficultyPolicy": "capability_heavy",
                 "judgeModel": "judge-router",
                 "easyModels": (writing[-8:] or FREE_FAMILY) + FREE_FAMILY,
-                "mediumModels": (writing[6:16] or GLM_FAMILY) + GLM_FAMILY,
                 "hardModels": (writing[:8] or CLAUDE_FAMILY) + CLAUDE_FAMILY,
             },
         },
@@ -122,7 +120,6 @@ def build_plan(out, run):
                 "difficultyPolicy": "capability_heavy",
                 "judgeModel": "judge-router",
                 "easyModels": (writing[-6:] or GLM_FAMILY) + GLM_FAMILY,
-                "mediumModels": (writing[5:14] or GEMINI_FAMILY) + GEMINI_FAMILY,
                 "hardModels": (writing[:6] or CLAUDE_FAMILY) + CLAUDE_FAMILY,
             },
         },
@@ -134,7 +131,6 @@ def build_plan(out, run):
                 "difficultyPolicy": "cost_efficient",
                 "judgeModel": "judge-router",
                 "easyModels": (socmed or FREE_FAMILY)[:10],
-                "mediumModels": (socmed or GLM_FAMILY)[:10],
                 "hardModels": (socmed or CLAUDE_FAMILY)[:6],
             },
         },
@@ -155,7 +151,7 @@ def build_plan(out, run):
                 seen.add(m)
                 uniq.append(m)
         p["models"] = uniq
-        for k in ("easyModels", "mediumModels", "hardModels"):
+        for k in ("easyModels", "hardModels"):
             seen, uniq = set(), []
             for m in p["strategy"][k]:
                 if m not in seen:
@@ -172,7 +168,7 @@ def build_plan(out, run):
     for name, p in plan.items():
         print(f"\n[{name}] members={len(p['models'])} policy={p['strategy']['difficultyPolicy']}")
         print(f"  members: {', '.join(p['models'][:8])}{' …' if len(p['models']) > 8 else ''}")
-        for k in ("easyModels", "mediumModels", "hardModels"):
+        for k in ("easyModels", "hardModels"):
             print(f"  {k:<14}: {', '.join(p['strategy'][k][:6])}")
 
     # ---- redundancy report ----

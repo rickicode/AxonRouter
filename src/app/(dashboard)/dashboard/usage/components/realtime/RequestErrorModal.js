@@ -1,12 +1,15 @@
 "use client";
 
+import { useState } from "react";
+import { copyToClipboard } from "@/shared/utils/clipboard";
 import Modal from "@/shared/components/Modal";
 import Badge from "@/shared/components/Badge";
 import Button from "@/shared/components/Button";
 import Icon from "@/shared/components/Icon";
 
 export default function RequestErrorModal({ selectedError, fetchedError, loading, onClose }) {
- return (
+  const [copied, setCopied] = useState(false);
+  return (
  <Modal
  isOpen={Boolean(selectedError)}
  onClose={onClose}
@@ -67,23 +70,22 @@ export default function RequestErrorModal({ selectedError, fetchedError, loading
  Error Response Payload
  </span>
  {(selectedError.error || fetchedError) && (
- <button
- type="button"
- onClick={() => {
- const err = selectedError.error || fetchedError;
- const text = typeof err === "object"
- ? JSON.stringify(err, null, 2)
- : String(err);
- navigator.clipboard?.writeText(text);
- }}
- className="inline-flex items-center gap-1 text-[11px] text-text-muted hover:text-text-main cursor-pointer"
- >
- <Icon name="content_copy" size={18} />
- Copy
- </button>
- )}
- </div>
-
+        <button
+          type="button"
+          onClick={async () => {
+            const err = selectedError.error || fetchedError;
+            const text = typeof err === "object" ? JSON.stringify(err, null, 2) : String(err);
+            await copyToClipboard(text);
+            setCopied(true);
+            setTimeout(() => setCopied(false), 2000);
+          }}
+          className="inline-flex items-center gap-1 text-[11px] text-text-muted hover:text-text-main cursor-pointer"
+        >
+          <Icon name={copied ? "check" : "content_copy"} size={16} />
+          {copied ? "Copied!" : "Copy"}
+        </button>
+      )}
+    </div>
  {loading ? (
  <div className="flex items-center justify-center p-3 border border-border rounded-sm bg-surface-2/40 text-text-muted text-xs gap-2 h-8">
  <Icon className="animate-spin" name="progress_activity" size={18} />

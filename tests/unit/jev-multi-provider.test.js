@@ -116,7 +116,7 @@ describe("Jev upstream resolution across providers", () => {
 
     const res = await classifyWithJev("Design a round-robin key rotation strategy for the classifier pool.", {
       model: "jev-1.13-free",
-      apiKey: "settings-ts-key",
+      provider: "opencode-zen",
       log: quietLog,
     });
 
@@ -162,11 +162,13 @@ describe("Jev upstream resolution across providers", () => {
     expect(calls[0].headers["Authorization"]).toBe("Bearer settings-key");
   });
 
-  it("sends no request at all when no upstream is available", async () => {
+  it("sends no request at all when the pinned upstream is unusable", async () => {
     setJevConnectionLoader(poolLoader({}));
     const fetchSpy = vi.spyOn(globalThis, "fetch");
 
     const res = await classifyWithJev("Explain how the judge threshold interacts with the escalation matrix.", {
+      provider: "typesafe",
+      apiKeys: {},
       log: quietLog,
     });
 
@@ -182,7 +184,7 @@ describe("handleDifficultyChat model picker", () => {
         messages: [{ role: "user", content: "Optimize this PostgreSQL join query across large partitions." }],
         stream: false,
       },
-      models: ["easy-a", "med-a", "hard-a"],
+      models: ["easy-a", "hard-a"],
       handleSingleModel: vi.fn(async () => okRes("pong")),
       log: quietLog,
       comboName: "picker-combo",
@@ -190,7 +192,6 @@ describe("handleDifficultyChat model picker", () => {
       tuning: {
         judgeMode: "jev-only",
         easyModels: ["easy-a"],
-        mediumModels: ["med-a"],
         hardModels: ["hard-a"],
         ...tuning,
       },
@@ -231,37 +232,80 @@ describe("handleDifficultyChat model picker", () => {
     expect(calls[0].headers["Authorization"]).toBe("Bearer ts-key");
   });
 
-  it("degrades two-layer to llm-only when neither provider has an upstream", async () => {
+  it("routes to the keyless default upstream with no Authorization header when nothing is configured", async () => {
     setJevConnectionLoader(poolLoader({}));
-    const prevKey = process.env.TYPESAFE_API_KEY;
-    delete process.env.TYPESAFE_API_KEY;
-    const fetchSpy = vi.spyOn(globalThis, "fetch");
-    try {
-      const res = await handleDifficultyChat({
-        body: {
-          messages: [{ role: "user", content: "Walk through the retry budget semantics for the gateway." }],
-          stream: false,
-        },
-        models: ["easy-a", "med-a", "hard-a"],
-        handleSingleModel: vi.fn(async (b, m) => okRes("pong")),
-        log: quietLog,
-        comboName: "no-upstream-combo",
-        judgeModel: "judge-model",
-        tuning: {
-          judgeMode: "two-layer",
-          typeSafeApiKey: "",
-          jevModel: "jev-1.13-free",
-          easyModels: ["easy-a"],
-          mediumModels: ["med-a"],
-          hardModels: ["hard-a"],
-        },
-      });
+    const calls = captureFetch();
+    const decisions = [];
 
-      expect(res.ok).toBe(true);
-      expect(fetchSpy).not.toHaveBeenCalled();
-    } finally {
-      if (prevKey === undefined) delete process.env.TYPESAFE_API_KEY;
-      else process.env.TYPESAFE_API_KEY = prevKey;
-    }
+    const res = await handleDifficultyChat({
+      body: {
+        messages: [{ role: "user", content: "Walk through the retry budget semantics for the gateway." }],
+        stream: false,
+      },
+      models: ["easy-a", "hard-a"],
+      handleSingleModel: vi.fn(async () => okRes("pong")),
+      log: quietLog,
+      comboName: "keyless-default-combo",
+      judgeModel: "judge-model",
+      tuning: {
+        judgeMode: "two-layer",
+        easyModels: ["easy-a"],
+        hardModels: ["hard-a"],
+      },
+      onDecision: (d) => decisions.push(d),
+    });
+
+    expect(res.ok).toBe(true);
+    expect(calls).toHaveLength(1);
+    expect(calls[0].url).toBe("https://opencode.ai/zen/v1/systemone");
+    expect(calls[0].body.model).toBe("jev-1.13-free");
+    // keyless upstream: no credential is attached at all
+    expect(Object.keys(calls[0].headers)).toEqual(["Content-Type"]);
+    expect(calls[0].headers["Authorization"]).toBeUndefined();
+    expect(decisions[0].source).toBe("jev");
+    expect(decisions[0].jevProvider).toBe("opencode");
+    expect(decisions[0].jevUsed).toBe(true);
+  });
+
+  it("uses the OpenCode Zen key pool when that provider is pinned", async () => {
+    setJevConnectionLoader(
+      poolLoader({ "opencode-zen": [{ id: "z1", isActive: true, apiKey: "zen-key" }] })
+    );
+    const calls = captureFetch();
+
+    const res = await runDifficulty({ jevProvider: "opencode-zen" });
+
+    expect(res.ok).toBe(true);
+    expect(calls).toHaveLength(1);
+    expect(calls[0].url).toBe("https://opencode.ai/zen/v1/systemone");
+    expect(calls[0].body.model).toBe("jev-1.13-free");
+    expect(calls[0].headers["Authorization"]).toBe("Bearer zen-key");
+  });
+
+  it("degrades two-layer to llm-only when the pinned provider has no upstream", async () => {
+    setJevConnectionLoader(poolLoader({}));
+    const fetchSpy = vi.spyOn(globalThis, "fetch");
+
+    const res = await handleDifficultyChat({
+      body: {
+        messages: [{ role: "user", content: "Walk through the retry budget semantics for the gateway." }],
+        stream: false,
+      },
+      models: ["easy-a", "hard-a"],
+      handleSingleModel: vi.fn(async (b, m) => okRes("pong")),
+      log: quietLog,
+      comboName: "no-upstream-combo",
+      judgeModel: "judge-model",
+      tuning: {
+        judgeMode: "two-layer",
+        jevProvider: "typesafe",
+        jevApiKeys: {},
+        easyModels: ["easy-a"],
+        hardModels: ["hard-a"],
+      },
+    });
+
+    expect(res.ok).toBe(true);
+    expect(fetchSpy).not.toHaveBeenCalled();
   });
 });

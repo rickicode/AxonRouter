@@ -148,17 +148,15 @@ describe("TypeSafe Jev classifier and judgeMode cascade", () => {
 
       const res = await handleDifficultyChat({
         body,
-        models: ["easy-a", "med-a", "hard-a"],
+        models: ["easy-a", "hard-a"],
         handleSingleModel,
         log: quietLog,
         comboName: "two-layer-combo",
         judgeModel: "judge-model",
         tuning: {
           judgeMode: "two-layer",
-          typeSafeApiKey: "ts-key",
           jevConfidenceThreshold: 0.7,
           easyModels: ["easy-a"],
-          mediumModels: ["med-a"],
           hardModels: ["hard-a"],
         },
       });
@@ -194,17 +192,15 @@ describe("TypeSafe Jev classifier and judgeMode cascade", () => {
 
       const res = await handleDifficultyChat({
         body,
-        models: ["easy-a", "med-a", "hard-a"],
+        models: ["easy-a", "hard-a"],
         handleSingleModel,
         log: quietLog,
         comboName: "two-layer-combo",
         judgeModel: "judge-model",
         tuning: {
           judgeMode: "two-layer",
-          typeSafeApiKey: "ts-key",
           jevConfidenceThreshold: 0.7,
           easyModels: ["easy-a"],
-          mediumModels: ["med-a"],
           hardModels: ["hard-a"],
         },
       });
@@ -237,16 +233,14 @@ describe("TypeSafe Jev classifier and judgeMode cascade", () => {
 
       const res = await handleDifficultyChat({
         body,
-        models: ["easy-a", "med-a", "hard-a"],
+        models: ["easy-a", "hard-a"],
         handleSingleModel,
         log: quietLog,
         comboName: "two-layer-combo",
         judgeModel: "judge-model",
         tuning: {
           judgeMode: "two-layer",
-          typeSafeApiKey: "ts-key",
           easyModels: ["easy-a"],
-          mediumModels: ["med-a"],
           hardModels: ["hard-a"],
         },
       });
@@ -280,16 +274,14 @@ describe("TypeSafe Jev classifier and judgeMode cascade", () => {
 
       const res = await handleDifficultyChat({
         body,
-        models: ["easy-a", "med-a", "hard-a"],
+        models: ["easy-a", "hard-a"],
         handleSingleModel,
         log: quietLog,
         comboName: "jev-only-combo",
         judgeModel: "judge-model",
         tuning: {
           judgeMode: "jev-only",
-          typeSafeApiKey: "ts-key",
           easyModels: ["easy-a"],
-          mediumModels: ["med-a"],
           hardModels: ["hard-a"],
         },
       });
@@ -320,17 +312,15 @@ describe("TypeSafe Jev classifier and judgeMode cascade", () => {
 
       const res = await handleDifficultyChat({
         body,
-        models: ["easy-a", "med-a", "hard-a"],
+        models: ["easy-a", "hard-a"],
         handleSingleModel,
         log: quietLog,
         comboName: "jev-only-combo",
         judgeModel: "judge-model",
         tuning: {
           judgeMode: "jev-only",
-          typeSafeApiKey: "ts-key",
           jevConfidenceThreshold: 0.7,
           easyModels: ["easy-a"],
-          mediumModels: ["med-a"],
           hardModels: ["hard-a"],
         },
       });
@@ -359,17 +349,15 @@ describe("TypeSafe Jev classifier and judgeMode cascade", () => {
 
       const res = await handleDifficultyChat({
         body,
-        models: ["easy-a", "med-a", "hard-a"],
+        models: ["easy-a", "hard-a"],
         handleSingleModel,
         log: quietLog,
         comboName: "jev-only-combo",
         judgeModel: "judge-model",
         tuning: {
           judgeMode: "jev-only",
-          typeSafeApiKey: "ts-key",
           policy: "cost_efficient", // defaults to easy on fallback
           easyModels: ["easy-a"],
-          mediumModels: ["med-a"],
           hardModels: ["hard-a"],
         },
       });
@@ -402,16 +390,14 @@ describe("TypeSafe Jev classifier and judgeMode cascade", () => {
 
       const res = await handleDifficultyChat({
         body,
-        models: ["easy-a", "med-a", "hard-a"],
+        models: ["easy-a", "hard-a"],
         handleSingleModel,
         log: quietLog,
         comboName: "llm-only-combo",
         judgeModel: "judge-model",
         tuning: {
           judgeMode: "llm-only",
-          typeSafeApiKey: "ts-key",
           easyModels: ["easy-a"],
-          mediumModels: ["med-a"],
           hardModels: ["hard-a"],
         },
       });
@@ -429,41 +415,41 @@ describe("TypeSafe Jev classifier and judgeMode cascade", () => {
   });
 
   describe("judgeMode: 'two-layer' without a TypeSafe key", () => {
-    it("degrades to llm-only instead of firing a doomed Jev request", async () => {
+    it("still classifies through the keyless Jev upstream and skips the LLM judge", async () => {
       const prevKey = process.env.TYPESAFE_API_KEY;
       delete process.env.TYPESAFE_API_KEY;
-      const fetchSpy = vi.spyOn(globalThis, "fetch");
+      let capturedInit = null;
+      const fetchSpy = vi.spyOn(globalThis, "fetch").mockImplementation(async (url, init) => {
+        capturedInit = init;
+        return jevMockRes({ difficulty: "hard", ambiguity: "low", domain: "coding", confidence: 0.9 });
+      });
       const calls = [];
 
       try {
         const handleSingleModel = vi.fn(async (b, m) => {
           calls.push(m);
-          if (m === "judge-model") {
-            return judgeRes('{"difficulty":"medium","ambiguity":"low","domain":"coding","confidence":0.9}');
-          }
           return okRes("pong");
         });
 
         const res = await handleDifficultyChat({
           body: { messages: [{ role: "user", content: "Set up a CI pipeline for a monorepo" }], stream: false },
-          models: ["easy-a", "med-a", "hard-a"],
+          models: ["easy-a", "hard-a"],
           handleSingleModel,
           log: quietLog,
           comboName: "no-key-combo",
           judgeModel: "judge-model",
           tuning: {
             judgeMode: "two-layer",
-            typeSafeApiKey: "",
             easyModels: ["easy-a"],
-            mediumModels: ["med-a"],
             hardModels: ["hard-a"],
           },
         });
 
         expect(res.ok).toBe(true);
-        expect(fetchSpy).not.toHaveBeenCalled(); // no Jev attempt without a key
-        expect(calls[0]).toBe("judge-model"); // straight to the LLM judge
-        expect(calls).toContain("hard-a");
+        expect(fetchSpy).toHaveBeenCalledTimes(1); // keyless upstream answers
+        expect(capturedInit.headers["Authorization"]).toBeUndefined(); // no key => no auth header
+        expect(calls).not.toContain("judge-model"); // Jev resolved the tier
+        expect(calls).toEqual(["hard-a"]);
       } finally {
         if (prevKey === undefined) delete process.env.TYPESAFE_API_KEY;
         else process.env.TYPESAFE_API_KEY = prevKey;

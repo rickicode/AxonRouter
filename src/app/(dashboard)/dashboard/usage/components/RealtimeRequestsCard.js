@@ -290,9 +290,8 @@ export default function RealtimeRequestsCard({
  <div className="hidden sm:block overflow-x-auto">
  <table className="data-table w-full min-w-[860px] text-left text-xs" aria-label="Recent requests stream">
  <thead>
- <tr className="text-text-muted font-medium text-[11px]">
- <th scope="col" className="h-8 px-3 w-8 text-center text-xs font-medium text-text-muted">Status</th>
- <th scope="col" className="h-8 px-3 w-24 text-xs font-medium text-text-muted">Type</th>
+      <tr className="text-text-muted font-medium text-[11px]">
+        <th scope="col" className="h-8 px-3 w-24 text-xs font-medium text-text-muted">Type</th>
  <th scope="col" className="h-8 px-3 w-28 text-xs font-medium text-text-muted">Stream State</th>
  <th scope="col" className="h-8 px-3 text-xs font-medium text-text-muted">Model</th>
  <th scope="col" className="h-8 px-3 w-28 text-xs font-medium text-text-muted">Provider</th>

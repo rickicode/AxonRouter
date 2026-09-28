@@ -110,7 +110,9 @@ describe("chat.js difficulty tuning carries the judge settings", () => {
         combo: { fallbackStrategy: "difficulty" },
       },
       judgeMode: "jev-only",
-      typeSafeApiKey: "global-ts-key",
+      jevModel: "jev-latest",
+      jevProvider: "typesafe",
+      jevApiKeys: { typesafe: "global-ts-key" },
       jevConfidenceThreshold: 0.85,
     });
 
@@ -119,7 +121,9 @@ describe("chat.js difficulty tuning carries the judge settings", () => {
     expect(mocks.handleDifficultyChat).toHaveBeenCalledTimes(1);
     const { tuning } = mocks.handleDifficultyChat.mock.calls[0][0];
     expect(tuning.judgeMode).toBe("jev-only");
-    expect(tuning.typeSafeApiKey).toBe("global-ts-key");
+    expect(tuning.jevModel).toBe("jev-latest");
+    expect(tuning.jevProvider).toBe("typesafe");
+    expect(tuning.jevApiKeys).toEqual({ typesafe: "global-ts-key" });
     expect(tuning.jevConfidenceThreshold).toBe(0.85);
   });
 
@@ -131,12 +135,16 @@ describe("chat.js difficulty tuning carries the judge settings", () => {
         combo: {
           fallbackStrategy: "difficulty",
           judgeMode: "llm-only",
-          typeSafeApiKey: "combo-ts-key",
+          jevModel: "jev-1.13",
+          jevProvider: "opencode",
+          jevApiKeys: { opencode: "combo-oc-key" },
           jevConfidenceThreshold: 0.4,
         },
       },
       judgeMode: "two-layer",
-      typeSafeApiKey: "global-ts-key",
+      jevModel: "jev-latest",
+      jevProvider: "typesafe",
+      jevApiKeys: { typesafe: "global-ts-key" },
       jevConfidenceThreshold: 0.85,
     });
 
@@ -145,7 +153,9 @@ describe("chat.js difficulty tuning carries the judge settings", () => {
     expect(mocks.handleDifficultyChat).toHaveBeenCalledTimes(1);
     const { tuning } = mocks.handleDifficultyChat.mock.calls[0][0];
     expect(tuning.judgeMode).toBe("llm-only");
-    expect(tuning.typeSafeApiKey).toBe("combo-ts-key");
+    expect(tuning.jevModel).toBe("jev-1.13");
+    expect(tuning.jevProvider).toBe("opencode");
+    expect(tuning.jevApiKeys).toEqual({ opencode: "combo-oc-key" });
     expect(tuning.jevConfidenceThreshold).toBe(0.4);
   });
 });

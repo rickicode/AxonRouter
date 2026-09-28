@@ -8,7 +8,7 @@ import { useCopyToClipboard } from "@/shared/hooks/useCopyToClipboard";
 import CooldownTimer from "./CooldownTimer";
 import Icon from "@/shared/components/Icon";
 
-export default function ConnectionRow({ connection, proxyPools, proxyGroups = null, providerStrategy = null, isOAuth, isFirst, isLast, onMoveUp, onMoveDown, onToggleActive, onUpdateProxy, onEdit, onDelete, onResetStatus = null, onUnlockModel = null, oneByOneStatus = null, autoPing = null }) {
+export default function ConnectionRow({ connection, proxyPools, proxyGroups = null, providerStrategy = null, isOAuth, isFirst, isLast, onMoveUp, onMoveDown, onToggleActive, onUpdateProxy, onEdit, onDelete, onResetStatus = null, onUnlockModel = null, oneByOneStatus = null, autoPing = null, onTestModel = null }) {
  const [showProxyDropdown, setShowProxyDropdown] = useState(false);
  const [updatingProxy, setUpdatingProxy] = useState(false);
  const [resettingStatus, setResettingStatus] = useState(false);
@@ -558,7 +558,7 @@ export default function ConnectionRow({ connection, proxyPools, proxyGroups = nu
  </div>
  </div>
  <div className="flex w-full items-center justify-between gap-2 sm:w-auto sm:justify-end">
- <div className="grid flex-1 grid-cols-3 gap-1 sm:flex sm:flex-none">
+      <div className="flex flex-wrap items-center justify-end gap-1 sm:flex-none">
  {/* Proxy button with inline dropdown */}
  {(proxyPools || []).length > 0 && (
  <div className={`relative ${showProxyDropdown ? "z-50" : ""}`} ref={proxyDropdownRef}>
@@ -795,6 +795,18 @@ className={`flex min-h-11 w-full flex-col items-center rounded-sm px-2 hover:bg-
  </button>
  </Tooltip>
  )}
+        {onTestModel && (
+          <Tooltip text="Test connection with a registered model">
+            <button
+              type="button"
+              onClick={() => onTestModel(connection)}
+              className="flex flex-col items-center rounded-sm px-2 py-1 text-text-muted hover:bg-surface-2 hover:text-primary"
+            >
+              <Icon name="science" size={18} />
+              <span className="text-[11px]">Test</span>
+            </button>
+          </Tooltip>
+        )}
  <button onClick={onEdit} className="flex flex-col items-center rounded-sm px-2 py-1 text-text-muted hover:bg-surface-2 hover:text-primary">
  <Icon name="edit" size={18} />
  <span className="text-[11px]">Edit</span>
@@ -845,6 +857,7 @@ ConnectionRow.propTypes = {
  onEdit: PropTypes.func.isRequired,
  onDelete: PropTypes.func.isRequired,
  onUnlockModel: PropTypes.func,
+  onTestModel: PropTypes.func,
  proxyGroups: PropTypes.object,
  oneByOneStatus: PropTypes.shape({
  state: PropTypes.string,

@@ -1,5 +1,7 @@
 "use client";
 
+import { copyToClipboard } from "@/shared/utils/clipboard";
+
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import Image from "@/lib/ui/image.jsx";
@@ -146,9 +148,9 @@ export default function LoginPage() {
     }
   };
 
-  const handleCopyDefault = () => {
+  const handleCopyDefault = async () => {
     const defaultPass = "12345677";
-    navigator.clipboard?.writeText(defaultPass);
+    await copyToClipboard(defaultPass);
     setPassword(defaultPass);
     setCopiedDefault(true);
     setTimeout(() => setCopiedDefault(false), 2000);

@@ -3,6 +3,8 @@
 import { Card, Button, Toggle, SegmentedControl } from "@/shared/components";
 import dynamic from "@/lib/ui/dynamic.jsx";
 import ConnectionRow from "./ConnectionRow";
+import { useState, useMemo } from "react";
+import TestAccountModelModal from "./TestAccountModelModal";
 import { translate } from "@/i18n/runtime";
 const NoAuthProxyCard = dynamic(() => import("@/shared/components/NoAuthProxyCard"), { ssr: false, loading: () => <div className="flex flex-col gap-3"><div className="h-40 animate-pulse rounded-sm bg-surface-2" /></div> });
 const Modal = dynamic(() => import("@/shared/components/Modal"), { ssr: false, loading: () => null });
@@ -119,6 +121,7 @@ function ConnectionsList({
   handleSwapPriority, handleUpdateConnectionStatus, handleAutoPingConnection,
   autoPing, autoPingEnabled, handleDelete, handleResetConnectionStatus, oneByOneResults,
   handleUnlockModel, setSelectedConnection, setShowEditModal, handleConnectionProxyUpdate,
+  onTestModel,
 }) {
   return (
     <div className="flex min-w-0 flex-col divide-y divide-border">
@@ -154,6 +157,7 @@ function ConnectionsList({
  onResetStatus={handleResetConnectionStatus}
           oneByOneStatus={oneByOneResults?.[conn.id] || null}
  onUnlockModel={providerId === "freebuff" ? () => handleUnlockModel(conn.id) : null}
+              onTestModel={onTestModel}
  />
  </div>
  </div>
@@ -184,6 +188,17 @@ export default function ConnectionsSection(d) {
  showAddApiKeyModal, setAddConnectionError, setShowAddApiKeyModal,
  selectedConnection: editSelectedConnection,
  } = d;
+  const [testConnModal, setTestConnModal] = useState(null);
+
+  const allRegisteredModels = useMemo(() => {
+    const list = [...(d.models || []), ...(d.customModels || [])];
+    const seen = new Set();
+    return list.filter((m) => {
+      if (!m || !m.id || seen.has(m.id)) return false;
+      seen.add(m.id);
+      return true;
+    });
+  }, [d.models, d.customModels]);
 
  const activePools = proxyPools.filter((p) => p.isActive === true);
 
@@ -302,6 +317,7 @@ export default function ConnectionsSection(d) {
  oneByOneResults={oneByOneResults} handleUnlockModel={handleUnlockModel}
  setSelectedConnection={setSelectedConnection} setShowEditModal={setShowEditModal}
  handleConnectionProxyUpdate={d.handleConnectionProxyUpdate}
+          onTestModel={(conn) => setTestConnModal(conn)}
  />
  {connectionPagination.totalPages > 1 && (
  <div className="mt-4 flex flex-col sm:flex-row items-center justify-between gap-3 border-t border-border pt-3 text-xs text-text-muted ">
@@ -491,6 +507,14 @@ className="inline-flex items-center gap-1 rounded-sm border border-border bg-sur
  <Button onClick={closeBulkProxyModal} variant="ghost" fullWidth disabled={bulkUpdatingProxy}>Cancel</Button>
  </div>
  </Modal>
+      <TestAccountModelModal
+        isOpen={!!testConnModal}
+        onClose={() => setTestConnModal(null)}
+        connection={testConnModal}
+        providerId={providerId}
+        providerStorageAlias={d.providerStorageAlias}
+        registeredModels={allRegisteredModels}
+      />
  </div>
  );
  }

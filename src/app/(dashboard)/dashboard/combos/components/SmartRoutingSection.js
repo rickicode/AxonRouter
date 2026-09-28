@@ -25,6 +25,7 @@ import { useNotificationStore } from "@/store/notificationStore";
 import Icon from "@/shared/components/Icon";
 import {
   JEV_MODEL_CHOICES,
+  JEV_PROVIDERS,
   DEFAULT_JEV_MODEL,
 } from "open-sse/config/jevModels.js";
 
@@ -231,11 +232,13 @@ export default function SmartRoutingSection({
   const [globalJudgeError, setGlobalJudgeError] = useState("");
   const [judgeSaving, setJudgeSaving] = useState(false);
   const [thresholdDraft, setThresholdDraft] = useState(null);
+  const [keyDraft, setKeyDraft] = useState(null);
 
   const comboOverrideActive =
     strategy.judgeMode != null ||
     strategy.jevConfidenceThreshold != null ||
-    strategy.jevModel != null;
+    strategy.jevModel != null ||
+    strategy.jevProvider != null;
 
   const globalMode = globalJudge?.judgeMode || "two-layer";
   const globalThreshold =
@@ -248,26 +251,48 @@ export default function SmartRoutingSection({
       ? strategy.jevConfidenceThreshold
       : globalThreshold;
 
+  // Classifier upstream selection: the picker value is "<providerId>|<modelId>" so
+  // two providers serving the same model id (oc/ and ocz/ both serve jev-1.13-free)
+  // stay distinguishable. Both halves persist in the strategy.
   const globalJevModel = globalJudge?.jevModel || DEFAULT_JEV_MODEL;
+  const globalJevProvider = globalJudge?.jevProvider || "";
   const jevModel =
     comboOverrideActive && strategy.jevModel != null ? strategy.jevModel : globalJevModel;
+  const jevProvider =
+    comboOverrideActive && strategy.jevProvider != null ? strategy.jevProvider : globalJevProvider;
   const activeJevChoice =
-    JEV_MODEL_CHOICES.find((c) => c.value === jevModel) || JEV_MODEL_CHOICES[0];
-  const jevEndpoint = activeJevChoice.endpoint;
+    JEV_MODEL_CHOICES.find((c) => c.value === jevModel && (!jevProvider || c.provider === jevProvider))
+    || JEV_MODEL_CHOICES.find((c) => c.value === jevModel)
+    || JEV_MODEL_CHOICES[0]
+    || null;
+  const selectedProviderId = jevProvider || activeJevChoice?.provider || "";
+  const selectedProvider = JEV_PROVIDERS.find((p) => p.provider === selectedProviderId) || null;
+  const jevEndpoint = activeJevChoice?.endpoint || selectedProvider?.endpoint || "";
+
+  // Per-provider credentials: combo override map when overridden, else the global map.
+  const providerKeys =
+    comboOverrideActive && strategy.jevApiKeys
+      ? strategy.jevApiKeys
+      : (globalJudge?.jevApiKeys || {});
+  const providerKeyConfigured = (providerId) =>
+    Boolean(providerKeys?.[providerId]) ||
+    (globalJudge?.jevApiKeysConfigured || []).includes(providerId);
+  const providerKeyValue = (providerId) => providerKeys?.[providerId] || "";
+
+  // Live availability per registered classifier provider.
+  const providerStatus = (provider) => {
+    const conns = activeProviders.filter(
+      (p) => p.provider === provider.provider && p.isActive !== false
+    ).length;
+    if (!provider.keyPool) return { kind: "keyless", count: 0 };
+    if (conns > 0) return { kind: "pool", count: conns };
+    if (providerKeyConfigured(provider.provider)) return { kind: "key", count: 0 };
+    return { kind: "missing", count: 0 };
+  };
 
   const activeJudgeMode = JUDGE_MODES.find((m) => m.value === judgeMode) || JUDGE_MODES[0];
   const thresholdApplies = judgeMode !== "llm-only";
   const shownThreshold = thresholdDraft ?? threshold;
-
-  // Connection status from active provider pool (Capabilities Providers)
-  const typesafeConns = useMemo(
-    () => activeProviders.filter((p) => p.provider === "typesafe" && p.isActive !== false),
-    [activeProviders]
-  );
-  const zenConns = useMemo(
-    () => activeProviders.filter((p) => p.provider === "opencode-zen" && p.isActive !== false),
-    [activeProviders]
-  );
 
   const loadGlobalJudge = async () => {
     try {
@@ -279,6 +304,9 @@ export default function SmartRoutingSection({
         jevConfidenceThreshold:
           typeof data.jevConfidenceThreshold === "number" ? data.jevConfidenceThreshold : 0.7,
         jevModel: data.jevModel || DEFAULT_JEV_MODEL,
+        jevProvider: data.jevProvider || "",
+        jevApiKeys: {},
+        jevApiKeysConfigured: Array.isArray(data.jevApiKeysConfigured) ? data.jevApiKeysConfigured : [],
       });
       setGlobalJudgeError("");
     } catch (error) {
@@ -315,12 +343,21 @@ export default function SmartRoutingSection({
   };
 
   const handleJevModelChange = (value) => {
-    const choice = JEV_MODEL_CHOICES.find((c) => c.value === value) || JEV_MODEL_CHOICES[0];
+    const choice = JEV_MODEL_CHOICES.find((c) => `${c.provider}|${c.value}` === value) || JEV_MODEL_CHOICES[0];
+    if (!choice) return;
     if (comboOverrideActive) {
-      onSetStrategy({ jevModel: choice.value, jevEndpoint: choice.endpoint });
+      onSetStrategy({ jevModel: choice.value, jevProvider: choice.provider, jevEndpoint: choice.endpoint });
     } else {
-      saveGlobalJudge({ jevModel: choice.value });
+      saveGlobalJudge({ jevModel: choice.value, jevProvider: choice.provider });
     }
+  };
+
+  const handleProviderKeyChange = (providerId) => {
+    const draft = keyDraft?.[providerId];
+    if (draft === undefined) return;
+    const map = { ...(providerKeys || {}), [providerId]: draft };
+    if (comboOverrideActive) onSetStrategy({ jevApiKeys: map });
+    else saveGlobalJudge({ jevApiKeys: map });
   };
 
   const handleThresholdRelease = () => {
@@ -340,7 +377,9 @@ export default function SmartRoutingSection({
         judgeMode,
         jevConfidenceThreshold: threshold,
         jevModel,
+        jevProvider: selectedProviderId || undefined,
         jevEndpoint,
+        ...(Object.keys(providerKeys || {}).length ? { jevApiKeys: providerKeys } : {}),
       });
       notify.success(`Classifier settings overridden for "${comboName}"`);
     } else {
@@ -348,7 +387,9 @@ export default function SmartRoutingSection({
         judgeMode: undefined,
         jevConfidenceThreshold: undefined,
         jevModel: undefined,
+        jevProvider: undefined,
         jevEndpoint: undefined,
+        jevApiKeys: undefined,
       });
       notify.success(`Classifier settings now inherit global defaults for "${comboName}"`);
     }
@@ -689,7 +730,7 @@ export default function SmartRoutingSection({
                   {activeJudgeMode.shortLabel}
                 </span>
                 <span className="rounded-sm border border-border bg-surface-2 px-1.5 py-0.2 font-mono text-[10px] text-text-muted">
-                  {jevModel}
+                  {activeJevChoice ? `${activeJevChoice.providerLabel} / ${jevModel}` : jevModel}
                 </span>
                 {thresholdApplies && (
                   <span className="rounded-sm border border-border bg-surface-2 px-1.5 py-0.2 text-[10px] text-text-muted">
@@ -710,30 +751,49 @@ export default function SmartRoutingSection({
           </div>
 
           <div className="flex items-center gap-3 shrink-0">
-            {/* TypeSafe connection status indicator from provider pool */}
-            {jevModel === "jev-latest" ? (
-              typesafeConns.length > 0 ? (
-                <span className="inline-flex items-center gap-1 rounded bg-emerald-500/10 border border-emerald-500/20 px-2 py-0.5 text-[11px] font-medium text-emerald-400">
-                  <Icon name="check_circle" size={13} />
-                  <span>TypeSafe ({typesafeConns.length} active)</span>
-                </span>
-              ) : (
+            {/* Classifier upstream status, derived from the registry declaration */}
+            {(() => {
+              const status = selectedProvider ? providerStatus(selectedProvider) : null;
+              const label = selectedProvider?.label || "no classifier upstream";
+              if (!status) {
+                return (
+                  <span className="inline-flex items-center gap-1 rounded bg-amber-500/10 border border-amber-500/20 px-2 py-0.5 text-[11px] font-medium text-amber-400">
+                    <Icon name="warning" size={13} />
+                    <span>No Jev upstream registered</span>
+                  </span>
+                );
+              }
+              if (status.kind === "keyless") {
+                return (
+                  <span className="inline-flex items-center gap-1 rounded bg-cyan-500/10 border border-cyan-500/20 px-2 py-0.5 text-[11px] font-medium text-cyan-400">
+                    <Icon name="verified" size={13} />
+                    <span>{label} · keyless</span>
+                  </span>
+                );
+              }
+              if (status.kind === "pool") {
+                return (
+                  <span className="inline-flex items-center gap-1 rounded bg-emerald-500/10 border border-emerald-500/20 px-2 py-0.5 text-[11px] font-medium text-emerald-400">
+                    <Icon name="check_circle" size={13} />
+                    <span>{label} ({status.count} active)</span>
+                  </span>
+                );
+              }
+              if (status.kind === "key") {
+                return (
+                  <span className="inline-flex items-center gap-1 rounded bg-emerald-500/10 border border-emerald-500/20 px-2 py-0.5 text-[11px] font-medium text-emerald-400">
+                    <Icon name="key" size={13} />
+                    <span>{label} · key configured</span>
+                  </span>
+                );
+              }
+              return (
                 <span className="inline-flex items-center gap-1 rounded bg-amber-500/10 border border-amber-500/20 px-2 py-0.5 text-[11px] font-medium text-amber-400">
                   <Icon name="warning" size={13} />
-                  <span>TypeSafe: No active connection</span>
+                  <span>{label}: no key or connection</span>
                 </span>
-              )
-            ) : zenConns.length > 0 ? (
-              <span className="inline-flex items-center gap-1 rounded bg-emerald-500/10 border border-emerald-500/20 px-2 py-0.5 text-[11px] font-medium text-emerald-400">
-                <Icon name="check_circle" size={13} />
-                <span>OpenCode Zen ({zenConns.length} active)</span>
-              </span>
-            ) : (
-              <span className="inline-flex items-center gap-1 rounded bg-cyan-500/10 border border-cyan-500/20 px-2 py-0.5 text-[11px] font-medium text-cyan-400">
-                <Icon name="verified" size={13} />
-                <span>Zen Free Tier</span>
-              </span>
-            )}
+              );
+            })()}
 
             <button
               type="button"
@@ -790,26 +850,74 @@ export default function SmartRoutingSection({
                 <p className="text-[10px] text-text-muted">{activeJudgeMode.description}</p>
               </div>
 
-              {/* Jev Model */}
+              {/* Jev Model — every provider the registry declares as a classifier upstream */}
               <div className="flex flex-col gap-1.5">
-                <label className="font-semibold text-text-main">Classifier Model</label>
+                <label className="font-semibold text-text-main">Classifier Upstream</label>
                 <select
-                  value={activeJevChoice.value}
+                  value={activeJevChoice ? `${activeJevChoice.provider}|${activeJevChoice.value}` : ""}
                   onChange={(e) => handleJevModelChange(e.target.value)}
-                  disabled={judgeSaving}
+                  disabled={judgeSaving || JEV_MODEL_CHOICES.length === 0}
                   className="rounded-sm border border-border bg-surface px-2.5 h-8 text-xs font-medium text-text-main focus:border-primary focus:ring-1 focus:ring-primary focus:outline-none transition-all disabled:opacity-50"
                 >
                   {JEV_MODEL_CHOICES.map((c) => (
-                    <option key={c.value} value={c.value}>
+                    <option key={`${c.provider}|${c.value}`} value={`${c.provider}|${c.value}`}>
                       {c.label}
                     </option>
                   ))}
                 </select>
                 <span className="text-[10px] text-text-muted font-mono truncate">
-                  Endpoint: {jevEndpoint}
+                  Endpoint: {jevEndpoint || "none registered"}
                 </span>
               </div>
             </div>
+
+            {/* Per-provider credentials: key-backed classifier providers only. */}
+            {JEV_PROVIDERS.filter((p) => p.keyPool).length > 0 && (
+              <div className="flex flex-col gap-2 border-t border-border/40 pt-3">
+                <span className="font-semibold text-text-main">Provider Keys</span>
+                <p className="text-[10px] text-text-muted">
+                  Leave blank to keep using the stored value. Keys stored here are never sent back to the browser.
+                </p>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  {JEV_PROVIDERS.filter((p) => p.keyPool).map((p) => {
+                    const status = providerStatus(p);
+                    return (
+                      <div key={p.provider} className="flex flex-col gap-1">
+                        <div className="flex items-center justify-between gap-2">
+                          <label className="text-[11px] font-medium text-text-main truncate" title={p.label}>
+                            {p.label}
+                          </label>
+                          {status.kind === "pool" ? (
+                            <span className="shrink-0 rounded-sm border border-emerald-500/30 bg-emerald-500/10 px-1.5 py-0.2 text-[10px] text-emerald-400">
+                              {status.count} connection{status.count === 1 ? "" : "s"}
+                            </span>
+                          ) : status.kind === "key" ? (
+                            <span className="shrink-0 rounded-sm border border-emerald-500/30 bg-emerald-500/10 px-1.5 py-0.2 text-[10px] text-emerald-400">
+                              key set
+                            </span>
+                          ) : (
+                            <span className="shrink-0 rounded-sm border border-amber-500/30 bg-amber-500/10 px-1.5 py-0.2 text-[10px] text-amber-400">
+                              not configured
+                            </span>
+                          )}
+                        </div>
+                        <Input
+                          type="password"
+                          value={keyDraft?.[p.provider] ?? providerKeyValue(p.provider)}
+                          placeholder={status.kind === "missing" ? "Paste API key" : "••••••"}
+                          disabled={judgeSaving}
+                          onChange={(e) =>
+                            setKeyDraft((prev) => ({ ...(prev || {}), [p.provider]: e.target.value }))
+                          }
+                          onBlur={() => handleProviderKeyChange(p.provider)}
+                          className="h-8 text-xs font-mono"
+                        />
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
 
             {/* Threshold Slider */}
             {thresholdApplies && (
@@ -841,22 +949,27 @@ export default function SmartRoutingSection({
               </div>
             )}
 
-            {/* Provider Pool Link: TypeSafe & OpenCode Zen are configured in Capabilities */}
-            <div className="flex items-center justify-between gap-3 border-t border-border/40 pt-3 text-[11px]">
+            {/* Capabilities links, one per registered classifier provider */}
+            <div className="flex flex-col gap-2 border-t border-border/40 pt-3 text-[11px]">
               <div className="flex items-center gap-2 text-text-muted">
                 <Icon name="key" size={14} className="text-text-muted" />
                 <span>
-                  Provider accounts and API keys are managed in{" "}
+                  Provider accounts and pooled API keys are managed in{" "}
                   <strong className="text-text-main">Capabilities Providers &gt; Jev Classifier</strong>.
                 </span>
               </div>
-              <Link
-                href="/dashboard/capabilities-providers/jev/typesafe"
-                className="inline-flex items-center gap-1 font-semibold text-primary hover:underline shrink-0"
-              >
-                <span>Manage TypeSafe in Capabilities</span>
-                <Icon name="arrow_forward" size={13} />
-              </Link>
+              <div className="flex flex-wrap items-center gap-2">
+                {JEV_PROVIDERS.map((p) => (
+                  <Link
+                    key={p.provider}
+                    href={`/dashboard/capabilities-providers/jev/${p.provider}`}
+                    className="inline-flex items-center gap-1 font-semibold text-primary hover:underline"
+                  >
+                    <span>{p.label}</span>
+                    <Icon name="arrow_forward" size={13} />
+                  </Link>
+                ))}
+              </div>
             </div>
           </div>
         )}

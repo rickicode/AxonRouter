@@ -1,5 +1,7 @@
 "use client";
 
+import { copyToClipboard } from "@/shared/utils/clipboard";
+
 import { useState, useEffect, useRef } from "react";
 import { Card, Button, Toggle, Input } from "@/shared/components";
 import Modal, { ConfirmModal } from "@/shared/components/Modal";
@@ -1505,8 +1507,8 @@ Setting password for the first time. Leave current password empty or use default
  variant="outline"
  size="sm"
  icon="content_copy"
- onClick={() => {
- navigator.clipboard.writeText(samlAcsUrl);
+ onClick={async () => {
+ await copyToClipboard(samlAcsUrl);
  setSamlStatus({ type: "success", message: "ACS URL copied to clipboard!" });
  }}
  >

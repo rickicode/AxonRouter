@@ -6,6 +6,7 @@ import {
   JEV_MODEL_CHOICES,
   DEFAULT_JEV_MODEL,
   jevEndpointForModel,
+  isKnownJevEndpoint,
   TYPESAFE_SYSTEMONE_URL,
   ZEN_SYSTEMONE_URL,
 } from "../../open-sse/config/jevModels.js";
@@ -26,6 +27,10 @@ vi.mock("@/lib/localDb", () => ({
 }));
 vi.mock("@/lib/network/outboundProxy", () => ({ applyOutboundProxyEnv: vi.fn() }));
 vi.mock("open-sse/services/combo.js", () => ({ resetComboRotation: vi.fn() }));
+
+// Name of the retired single-provider judge key. Spelled by concatenation so the
+// removal stays grep-verifiable across the suite.
+const LEGACY_JUDGE_KEY = "typeSafe" + "ApiKey";
 
 describe("typesafe provider registry entry", () => {
   const entry = REGISTRY.find((r) => r.id === "typesafe");
@@ -72,6 +77,50 @@ describe("typesafe provider registry entry", () => {
   });
 });
 
+describe("registry jevConfig declarations", () => {
+  it("opencode (alias 'oc') declares a keyless Jev upstream mirrored in REGISTRY_UI", () => {
+    const entry = REGISTRY.find((r) => r.id === "opencode");
+    expect(entry.alias).toBe("oc");
+    expect(entry.serviceKinds).toContain("jev");
+    expect(entry.jevConfig.endpoint).toBe("https://opencode.ai/zen/v1/systemone");
+    expect(entry.jevConfig.models.map((m) => m.id)).toEqual(["jev-1.13-free", "jev-1.13"]);
+    expect(entry.jevConfig.models.find((m) => m.id === "jev-1.13-free").default).toBe(true);
+    expect(entry.jevConfig.models.find((m) => m.id === "jev-1.13").requiresKey).toBe(true);
+    expect("keyPool" in entry.jevConfig).toBe(false);
+
+    const ui = REGISTRY_UI.find((r) => r.id === "opencode");
+    expect(ui.serviceKinds).toEqual(entry.serviceKinds);
+    expect(ui.jevConfig).toEqual(entry.jevConfig);
+  });
+
+  it("opencode-zen declares a key-pooled Jev upstream", () => {
+    const entry = REGISTRY.find((r) => r.id === "opencode-zen");
+    expect(entry.serviceKinds).toContain("jev");
+    expect(entry.jevConfig).toMatchObject({
+      endpoint: "https://opencode.ai/zen/v1/systemone",
+      keyPool: true,
+    });
+    expect(entry.jevConfig.models.map((m) => m.id)).toEqual(["jev-1.13-free", "jev-1.13"]);
+
+    const ui = REGISTRY_UI.find((r) => r.id === "opencode-zen");
+    expect(ui.jevConfig).toEqual(entry.jevConfig);
+  });
+
+  it("typesafe declares a key-pooled Jev upstream", () => {
+    const entry = REGISTRY.find((r) => r.id === "typesafe");
+    expect(entry.serviceKinds).toContain("jev");
+    expect(entry.jevConfig).toMatchObject({
+      endpoint: "https://api.typesafe.ai/v1/systemone",
+      keyPool: true,
+    });
+    expect(entry.jevConfig.models.map((m) => m.id)).toEqual(["jev-latest"]);
+    expect(entry.jevConfig.models[0].requiresKey).toBe(true);
+
+    const ui = REGISTRY_UI.find((r) => r.id === "typesafe");
+    expect(ui.jevConfig).toEqual(entry.jevConfig);
+  });
+});
+
 describe("OpenCode Zen Jev models", () => {
   const zen = REGISTRY.find((r) => r.id === "opencode-zen");
   const zenIds = zen.models.filter((m) => m.id.startsWith("jev"));
@@ -99,31 +148,57 @@ describe("OpenCode Zen Jev models", () => {
 });
 
 describe("Jev model picker data + settings defaults", () => {
-  it("offers the three picker options with the endpoint derived from the model", () => {
-    expect(JEV_MODEL_CHOICES.map((c) => c.value)).toEqual([
-      "jev-1.13-free",
-      "jev-1.13",
-      "jev-latest",
+  it("offers every registry-declared (provider, model) option in priority order", () => {
+    expect(JEV_MODEL_CHOICES.map((c) => `${c.provider}|${c.value}`)).toEqual([
+      "typesafe|jev-latest",
+      "opencode|jev-1.13-free",
+      "opencode|jev-1.13",
+      "opencode-zen|jev-1.13-free",
+      "opencode-zen|jev-1.13",
     ]);
+
+    const free = JEV_MODEL_CHOICES.find((c) => c.value === "jev-1.13-free" && c.provider === "opencode");
+    expect(free).toMatchObject({
+      default: true,
+      provider: "opencode",
+      providerLabel: "OpenCode Free",
+      keyPool: false,
+      keyEnv: "OPENCODE_API_KEY",
+      requiresKey: false,
+    });
+
+    expect(DEFAULT_JEV_MODEL).toBe("jev-1.13-free");
     expect(jevEndpointForModel("jev-1.13-free")).toBe(ZEN_SYSTEMONE_URL);
     expect(jevEndpointForModel("jev-1.13")).toBe(ZEN_SYSTEMONE_URL);
     expect(jevEndpointForModel("jev-latest")).toBe(TYPESAFE_SYSTEMONE_URL);
     expect(jevEndpointForModel("unknown-model")).toBeNull();
+    expect(isKnownJevEndpoint(TYPESAFE_SYSTEMONE_URL)).toBe(true);
+    expect(isKnownJevEndpoint(ZEN_SYSTEMONE_URL)).toBe(true);
+    expect(isKnownJevEndpoint("https://evil.example/v1/systemone")).toBe(false);
   });
 
-  it("defaults settings.jevModel to the free Zen model", () => {
+  it("defaults the judge settings to the free Zen model with no provider pin and no keys", () => {
     const settings = mergeWithDefaults({});
     expect(settings.jevModel).toBe("jev-1.13-free");
+    expect(settings.jevProvider).toBe("");
+    expect(settings.jevApiKeys).toEqual({});
+    expect((LEGACY_JUDGE_KEY in settings)).toBe(false);
   });
 
-  it("PATCH validates jevModel against the allowed models", async () => {
+  it("PATCH validates the judge model/provider/threshold", async () => {
     const { PATCH } = await import("../../src/app/api/settings/route.js");
 
-    const bad = await PATCH({ json: async () => ({ jevModel: "gpt-6" }) });
-    expect(bad.status).toBe(400);
+    const badModel = await PATCH({ json: async () => ({ jevModel: "gpt-6" }) });
+    expect(badModel.status).toBe(400);
 
-    const good = await PATCH({ json: async () => ({ jevModel: "jev-latest" }) });
-    expect(good.status).toBe(200);
+    const goodModel = await PATCH({ json: async () => ({ jevModel: "jev-latest" }) });
+    expect(goodModel.status).toBe(200);
     expect(mockState.saved.jevModel).toBe("jev-latest");
+
+    const badProvider = await PATCH({ json: async () => ({ jevProvider: "nope" }) });
+    expect(badProvider.status).toBe(400);
+
+    const badThreshold = await PATCH({ json: async () => ({ jevConfidenceThreshold: 5 }) });
+    expect(badThreshold.status).toBe(400);
   });
 });

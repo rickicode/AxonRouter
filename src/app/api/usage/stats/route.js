@@ -1,5 +1,5 @@
 import { NextResponse } from "@/lib/http/response.js";
-import { getUsageStats } from "@/lib/usageDb";
+import { getUsageStats, getActiveRequests } from "@/lib/usageDb";
 
 const VALID_PERIODS = new Set(["today", "24h", "7d", "30d", "60d", "all"]);
 
@@ -14,8 +14,17 @@ export async function GET(request) {
       return NextResponse.json({ error: "Invalid period" }, { status: 400 });
     }
 
-    const stats = await getUsageStats(period);
-    return NextResponse.json(stats);
+    const [stats, live] = await Promise.all([
+      getUsageStats(period),
+      getActiveRequests().catch(() => ({ activeRequests: [], recentRequests: [] })),
+    ]);
+
+    return NextResponse.json({
+      ...stats,
+      activeRequests: live.activeRequests || [],
+      recentRequests: live.recentRequests || [],
+      errorProvider: live.errorProvider || null,
+    });
   } catch (error) {
     console.error("[API] Failed to get usage stats:", error);
     return NextResponse.json({ error: "Failed to fetch usage stats" }, { status: 500 });

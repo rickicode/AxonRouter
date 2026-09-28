@@ -1,10 +1,10 @@
 /**
- * handleDifficultyChat: judge picks a tier (easy/medium/hard), then ONLY that
- * tier runs sequentially with escalation easy→medium→hard. Session-cache +
+ * handleDifficultyChat: the Jev classifier picks a tier (easy/hard), then ONLY
+ * that tier runs sequentially with escalation easy→hard. Session-cache +
  * context lock (Morph router pattern) so ambiguous turns are judged once and
  * expensive contexts pin the route.
  */
-import { describe, it, expect, vi } from "vitest";
+import { describe, it, expect, vi, beforeEach } from "vitest";
 import { handleDifficultyChat } from "../../open-sse/services/combo.js";
 
 function judgeRes(judgeContent) {
@@ -34,9 +34,30 @@ function errRes(status = 500) {
   return { ok: false, status, headers: new Map() };
 }
 
+// System One (Jev) classifier response — the shape resolveJevTarget + classifyWithJev
+// consume (answers.<question>.choice/confidence).
+function jevRes({ difficulty = "easy", ambiguity = "low", domain = "general", confidence = 0.9 } = {}) {
+  return {
+    ok: true,
+    status: 200,
+    headers: new Map([["content-type", "application/json"]]),
+    json: async () => ({
+      answers: {
+        difficulty: { type: "choice", choice: difficulty, confidence },
+        ambiguity: { type: "choice", choice: ambiguity, confidence: 0.9 },
+        domain: { type: "choice", choice: domain, confidence: 0.9 },
+      },
+    }),
+  };
+}
+
 const quietLog = { info: () => {}, warn: () => {}, error: () => {} };
 
 describe("handleDifficultyChat (smart routing)", () => {
+  beforeEach(() => {
+    vi.restoreAllMocks();
+  });
+
   it("obvious-easy body runs the easy tier without calling the judge", async () => {
     const calls = [];
     const handleSingleModel = vi.fn(async (b, m) => {
@@ -51,7 +72,7 @@ describe("handleDifficultyChat (smart routing)", () => {
       log: quietLog,
       comboName: "smart-model",
       judgeModel: "judge-model",
-      tuning: { easyModels: ["easy-a"], mediumModels: ["med-a"], hardModels: ["hard-a"] },
+      tuning: { easyModels: ["easy-a"], hardModels: ["hard-a"] },
     });
     expect(res.ok).toBe(true);
     expect(calls).toEqual(["easy-a"]); // judge never called
@@ -75,7 +96,7 @@ describe("handleDifficultyChat (smart routing)", () => {
     };
     const res = await handleDifficultyChat({
       body,
-      models: ["easy-a", "med-a", "hard-a"],
+      models: ["easy-a", "hard-a"],
       handleSingleModel,
       log: quietLog,
       comboName: "smart-model",
@@ -116,10 +137,12 @@ describe("handleDifficultyChat (smart routing)", () => {
   });
 
   it("an old screenshot does not lock a later text turn to hard", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      jevRes({ difficulty: "easy", ambiguity: "low", domain: "general", confidence: 0.9 })
+    );
     const calls = [];
     const handleSingleModel = vi.fn(async (b, m) => {
       calls.push(m);
-      if (m === "judge-model") return judgeRes('{"difficulty":"easy","ambiguity":"low","domain":"general","confidence":0.9}');
       return okRes("pong");
     });
     const body = {
@@ -140,7 +163,8 @@ describe("handleDifficultyChat (smart routing)", () => {
       tuning: { easyModels: ["easy-a"], hardModels: ["hard-a"] },
     });
     expect(res.ok).toBe(true);
-    expect(calls[0]).toBe("judge-model");
+    // two-layer default: Jev classified the turn, so the LLM judge stays untouched.
+    expect(calls).not.toContain("judge-model");
     expect(calls).toContain("easy-a");
   });
 
@@ -154,17 +178,17 @@ describe("handleDifficultyChat (smart routing)", () => {
     const big = "x".repeat(250000);
     await handleDifficultyChat({
       body: { session_id: "lock-session", messages: [{ role: "user", content: "Help me design the pagination contract for this API." }], stream: false },
-      models: ["easy-a", "med-a", "hard-a"],
+      models: ["easy-a", "hard-a"],
       handleSingleModel,
       log: quietLog,
       comboName: "smart-model",
       judgeModel: "judge-model",
-      tuning: { easyModels: ["easy-a"], mediumModels: ["med-a"], hardModels: ["hard-a"] },
+      tuning: { easyModels: ["easy-a"], hardModels: ["hard-a"] },
     });
     calls.length = 0;
     const res = await handleDifficultyChat({
       body: { session_id: "lock-session", messages: [{ role: "user", content: big }], stream: false },
-      models: ["easy-a", "med-a", "hard-a"],
+      models: ["easy-a", "hard-a"],
       handleSingleModel,
       log: quietLog,
       comboName: "smart-model",
@@ -246,10 +270,12 @@ describe("handleDifficultyChat (smart routing)", () => {
   });
 
   it("high ambiguity escalates to hard tier (Morph core principle)", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      jevRes({ difficulty: "easy", ambiguity: "high", domain: "coding", confidence: 0.9 })
+    );
     const calls = [];
     const handleSingleModel = vi.fn(async (b, m) => {
       calls.push(m);
-      if (m === "judge-model") return judgeRes('{"difficulty":"easy","ambiguity":"high","domain":"coding"}');
       return okRes("pong");
     });
     const body = {
@@ -258,23 +284,25 @@ describe("handleDifficultyChat (smart routing)", () => {
     };
     const res = await handleDifficultyChat({
       body,
-      models: ["easy-a", "med-a", "hard-a"],
+      models: ["easy-a", "hard-a"],
       handleSingleModel,
       log: quietLog,
       comboName: "smart-model",
       judgeModel: "judge-model",
-      tuning: { easyModels: ["easy-a"], mediumModels: ["med-a"], hardModels: ["hard-a"], policy: "balanced" },
+      tuning: { easyModels: ["easy-a"], hardModels: ["hard-a"], policy: "balanced" },
     });
     expect(res.ok).toBe(true);
-    expect(calls[0]).toBe("judge-model");
+    expect(calls).not.toContain("judge-model");
     expect(calls).toContain("hard-a"); // escalated from easy to hard due to high ambiguity
   });
 
-  it("cost_efficient policy drops medium to easy when ambiguity is low", async () => {
+  it("cost_efficient policy keeps a low-ambiguity easy task on the easy tier", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      jevRes({ difficulty: "easy", ambiguity: "low", domain: "summary", confidence: 0.95 })
+    );
     const calls = [];
     const handleSingleModel = vi.fn(async (b, m) => {
       calls.push(m);
-      if (m === "judge-model") return judgeRes('{"difficulty":"medium","ambiguity":"low","domain":"summary"}');
       return okRes("pong");
     });
     const body = {
@@ -283,16 +311,16 @@ describe("handleDifficultyChat (smart routing)", () => {
     };
     const res = await handleDifficultyChat({
       body,
-      models: ["easy-a", "med-a", "hard-a"],
+      models: ["easy-a", "hard-a"],
       handleSingleModel,
       log: quietLog,
       comboName: "smart-model",
       judgeModel: "judge-model",
-      tuning: { easyModels: ["easy-a"], mediumModels: ["med-a"], hardModels: ["hard-a"], policy: "cost_efficient" },
+      tuning: { easyModels: ["easy-a"], hardModels: ["hard-a"], policy: "cost_efficient" },
     });
     expect(res.ok).toBe(true);
-    expect(calls[0]).toBe("judge-model");
-    expect(calls).toContain("easy-a"); // dropped to easy under cost_efficient
+    expect(calls).not.toContain("judge-model");
+    expect(calls).toContain("easy-a"); // kept on easy under cost_efficient
   });
   it("heuristic-trivial: trivial typo/formatting queries route directly to easy tier without judge", async () => {
     const calls = [];
@@ -306,12 +334,12 @@ describe("handleDifficultyChat (smart routing)", () => {
     };
     const res = await handleDifficultyChat({
       body,
-      models: ["easy-a", "med-a", "hard-a"],
+      models: ["easy-a", "hard-a"],
       handleSingleModel,
       log: quietLog,
       comboName: "smart-model",
       judgeModel: "judge-model",
-      tuning: { easyModels: ["easy-a"], mediumModels: ["med-a"], hardModels: ["hard-a"] },
+      tuning: { easyModels: ["easy-a"], hardModels: ["hard-a"] },
     });
     expect(res.ok).toBe(true);
     expect(calls).toEqual(["easy-a"]); // judge never called
@@ -329,12 +357,12 @@ describe("handleDifficultyChat (smart routing)", () => {
     };
     const res = await handleDifficultyChat({
       body,
-      models: ["easy-a", "med-a", "hard-a"],
+      models: ["easy-a", "hard-a"],
       handleSingleModel,
       log: quietLog,
       comboName: "smart-model",
       judgeModel: "judge-model",
-      tuning: { easyModels: ["easy-a"], mediumModels: ["med-a"], hardModels: ["hard-a"] },
+      tuning: { easyModels: ["easy-a"], hardModels: ["hard-a"] },
     });
     expect(res.ok).toBe(true);
     expect(calls).toEqual(["hard-a"]); // judge bypassed, direct to hard

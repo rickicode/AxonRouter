@@ -51,7 +51,9 @@ export class TokenHarborExecutor extends BaseExecutor {
     const triedConnectionIds = new Set();
     let winner = null;
     let lastError = null;
-
+    let lastFailedResponse = null;
+    let lastFailedUrl = null;
+    let lastFailedHeaders = null;
     const spawnAttempt = (creds, pOptions) => {
       const connId = creds?.connectionId || "default";
       const connName = creds?.connectionName || creds?.name || creds?.email || (connId.length > 8 ? connId.slice(0, 8) : connId);
@@ -79,10 +81,23 @@ export class TokenHarborExecutor extends BaseExecutor {
           if (!resp.ok) {
             const bodyText = await resp.text().catch(() => "");
             let errReason = `HTTP ${resp.status}: ${bodyText.slice(0, 200)}`;
-            markAccountUnavailable(connId, resp.status, errReason, "tokenharbor", model).catch(() => {});
-            return { ok: false, status: resp.status, error: errReason, connId };
+            const isModelCapacity = resp.status === 429 && /model is at capacity|at capacity for your account|retry in about/i.test(bodyText);
+            await markAccountUnavailable(connId, resp.status, errReason, "tokenharbor", model).catch(() => {});
+            return {
+              ok: false,
+              status: resp.status,
+              error: errReason,
+              connId,
+              isModelCapacity,
+              response: new Response(bodyText, {
+                status: resp.status,
+                statusText: resp.statusText,
+                headers: resp.headers,
+              }),
+              url,
+              headers,
+            };
           }
-
           let response = resp;
           if (stream && resp.body) {
             const peeked = await peekStreamHead(resp.body, STREAM_COMMIT_PEEK_MS);
@@ -183,6 +198,19 @@ export class TokenHarborExecutor extends BaseExecutor {
         break;
       } else {
         lastError = res.error || "Attempt failed";
+        if (res.response) {
+          lastFailedResponse = res.response;
+          lastFailedUrl = res.url;
+          lastFailedHeaders = res.headers;
+        }
+
+        // Upstream model capacity overload (HTTP 429):
+        // TokenHarbor's capacity for this model is saturated.
+        // Halt speculative hedging to avoid burning sibling accounts and allow combo fallback.
+        if (res.isModelCapacity) {
+          log?.warn?.("HEDGE", `[TokenHarbor] Model ${model} is at capacity upstream. Halting speculative hedging.`);
+          break;
+        }
         if (activeTasks.size === 0 && triedConnectionIds.size < MAX_TOTAL_HEDGE_ATTEMPTS) {
           try {
             const nextCreds = await getProviderCredentials("tokenharbor", triedConnectionIds, model);
@@ -226,8 +254,15 @@ export class TokenHarborExecutor extends BaseExecutor {
       };
     }
 
+    if (lastFailedResponse) {
+      return {
+        response: lastFailedResponse,
+        url: lastFailedUrl,
+        headers: lastFailedHeaders,
+      };
+    }
+
     throw new Error(`[TokenHarbor] All speculative attempts failed: ${lastError || "No response"}`);
   }
 }
-
 export default TokenHarborExecutor;

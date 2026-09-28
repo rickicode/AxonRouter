@@ -9,6 +9,13 @@ export default {
   ],
   uiAlias: "ts",
   serviceKinds: ["llm", "jev"],
+  jevConfig: {
+    endpoint: "https://api.typesafe.ai/v1/systemone",
+    models: [
+      { id: "jev-latest", name: "Jev Latest (System One)", default: true, requiresKey: true },
+    ],
+    keyPool: true,
+  },
   display: {
     name: "TypeSafe AI (Jev)",
     icon: "psychology",

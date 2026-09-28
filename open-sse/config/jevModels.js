@@ -1,60 +1,101 @@
-// System One (Jev) classifier models — single source of truth for the combo
-// model picker, settings validation and the upstream resolver.
+// System One (Jev) classifier — model + endpoint catalog derived from the
+// provider registry.
 //
-// Pure data with no server-only imports: the dashboard bundle (SmartRoutingSection)
-// and open-sse/services/jevUpstream.js both read from here.
+// The registry is the single source of truth: a provider that declares
+// `serviceKinds: ["jev"]` and a `jevConfig` block is automatically offered by the
+// combo classifier picker and resolvable by the upstream resolver
+// (open-sse/services/jevUpstream.js). Adding a new Jev upstream is a registry
+// edit only — no new constants, no new picker code.
 //
-// Two upstreams answer the same classifier API:
-//   • TypeSafe AI direct — https://api.typesafe.ai/v1/systemone, model "jev-latest",
-//     Bearer key required (keys live in the "typesafe" connection pool).
-//   • OpenCode Zen       — https://opencode.ai/zen/v1/systemone, models
-//     "jev-1.13-free" (free, no key) / "jev-1.13" (pay-as-you-go, needs a Zen key).
+// Pure data, no server-only imports: REGISTRY_UI is the client-safe projection of
+// the registry, so the dashboard bundle (SmartRoutingSection) reads this too.
+import { REGISTRY_UI } from "../providers/registry/ui.js";
 
-export const TYPESAFE_SYSTEMONE_URL = "https://api.typesafe.ai/v1/systemone";
-export const ZEN_SYSTEMONE_URL = "https://opencode.ai/zen/v1/systemone";
+const DEFAULT_PRIORITY = 999;
 
-export const JEV_MODEL_TYPESAFE = "jev-latest";
-export const JEV_MODEL_ZEN_FREE = "jev-1.13-free";
-export const JEV_MODEL_ZEN = "jev-1.13";
+/**
+ * Providers answering the System One classifier API, priority-ordered.
+ * @type {Array<{provider: string, alias: string, label: string, priority: number,
+ *   endpoint: string, keyPool: boolean, models: Array<object>}>}
+ */
+export const JEV_PROVIDERS = REGISTRY_UI
+  .filter((p) => Array.isArray(p.serviceKinds) && p.serviceKinds.includes("jev") && p.jevConfig?.endpoint)
+  .map((p) => {
+    const alias = p.uiAlias || p.alias || p.id;
+    const keyPool = p.jevConfig.keyPool === true;
+    return {
+      provider: p.id,
+      alias,
+      label: p.display?.name || p.id,
+      priority: p.priority ?? DEFAULT_PRIORITY,
+      endpoint: p.jevConfig.endpoint,
+      keyPool,
+      keyEnv: `${p.id.toUpperCase().replace(/[^A-Z0-9]+/g, "_")}_API_KEY`,
+      models: (Array.isArray(p.jevConfig.models) ? p.jevConfig.models : [])
+        .filter((m) => m?.id)
+        .map((m) => ({
+          id: m.id,
+          name: m.name || m.id,
+          default: m.default === true,
+          requiresKey: m.requiresKey === true,
+          provider: p.id,
+          providerLabel: p.display?.name || p.id,
+          endpoint: p.jevConfig.endpoint,
+          keyPool,
+        })),
+    };
+  })
+  .sort((a, b) => a.priority - b.priority);
 
-/** Zen models (System One served through OpenCode Zen). */
-export const JEV_ZEN_MODELS = [JEV_MODEL_ZEN_FREE, JEV_MODEL_ZEN];
+/** Classifier provider entry for a provider id, or null. */
+export function jevProviderById(providerId) {
+  if (!providerId) return null;
+  return JEV_PROVIDERS.find((p) => p.provider === providerId) || null;
+}
 
-/** Every selectable classifier model. */
-export const JEV_ALL_MODELS = [JEV_MODEL_ZEN_FREE, JEV_MODEL_ZEN, JEV_MODEL_TYPESAFE];
+/** Every (provider, model) pair the picker can offer, in provider priority order. */
+export const JEV_MODEL_CHOICES = JEV_PROVIDERS.flatMap((p) =>
+  p.models.map((m) => ({
+    value: m.id,
+    label: `${p.label} / ${m.id}${m.requiresKey ? " (key required)" : ""}`,
+    default: m.default,
+    endpoint: m.endpoint,
+    provider: m.provider,
+    providerLabel: m.providerLabel,
+    keyPool: m.keyPool,
+    keyEnv: p.keyEnv,
+    requiresKey: m.requiresKey,
+  }))
+);
 
-/** Default picker value: free Zen tier, works without any API key. */
-export const DEFAULT_JEV_MODEL = JEV_MODEL_ZEN_FREE;
+/** Unique classifier model ids across all providers (first declaration wins). */
+export const JEV_ALL_MODELS = [...new Set(JEV_MODEL_CHOICES.map((c) => c.value))];
 
-const JEV_MODEL_ENDPOINTS = {
-  [JEV_MODEL_TYPESAFE]: TYPESAFE_SYSTEMONE_URL,
-  [JEV_MODEL_ZEN_FREE]: ZEN_SYSTEMONE_URL,
-  [JEV_MODEL_ZEN]: ZEN_SYSTEMONE_URL,
-};
+/** Provider that declares a model id, first in priority order, or null. */
+export function jevModelMeta(model) {
+  return JEV_MODEL_CHOICES.find((c) => c.value === model) || null;
+}
 
-/** Endpoint for a known model id; null when the id is not a Jev model. */
+/** Endpoint serving a model id; null when the id is not a known classifier model. */
 export function jevEndpointForModel(model) {
-  return JEV_MODEL_ENDPOINTS[model] || null;
-}
-
-/** "zen" | "typesafe" | null (unknown model → caller decides from what is available). */
-export function jevModelFamily(model) {
-  const endpoint = jevEndpointForModel(model);
-  if (!endpoint) return null;
-  return endpoint === ZEN_SYSTEMONE_URL ? "zen" : "typesafe";
-}
-
-/** True when an endpoint is one of the two upstreams we know (rejects arbitrary URLs). */
-export function isKnownJevEndpoint(url) {
-  return url === TYPESAFE_SYSTEMONE_URL || url === ZEN_SYSTEMONE_URL;
+  return jevModelMeta(model)?.endpoint || null;
 }
 
 /**
- * Combo picker options — value is what gets stored in combo config `jevModel`
- * (and global settings `jevModel`); the endpoint is derived, never hand-edited.
+ * Default picker value: the default-flagged model of the highest-priority
+ * provider that needs no key (keyless upstream first, key-backed second).
  */
-export const JEV_MODEL_CHOICES = [
-  { value: JEV_MODEL_ZEN_FREE, label: "OpenCode Zen / jev-1.13-free (Default, Free)", endpoint: ZEN_SYSTEMONE_URL },
-  { value: JEV_MODEL_ZEN, label: "OpenCode Zen / jev-1.13 (Pay-as-you-go)", endpoint: ZEN_SYSTEMONE_URL },
-  { value: JEV_MODEL_TYPESAFE, label: "TypeSafe AI / jev-latest (Direct TypeSafe)", endpoint: TYPESAFE_SYSTEMONE_URL },
-];
+export const DEFAULT_JEV_MODEL =
+  (JEV_MODEL_CHOICES.find((c) => c.default && !c.requiresKey)
+    || JEV_MODEL_CHOICES.find((c) => c.default)
+    || JEV_MODEL_CHOICES[0])?.value || "";
+
+/** True when an endpoint is served by one of the registered classifier providers. */
+export function isKnownJevEndpoint(url) {
+  return JEV_PROVIDERS.some((p) => p.endpoint === url);
+}
+
+// Upstream endpoint anchors kept for the tests and docs that name them. Derived,
+// never hand-written: they follow the registry.
+export const ZEN_SYSTEMONE_URL = jevEndpointForModel("jev-1.13-free") || "";
+export const TYPESAFE_SYSTEMONE_URL = jevEndpointForModel("jev-latest") || "";

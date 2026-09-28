@@ -310,19 +310,19 @@ export async function handleChat(request, clientRawRequest = null) {
         },
         log,
         comboName: modelStr,
-        judgeModel: comboStrategies[modelStr]?.judgeModel || "cline-free/z-ai/glm-4.5",
+        judgeModel: comboStrategies[modelStr]?.judgeModel || "judge-router",
         tuning: {
           easyModels: comboStrategies[modelStr]?.easyModels,
-          mediumModels: comboStrategies[modelStr]?.mediumModels,
           hardModels: comboStrategies[modelStr]?.hardModels,
           policy: comboStrategies[modelStr]?.difficultyPolicy || "balanced",
           // Judge settings: a combo-level override wins over the global setting.
           judgeMode: comboStrategies[modelStr]?.judgeMode ?? settings.judgeMode,
-          typeSafeApiKey: comboStrategies[modelStr]?.typeSafeApiKey ?? settings.typeSafeApiKey,
           jevConfidenceThreshold: comboStrategies[modelStr]?.jevConfidenceThreshold ?? settings.jevConfidenceThreshold,
-          // Jev classifier model picker: combo override > global setting > default
-          // ("jev-1.13-free" on OpenCode Zen). The endpoint follows the model.
+          // Jev classifier upstream: combo override > global setting > registered
+          // default. The endpoint and key source follow the declared provider.
           jevModel: comboStrategies[modelStr]?.jevModel ?? settings.jevModel,
+          jevProvider: comboStrategies[modelStr]?.jevProvider ?? settings.jevProvider,
+          jevApiKeys: comboStrategies[modelStr]?.jevApiKeys ?? settings.jevApiKeys,
           jevEndpoint: comboStrategies[modelStr]?.jevEndpoint,
         },
         onDecision: (d) => Object.assign(diffCtx, d),
@@ -477,6 +477,9 @@ export async function handleSingleModelChat(body, modelStr, clientRawRequest = n
               ambiguity: diffCtx.ambiguity || null,
               confidence: diffCtx.confidence ?? null,
               policy: diffCtx.policy || null,
+              jevUsed: !!diffCtx.jevUsed,
+              jevProvider: diffCtx.jevProvider || null,
+              jevEndpoint: diffCtx.jevEndpoint || null,
             };
             const crr = clientRawRequest
               ? { ...clientRawRequest, difficulty: diffPayload, comboName: clientRawRequest.comboName || comboName || modelStr }
@@ -485,18 +488,18 @@ export async function handleSingleModelChat(body, modelStr, clientRawRequest = n
           },
           log,
           comboName: modelStr,
-          judgeModel: comboStrategies[modelStr]?.judgeModel || "cline-free/z-ai/glm-4.5",
+          judgeModel: comboStrategies[modelStr]?.judgeModel || "judge-router",
           tuning: {
             easyModels: comboStrategies[modelStr]?.easyModels,
-            mediumModels: comboStrategies[modelStr]?.mediumModels,
             hardModels: comboStrategies[modelStr]?.hardModels,
             policy: comboStrategies[modelStr]?.difficultyPolicy || "balanced",
             // Judge settings: a combo-level override wins over the global setting.
             judgeMode: comboStrategies[modelStr]?.judgeMode ?? chatSettings.judgeMode,
-            typeSafeApiKey: comboStrategies[modelStr]?.typeSafeApiKey ?? chatSettings.typeSafeApiKey,
             jevConfidenceThreshold: comboStrategies[modelStr]?.jevConfidenceThreshold ?? chatSettings.jevConfidenceThreshold,
-            // Jev classifier model picker: combo override > global setting > default.
+            // Jev classifier upstream: combo override > global setting > registered default.
             jevModel: comboStrategies[modelStr]?.jevModel ?? chatSettings.jevModel,
+            jevProvider: comboStrategies[modelStr]?.jevProvider ?? chatSettings.jevProvider,
+            jevApiKeys: comboStrategies[modelStr]?.jevApiKeys ?? chatSettings.jevApiKeys,
             jevEndpoint: comboStrategies[modelStr]?.jevEndpoint,
           },
           onDecision: (d) => Object.assign(diffCtx, d),
@@ -755,8 +758,10 @@ export async function handleSingleModelChat(body, modelStr, clientRawRequest = n
     // Use shared chatCore
     const chatSettings = await getSettings();
     const providerThinking = (chatSettings.providerThinking || {})[provider] || null;
-    const result = await handleChatCore({
-      body: { ...body, model: `${provider}/${model}` },
+    let result;
+    try {
+      result = await handleChatCore({
+        body: { ...body, model: `${provider}/${model}` },
       modelInfo: { provider, model },
       credentials: refreshedCredentials,
       log,
@@ -848,8 +853,17 @@ export async function handleSingleModelChat(body, modelStr, clientRawRequest = n
           recordRuntimeProxySuccess(successfulPoolId).catch(() => {});
         }
       }
-    });
-
+      });
+    } catch (chatCoreErr) {
+      log.warn("CHAT", `handleChatCore threw: ${chatCoreErr.message}`);
+      const statusMatch = chatCoreErr.message?.match(/HTTP (\d{3})/i);
+      const errStatus = statusMatch ? parseInt(statusMatch[1], 10) : HTTP_STATUS.BAD_GATEWAY;
+      result = {
+        success: false,
+        status: errStatus,
+        error: chatCoreErr.message,
+      };
+    }
     if (result.success) return result.response;
 
     // Upstream 401: If connection has a refreshToken, attempt one immediate forced refresh before locking account

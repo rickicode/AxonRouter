@@ -1161,8 +1161,11 @@ export function extractValidationUrl(errorText) {
  */
 export async function markAccountUnavailable(connectionId, status, errorText, provider = null, model = null, resetsAtMs = null, freebuffKind = null, rawBody = null) {
   if (!connectionId || connectionId === "noauth") return { shouldFallback: false, cooldownMs: 0 };
-  // Client abort / disconnect (499) must never lock accounts or models
-  if (status === 499 || /request aborted|client closed|client disconnected/i.test(String(errorText || ""))) {
+  // Client-side 4xx errors (400, 404, 413, 422, 499) must NEVER trigger provider
+  // account cooldown, lockout, or disable. Client aborts (499) must be ignored.
+  const numStatus = Number(status);
+  const isClientError = numStatus === 400 || numStatus === 404 || numStatus === 413 || numStatus === 422 || numStatus === 499;
+  if (isClientError || /request aborted|client closed|client disconnected|invalid_request_error/i.test(String(errorText || ""))) {
     return { shouldFallback: false, cooldownMs: 0 };
   }
   // Single-row read: only backoffLevel/status/proxy data of THIS connection
@@ -1562,16 +1565,18 @@ export async function markAccountUnavailable(connectionId, status, errorText, pr
       ? resetsAtMs - Date.now()
       : (/daily.*limit|limit.*reached/i.test(lowerErr) ? 24 * 60 * 60 * 1000 : 2 * 60 * 1000);
   }
-  // TokenHarbor: Free allowance exhausted (rolling 7-day period)
+  // TokenHarbor: Free allowance exhausted (rolling 7-day period) or model capacity (30s)
   const isTokenHarborFreeExhausted = providerId === "tokenharbor"
-    && (/used this period's free allowance|free allowance|free_tier_limit|free_quota_exceeded|free_tier_limit_reached|rate.?limit/i.test(lowerErr) || (status === 402 && /balance is at \$0|balance is at 0/i.test(lowerErr)));
+    && (/used this period's free allowance|free allowance|free_tier_limit|free_quota_exceeded|free_tier_limit_reached|rate.?limit|model is at capacity|at capacity for your account/i.test(lowerErr) || (status === 402 && /balance is at \$0|balance is at 0/i.test(lowerErr)));
   if (isTokenHarborFreeExhausted) {
     lockAll = status !== 429; // Lock akun jika quota habis, hanya model jika rate-limit 429
     isExhausted = status !== 429;
     shouldFallback = true;
+    const retryMatch = lowerErr.match(/retry in about (\d+) seconds/i);
+    const retrySecs = retryMatch ? parseInt(retryMatch[1], 10) : 30;
     cooldownMs = resetsAtMs && resetsAtMs > Date.now()
       ? resetsAtMs - Date.now()
-      : (status === 429 ? 30 * 1000 : 7 * 24 * 60 * 60 * 1000); // 30s untuk rate-limit
+      : (status === 429 ? retrySecs * 1000 : 7 * 24 * 60 * 60 * 1000); // 30s untuk rate-limit / model capacity
   }
   const isQuotaExhausted = /resource.*exhausted|quota.*exhausted|exhausted.*capacity|capacity.*exhausted|quota.*reset|daily.*limit|limit reached/i.test(lowerErr);
   if (providerId === "antigravity" && isQuotaExhausted && model) {

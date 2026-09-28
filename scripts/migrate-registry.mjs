@@ -40,7 +40,7 @@ const MEDIA_WHITELIST = new Set([
   "imageConfig", "imageToTextConfig", "videoConfig", "musicConfig",
   "searchViaChat", "searchConfig", "fetchConfig",
   "modelsFetcher", "hasProviderSpecificData", "passthroughModels",
-  "mediaPriority", "hiddenKinds",
+  "mediaPriority", "hiddenKinds", "jevConfig",
 ]);
 
 function migrateEntry(entry, filename) {

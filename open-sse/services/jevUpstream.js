@@ -1,34 +1,24 @@
 // Jev (System One) upstream resolver for the combo Difficulty Judge.
 //
-// Decides, per classification, which System One endpoint the judge calls and with
-// which model + API key:
+// Which upstream answers a classification and with which model + API key is
+// declared by the provider registry (`jevConfig` on every provider whose
+// `serviceKinds` includes "jev" — see open-sse/config/jevModels.js). This module
+// only selects among those declarations:
 //
-//   1. TypeSafe AI direct — https://api.typesafe.ai/v1/systemone, model "jev-latest".
-//      Key comes from the "typesafe" connection pool (multi-key, round-robin) first,
-//      then the caller's setting (settings.typeSafeApiKey / combo override), then
-//      the TYPESAFE_API_KEY env fallback.
-//   2. OpenCode Zen — https://opencode.ai/zen/v1/systemone, model "jev-1.13-free"
-//      (default, free) or "jev-1.13" (pay-as-you-go). Chosen when the user has an
-//      active "opencode-zen" connection or opts in with mode "free-zen"
-//      (tuning.jevMode / options.mode / JEV_MODE env). Zen keys come from the
-//      opencode-zen connection pool.
+//   • a requested provider id is a hard pin;
+//   • otherwise a requested model id scopes the candidates to the providers that
+//     declare it, and the highest-priority usable one answers (keyless first);
+//   • with no request, the highest-priority usable provider answers — a keyless one
+//     (no keyPool) always wins, then a key-backed one with a connection, caller key
+//     or env key;
+//   • keys come from that provider's connection pool (multi-key, round-robin),
+//     then the caller's per-provider key, then the provider's env fallback.
 //
 // Fail-open by contract: a missing/unreachable database, a rejected query or a
 // provider with no connections must never throw out of here — it only means "no
 // pool available", so the caller falls back to settings/env credentials and, if
 // there are none either, to the LLM judge path.
-import {
-  TYPESAFE_SYSTEMONE_URL,
-  ZEN_SYSTEMONE_URL,
-  JEV_MODEL_TYPESAFE,
-  JEV_MODEL_ZEN,
-  JEV_ZEN_MODELS,
-  DEFAULT_JEV_MODEL,
-  jevModelFamily,
-} from "../config/jevModels.js";
-
-export const TYPESAFE_PROVIDER = "typesafe";
-export const ZEN_PROVIDER = "opencode-zen";
+import { JEV_PROVIDERS, jevModelMeta, jevProviderById } from "../config/jevModels.js";
 
 const POOL_TTL_MS = 15_000;
 const POOL_ERROR_TTL_MS = 15_000;
@@ -93,104 +83,129 @@ function commitRotate(provider, length) {
   rotateIdx.set(provider, ((rotateIdx.get(provider) || 0) + 1) % length);
 }
 
+// Caller-supplied credentials. `apiKeyFor(provider)` / `apiKeys[provider]` are the
+// per-provider accessors; `apiKey` is the legacy single-provider (TypeSafe)
+// setting and combo override, accepted only by key-backed providers.
+function settingKey(options, provider) {
+  if (!provider.keyPool) return "";
+  if (typeof options.apiKeyFor === "function") {
+    const scoped = options.apiKeyFor(provider.provider);
+    if (typeof scoped === "string" && scoped.trim()) return scoped.trim();
+  }
+  const map = options.apiKeys;
+  if (map && typeof map === "object") {
+    const scoped = map[provider.provider];
+    if (typeof scoped === "string" && scoped.trim()) return scoped.trim();
+  }
+  if (typeof options.apiKey === "string" && options.apiKey.trim()) return options.apiKey.trim();
+  return "";
+}
+
 /**
  * Resolve the Jev upstream for one classification.
  *
  * @param {object} options
- *   model      — requested model id (jev-latest | jev-1.13-free | jev-1.13)
- *   endpoint   — explicit endpoint (only the two known System One URLs are honoured)
- *   mode       — "free-zen" opts into the Zen upstream without a Zen connection
- *   apiKey     — setting-level TypeSafe key (settings.typeSafeApiKey / combo override)
- *   zenApiKey  — setting-level Zen key override
+ *   model      — requested classifier model id; selects its declaring provider
+ *   provider   — requested classifier provider id; HARD PIN (only this upstream is
+ *                tried, so an unconfigured pin degrades to the LLM judge instead of
+ *                silently switching providers)
+ *   endpoint   — explicit System One endpoint (must be one a registry provider serves)
+ *   apiKey     — caller-level key (legacy TypeSafe setting / combo override)
+ *   apiKeyFor  — (providerId) => key, per-provider caller credential
+ *   apiKeys    — { [providerId]: key } caller credentials
  *   comboName  — log context
- * @returns {Promise<{family, provider, endpoint, model, apiKey, available, source, reason}>}
+ * @returns {Promise<{family, provider, providerLabel, endpoint, model, apiKey,
+ *   available, source, reason}>}
  */
 export async function resolveJevTarget(options = {}, log = null) {
   const comboName = options.comboName || "default";
   const requested = typeof options.model === "string" ? options.model.trim() : "";
-  const mode = String(
-    options.mode || options.jevMode || process.env.JEV_MODE || ""
-  ).toLowerCase().trim();
-  const explicitEndpoint =
-    typeof options.endpoint === "string" ? options.endpoint.trim() : "";
+  const requestedProvider = typeof options.provider === "string" ? options.provider.trim() : "";
+  const explicitEndpoint = typeof options.endpoint === "string" ? options.endpoint.trim() : "";
+  const modelMeta = jevModelMeta(requested);
 
-  // Which family did the caller ask for? Model id wins, then an explicit Zen
-  // endpoint / "free-zen" mode; otherwise left undecided and availability decides.
-  let family = jevModelFamily(requested || null);
-  if (!family && mode === "free-zen") family = "zen";
-  if (!family && explicitEndpoint) {
-    family = explicitEndpoint === ZEN_SYSTEMONE_URL ? "zen" : "typesafe";
+  // Candidate order. An explicit provider is a hard pin: it is the ONLY candidate, so
+  // an unconfigured pin degrades to the LLM judge instead of silently switching
+  // upstream behind the user's back. Without a pin, the requested model scopes the
+  // candidates to the providers that actually declare it (so choosing `jev-latest`
+  // never silently becomes another provider's model) — when the model is unknown to
+  // the registry, every provider is a candidate, ordered by priority. An explicit
+  // endpoint's provider always leads.
+  const pinned = jevProviderById(requestedProvider);
+  const candidates = [];
+  if (pinned) {
+    candidates.push(pinned);
+  } else {
+    const declaring = modelMeta
+      ? JEV_PROVIDERS.filter((p) => p.models.some((m) => m.id === modelMeta.value))
+      : [];
+    const preferred = [
+      explicitEndpoint ? JEV_PROVIDERS.find((p) => p.endpoint === explicitEndpoint) : null,
+      ...declaring,
+    ].filter(Boolean);
+    const pool = declaring.length > 0 ? declaring : JEV_PROVIDERS;
+    const seen = new Set();
+    for (const provider of [...preferred, ...pool]) {
+      if (seen.has(provider.provider)) continue;
+      seen.add(provider.provider);
+      candidates.push(provider);
+    }
   }
 
-  // Legacy tuning.typeSafeEndpoint may point at a proxy of the TypeSafe upstream;
-  // anything that is not the Zen URL stays in the TypeSafe family and is used as-is
-  // (it already was before upstream resolution existed).
-  const typesafeEndpoint =
-    explicitEndpoint && explicitEndpoint !== ZEN_SYSTEMONE_URL && /^https?:\/\//i.test(explicitEndpoint)
-      ? explicitEndpoint
-      : TYPESAFE_SYSTEMONE_URL;
+  const pools = new Map();
+  await Promise.all(
+    candidates
+      .filter((p) => p.keyPool)
+      .map(async (p) => pools.set(p.provider, await loadPool(p.provider)))
+  );
 
-  const [zenPool, typesafePool] = await Promise.all([
-    loadPool(ZEN_PROVIDER),
-    loadPool(TYPESAFE_PROVIDER),
-  ]);
-  const zenOptedIn = zenPool.length > 0 || mode === "free-zen";
+  const build = (provider) => {
+    const pool = pools.get(provider.provider) || [];
+    const poolKey = provider.keyPool ? peekKey(provider.provider, pool) : "";
+    const setting = settingKey(options, provider);
+    const envKey = provider.keyPool ? process.env[provider.keyEnv] || "" : "";
+    const apiKey = poolKey || setting || envKey;
 
-  const buildZen = () => {
-    const model = JEV_ZEN_MODELS.includes(requested) ? requested : DEFAULT_JEV_MODEL;
-    const poolKey = zenPool.length ? peekKey(ZEN_PROVIDER, zenPool) : "";
-    const apiKey = poolKey || options.zenApiKey || process.env.OPENCODE_ZEN_API_KEY || "";
-    let available = zenOptedIn;
-    let reason = zenOptedIn ? "ok" : "no opencode-zen connection and mode is not free-zen";
-    if (available && model === JEV_MODEL_ZEN && !apiKey) {
+    // Keep the caller's model when this provider declares it; otherwise use the
+    // provider's default so a mismatched id never 404s upstream.
+    const modelEntry = provider.models.find((m) => m.id === requested)
+      || provider.models.find((m) => m.default)
+      || provider.models[0]
+      || null;
+    const model = modelEntry?.id || "";
+    const needsKey = modelEntry?.requiresKey === true;
+
+    let available = true;
+    let reason = "ok";
+    if (!model) {
       available = false;
-      reason = "jev-1.13 is pay-as-you-go and no OpenCode Zen key is available";
+      reason = `provider "${provider.provider}" declares no classifier model`;
+    } else if (needsKey && !apiKey) {
+      available = false;
+      reason = `${model} requires a key and "${provider.provider}" has none (connection, setting or ${provider.keyEnv})`;
     }
+
+    const source = !provider.keyPool
+      ? "keyless"
+      : poolKey ? "connection" : setting ? "settings" : envKey ? "env" : "none";
+
     return {
-      family: "zen",
-      provider: ZEN_PROVIDER,
-      endpoint: ZEN_SYSTEMONE_URL,
+      family: provider.provider,
+      provider: provider.provider,
+      providerLabel: provider.label,
+      endpoint: provider.endpoint,
       model,
       apiKey,
       available,
-      source: poolKey ? "connection" : apiKey ? "settings" : "none",
+      source,
       reason,
-      poolSize: zenPool.length,
+      poolSize: pool.length,
     };
   };
-
-  const buildTypesafe = () => {
-    const poolKey = typesafePool.length ? peekKey(TYPESAFE_PROVIDER, typesafePool) : "";
-    const apiKey = poolKey || options.apiKey || process.env.TYPESAFE_API_KEY || "";
-    // A Zen model id can land here after a Zen miss — TypeSafe only serves jev-latest.
-    const model = requested && !JEV_ZEN_MODELS.includes(requested) ? requested : JEV_MODEL_TYPESAFE;
-    const available = !!apiKey;
-    return {
-      family: "typesafe",
-      provider: TYPESAFE_PROVIDER,
-      endpoint: typesafeEndpoint,
-      model,
-      apiKey,
-      available,
-      source: poolKey ? "connection" : options.apiKey ? "settings" : apiKey ? "env" : "none",
-      reason: available ? "ok" : "no TypeSafe API key (connection pool, settings or TYPESAFE_API_KEY)",
-      poolSize: typesafePool.length,
-    };
-  };
-
-  // Preference order: an explicit family is honoured first (Zen still falls back to
-  // TypeSafe when it has no upstream), otherwise the free Zen default wins when it
-  // is opted in, then TypeSafe.
-  const candidates =
-    family === "typesafe"
-      ? [buildTypesafe]
-      : family === "zen"
-        ? [buildZen, buildTypesafe]
-        : [buildZen, buildTypesafe];
 
   let firstFailure = null;
-  for (const build of candidates) {
-    const target = build();
+  for (const provider of candidates) {
+    const target = build(provider);
     if (target.available) {
       commitRotate(target.provider, target.poolSize);
       delete target.poolSize;
@@ -200,10 +215,11 @@ export async function resolveJevTarget(options = {}, log = null) {
   }
 
   const failed = firstFailure || {
-    family: family || null,
+    family: null,
     provider: null,
-    endpoint: family === "zen" ? ZEN_SYSTEMONE_URL : TYPESAFE_SYSTEMONE_URL,
-    model: requested || DEFAULT_JEV_MODEL,
+    providerLabel: null,
+    endpoint: explicitEndpoint,
+    model: requested,
     apiKey: "",
     available: false,
     source: "none",
@@ -213,8 +229,32 @@ export async function resolveJevTarget(options = {}, log = null) {
   failed.available = false;
   log?.info?.(
     "DIFFICULTY",
-    `[jev] no usable upstream (${failed.reason}) — combo "${comboName}" falls back to settings/env or the LLM judge`,
-    { comboName, family: failed.family, zenPool: zenPool.length, typesafePool: typesafePool.length }
+    `[jev] no usable upstream (${failed.reason}) — combo "${comboName}" falls back to the LLM judge`,
+    { comboName, model: requested, provider: requestedProvider || failed.provider }
   );
   return failed;
+}
+
+/**
+ * Priority-ordered classifier providers that can answer right now (keyless, or
+ * key available). Observability/UI helper — never throws.
+ */
+export async function listAvailableJevProviders() {
+  const out = [];
+  for (const provider of JEV_PROVIDERS) {
+    const pool = provider.keyPool ? await loadPool(provider.provider) : [];
+    const key = pool.length ? peekKey(provider.provider, pool) : (process.env[provider.keyEnv] || "");
+    const usable = provider.models.filter((m) => !m.requiresKey || key);
+    if (usable.length === 0) continue;
+    out.push({
+      provider: provider.provider,
+      label: provider.label,
+      endpoint: provider.endpoint,
+      keyless: !provider.keyPool,
+      keyConfigured: !!key,
+      poolSize: pool.length,
+      models: usable.map((m) => m.id),
+    });
+  }
+  return out;
 }

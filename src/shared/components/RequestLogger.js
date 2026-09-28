@@ -1,5 +1,6 @@
 "use client";
 
+import { copyToClipboard } from "@/shared/utils/clipboard";
 import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import Card from "./Card";
 import Button from "./Button";
@@ -698,18 +699,18 @@ Auto-refresh active (3s)
              <div className="flex items-center justify-between">
                <span className="text-[11px] font-medium text-text-muted">Response / Error Payload</span>
                <button
-                 type="button"
-                 onClick={() => {
-                   const text = typeof payload === "object" ? JSON.stringify(payload, null, 2) : String(payload);
-                   navigator.clipboard?.writeText(text);
-                   setCopiedPayload(true);
-                   setTimeout(() => setCopiedPayload(false), 2000);
-                 }}
-                 className="text-[11px] text-primary hover:underline flex items-center gap-1 font-medium"
-               >
-                 <Icon name={copiedPayload ? "check" : "content_copy"} size={14} />
-                 {copiedPayload ? "Copied!" : "Copy Payload"}
-               </button>
+                type="button"
+                onClick={async () => {
+                  const text = typeof payload === "object" ? JSON.stringify(payload, null, 2) : String(payload);
+                  await copyToClipboard(text);
+                  setCopiedPayload(true);
+                  setTimeout(() => setCopiedPayload(false), 2000);
+                }}
+                className="text-[11px] text-primary hover:underline flex items-center gap-1 font-medium"
+              >
+                <Icon name={copiedPayload ? "check" : "content_copy"} size={14} />
+                {copiedPayload ? "Copied!" : "Copy Payload"}
+              </button>
              </div>
              <pre className="max-h-[300px] overflow-auto rounded-sm border border-border bg-surface p-3 font-mono text-xs text-text-main whitespace-pre-wrap break-all select-all">
                {typeof payload === "object" ? JSON.stringify(payload, null, 2) : String(payload)}
@@ -723,12 +724,14 @@ Auto-refresh active (3s)
          <div className="flex items-center justify-between">
            <span className="text-[11px] font-medium text-text-muted">Raw Log</span>
            <button
-             type="button"
-             onClick={() => navigator.clipboard?.writeText(selectedLog.raw || "")}
-             className="text-[11px] text-primary hover:underline"
-           >
-             Copy
-           </button>
+            type="button"
+            onClick={async () => {
+              await copyToClipboard(selectedLog.raw || "");
+            }}
+            className="text-[11px] text-primary hover:underline"
+          >
+            Copy
+          </button>
          </div>
          <pre className="rounded-sm border border-border -subtle p-3 text-xs font-mono text-text-main whitespace-pre-wrap break-all bg-surface">
            {selectedLog.raw}

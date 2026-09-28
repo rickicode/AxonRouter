@@ -9,6 +9,7 @@ import { translate } from "@/i18n/runtime";
 import CompatibleModelsSection from "./CompatibleModelsSection";
 import ModelRow from "./ModelRow";
 import Icon from "@/shared/components/Icon";
+import ScanFreeModelsModal from "./ScanFreeModelsModal";
 
 export default function ModelsSection(d) {
   const {
@@ -25,6 +26,23 @@ export default function ModelsSection(d) {
   const [query, setQuery] = useState("");
   const [aliasModal, setAliasModal] = useState(null);
   const [newAliasValue, setNewAliasValue] = useState("");
+  const [showScanFreeModal, setShowScanFreeModal] = useState(false);
+
+  const isFreeCapable =
+    d.isFreeNoAuth ||
+    d.providerInfo?.hasFree ||
+    d.providerInfo?.category === "free" ||
+    d.providerInfo?.category === "freeTier" ||
+    providerId === "cline-free" ||
+    providerId === "kilocode" ||
+    providerId === "kilocode-free" ||
+    providerId === "tokenharbor" ||
+    providerId === "opencode" ||
+    providerId === "opencode-zen" ||
+    providerId === "orcarouter" ||
+    providerId === "openrouter" ||
+    providerId === "api-airforce" ||
+    providerId === "ovhcloud-free";
 
   const q = query.trim().toLowerCase();
   const matchesQuery = (...fields) =>
@@ -111,6 +129,11 @@ export default function ModelsSection(d) {
             <Button size="xs" variant="primary" icon="add" onClick={() => setShowAddCustomModel(true)}>
               Add
             </Button>
+            {isFreeCapable && (
+              <Button size="xs" variant="secondary" icon="radar" onClick={() => setShowScanFreeModal(true)}>
+                Scan Free
+              </Button>
+            )}
             {activeIds.length > 0 && (
               <Button size="xs" variant="secondary" icon="block" onClick={() => handleDisableAll(disableTargets)}>
                 Disable
@@ -172,6 +195,17 @@ export default function ModelsSection(d) {
           <Button size="sm" variant="primary" icon="add" onClick={() => setShowAddCustomModel(true)}>
             Add Model
           </Button>
+          {isFreeCapable && (
+            <Button
+              size="sm"
+              variant="secondary"
+              icon="radar"
+              onClick={() => setShowScanFreeModal(true)}
+              title="Scan and probe candidate free models with active credentials"
+            >
+              Scan Free Models
+            </Button>
+          )}
 
           {providerId === "qoder" && connections.some((conn) => conn.isActive !== false) && (
             <Button size="sm" variant="secondary" icon="download" loading={importingQoderModels} onClick={handleImportQoderModels}>
@@ -402,6 +436,18 @@ export default function ModelsSection(d) {
           </div>
         </Modal>
       )}
+      <ScanFreeModelsModal
+        isOpen={showScanFreeModal}
+        onClose={() => setShowScanFreeModal(false)}
+        providerId={providerId}
+        providerAlias={providerDisplayAlias}
+        connections={connections}
+        onAddModels={async (modelIds) => {
+          for (const mId of modelIds) {
+            await handleAddCustomModel(mId, "llm", providerStorageAlias);
+          }
+        }}
+      />
     </Card>
   );
 }

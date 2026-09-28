@@ -148,7 +148,7 @@ export function extractQuotaResetMs(bodyText, response) {
       }
     }
     if (!resetsAtMs) {
-      const compoundMatch = String(bodyText).match(/(?:resets?|try again)\s+in\s+(\d+)h\s*(?:(\d+)m)?\s*(?:(\d+)s)?/i);
+      const compoundMatch = String(bodyText).match(/(?:resets?|try again|retry)\s+in\s*(?:about\s*)?(\d+)h\s*(?:(\d+)m)?\s*(?:(\d+)s)?/i);
       if (compoundMatch) {
         const h = parseInt(compoundMatch[1] || "0", 10);
         const min = parseInt(compoundMatch[2] || "0", 10);
@@ -159,7 +159,7 @@ export function extractQuotaResetMs(bodyText, response) {
     }
 
     if (!resetsAtMs) {
-      const resetInMatch = String(bodyText).match(/(?:resets?|try again)\s+in\s+(\d+)\s*(hour|h|min|m|s|second)/i);
+      const resetInMatch = String(bodyText).match(/(?:resets?|try again|retry)\s+in\s*(?:about\s*)?(\d+)\s*(hour|h|min|m|s|second)/i);
       if (resetInMatch) {
         const n = parseInt(resetInMatch[1], 10);
         const unit = resetInMatch[2].toLowerCase();

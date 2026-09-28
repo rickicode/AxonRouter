@@ -19,6 +19,12 @@ export default defineConfig({
     exclude: ["**/node_modules/**", "**/.claude/**", "**/dist/**", "**/*.live.test.js", "**/*.real.test.js", "**/*.cloud.test.js", "**/auth/saml.test.js", "**/docker-build.test.mjs"],
     // Allow many it.concurrent cases (real provider smoke runs ~50 providers in parallel)
     maxConcurrency: 60,
+    // Host CPU is a 4-core Celeron N5105 (15-20W PL1) shared with agent
+    // processes. Default = all 4 forks pegged the box at 100% and starved the
+    // running agent; cap at 2 so half the cores stay available. Override per
+    // run with VITEST_MAX_THREADS / --maxWorkers when benchmarking.
+    maxWorkers: 2,
+    minWorkers: 1,
     testTimeout: 20000,
     // Suppress noisy console output from handlers under test
     silent: false,

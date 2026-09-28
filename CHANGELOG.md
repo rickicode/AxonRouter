@@ -20,6 +20,16 @@
 # Unreleased
 
 ## Features
+- **Registry-driven Jev (System One) upstreams**: the classifier an upgraded combo uses is no longer a hardcoded Zen/TypeSafe pair — any provider declaring `serviceKinds: ["jev"]` plus a `jevConfig` block is offered automatically. `open-sse/config/jevModels.js` derives `JEV_PROVIDERS`, `JEV_MODEL_CHOICES`, `DEFAULT_JEV_MODEL`, the endpoint lookups and `isKnownJevEndpoint` from the client-safe `REGISTRY_UI` projection, so adding an upstream is a registry edit only.
+- **OpenCode Free as a classifier upstream**: `opencode` (`oc/`) now declares `serviceKinds: ["llm","jev"]`, so the keyless System One endpoint (`https://opencode.ai/zen/v1/systemone`, `jev-1.13-free`) is usable with no API key and no connection. The Default picker value is now a keyless upstream, so `two-layer` classification runs out of the box instead of always degrading to the LLM judge.
+- **Per-provider classifier credentials**: global settings and combo overrides carry `jevProvider` (bare provider id; `""` = choose by priority) and `jevApiKeys` (`{ [providerId]: key }`). A pinned provider is a hard pin — an unconfigured pin degrades to the LLM judge rather than silently switching upstream. `typeSafeApiKey` is gone; keys are redacted on read and reported as `jevApiKeysConfigured`.
+- **Difficulty decision payload**: routing decisions now carry `jevProvider`, `jevEndpoint` and `jevModel` so per-upstream classifier usage is visible in combo analytics.
+
+## Fixes
+- **Smart routing removed the phantom medium tier**: `mediumModels` was deleted end-to-end (seed, API handlers, dashboard, rebuild tool, docs). The two-tier router now defaults to the hard tier wherever it previously produced a tier that no tier list served, and a classifier answer of `medium` collapses to `hard`; `resolveTierMatrix` no longer re-derives the removed tier.
+- **Combo analytics missed Jev usage on one path**: the nested difficulty call site in `handleSingleModelChat` now emits `jevUsed` (it only did so on the top-level path), so the Jev fast-path counter no longer under-reports.
+
+## Tests
 - **WorkBuddy**: add Tencent WorkBuddy (workbuddy.ai) as a provider — shares the CodeBuddy Intl OpenAI-compatible gateway (`/v2/chat/completions`) but on its own host/brand. Device-code OAuth (Google/GitHub upstream), forced stream, OpenAI `reasoning_effort`/`reasoning_summary` mirroring, `passthroughModels`, and usage via the shared CodeBuddy billing handler. Catalog mirrors CodeBuddy-Intl (`wb` alias).
 - **Capability-aware degradation**: derive required capabilities (`tools`, `reasoning`, `parallelToolCalls`, modalities, `search`) from every request and degrade in place when the target model cannot express one — tool catalogs become transcript text (`[Tool Call: …]` / `[Tool Result: …]`) across OpenAI/Claude/Gemini/Responses wire shapes, reasoning/thinking fields are dropped, `max_tokens` clamps to the model ceiling; combo auto-switch now ranks `tools` as a hard capability. Replaces upstream 400s with a working degraded answer.
 - **Prometheus `/metrics`**: public text-format (0.0.4) endpoint on both the dashboard web server (3777) and the Hono gateway (3778) — process uptime/RSS/heap, speed-layer cache keys, Postgres up/down, and the full routing counter set (`upstream_attempts`, `circuit_trips`, `lkg_hits`, combo skips, …).
