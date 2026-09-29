@@ -16,8 +16,8 @@ const AUTO_CODING_STRATEGY = {
   judgeModel: "judge-router",
   difficultyPolicy: "balanced",
   easyModels: [
-    "cline-free/mimo-v2.6-flash",
-    "cline-free/deepseek/deepseek-v4.1-flash",
+    "clf/mimo-v2.6-flash",
+    "clf/deepseek-v4.1-flash",
     "kcf/cohere/north-mini-code:free",
     "kcf/inclusionai/ling-3.0-flash-fin:free",
     "kcf/inclusionai/ling-3.0-flash-vl:free",
@@ -25,8 +25,8 @@ const AUTO_CODING_STRATEGY = {
   hardModels: [
     "ag/gemini-3.8-flash-high",
     "gcli/grok-4.7",
-    "cline-free/gemini-3.8-flash",
-    "cline-free/muse-spark-1.3-contributor",
+    "clf/gemini-3.8-flash",
+    "clf/muse-spark-1.3-contributor",
     "ocz/muse-spark-1.3-contributor-free",
     "kcf/poolside/laguna-s-2.1:free",
   ],

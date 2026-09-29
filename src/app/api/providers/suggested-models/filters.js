@@ -78,11 +78,15 @@ export const FILTERS = {
     const list = Array.isArray(models) ? models : (models?.free || []);
     return list
       .filter((m) => Boolean(m.id))
-      .map((m) => ({
-        id: m.id,
-        name: m.name || m.id,
-        description: m.description,
-      }));
+      .map((m) => {
+        const rawId = String(m.id);
+        const cleanId = rawId.replace(/^(cline-free|clf)\//, "");
+        return {
+          id: cleanId,
+          name: m.name || cleanId,
+          description: m.description,
+        };
+      });
   },
 };
 

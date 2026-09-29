@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Card, Button, SegmentedControl, Input, Modal } from "@/shared/components";
+import { Card, Button, Input, Modal } from "@/shared/components";
 import { getModelKind } from "@/shared/constants/models";
 import { getProviderCustomModelRows } from "@/shared/utils/providerCustomModels";
 import { isFreeModel, sortModelsByFree } from "@/shared/utils/modelHelpers";
@@ -23,7 +23,6 @@ export default function ModelsSection(d) {
     isCompatible, isAnthropicCompatible,
   } = d;
 
-  const [query, setQuery] = useState("");
   const [aliasModal, setAliasModal] = useState(null);
   const [newAliasValue, setNewAliasValue] = useState("");
   const [showScanFreeModal, setShowScanFreeModal] = useState(false);
@@ -44,10 +43,6 @@ export default function ModelsSection(d) {
     providerId === "api-airforce" ||
     providerId === "ovhcloud-free";
 
-  const q = query.trim().toLowerCase();
-  const matchesQuery = (...fields) =>
-    !q || fields.some((f) => typeof f === "string" && f.toLowerCase().includes(q));
-
   const allModels = [
     ...models,
     ...kiloFreeModels.filter((fm) => !models.some((m) => m.id === fm.id)),
@@ -59,21 +54,19 @@ export default function ModelsSection(d) {
     activeModels.filter((m) => !hidePaid || isFreeModel(m, providerId)),
     [],
     providerId
-  ).filter((m) => matchesQuery(m.id, m.name));
+  );
   const disabledDisplayModels = allModels
-    .filter((m) => disabledSet.has(m.id))
-    .filter((m) => matchesQuery(m.id, m.name));
+    .filter((m) => disabledSet.has(m.id));
   const customModelRows = getProviderCustomModelRows({
     customModels,
     modelAliases,
     providerAlias: providerStorageAlias,
     builtInModels: models,
     type: "llm",
-  }).filter((row) => matchesQuery(row.id, row.name, row.alias));
+  });
 
   const activeIds = allModels.map((m) => m.id).filter((id) => !disabledSet.has(id));
-  // "Disable All" targets what the user can see once a search is active.
-  const disableTargets = q ? displayModels.map((m) => m.id) : activeIds;
+  const disableTargets = activeIds;
 
   const hasAnyModel = customModelRows.length > 0 || displayModels.length > 0;
 
@@ -86,8 +79,7 @@ export default function ModelsSection(d) {
     return suggestedModels.filter(
       (m) =>
         !addedFullModels.has(`${providerStorageAlias}/${m.id}`) &&
-        !hardcodedIds.has(m.id) &&
-        matchesQuery(m.id, m.name)
+        !hardcodedIds.has(m.id)
     );
   })();
 
@@ -112,7 +104,7 @@ export default function ModelsSection(d) {
 
   return (
     <Card>
-      <div className="mb-3 flex flex-col gap-2.5 sm:flex-row sm:items-center sm:justify-between">
+      <div className="mb-3 flex flex-wrap items-center justify-between gap-2.5">
         <div className="flex flex-wrap items-center justify-between gap-2 sm:justify-start sm:gap-3">
           <div className="flex items-center gap-2">
             <h2 className="text-sm font-semibold">Available Models</h2>
@@ -142,97 +134,75 @@ export default function ModelsSection(d) {
           </div>
         </div>
 
-        {/* Search & Thinking Controls */}
-        <div className="flex items-center gap-2 flex-1 sm:max-w-md lg:max-w-lg">
-          <div className="flex-1">
-            <Input
-              icon="search"
-              placeholder="Search models…"
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              aria-label="Search models"
-              inputClassName="h-8 text-xs"
-              className="w-full"
-            />
-          </div>
-
+        {/* Right side: Thinking Dropdown + Actions */}
+        <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
           {providerThinkingLevels && (
-            <div className="shrink-0 flex items-center gap-1.5">
-              <span className="hidden lg:inline text-xs text-text-muted">Thinking:</span>
-              <div className="sm:hidden">
+            <div className="flex items-center gap-1.5">
+              <span className="text-xs text-text-muted font-medium">Thinking:</span>
+              <div className="relative inline-flex items-center">
                 <select
                   value={thinkingMode}
                   onChange={(e) => handleThinkingModeChange(e.target.value)}
-                  className="h-8 rounded border border-border bg-surface px-2 text-xs text-text-main outline-none focus:border-primary"
+                  className="h-8 rounded-sm border border-border bg-surface-2 hover:bg-surface px-2.5 pr-7 text-xs font-medium text-text-main outline-none focus:border-primary transition-colors cursor-pointer appearance-none"
                   aria-label="Thinking level"
                 >
                   {providerThinkingLevels.map((opt) => (
-                    <option key={opt} value={opt}>
+                    <option key={opt} value={opt} className="bg-surface text-text-main">
                       {opt.charAt(0).toUpperCase() + opt.slice(1)}
                     </option>
                   ))}
                 </select>
-              </div>
-              <div className="hidden sm:block">
-                <SegmentedControl
-                  options={providerThinkingLevels.map((opt) => ({
-                    value: opt,
-                    label: opt.charAt(0).toUpperCase() + opt.slice(1),
-                  }))}
-                  value={thinkingMode}
-                  onChange={handleThinkingModeChange}
-                  size="sm"
-                  snap
-                  aria-label="Thinking level"
-                />
+                <div className="pointer-events-none absolute right-2 flex items-center text-text-muted">
+                  <Icon name="expand_more" size={16} />
+                </div>
               </div>
             </div>
           )}
-        </div>
 
-        {/* Desktop actions cluster */}
-        <div className="hidden sm:flex flex-wrap items-center gap-2 shrink-0">
-          <Button size="sm" variant="primary" icon="add" onClick={() => setShowAddCustomModel(true)}>
-            Add Model
-          </Button>
-          {isFreeCapable && (
-            <Button
-              size="sm"
-              variant="secondary"
-              icon="radar"
-              onClick={() => setShowScanFreeModal(true)}
-              title="Scan and probe candidate free models with active credentials"
-            >
-              Scan Free Models
+          {/* Desktop Actions cluster */}
+          <div className="hidden sm:flex flex-wrap items-center gap-1.5 sm:gap-2">
+            <Button size="sm" variant="primary" icon="add" onClick={() => setShowAddCustomModel(true)}>
+              Add Model
             </Button>
-          )}
+            {isFreeCapable && (
+              <Button
+                size="sm"
+                variant="secondary"
+                icon="radar"
+                onClick={() => setShowScanFreeModal(true)}
+                title="Scan and probe candidate free models with active credentials"
+              >
+                Scan Free Models
+              </Button>
+            )}
 
-          {providerId === "qoder" && connections.some((conn) => conn.isActive !== false) && (
-            <Button size="sm" variant="secondary" icon="download" loading={importingQoderModels} onClick={handleImportQoderModels}>
-              {importingQoderModels ? translate("Fetching...") : translate("Fetch Qoder Models")}
-            </Button>
-          )}
-          {(providerId === "cline" || providerId === "clinepass") && connections.some((conn) => conn.isActive !== false) && (
-            <Button size="sm" variant="secondary" icon="download" loading={importingClineModels} onClick={handleImportClineModels}>
-              {importingClineModels ? translate("Fetching...") : translate("Import from /models")}
-            </Button>
-          )}
-          {(providerId === "orcarouter" || providerId === "tokenharbor" || providerId === "openrouter" || providerId === "together" || providerId === "groq" || providerId === "deepinfra" || providerId === "fireworks" || providerId === "novita" || providerId === "mistral" || providerId === "perplexity" || providerId === "xai" || providerId === "hyperbolic" || providerId === "sambanova" || providerId === "cerebras" || providerId === "siliconflow" || providerId === "deepseek" || providerId === "minimax" || providerId === "moonshot" || providerId === "gemini-cli") && connections.some((conn) => conn.isActive !== false) && (
-            <Button size="sm" variant="secondary" icon="download" loading={importingLiveModels} onClick={handleImportLiveModels}>
-              {importingLiveModels ? translate("Fetching...") : translate("Import from /models")}
-            </Button>
-          )}
+            {providerId === "qoder" && connections.some((conn) => conn.isActive !== false) && (
+              <Button size="sm" variant="secondary" icon="download" loading={importingQoderModels} onClick={handleImportQoderModels}>
+                {importingQoderModels ? translate("Fetching...") : translate("Fetch Qoder Models")}
+              </Button>
+            )}
+            {(providerId === "cline" || providerId === "clinepass") && connections.some((conn) => conn.isActive !== false) && (
+              <Button size="sm" variant="secondary" icon="download" loading={importingClineModels} onClick={handleImportClineModels}>
+                {importingClineModels ? translate("Fetching...") : translate("Import from /models")}
+              </Button>
+            )}
+            {(providerId === "orcarouter" || providerId === "tokenharbor" || providerId === "openrouter" || providerId === "together" || providerId === "groq" || providerId === "deepinfra" || providerId === "fireworks" || providerId === "novita" || providerId === "mistral" || providerId === "perplexity" || providerId === "xai" || providerId === "hyperbolic" || providerId === "sambanova" || providerId === "cerebras" || providerId === "siliconflow" || providerId === "deepseek" || providerId === "minimax" || providerId === "moonshot" || providerId === "gemini-cli") && connections.some((conn) => conn.isActive !== false) && (
+              <Button size="sm" variant="secondary" icon="download" loading={importingLiveModels} onClick={handleImportLiveModels}>
+                {importingLiveModels ? translate("Fetching...") : translate("Import from /models")}
+              </Button>
+            )}
 
-          {disabledModelIds.length > 0 && (
-            <Button size="sm" variant="secondary" icon="restart_alt" onClick={handleEnableAll}>
-              Active All
-            </Button>
-          )}
-          {activeIds.length > 0 && (
-            <Button size="sm" variant="secondary" icon="block" onClick={() => handleDisableAll(disableTargets)}>
-              Disable All
-            </Button>
-          )}
+            {disabledModelIds.length > 0 && (
+              <Button size="sm" variant="secondary" icon="restart_alt" onClick={handleEnableAll}>
+                Active All
+              </Button>
+            )}
+            {activeIds.length > 0 && (
+              <Button size="sm" variant="secondary" icon="block" onClick={() => handleDisableAll(disableTargets)}>
+                Disable All
+              </Button>
+            )}
+          </div>
         </div>
       </div>
 
@@ -246,6 +216,8 @@ export default function ModelsSection(d) {
             key={`${model.source}-${model.fullModel}`}
             model={{ id: model.id, name: model.name }}
             fullModel={`${providerDisplayAlias}/${model.id}`}
+            providerDisplayAlias={providerDisplayAlias}
+            providerStorageAlias={providerStorageAlias}
             alias={model.alias}
             copied={copied}
             onCopy={copy}
@@ -285,6 +257,8 @@ export default function ModelsSection(d) {
               key={model.id}
               model={model}
               fullModel={`${providerDisplayAlias}/${model.id}`}
+              providerDisplayAlias={providerDisplayAlias}
+              providerStorageAlias={providerStorageAlias}
               alias={existingAlias}
               copied={copied}
               onCopy={copy}

@@ -8816,8 +8816,12 @@ export const REGISTRY_UI = [
   {
     id: "cline-free",
     priority: 79,
-    alias: "cline-free",
-    uiAlias: "cline-free",
+    alias: "clf",
+    uiAlias: "clf",
+    aliases: [
+      "clf",
+      "cline-free"
+    ],
     category: "oauth",
     display: {
       name: "Cline Free",
@@ -8849,19 +8853,19 @@ export const REGISTRY_UI = [
         name: "Space Bunny Alpha (Free)"
       },
       {
-        id: "cline-free/mimo-v2.6-flash",
+        id: "mimo-v2.6-flash",
         name: "MiMo-V2.6-Flash (Free)"
       },
       {
-        id: "cline-free/deepseek-v4.1-flash",
+        id: "deepseek-v4.1-flash",
         name: "DeepSeek V4.1 Flash (Free)"
       },
       {
-        id: "cline-free/gemini-3.8-flash",
+        id: "gemini-3.8-flash",
         name: "Gemini 3.8 Flash (Free)"
       },
       {
-        id: "cline-free/muse-spark-1.3-contributor",
+        id: "muse-spark-1.3-contributor",
         name: "Muse Spark 1.3 Contributor (Free)"
       }
     ]

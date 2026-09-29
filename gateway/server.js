@@ -22,6 +22,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import crypto from "node:crypto";
 import { Hono } from "hono";
+import { compress } from "hono/compress";
 import { serve } from "@hono/node-server";
 import { resolveGatewayMode } from "./workerMode.mjs";
 import { renderGatewayLandingHtml } from "./landingPage.mjs";
@@ -149,6 +150,10 @@ function cors(extra = {}) {
 
 // ── App ───────────────────────────────────────────────────────────────────────
 const app = new Hono();
+
+// gzip/deflate for compressible JSON bodies (e.g. /v1/models ~396KB → ~35KB).
+// SSE (text/event-stream) and sub-1KB responses are excluded by hono/compress.
+app.use("*", compress());
 
 // Global CORS preflight for every route
 app.options("*", (c) => c.body(null, 204, { headers: cors() }));

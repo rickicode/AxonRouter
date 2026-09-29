@@ -9,6 +9,7 @@ import { fileURLToPath } from "node:url";
 import { Hono } from "hono";
 import { serve } from "@hono/node-server";
 import { serveStatic } from "@hono/node-server/serve-static";
+import { compress } from "hono/compress";
 import { loadApiRoutes } from "./routeLoader.mjs";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -18,6 +19,9 @@ const HOSTNAME = process.env.HOSTNAME || "0.0.0.0";
 const DIST_DIR = path.join(projectRoot, "dist");
 
 const app = new Hono();
+
+// ── Global HTTP Compression (gzip / deflate for static assets & JSON APIs) ──
+app.use("*", compress());
 
 // ── In-Memory Settings Cache (Fast guard path) ────────────────────────────────
 let cachedSettings = null;
@@ -387,6 +391,25 @@ async function initBackgroundServices() {
   } catch (e) {
     console.error("[WebServer] translator init failed:", e.message);
   }
+
+  // Prewarm expensive dashboard caches so the first visitor after a restart
+  // doesn't pay cold-start latency (provider stats ~1.5s, models list ~1s).
+  try {
+    const [{ getProviderSummaryStats }, modelsRoute, providersRoute] = await Promise.all([
+      import("@/lib/db/repos/connectionsRepo.js"),
+      import("@/app/api/models/route.js"),
+      import("@/app/api/providers/route.js"),
+    ]);
+    Promise.allSettled([
+      getProviderSummaryStats().then(() => console.log("[WebServer] provider stats warmed")),
+      modelsRoute.GET(new Request("http://127.0.0.1/api/models")).then(() => console.log("[WebServer] models list warmed")),
+      providersRoute.GET(new Request("http://127.0.0.1/api/providers?page=1")).then(() => console.log("[WebServer] providers list warmed")),
+    ]).then((rs) => {
+      for (const r of rs) if (r.status === "rejected") console.warn("[WebServer] prewarm failed:", r.reason?.message || r.reason);
+    });
+  } catch (e) {
+    console.error("[WebServer] cache prewarm failed:", e.message);
+  }
 }
 
 // ── Start HTTP Server (Node.js & Bun compatible) ─────────────────────────────
@@ -394,7 +417,7 @@ if (typeof Bun !== "undefined") {
   console.log(`[WebServer] AxonRouter Hono Server running on Bun engine (http://${HOSTNAME}:${PORT})`);
   initBackgroundServices().catch((err) => console.error("[WebServer] Background services error:", err));
 } else {
-  serve(
+  const server = serve(
     {
       fetch: app.fetch,
       port: PORT,
@@ -405,6 +428,11 @@ if (typeof Bun !== "undefined") {
       initBackgroundServices().catch((err) => console.error("[WebServer] Background services error:", err));
     }
   );
+  // Keep dashboard sockets warm: Node's 5s default keepAliveTimeout forces a
+  // fresh TCP handshake on every navigation pause, adding latency to each
+  // API burst. Match the gateway's idle-socket budget.
+  server.keepAliveTimeout = 75_000;
+  server.headersTimeout = 80_000;
 }
 
 // Graceful shutdown with in-flight drain

@@ -6,8 +6,21 @@ import { getProviderAlias } from "@/shared/constants/providers";
 import { getCapabilitiesForModel } from "open-sse/providers/capabilities.js";
 
 // GET /api/models - Get models with aliases
-export async function GET() {
-  try {
+// The payload is expensive to build (2,600+ capability lookups ≈ 600 ms on ARM)
+// and identical for every caller, so memoize it in-process and refresh with
+// stale-while-revalidate: expired entries are served instantly while a
+// background rebuild runs, so no request ever blocks on the capability scan.
+let cachedModelsList = null;
+let cachedModelsExpiresAt = 0;
+let modelsRefresh = null;
+const MODELS_CACHE_TTL_MS = 300_000; // 5 min; mutations call invalidateModelsCache()
+
+export function invalidateModelsCache() {
+  // Expire only — stale payload keeps serving while a refresh runs.
+  cachedModelsExpiresAt = 0;
+}
+
+async function buildModelsList() {
     const modelAliases = await getModelAliases();
     const disabled = await getDisabledModels();
 
@@ -88,11 +101,38 @@ export async function GET() {
       }
     } catch {}
 
-    return NextResponse.json({ models });
-  } catch (error) {
-    console.log("Error fetching models:", error);
+    cachedModelsList = models;
+    cachedModelsExpiresAt = Date.now() + MODELS_CACHE_TTL_MS;
+    return models;
+}
+
+function startModelsRefresh() {
+  if (!modelsRefresh) {
+    modelsRefresh = buildModelsList()
+      .catch((error) => {
+        console.log("Error fetching models:", error);
+      })
+      .finally(() => {
+        modelsRefresh = null;
+      });
+  }
+  return modelsRefresh;
+}
+
+export async function GET() {
+  if (cachedModelsList && Date.now() < cachedModelsExpiresAt) {
+    return NextResponse.json({ models: cachedModelsList });
+  }
+  const pending = startModelsRefresh();
+  if (cachedModelsList) {
+    // Stale-while-revalidate: serve the cached list instantly, rebuild in background.
+    return NextResponse.json({ models: cachedModelsList });
+  }
+  await pending;
+  if (!cachedModelsList) {
     return NextResponse.json({ error: "Failed to fetch models" }, { status: 500 });
   }
+  return NextResponse.json({ models: cachedModelsList });
 }
 
 // PUT /api/models - Update model alias
@@ -118,6 +158,7 @@ export async function PUT(request) {
 
     // Update alias
     await setModelAlias(model, alias);
+    invalidateModelsCache();
 
     return NextResponse.json({ success: true, model, alias });
   } catch (error) {

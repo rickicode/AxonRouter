@@ -19,7 +19,7 @@ import {
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { restrictToVerticalAxis, restrictToParentElement } from "@dnd-kit/modifiers";
-import { ModelSelectModal, CapacityBadges, Button, Toggle } from "@/shared/components";
+import { ModelSelectModal, CapacityBadges, Button, Toggle, Input } from "@/shared/components";
 import { useNotificationStore } from "@/store/notificationStore";
 import Icon from "@/shared/components/Icon";
 import {
@@ -231,6 +231,7 @@ export default function SmartRoutingSection({
   const [globalJudgeError, setGlobalJudgeError] = useState("");
   const [judgeSaving, setJudgeSaving] = useState(false);
   const [thresholdDraft, setThresholdDraft] = useState(null);
+  const [quickInputTier, setQuickInputTier] = useState({ easy: "", hard: "" });
 
   // Jev classifier model from strategy, falling back to global or default
   const jevModel = strategy.jevModel || globalJudge?.jevModel || DEFAULT_JEV_MODEL;

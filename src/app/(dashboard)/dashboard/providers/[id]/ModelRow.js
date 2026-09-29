@@ -1,5 +1,6 @@
 "use client";
 
+import { useMemo } from "react";
 import PropTypes from "prop-types";
 import Icon from "@/shared/components/Icon";
 import { CAPACITY_META } from "@/shared/constants/models";
@@ -8,6 +9,8 @@ import { cn } from "@/shared/utils/cn";
 export default function ModelRow({
   model,
   fullModel,
+  providerDisplayAlias,
+  providerStorageAlias,
   alias,
   copied,
   onCopy,
@@ -26,6 +29,36 @@ export default function ModelRow({
   const displayModel = thinkingSuffix ? `${fullModel}(${thinkingSuffix})` : fullModel;
   const isCopied = copied === `model-${model.id}`;
   const displayName = model.name && model.name !== model.id ? model.name : null;
+
+  // Clean small title: strip provider alias prefix(es) and repeated aliases
+  // e.g. "cline-free/cline-free/muse-spark-1.3-contributor" -> "muse-spark-1.3-contributor"
+  // e.g. "clf/muse-spark-1.3-contributor" -> "muse-spark-1.3-contributor"
+  const cleanSmallTitle = useMemo(() => {
+    let raw = fullModel || model.id || "";
+    const prefixes = [
+      "cline-free/",
+      "clf/",
+      providerDisplayAlias ? `${providerDisplayAlias}/` : "",
+      providerStorageAlias ? `${providerStorageAlias}/` : "",
+    ].filter(Boolean);
+
+    let changed = true;
+    while (changed) {
+      changed = false;
+      for (const p of prefixes) {
+        if (raw.startsWith(p)) {
+          raw = raw.slice(p.length);
+          changed = true;
+        }
+      }
+    }
+    const parts = raw.split("/");
+    if (parts.length > 1 && parts[0] === parts[1]) {
+      parts.shift();
+      raw = parts.join("/");
+    }
+    return thinkingSuffix ? `${raw}(${thinkingSuffix})` : raw;
+  }, [fullModel, model.id, providerDisplayAlias, providerStorageAlias, thinkingSuffix]);
 
   // Active capabilities as compact icons with tooltips
   const activeCaps = caps ? Object.keys(CAPACITY_META).filter((k) => caps[k]) : [];
@@ -176,7 +209,7 @@ export default function ModelRow({
           title={`Click to copy: ${displayModel}`}
           className="truncate font-mono text-[10px] text-text-subtle hover:text-text-main text-left cursor-pointer max-w-[70%]"
         >
-          {displayModel}
+          {cleanSmallTitle}
         </button>
 
         {/* Compact capability icons with tooltips */}
@@ -214,6 +247,8 @@ ModelRow.propTypes = {
     name: PropTypes.string,
   }).isRequired,
   fullModel: PropTypes.string.isRequired,
+  providerDisplayAlias: PropTypes.string,
+  providerStorageAlias: PropTypes.string,
   alias: PropTypes.string,
   copied: PropTypes.string,
   onCopy: PropTypes.func.isRequired,

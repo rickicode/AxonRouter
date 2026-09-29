@@ -590,32 +590,71 @@ export async function getProviderConnectionById(id) {
 
 let cachedSummaryStats = null;
 let cachedSummaryStatsExpiresAt = 0;
-const SUMMARY_STATS_TTL_MS = 5000;
+let summaryStatsRefresh = null;
+// 15s: refresh is backgrounded (stale-while-revalidate) so a longer TTL just
+// cuts DB duty cycle without making the UI wait.
+const SUMMARY_STATS_TTL_MS = 15000;
 
 export function invalidateProviderSummaryStatsCache() {
-  cachedSummaryStats = null;
+  // Expire only — the stale payload keeps serving while a refresh runs.
   cachedSummaryStatsExpiresAt = 0;
 }
 
-export async function getProviderSummaryStats() {
-  const now = Date.now();
-  if (cachedSummaryStats && now < cachedSummaryStatsExpiresAt) {
-    return cachedSummaryStats;
-  }
+// Antigravity exhausted accounts are only ~26 rows; pre-resolving them into an
+// id array keeps the main aggregate free of correlated usage_snapshots
+// subplans (those turned a 40ms group-by into a 4s query).
+async function getAntigravityExhaustedIds(db) {
+  const rows = await db.all(`
+    SELECT us.connection_id
+      FROM usage_snapshots us
+     WHERE us.provider = 'antigravity'
+       AND EXISTS (SELECT 1 FROM jsonb_each(COALESCE(us.quotas, '{}'::jsonb)) q(k, v)
+                    WHERE q.k LIKE 'gemini%')
+       AND NOT EXISTS (SELECT 1 FROM jsonb_each(COALESCE(us.quotas, '{}'::jsonb)) q(k, v)
+                    WHERE q.k LIKE 'gemini%'
+                          AND COALESCE((q.v->>'remainingPercentage')::numeric, 0) > 0)
+       AND EXISTS (SELECT 1 FROM jsonb_each(COALESCE(us.quotas, '{}'::jsonb)) q(k, v)
+                    WHERE q.k LIKE 'claude%')
+       AND NOT EXISTS (SELECT 1 FROM jsonb_each(COALESCE(us.quotas, '{}'::jsonb)) q(k, v)
+                    WHERE q.k LIKE 'claude%'
+                          AND COALESCE((q.v->>'remainingPercentage')::numeric, 0) > 0)
+  `);
+  return rows.map((r) => r.connection_id);
+}
+
+async function refreshProviderSummaryStats() {
   const db = await getAdapter();
+  const antiIds = await getAntigravityExhaustedIds(db);
+  const exhaustedSql = `(is_active = true AND COALESCE(test_status, 'active') = 'exhausted' AND (provider <> 'antigravity' OR id = ANY($1)))`;
+  const unavailableSql = `(
+    is_active = true
+    AND NOT ${exhaustedSql}
+    AND (
+      ${PERMANENT_UNAVAILABLE_SQL}
+      OR ${FUTURE_ACCOUNT_LOCK_SQL}
+      OR (provider <> 'antigravity' AND ${FUTURE_MODEL_LOCK_SQL})
+    )
+  )`;
+  const activeSql = `(
+    is_active = true
+    AND NOT ${PERMANENT_UNAVAILABLE_SQL}
+    AND NOT ${FUTURE_ACCOUNT_LOCK_SQL}
+    AND NOT (provider <> 'antigravity' AND ${FUTURE_MODEL_LOCK_SQL})
+    AND NOT ${exhaustedSql}
+  )`;
   const rows = await db.all(`
     SELECT
       provider,
       auth_type,
       COUNT(*)::int AS total,
-       COUNT(CASE WHEN is_active = false THEN 1 END)::int AS disabled_count,
-      COUNT(CASE WHEN ${UNAVAILABLE_CONNECTION_SQL} THEN 1 END)::int AS unavailable_count,
-      COUNT(CASE WHEN ${EXHAUSTED_CONNECTION_SQL} THEN 1 END)::int AS exhausted_count,
-      COUNT(CASE WHEN ${ACTIVE_CONNECTION_SQL} THEN 1 END)::int AS active_count,
+      COUNT(CASE WHEN is_active = false THEN 1 END)::int AS disabled_count,
+      COUNT(CASE WHEN ${unavailableSql} THEN 1 END)::int AS unavailable_count,
+      COUNT(CASE WHEN ${exhaustedSql} THEN 1 END)::int AS exhausted_count,
+      COUNT(CASE WHEN ${activeSql} THEN 1 END)::int AS active_count,
       MAX(last_error_at) AS latest_error_at
     FROM provider_connections
     GROUP BY provider, auth_type
-  `);
+  `, [antiIds]);
 
   const stats = {};
   for (const r of rows) {
@@ -634,6 +673,36 @@ export async function getProviderSummaryStats() {
   cachedSummaryStats = stats;
   cachedSummaryStatsExpiresAt = Date.now() + SUMMARY_STATS_TTL_MS;
   return stats;
+}
+
+function startSummaryStatsRefresh() {
+  if (!summaryStatsRefresh) {
+    summaryStatsRefresh = refreshProviderSummaryStats()
+      .catch((err) => {
+        console.error("[providerSummaryStats] refresh failed:", err?.message || err);
+      })
+      .finally(() => {
+        summaryStatsRefresh = null;
+      });
+  }
+  return summaryStatsRefresh;
+}
+
+export async function getProviderSummaryStats() {
+  if (cachedSummaryStats && Date.now() < cachedSummaryStatsExpiresAt) {
+    return cachedSummaryStats;
+  }
+  const pending = startSummaryStatsRefresh();
+  if (cachedSummaryStats) {
+    // Stale-while-revalidate: the (up to 15s-old) payload is served instantly
+    // while the slow aggregate re-runs in the background.
+    return cachedSummaryStats;
+  }
+  await pending;
+  if (!cachedSummaryStats) {
+    throw new Error("Provider summary stats unavailable");
+  }
+  return cachedSummaryStats;
 }
 
 export async function getProxyPoolBoundCounts() {

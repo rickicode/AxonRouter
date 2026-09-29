@@ -18,6 +18,7 @@ export default function Modal({
   closeOnOverlay = true,
   showClose = true,
   className,
+  bodyClassName,
 }) {
   const titleId = useId();
   const dialogRef = useRef(null);
@@ -124,7 +125,7 @@ export default function Modal({
             </button>
           </div>
         )}
-        <div className="max-h-[calc(85vh-100px)] overflow-y-auto p-3 custom-scrollbar overscroll-contain">{children}</div>
+        <div className={cn("max-h-[calc(85vh-100px)] overflow-y-auto p-3 custom-scrollbar overscroll-contain", bodyClassName)}>{children}</div>
         {footer && (
           <div className="flex items-center justify-end gap-2 border-t border-border p-3">
             {footer}

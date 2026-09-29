@@ -1,5 +1,6 @@
 import { NextResponse } from "@/lib/http/response.js";
 import { getCustomModels, addCustomModel, deleteCustomModel } from "@/models";
+import { invalidateModelsCache } from "../route.js";
 import { CAPACITY_META } from "@/shared/constants/models";
 
 export const dynamic = "force-dynamic";
@@ -34,6 +35,7 @@ export async function POST(request) {
     }
     const cleanCaps = sanitizeCaps(caps);
     const added = await addCustomModel({ providerAlias, id, type: type || "llm", name, ...(cleanCaps ? { caps: cleanCaps } : {}) });
+    invalidateModelsCache();
     return NextResponse.json({ success: true, added });
   } catch (error) {
     console.log("Error adding custom model:", error);
@@ -52,6 +54,7 @@ export async function DELETE(request) {
       return NextResponse.json({ error: "providerAlias and id required" }, { status: 400 });
     }
     await deleteCustomModel({ providerAlias, id, type });
+    invalidateModelsCache();
     return NextResponse.json({ success: true });
   } catch (error) {
     console.log("Error deleting custom model:", error);

@@ -4,7 +4,10 @@ import { proxyAwareFetch } from "../utils/proxyFetch.js";
 import { resolveConnectionProxyConfig } from "@/lib/network/connectionProxy.js";
 import { getProviderCredentials, markAccountUnavailable } from "@/sse/services/auth.js";
 import { setProviderModelCooldown } from "@/lib/cache/client.js";
+import { markPoolUnfit } from "../services/proxyPoolFitness.js";
+import { recordRuntimeProxyFailure, recordRuntimeProxySuccess } from "@/lib/network/proxyHealth.js";
 import { STREAM_COMMIT_PEEK_MS } from "../config/runtimeConfig.js";
+import { peekStreamHead } from "../utils/streamHandler.js";
 
 const HEDGE_DELAY_MS = 1000;
 const MAX_HEDGE_CONCURRENCY = 4;
@@ -82,13 +85,32 @@ export class TokenHarborExecutor extends BaseExecutor {
             const bodyText = await resp.text().catch(() => "");
             let errReason = `HTTP ${resp.status}: ${bodyText.slice(0, 200)}`;
             const isModelCapacity = resp.status === 429 && /model is at capacity|at capacity for your account|retry in about/i.test(bodyText);
-            await markAccountUnavailable(connId, resp.status, errReason, "tokenharbor", model).catch(() => {});
+            const isRegionBlock = resp.status === 403 && /request was refused|request_forbidden|region is not available/i.test(bodyText);
+
+            // Region block = IP/proxy problem, NOT account problem.
+            // Mark the proxy pool unfit instead of locking the account.
+            if (isRegionBlock && pOptions?.proxyPoolId) {
+              markPoolUnfit(pOptions.proxyPoolId, `tokenharbor::${model}`, errReason).catch(() => {});
+              recordRuntimeProxyFailure(pOptions.proxyPoolId).catch(() => {});
+              log?.warn?.("HEDGE", `[TokenHarbor] Region block on pool ${pOptions.proxyPoolId}, marked unfit (not locking account ${connName})`);
+            } else if (isRegionBlock && !pOptions?.connectionProxyEnabled) {
+              // Direct egress region block — do NOT lock the account
+              log?.warn?.("HEDGE", `[TokenHarbor] Direct egress region-blocked for ${connName}. Account NOT locked (IP problem, not account problem).`);
+            } else {
+              await markAccountUnavailable(connId, resp.status, errReason, "tokenharbor", model).catch(() => {});
+            }
+
+            if (pOptions?.connectionProxyEnabled && pOptions?.proxyPoolId && !isRegionBlock) {
+              recordRuntimeProxyFailure(pOptions.proxyPoolId).catch(() => {});
+            }
+
             return {
               ok: false,
               status: resp.status,
               error: errReason,
               connId,
               isModelCapacity,
+              isRegionBlock,
               response: new Response(bodyText, {
                 status: resp.status,
                 statusText: resp.statusText,
@@ -121,6 +143,7 @@ export class TokenHarborExecutor extends BaseExecutor {
             transformedBody,
             connId,
             connName,
+            proxyPoolId: pOptions?.proxyPoolId,
           };
         } catch (err) {
           if (err.name === "AbortError" && attemptController.signal.aborted) {
@@ -167,16 +190,15 @@ export class TokenHarborExecutor extends BaseExecutor {
             if (nextCreds && !nextCreds.allRateLimited && nextCreds.apiKey) {
               triedConnectionIds.add(nextCreds.connectionId);
               let nextProxyOptions = null;
-              if (nextCreds.providerSpecificData) {
-                const resolvedProxy = await resolveConnectionProxyConfig(nextCreds.providerSpecificData, nextCreds.connectionId);
-                if (resolvedProxy?.proxyPoolId) {
-                  nextProxyOptions = {
-                    connectionProxyEnabled: resolvedProxy.connectionProxyEnabled,
-                    connectionProxyUrl: resolvedProxy.connectionProxyUrl,
-                    connectionNoProxy: resolvedProxy.connectionNoProxy,
-                    proxyPoolId: resolvedProxy.proxyPoolId,
-                  };
-                }
+              const proxyData = nextCreds.providerSpecificData || { proxyGroup: "proxy100" };
+              const resolvedProxy = await resolveConnectionProxyConfig(proxyData, nextCreds.connectionId);
+              if (resolvedProxy?.proxyPoolId) {
+                nextProxyOptions = {
+                  connectionProxyEnabled: resolvedProxy.connectionProxyEnabled,
+                  connectionProxyUrl: resolvedProxy.connectionProxyUrl,
+                  connectionNoProxy: resolvedProxy.connectionNoProxy,
+                  proxyPoolId: resolvedProxy.proxyPoolId,
+                };
               }
               const companionTask = spawnAttempt(nextCreds, nextProxyOptions);
               activeTasks.set(companionTask.promise, companionTask);
@@ -195,6 +217,9 @@ export class TokenHarborExecutor extends BaseExecutor {
       if (res.ok) {
         winner = res;
         log?.info?.("HEDGE", `[TokenHarbor] Winner account selected: ${res.connName}`);
+        if (res.proxyPoolId) {
+          recordRuntimeProxySuccess(res.proxyPoolId).catch(() => {});
+        }
         break;
       } else {
         lastError = res.error || "Attempt failed";
@@ -213,16 +238,15 @@ export class TokenHarborExecutor extends BaseExecutor {
             if (nextCreds && !nextCreds.allRateLimited && nextCreds.apiKey) {
               triedConnectionIds.add(nextCreds.connectionId);
               let nextProxyOptions = null;
-              if (nextCreds.providerSpecificData) {
-                const resolvedProxy = await resolveConnectionProxyConfig(nextCreds.providerSpecificData, nextCreds.connectionId);
-                if (resolvedProxy?.proxyPoolId) {
-                  nextProxyOptions = {
-                    connectionProxyEnabled: resolvedProxy.connectionProxyEnabled,
-                    connectionProxyUrl: resolvedProxy.connectionProxyUrl,
-                    connectionNoProxy: resolvedProxy.connectionNoProxy,
-                    proxyPoolId: resolvedProxy.proxyPoolId,
-                  };
-                }
+              const proxyData = nextCreds.providerSpecificData || { proxyGroup: "proxy100" };
+              const resolvedProxy = await resolveConnectionProxyConfig(proxyData, nextCreds.connectionId);
+              if (resolvedProxy?.proxyPoolId) {
+                nextProxyOptions = {
+                  connectionProxyEnabled: resolvedProxy.connectionProxyEnabled,
+                  connectionProxyUrl: resolvedProxy.connectionProxyUrl,
+                  connectionNoProxy: resolvedProxy.connectionNoProxy,
+                  proxyPoolId: resolvedProxy.proxyPoolId,
+                };
               }
               const companionTask = spawnAttempt(nextCreds, nextProxyOptions);
               activeTasks.set(companionTask.promise, companionTask);

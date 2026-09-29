@@ -342,9 +342,10 @@ export async function buildModelsList(kindFilter, options = {}) {
   const skipDynamicFetch = options.skipDynamicFetch === true;
   let connections = [];
   try {
-    connections = await getProviderConnections({ isActive: true, distinctByProvider: true });
+    connections = await getProviderConnections({ isActive: true, status: "active", distinctByProvider: true });
   } catch (e) {
-    console.log("Could not fetch providers, returning all models");
+    console.log("Could not fetch active providers:", e?.message || e);
+    return [];
   }
 
   let combos = [];
@@ -377,10 +378,20 @@ export async function buildModelsList(kindFilter, options = {}) {
   const isDisabled = (alias, modelId) => Array.isArray(disabledByAlias[alias]) && disabledByAlias[alias].includes(modelId);
 
   const activeConnectionByProvider = new Map();
+  const activeAliases = new Set();
   for (const conn of connections) {
     if (!activeConnectionByProvider.has(conn.provider)) {
       activeConnectionByProvider.set(conn.provider, conn);
     }
+    activeAliases.add(conn.provider);
+    const staticAlias = PROVIDER_ID_TO_ALIAS[conn.provider] || conn.provider;
+    activeAliases.add(staticAlias);
+    const outputAlias = (
+      conn?.providerSpecificData?.prefix
+      || getProviderAlias(conn.provider)
+      || staticAlias
+    ).trim();
+    activeAliases.add(outputAlias);
   }
 
   // Prefetch live model ids for custom compatible nodes IN PARALLEL. Doing
@@ -406,8 +417,17 @@ export async function buildModelsList(kindFilter, options = {}) {
   const models = [];
 
   // Combos first (filtered by kind). Web combos expose `kind` so AI knows search vs fetch.
+  // Only include combos if at least one underlying model belongs to an active provider.
   for (const combo of combos) {
     if (!comboMatchesKinds(combo, kindFilter)) continue;
+    const comboModels = Array.isArray(combo.models) ? combo.models : [];
+    if (comboModels.length > 0) {
+      const hasActiveTarget = comboModels.some((m) => {
+        const [p] = String(m).split("/");
+        return activeAliases.has(p) || activeConnectionByProvider.has(p);
+      });
+      if (!hasActiveTarget) continue;
+    }
     const entry = {
       id: combo.name,
       object: "model",
@@ -452,42 +472,7 @@ export async function buildModelsList(kindFilter, options = {}) {
     await Promise.all(resolverTasks);
   }
 
-  if (connections.length === 0) {
-    // DB unavailable -> return static models, filtered by per-model kind
-    const aliasToProviderId = Object.fromEntries(
-      Object.entries(PROVIDER_ID_TO_ALIAS).map(([id, alias]) => [alias, id])
-    );
-    for (const [alias, providerModels] of Object.entries(PROVIDER_MODELS)) {
-      const providerId = aliasToProviderId[alias] || alias;
-      if (!providerMatchesKinds(providerId, kindFilter)) continue;
-      for (const model of providerModels) {
-        if (!kindFilter.includes(modelKind(model))) continue;
-        if (isDisabled(alias, model.id)) continue;
-        models.push({
-          id: `${alias}/${model.id}`,
-          object: "model",
-          owned_by: alias,
-        });
-      }
-    }
-
-    for (const customModel of customModels) {
-      if (!customModel?.id || (customModel.type && customModel.type !== "llm")) continue;
-      // Custom models without active connection are LLM-only by current schema
-      if (!kindFilter.includes(LLM_KIND)) continue;
-      const providerAlias = customModel.providerAlias;
-      if (!providerAlias) continue;
-
-      const modelId = String(customModel.id).trim();
-      if (!modelId) continue;
-
-      models.push({
-        id: `${providerAlias}/${modelId}`,
-        object: "model",
-        owned_by: providerAlias,
-      });
-    }
-  } else {
+  if (connections.length > 0) {
     for (const [providerId, conn] of activeConnectionByProvider.entries()) {
       if (!providerMatchesKinds(providerId, kindFilter)) continue;
 
@@ -670,10 +655,8 @@ export async function buildModelsList(kindFilter, options = {}) {
     }
   }
 
-  // No-auth free providers (opencode) have no connection rows, so the loop
-  // above never lists them. Merge the live upstream free catalog here —
-  // this is what makes new models auto-appear in /v1/models.
-  if (kindFilter.includes(LLM_KIND)) {
+  // No-auth free providers (opencode) - only include if explicitly active
+  if (kindFilter.includes(LLM_KIND) && (activeAliases.has("opencode") || activeAliases.has("oc"))) {
     const liveOpenCode = await resolveOpenCodeLiveModels().catch(() => []);
     for (const m of liveOpenCode) {
       const modelId = m?.id;
@@ -699,6 +682,36 @@ export async function buildModelsList(kindFilter, options = {}) {
   return dedupedModels;
 }
 
+export function invalidateV1ModelsCache() {
+  modelsListCache.clear();
+}
+
+// Shared cache resolution: fresh → stale(bg revalidate) → rebuild.
+// Used by GET and by the single-model lookup in [...model]/route.js so a
+// lookup doesn't pay a full uncached catalog rebuild (was ~7.6s on cold hit).
+async function resolveCachedLLMList(skipDynamicFetch) {
+  const cacheKey = skipDynamicFetch ? "skip" : "full";
+  const cached = modelsListCache.get(cacheKey);
+  const now = Date.now();
+
+  if (cached && now < cached.expiresAt) {
+    return { data: cached.data, source: "HIT" };
+  }
+  if (cached && now < cached.staleUntil) {
+    refreshModelsCache(cacheKey, skipDynamicFetch).catch(() => {});
+    return { data: cached.data, source: "STALE" };
+  }
+  const res = await refreshModelsCache(cacheKey, skipDynamicFetch);
+  return {
+    data: res.data,
+    source: res.source === "pg" ? "PG-HIT" : res.source === "stale" || res.source === "error" ? "PG-STALE" : "MISS",
+  };
+}
+
+export async function getModelsSnapshotList() {
+  return resolveCachedLLMList(false);
+}
+
 /**
  * Handle CORS preflight
  */
@@ -718,43 +731,30 @@ export async function OPTIONS() {
  */
 export async function GET(request) {
   try {
+    let url = null;
+    try {
+      url = request?.url ? new URL(request.url) : null;
+    } catch {}
+    const requestedProvider = url?.searchParams?.get("provider")?.trim()?.toLowerCase();
+
     // Detect cross-instance recursive /models fetch (another axonrouter fetching our /models)
     const skipDynamicFetch = request?.headers?.get(INTERNAL_MODELS_FETCH_HEADER) === "1";
-    const cacheKey = skipDynamicFetch ? "skip" : "full";
-    const cached = modelsListCache.get(cacheKey);
-    const now = Date.now();
+    const { data, source } = await resolveCachedLLMList(skipDynamicFetch);
 
-    // 1. Fresh in-process cache: serve immediately (<2ms)
-    if (cached && now < cached.expiresAt) {
-      return Response.json({ object: "list", data: cached.data }, {
-        headers: {
-          "Access-Control-Allow-Origin": "*",
-          "Cache-Control": "public, max-age=60",
-          "x-axonrouter-cache": "HIT",
-        },
+    let finalData = Array.isArray(data) ? data : [];
+    if (requestedProvider) {
+      finalData = finalData.filter((m) => {
+        const ownedBy = String(m?.owned_by || "").toLowerCase();
+        const id = String(m?.id || "").toLowerCase();
+        return ownedBy === requestedProvider || id.startsWith(`${requestedProvider}/`);
       });
     }
 
-    // 2. Stale in-process cache: serve now, revalidate in background.
-    if (cached && now < cached.staleUntil) {
-      refreshModelsCache(cacheKey, skipDynamicFetch).catch(() => {});
-      return Response.json({ object: "list", data: cached.data }, {
-        headers: {
-          "Access-Control-Allow-Origin": "*",
-          "Cache-Control": "public, max-age=60",
-          "x-axonrouter-cache": "STALE",
-        },
-      });
-    }
-
-    // 3. Not in this worker's memory: shared PG snapshot decides (built once
-    //    cluster-wide), or this worker builds when the snapshot is cold.
-    const { data, source } = await refreshModelsCache(cacheKey, skipDynamicFetch);
-    return Response.json({ object: "list", data }, {
+    return Response.json({ object: "list", data: finalData }, {
       headers: {
         "Access-Control-Allow-Origin": "*",
         "Cache-Control": "public, max-age=60",
-        "x-axonrouter-cache": source === "pg" ? "PG-HIT" : source === "stale" || source === "error" ? "PG-STALE" : "MISS",
+        "x-axonrouter-cache": source,
       },
     });
   } catch (error) {

@@ -1,4 +1,4 @@
-import { buildModelsList } from "../route.js";
+import { buildModelsList, getModelsSnapshotList } from "../route.js";
 
 // URL slug → service kind(s). `web` covers both webSearch and webFetch.
 const KIND_SLUG_MAP = {
@@ -51,8 +51,10 @@ export async function GET(_request, { params }) {
 
     // Match the same LLM catalog exposed by GET /v1/models. A catch-all
     // parameter is required because provider-prefixed IDs contain a slash.
-    const models = await buildModelsList([LLM_KIND]);
-    const matchedModel = models.find((candidate) => candidate.id === identifier);
+    // Serve from the shared snapshot cache — building the catalog inline cost
+    // ~7.6s per lookup on cold hit.
+    const { data: models } = await getModelsSnapshotList();
+    const matchedModel = (Array.isArray(models) ? models : []).find((candidate) => candidate.id === identifier);
 
     if (!matchedModel) {
       return json(

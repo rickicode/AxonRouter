@@ -30,13 +30,14 @@ const BUILTIN_MODEL_ALIASES = {
   "grok-4.6-medium": "gcli/grok-4.6-medium",
   "grok-4.6-low": "gcli/grok-4.6-low",
   "grok-4.5": "gcli/grok-4.5",
-  "stealth/pixel-canary": "cline-free/stealth/pixel-canary",
-  "pixel-canary": "cline-free/stealth/pixel-canary",
-  "stealth/space-bunny-alpha": "cline-free/stealth/space-bunny-alpha",
-  "space-bunny-alpha": "cline-free/stealth/space-bunny-alpha",
-  "deepseek/deepseek-v4.1-flash": "cline-free/deepseek/deepseek-v4.1-flash",
-  "meta/muse-spark-1.3-contributor": "cline-free/muse-spark-1.3-contributor",
-  "mimo-v2.6-flash": "cline-free/mimo-v2.6-flash",
+  "stealth/pixel-canary": "clf/stealth/pixel-canary",
+  "pixel-canary": "clf/stealth/pixel-canary",
+  "stealth/space-bunny-alpha": "clf/stealth/space-bunny-alpha",
+  "space-bunny-alpha": "clf/stealth/space-bunny-alpha",
+  "deepseek/deepseek-v4.1-flash": "clf/deepseek-v4.1-flash",
+  "meta/muse-spark-1.3-contributor": "clf/muse-spark-1.3-contributor",
+  "muse-spark-1.3-contributor": "clf/muse-spark-1.3-contributor",
+  "mimo-v2.6-flash": "clf/mimo-v2.6-flash",
 };
 /**
  * Resolve provider alias to provider ID

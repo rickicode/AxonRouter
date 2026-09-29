@@ -217,11 +217,11 @@ export async function POST(request, { params }) {
 
     // Probe models with controlled concurrency of 2 to balance speed and rate limits
     const probeCandidate = async (cand) => {
-      const modelId = typeof cand === "string" ? cand : cand.id;
-      const modelName = (typeof cand === "object" && cand.name) ? cand.name : modelId;
-      const fullModel = (modelId.includes("/") && !modelId.startsWith(`${alias}/`))
-        ? `${alias}/${modelId}`
-        : (modelId.startsWith(`${alias}/`) ? modelId : `${alias}/${modelId}`);
+      const rawModelId = typeof cand === "string" ? cand : cand.id;
+      const modelName = (typeof cand === "object" && cand.name) ? cand.name : rawModelId;
+      // Strip any duplicate/redundant provider alias from candidate id (e.g. "cline-free/", "clf/")
+      const modelId = rawModelId.replace(/^(cline-free|clf)\//, "");
+      const fullModel = `${alias}/${modelId}`;
 
       let lastResult = null;
       let usedConnection = null;
@@ -237,7 +237,7 @@ export async function POST(request, { params }) {
         } catch (pingErr) {
           pingResult = {
             ok: false,
-            latencyMs: 15000,
+            latencyMs: 10000,
             status: 504,
             error: pingErr?.message || "Probe timeout",
           };
@@ -274,7 +274,12 @@ export async function POST(request, { params }) {
           };
         }
 
-        // 3. Transient error (429 rate limit, 500, 502, 503, timeout) -> Retry up to 3x
+        // 3. If timeout / 504, do not burn 3 full attempts on a dead candidate
+        if (pingResult.status === 504 || /timeout|timed out/i.test(String(pingResult.error || ""))) {
+          break;
+        }
+
+        // 4. Transient error (429 rate limit, 500, 502, 503) -> Retry up to 3x
         if (attempt < MAX_RETRIES) {
           await sleep(350 * attempt);
         }
@@ -305,54 +310,92 @@ export async function POST(request, { params }) {
 
     if (wantsStream) {
       const encoder = new TextEncoder();
+      let heartbeat = null;
+      let isClosed = false;
+
       const stream = new ReadableStream({
         async start(controller) {
           const sendEvent = (event, data) => {
-            controller.enqueue(encoder.encode(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`));
+            if (isClosed) return;
+            try {
+              controller.enqueue(encoder.encode(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`));
+            } catch {
+              isClosed = true;
+            }
           };
 
-          sendEvent("start", {
-            provider: providerId,
-            alias,
-            totalCandidates: candidates.length,
-          });
+          // Send keepalive comment every 3s to prevent proxy/browser idle socket timeout
+          heartbeat = setInterval(() => {
+            if (isClosed) {
+              if (heartbeat) clearInterval(heartbeat);
+              return;
+            }
+            try {
+              controller.enqueue(encoder.encode(": keep-alive\n\n"));
+            } catch {
+              isClosed = true;
+              if (heartbeat) clearInterval(heartbeat);
+            }
+          }, 3000);
 
-          const STREAM_CHUNK_SIZE = 1;
-          for (let i = 0; i < candidates.length; i += STREAM_CHUNK_SIZE) {
-            const chunk = candidates.slice(i, i + STREAM_CHUNK_SIZE);
-            const chunkResults = await Promise.all(chunk.map((c) => probeCandidate(c)));
-            for (const r of chunkResults) {
-              results.push(r);
-              sendEvent("probe", {
-                ...r,
-                testedCount: results.length,
+          try {
+            sendEvent("start", {
+              provider: providerId,
+              alias,
+              totalCandidates: candidates.length,
+            });
+
+            const STREAM_CHUNK_SIZE = 2;
+            for (let i = 0; i < candidates.length; i += STREAM_CHUNK_SIZE) {
+              if (isClosed) break;
+              const chunk = candidates.slice(i, i + STREAM_CHUNK_SIZE);
+              const chunkResults = await Promise.all(chunk.map((c) => probeCandidate(c)));
+              for (const r of chunkResults) {
+                results.push(r);
+                sendEvent("probe", {
+                  ...r,
+                  testedCount: results.length,
+                  totalCandidates: candidates.length,
+                });
+              }
+              if (i + STREAM_CHUNK_SIZE < candidates.length && !isClosed) {
+                await sleep(150);
+              }
+            }
+
+            if (!isClosed) {
+              const streamFree = results.filter((r) => r.ok);
+              const streamPaid = results.filter((r) => r.isPaid);
+              const streamFailed = results.filter((r) => !r.ok && !r.isPaid);
+
+              sendEvent("done", {
+                provider: providerId,
+                alias,
                 totalCandidates: candidates.length,
+                testedCount: results.length,
+                freeModels: streamFree,
+                paidModels: streamPaid,
+                failedModels: streamFailed,
+                results,
               });
+
+              isClosed = true;
+              controller.close();
             }
-            if (i + STREAM_CHUNK_SIZE < candidates.length) {
-              await sleep(150);
+          } catch (streamErr) {
+            console.error("[scan-free-models] stream error:", streamErr);
+            if (!isClosed) {
+              sendEvent("error", { error: streamErr?.message || "Stream error" });
+              isClosed = true;
+              try { controller.close(); } catch {}
             }
+          } finally {
+            if (heartbeat) clearInterval(heartbeat);
           }
-
-          const streamFree = results.filter((r) => r.ok);
-          const streamPaid = results.filter((r) => r.isPaid);
-          const streamFailed = results.filter((r) => !r.ok && !r.isPaid);
-
-          sendEvent("done", {
-            provider: providerId,
-            alias,
-            totalCandidates: candidates.length,
-            testedCount: results.length,
-            freeModels: streamFree,
-            paidModels: streamPaid,
-            failedModels: streamFailed,
-            results,
-          });
-
-          controller.close();
         },
         cancel() {
-          /* client disconnected */
+          isClosed = true;
+          if (heartbeat) clearInterval(heartbeat);
         },
       });
 
