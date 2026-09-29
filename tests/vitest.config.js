@@ -25,7 +25,13 @@ export default defineConfig({
     // run with VITEST_MAX_THREADS / --maxWorkers when benchmarking.
     maxWorkers: 2,
     minWorkers: 1,
-    testTimeout: 20000,
+    // Route-level tests that dynamically import the Next.js route graph
+    // (`@/app/api/providers/route.js` pulls the whole model + provider layer)
+    // need far more than 20s on this host: measured ~75s for that graph alone
+    // under vitest's transform pipeline. The old 20000ms default failed those
+    // tests deterministically even on a clean checkout, which made the whole
+    // file look "flaky" when it was simply over-budget.
+    testTimeout: 180000,
     // Suppress noisy console output from handlers under test
     silent: false,
   },

@@ -12,6 +12,7 @@ const counters = {
   rotationBudgetExhaustions: 0,
   failoverDemotions: 0,
   stillbornStreams: 0,
+  emptyResponses: 0,
   panelOrphansAborted: 0,
   qualityGateTrips: 0,
   circuitTrips: 0,

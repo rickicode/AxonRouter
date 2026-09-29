@@ -4,6 +4,24 @@ import { useState, useEffect, useMemo, useRef, useCallback } from "react";
 import { Modal, Button, Input, Badge } from "@/shared/components";
 import Icon from "@/shared/components/Icon";
 import { cn } from "@/shared/utils/cn";
+import { getProviderAlias } from "@/shared/constants/providers";
+import { translate } from "@/i18n/runtime";
+
+/**
+ * Strip redundant provider-alias prefixes from a model id.
+ * Prevents double-prefix like th/th/model when saving.
+ */
+function cleanModelId(rawId, pId, pAlias) {
+  let s = String(rawId || "");
+  const registryAlias = getProviderAlias(pId);
+  const prefixes = new Set([pId, pAlias, registryAlias].filter(Boolean));
+  for (const p of prefixes) {
+    if (s.startsWith(`${p}/`)) {
+      s = s.slice(p.length + 1);
+    }
+  }
+  return s;
+}
 
 /**
  * Modal for scanning & probing free models for a provider.
@@ -33,7 +51,7 @@ export default function ScanFreeModelsModal({
 
   const abortCtrlRef = useRef(null);
   const bufferRef = useRef({ list: [], set: new Set(), total: 0 });
-  const animFrameRef = useRef(null);
+  const deselectedRef = useRef(new Set());
 
   useEffect(() => {
     if (isOpen) {
@@ -44,9 +62,9 @@ export default function ScanFreeModelsModal({
       setQuery("");
       setActiveTab("free");
       bufferRef.current = { list: [], set: new Set(), total: 0 };
+      deselectedRef.current.clear();
     } else {
       abortCtrlRef.current?.abort();
-      if (animFrameRef.current) cancelAnimationFrame(animFrameRef.current);
     }
   }, [isOpen]);
 
@@ -69,8 +87,8 @@ export default function ScanFreeModelsModal({
       results: [...list],
     });
 
-    // Auto-select free models
-    setSelectedIds(new Set(set));
+    // Auto-select free models, but respect user deselections
+    setSelectedIds(new Set([...set].filter((id) => !deselectedRef.current.has(id))));
   }, [providerId, providerAlias]);
 
   const runScan = async () => {
@@ -83,6 +101,7 @@ export default function ScanFreeModelsModal({
     setResults({ freeModels: [], paidModels: [], failedModels: [], results: [] });
     setProgress({ current: 0, total: 0, currentModel: "Discovering candidate models..." });
     bufferRef.current = { list: [], set: new Set(), total: 0 };
+    deselectedRef.current.clear();
 
     let lastFlush = Date.now();
 
@@ -168,7 +187,9 @@ export default function ScanFreeModelsModal({
             setError(data?.error || "Scan error from server");
           } else if (eventType === "done") {
             setResults(data);
-            const freeIds = new Set((data.freeModels || []).map((m) => m.id));
+            const freeIds = new Set(
+              (data.freeModels || []).map((m) => m.id).filter((id) => !deselectedRef.current.has(id))
+            );
             setSelectedIds(freeIds);
             setProgress(null);
           }
@@ -181,8 +202,10 @@ export default function ScanFreeModelsModal({
       if (err.name !== "AbortError") {
         flushBufferToState();
         if (bufferRef.current.list.length > 0) {
+          const count = bufferRef.current.list.length;
           setError(
-            `Koneksi terputus (${err?.message || "Network error"}). ${bufferRef.current.list.length} model yang berhasil diprobe tetap tersimpan di bawah.`
+            `${translate("Connection interrupted")} (${err?.message || translate("Network error")}). ` +
+              `${count} ${translate("probed models remain available below.")}`
           );
         } else {
           setError(err?.message || "Failed to scan free models");
@@ -197,8 +220,13 @@ export default function ScanFreeModelsModal({
   const toggleSelect = (id) => {
     setSelectedIds((prev) => {
       const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
+      if (next.has(id)) {
+        next.delete(id);
+        deselectedRef.current.add(id);
+      } else {
+        next.add(id);
+        deselectedRef.current.delete(id);
+      }
       return next;
     });
   };
@@ -206,10 +234,12 @@ export default function ScanFreeModelsModal({
   const selectAll = () => {
     const allIds = new Set(freeModels.map((m) => m.id));
     setSelectedIds(allIds);
+    deselectedRef.current.clear();
   };
 
   const deselectAll = () => {
     setSelectedIds(new Set());
+    for (const m of freeModels) deselectedRef.current.add(m.id);
   };
 
   const handleAdd = async () => {
@@ -217,7 +247,7 @@ export default function ScanFreeModelsModal({
     setAdding(true);
     try {
       const cleanIds = Array.from(selectedIds).map((id) =>
-        String(id).replace(/^(cline-free|clf)\//, "")
+        cleanModelId(id, providerId, providerAlias)
       );
       await onAddModels(cleanIds);
       onClose();
@@ -456,7 +486,7 @@ export default function ScanFreeModelsModal({
                     )}
                     <div className="min-w-0 flex-1">
                       <div className="truncate font-mono text-xs font-medium text-text-main" title={m.id}>
-                        {String(m.id).replace(/^(cline-free|clf)\//, "")}
+                        {cleanModelId(m.id, providerId, providerAlias)}
                       </div>
                       {m.name && m.name !== m.id && (
                         <div className="truncate text-[11px] text-text-subtle" title={m.name}>
@@ -474,7 +504,11 @@ export default function ScanFreeModelsModal({
                   {/* Metadata Chips: Latency and Connection */}
                   <div className="flex items-center gap-2 pl-6 sm:pl-0 shrink-0 self-start sm:self-center">
                     {m.ok && m.latencyMs != null && (
-                      <span className="shrink-0 rounded-sm bg-success/10 px-1.5 py-0.5 text-[10px] font-mono text-success">
+                      <span className={cn("shrink-0 rounded-sm px-1.5 py-0.5 text-[10px] font-mono",
+                        m.latencyMs < 1000 ? "bg-success/10 text-success"
+                        : m.latencyMs < 3000 ? "bg-warning/10 text-warning"
+                        : "bg-danger/10 text-danger"
+                      )}>
                         {m.latencyMs}ms
                       </span>
                     )}

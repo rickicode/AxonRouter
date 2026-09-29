@@ -7,6 +7,7 @@ import { setProviderModelCooldown } from "@/lib/cache/client.js";
 import { markPoolUnfit } from "../services/proxyPoolFitness.js";
 import { recordRuntimeProxyFailure, recordRuntimeProxySuccess } from "@/lib/network/proxyHealth.js";
 import { STREAM_COMMIT_PEEK_MS } from "../config/runtimeConfig.js";
+import { clampModelCooldownSeconds } from "../config/errorConfig.js";
 import { peekStreamHead } from "../utils/streamHandler.js";
 
 const HEDGE_DELAY_MS = 1000;
@@ -57,6 +58,7 @@ export class TokenHarborExecutor extends BaseExecutor {
     let lastFailedUrl = null;
     let lastFailedHeaders = null;
     let capacityFailures = 0;
+    let exhaustedPool = false;
     const spawnAttempt = (creds, pOptions) => {
       const connId = creds?.connectionId || "default";
       const connName = creds?.connectionName || creds?.name || creds?.email || (connId.length > 8 ? connId.slice(0, 8) : connId);
@@ -90,8 +92,11 @@ export class TokenHarborExecutor extends BaseExecutor {
             // Region block = IP/proxy problem, NOT account problem.
             // Mark the proxy pool unfit instead of locking the account.
             if (isRegionBlock && pOptions?.proxyPoolId) {
-              markPoolUnfit(pOptions.proxyPoolId, `tokenharbor::${model}`, errReason).catch(() => {});
-              recordRuntimeProxyFailure(pOptions.proxyPoolId).catch(() => {});
+              // markPoolUnfit is SYNC (returns undefined) and takes (poolId, scope, until, reason).
+              // Passing errReason as the 3rd arg landed it in `until`, breaking isPoolFit()'s
+              // numeric comparison — the pool never became unfit. Pass it as `reason`.
+              markPoolUnfit(pOptions.proxyPoolId, `tokenharbor::${model}`, undefined, errReason);
+              void recordRuntimeProxyFailure(pOptions.proxyPoolId)?.catch?.(() => {});
               log?.warn?.("HEDGE", `[TokenHarbor] Region block on pool ${pOptions.proxyPoolId}, marked unfit (not locking account ${connName})`);
             } else if (isRegionBlock && !pOptions?.connectionProxyEnabled) {
               // Direct egress region block — do NOT lock the account
@@ -233,27 +238,35 @@ export class TokenHarborExecutor extends BaseExecutor {
           log?.info?.("HEDGE", `[TokenHarbor] Account ${res.connName} at model capacity (${capacityFailures}/${MAX_TOTAL_HEDGE_ATTEMPTS}). Trying next account...`);
         }
         if (activeTasks.size === 0 && triedConnectionIds.size < MAX_TOTAL_HEDGE_ATTEMPTS) {
+          let nextCreds = null;
           try {
-            const nextCreds = await getProviderCredentials("tokenharbor", triedConnectionIds, model);
-            if (nextCreds && !nextCreds.allRateLimited && nextCreds.apiKey) {
-              triedConnectionIds.add(nextCreds.connectionId);
-              let nextProxyOptions = null;
-              const proxyData = nextCreds.providerSpecificData || { proxyGroup: "proxy100" };
-              const resolvedProxy = await resolveConnectionProxyConfig(proxyData, nextCreds.connectionId);
-              if (resolvedProxy?.proxyPoolId) {
-                nextProxyOptions = {
-                  connectionProxyEnabled: resolvedProxy.connectionProxyEnabled,
-                  connectionProxyUrl: resolvedProxy.connectionProxyUrl,
-                  connectionNoProxy: resolvedProxy.connectionNoProxy,
-                  proxyPoolId: resolvedProxy.proxyPoolId,
-                };
-              }
-              const companionTask = spawnAttempt(nextCreds, nextProxyOptions);
-              activeTasks.set(companionTask.promise, companionTask);
-            }
+            nextCreds = await getProviderCredentials("tokenharbor", triedConnectionIds, model);
           } catch (e) {
             log?.warn?.("HEDGE", `Failed to get next credentials after failure: ${e.message}`);
           }
+          if (nextCreds && !nextCreds.allRateLimited && nextCreds.apiKey) {
+            triedConnectionIds.add(nextCreds.connectionId);
+            let nextProxyOptions = null;
+            const proxyData = nextCreds.providerSpecificData || { proxyGroup: "proxy100" };
+            const resolvedProxy = await resolveConnectionProxyConfig(proxyData, nextCreds.connectionId);
+            if (resolvedProxy?.proxyPoolId) {
+              nextProxyOptions = {
+                connectionProxyEnabled: resolvedProxy.connectionProxyEnabled,
+                connectionProxyUrl: resolvedProxy.connectionProxyUrl,
+                connectionNoProxy: resolvedProxy.connectionNoProxy,
+                proxyPoolId: resolvedProxy.proxyPoolId,
+              };
+            }
+            const companionTask = spawnAttempt(nextCreds, nextProxyOptions);
+            activeTasks.set(companionTask.promise, companionTask);
+          } else {
+            // No usable credential remains — the credential pool is exhausted for
+            // this request. Remember it so the post-loop block can promote to a
+            // provider-wide model cooldown (see `exhaustedPool` below).
+            exhaustedPool = true;
+          }
+        } else if (activeTasks.size === 0 && triedConnectionIds.size >= MAX_TOTAL_HEDGE_ATTEMPTS) {
+          exhaustedPool = true;
         }
       }
     }
@@ -264,12 +277,22 @@ export class TokenHarborExecutor extends BaseExecutor {
         task.controller.abort();
       } catch {}
     }
-    // If all 10 attempted accounts failed due to model capacity, enforce a 30s provider-wide cooldown for this model
-    if (capacityFailures >= MAX_TOTAL_HEDGE_ATTEMPTS && !winner) {
+    // Upstream 429 "model is at capacity" is a PER-MODEL signal, not a per-account
+    // one. Once the credential pool is exhausted and every failure was a capacity
+    // 429, put the model into a provider-wide cooldown so the next request does
+    // not re-hammer all accounts. The old `capacityFailures >= 10` guard never
+    // fired on small pools (or when credentials ran out before 10 tries), so the
+    // cooldown was effectively dead and requests hot-looped.
+    if (!winner && capacityFailures > 0 && exhaustedPool) {
       const retryMatch = lastError?.match(/retry in about (\d+) seconds/i);
-      const retrySecs = retryMatch ? parseInt(retryMatch[1], 10) : 30;
-      setProviderModelCooldown("tokenharbor", model, retrySecs).catch(() => {});
-      log?.warn?.("HEDGE", `[TokenHarbor] All ${MAX_TOTAL_HEDGE_ATTEMPTS} attempted accounts reached model capacity for ${model}. Setting 30s model cooldown.`);
+      const upstreamHint = retryMatch ? parseInt(retryMatch[1], 10) : NaN;
+      const retrySecs = clampModelCooldownSeconds(upstreamHint);
+      void Promise.resolve(setProviderModelCooldown("tokenharbor", model, retrySecs)).catch(() => {});
+      log?.warn?.(
+        "HEDGE",
+        `[TokenHarbor] All ${capacityFailures} available account(s) reached model capacity for ${model}. ` +
+          `Setting ${retrySecs}s provider-wide model cooldown.`
+      );
     }
 
     if (winner) {

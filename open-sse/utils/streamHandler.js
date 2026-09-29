@@ -1,5 +1,6 @@
 // Stream handler with disconnect detection - shared for all providers
-import { STREAM_STALL_TIMEOUT_MS } from "../config/runtimeConfig.js";
+import { STREAM_COMMIT_PEEK_MS, STREAM_STALL_TIMEOUT_MS } from "../config/runtimeConfig.js";
+import { CLAUDE_BLOCK } from "../translator/schema/blocks.js";
 import { dbg } from "./debugLog.js";
 
 // Get HH:MM:SS timestamp
@@ -361,6 +362,176 @@ export async function peekStreamHead(stream, timeoutMs) {
     if (timer) clearTimeout(timer);
     try { reader?.releaseLock(); } catch {}
     return fail(e);
+  }
+}
+
+/**
+ * Detect a stream that opens cleanly and then carries no answer at all: no text
+ * delta, no reasoning delta, no tool call — only role/meta events and a
+ * terminal finish_reason (very often `[DONE]` right after the first frame).
+ *
+ * Providers do this routinely: a huge prompt comes back as a 200 with a valid
+ * SSE envelope and an empty answer. Committing that hands the client an empty
+ * body AND stops the combo cascade on a member that produced nothing, so the
+ * remaining (healthy) members are never tried.
+ *
+ * `peekStreamHead` cannot catch it on its own — it reads one chunk, and the
+ * first chunk of an empty response is a perfectly well-formed `data:` line
+ * (the role/finish event), so it looks healthy. This probe reads ahead until it
+ * sees real payload, the stream ends, or the budget runs out.
+ *
+ * Bounded and fail-open: on any parse problem, timeout, or exhaustion of the
+ * peek budget it returns `empty: false` and the stream is committed as before.
+ * It only reports `empty: true` when the upstream CLOSED without payload.
+ *
+ * Like `peekStreamHead`, the consumed chunks are replayed into the returned
+ * `stream`, so the caller must pipe THAT one, never the original.
+ */
+export async function peekStreamHasPayload(stream, { maxChunks = 8, timeoutMs = STREAM_COMMIT_PEEK_MS } = {}) {
+  let reader = null;
+  try {
+    reader = stream.getReader();
+  } catch {
+    return { empty: false, stream };
+  }
+  const decoder = new TextDecoder();
+  let seen = 0;
+  let buffered = "";
+  const consumed = [];
+
+  const replay = () =>
+    new ReadableStream({
+      start(controller) {
+        for (const c of consumed) controller.enqueue(c);
+      },
+      async pull(controller) {
+        try {
+          const { done, value } = await reader.read();
+          if (done) {
+            controller.close();
+            try { reader.releaseLock(); } catch {}
+          } else {
+            controller.enqueue(value);
+          }
+        } catch (e) {
+          controller.error(e);
+        }
+      },
+      async cancel() {
+        try { await reader.cancel(); } catch {}
+        try { reader.releaseLock(); } catch {}
+      },
+    });
+
+  /**
+   * Classify what we have seen so far.
+   *  - "payload"  : real answer content is present -> stop probing, commit.
+   *  - "terminal" : the upstream SIGNalled completion with zero payload
+   *                 (finish_reason / message_stop / [DONE]) -> this is an
+   *                 empty response. Decided here, immediately, so a slow-but-
+   *                 healthy producer is never held for the close.
+   *  - "pending"  : nothing yet, keep reading.
+   */
+  const classify = (text) => {
+    let sawTerminal = false;
+    for (const line of text.split("\n")) {
+      const trimmed = line.trim();
+      if (!trimmed.startsWith("data:")) continue;
+      const raw = trimmed.slice(5).trim();
+      if (!raw) continue;
+      if (raw === "[DONE]") {
+        sawTerminal = true;
+        continue;
+      }
+      let parsed;
+      try {
+        parsed = JSON.parse(raw);
+      } catch {
+        continue;
+      }
+      // Claude native SSE: no `choices` envelope, so this must be checked
+      // BEFORE the OpenAI-shape guard below (which would `continue` past it).
+      if (parsed?.type === "message_stop" || parsed?.type === "message_delta") sawTerminal = true;
+      if (parsed?.type === "content_block_start" && parsed?.content_block?.type === CLAUDE_BLOCK.TOOL_USE) return "payload";
+      if (parsed?.type === "content_block_start" && typeof parsed?.content_block?.text === "string" && parsed.content_block.text.length > 0) {
+        return "payload";
+      }
+      if (parsed?.type === "content_block_delta" && typeof parsed?.delta?.text === "string" && parsed.delta.text.length > 0) {
+        return "payload";
+      }
+      if (parsed?.type === "content_block_delta" && typeof parsed?.delta?.thinking === "string" && parsed.delta.thinking.length > 0) {
+        return "payload";
+      }
+      if (parsed?.type === "content_block_delta" && parsed?.delta?.type === "thinking_delta") return "payload";
+      if (parsed?.type === "content_block_delta" && parsed?.delta?.type === "input_json_delta") return "payload";
+
+      // Gemini native shape.
+      if (Array.isArray(parsed?.candidates?.[0]?.content?.parts)) {
+        if (parsed.candidates[0].content.parts.some((p) => p?.text || p?.functionCall)) return "payload";
+      }
+      if (parsed?.candidates?.[0]?.finishReason) sawTerminal = true;
+
+      const choice = parsed?.choices?.[0];
+      if (!choice) continue;
+      if (choice.finish_reason) sawTerminal = true;
+      const delta = choice.delta || {};
+      if (typeof delta.content === "string" && delta.content.length > 0) return "payload";
+      if (typeof delta.reasoning_content === "string" && delta.reasoning_content.length > 0) return "payload";
+      if (typeof delta.reasoning === "string" && delta.reasoning.length > 0) return "payload";
+      if (Array.isArray(delta.tool_calls) && delta.tool_calls.length > 0) return "payload";
+      if (Array.isArray(delta.function_call)) return "payload";
+      // Non-streaming envelope served over an SSE transport.
+      if (typeof choice.message?.content === "string" && choice.message.content.length > 0) return "payload";
+      if (Array.isArray(choice.message?.tool_calls) && choice.message.tool_calls.length > 0) return "payload";
+      if (Array.isArray(choice.message?.function_call)) return "payload";
+    }
+    return sawTerminal ? "terminal" : "pending";
+  };
+
+  try {
+    const deadline = Date.now() + Math.max(1, timeoutMs);
+    while (seen < maxChunks) {
+      const remaining = deadline - Date.now();
+      if (remaining <= 0) return { empty: false, chunks: seen, stream: replay() };
+      const read = reader.read();
+      let timer = null;
+      const outcome = await Promise.race([
+        read.then(
+          (v) => ({ ok: true, ...v }),
+          (e) => ({ ok: false, error: e })
+        ),
+        new Promise((resolve) => {
+          timer = setTimeout(() => resolve({ ok: true, timedOut: true }), remaining);
+          if (timer.unref) timer.unref();
+        }),
+      ]);
+      if (timer) clearTimeout(timer);
+
+      if (outcome.timedOut) return { empty: false, chunks: seen, stream: replay() };
+      if (!outcome.ok) return { empty: false, chunks: seen, stream: replay() };
+      if (outcome.done) {
+        // Upstream closed. Payload-free close = empty response.
+        try { reader.releaseLock(); } catch {}
+        return { empty: classify(buffered) !== "payload", chunks: seen, stream: null };
+      }
+      seen += 1;
+      consumed.push(outcome.value);
+      try {
+        buffered += decoder.decode(outcome.value, { stream: true });
+      } catch {
+        return { empty: false, chunks: seen, stream: replay() };
+      }
+      // A terminal signal with zero payload is decisive on the spot: no need to
+      // wait for the socket to close, so an empty answer costs no extra latency.
+      const verdict = classify(buffered);
+      if (verdict === "payload") return { empty: false, chunks: seen, stream: replay() };
+      if (verdict === "terminal") return { empty: true, chunks: seen, stream: null };
+    }
+    // Peek budget exhausted without a close and without payload: inconclusive.
+    return { empty: false, chunks: seen, stream: replay() };
+  } catch {
+    try { reader?.releaseLock(); } catch {}
+    return { empty: false, stream };
   }
 }
 

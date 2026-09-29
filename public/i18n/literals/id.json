@@ -1500,5 +1500,7 @@
   "Quality": "Kualitas",
   "Saved!": "Tersimpan!",
   "VIEWING": "SEDANG DILIHAT",
-  "logs": "log"
+  "logs": "log",
+  "Connection interrupted": "Koneksi terputus",
+  "probed models remain available below.": "model yang berhasil diprobe tetap tersimpan di bawah."
 }

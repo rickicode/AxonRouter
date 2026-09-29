@@ -219,8 +219,14 @@ export async function POST(request, { params }) {
     const probeCandidate = async (cand) => {
       const rawModelId = typeof cand === "string" ? cand : cand.id;
       const modelName = (typeof cand === "object" && cand.name) ? cand.name : rawModelId;
-      // Strip any duplicate/redundant provider alias from candidate id (e.g. "cline-free/", "clf/")
-      const modelId = rawModelId.replace(/^(cline-free|clf)\//, "");
+      // Strip any duplicate/redundant provider alias from candidate id
+      let modelId = rawModelId;
+      for (const pfx of [providerId, alias]) {
+        if (modelId.startsWith(`${pfx}/`)) {
+          modelId = modelId.slice(pfx.length + 1);
+          break;
+        }
+      }
       const fullModel = `${alias}/${modelId}`;
 
       let lastResult = null;

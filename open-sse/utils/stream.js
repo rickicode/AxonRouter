@@ -75,6 +75,13 @@ export function createSSEStream(options = {}) {
   let accumulatedContent = "";
   let accumulatedThinking = "";
   let ttftAt = null;
+  // Did the stream carry ANY real payload? A 200 with a finish_reason but no
+  // text, no reasoning and no tool call is an empty response: providers do
+  // that (e.g. a 106k-token prompt answered with zero bytes) and the combo
+  // cascade used to treat it as a success, so the client got a 200 with an
+  // empty body and the cascade stopped on a useless member.
+  let emittedToolCall = false;
+  let emittedFinish = false;
   let sseLineCount = 0;
   let sseEmittedCount = 0;
   const eventTypeCounts = {};
@@ -111,7 +118,14 @@ export function createSSEStream(options = {}) {
     if (onStreamComplete) {
       onStreamComplete({
         content: accumulatedContent,
-        thinking: accumulatedThinking
+        thinking: accumulatedThinking,
+        // Payload census for the caller: a stream with no text, no thinking and
+        // no tool call is an empty response even when the provider sent a 200 and
+        // a finish_reason. Callers use this to fail over instead of committing a
+        // useless success to the client.
+        emittedToolCall,
+        emittedFinish,
+        isEmpty: totalContentLength === 0 && !emittedToolCall,
       }, finalUsage, ttftAt);
     }
   };
@@ -216,6 +230,12 @@ export function createSSEStream(options = {}) {
               if (reasoning && typeof reasoning === "string") {
                 totalContentLength += reasoning.length;
                 accumulatedThinking += reasoning;
+              }
+              if (Array.isArray(delta?.tool_calls) && delta.tool_calls.length > 0) {
+                emittedToolCall = true;
+              }
+              if (parsed.choices?.[0]?.finish_reason) {
+                emittedFinish = true;
               }
 
               const extracted = extractUsage(parsed);
@@ -323,6 +343,22 @@ export function createSSEStream(options = {}) {
         if (parsed.choices?.[0]?.delta?.reasoning_content) {
           totalContentLength += parsed.choices[0].delta.reasoning_content.length;
           accumulatedThinking += parsed.choices[0].delta.reasoning_content;
+        }
+        // OpenAI format - tool calls (a tool-call-only turn has empty content but
+        // is a perfectly valid response, so it must count as a real payload)
+        if (Array.isArray(parsed.choices?.[0]?.delta?.tool_calls) && parsed.choices[0].delta.tool_calls.length > 0) {
+          emittedToolCall = true;
+        }
+        if (parsed.choices?.[0]?.finish_reason) {
+          emittedFinish = true;
+        }
+        // Claude format - tool use
+        if (parsed.type === "content_block_start" && parsed.content_block?.type === "tool_use") {
+          emittedToolCall = true;
+        }
+        // Gemini format - function call parts
+        if (Array.isArray(parsed.candidates?.[0]?.content?.parts)) {
+          if (parsed.candidates[0].content.parts.some((p) => p.functionCall)) emittedToolCall = true;
         }
         
         // Gemini format

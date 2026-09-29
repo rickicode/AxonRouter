@@ -1,7 +1,7 @@
 import { FORMATS } from "../../translator/formats.js";
 import { needsTranslation } from "../../translator/index.js";
 import { createSSETransformStreamWithLogger, createPassthroughStreamWithLogger } from "../../utils/stream.js";
-import { pipeWithDisconnect, peekStreamHead } from "../../utils/streamHandler.js";
+import { pipeWithDisconnect, peekStreamHead, peekStreamHasPayload } from "../../utils/streamHandler.js";
 import { STREAM_COMMIT_PEEK_MS } from "../../config/runtimeConfig.js";
 import { bumpRoutingMetric } from "../../services/routingMetrics.js";
 import { PROVIDERS } from "../../config/providers.js";
@@ -147,7 +147,50 @@ export async function handleStreamingResponse({ providerResponse, provider, mode
       }),
     };
   }
-  const committedBody = peeked.stream;
+
+  // Payload-free probe. peekStreamHead only reads ONE chunk, and the first
+  // frame of an empty answer is a perfectly valid `data:` line (role + finish
+  // reason), so a response that carries no text, no reasoning and no tool call
+  // still looks healthy there. Probe a few more chunks: if the upstream CLOSES
+  // with zero payload it is an empty response and must fail over like any other
+  // upstream failure — committing it hands the client a 200 with an empty body
+  // and stops the combo cascade on a member that produced nothing.
+  let committedBody = peeked.stream;
+  if (committedBody) {
+    const payload = await peekStreamHasPayload(committedBody);
+    if (payload.empty) {
+      const errMsg = "upstream returned an empty response (no content, reasoning, or tool call)";
+      if (log?.errorLine) log.errorLine(reqTag, "✗", `EMPTY ${provider}/${model} · ${errMsg}`);
+      else console.warn(`[STREAM] ${provider} | ${model} | empty response`);
+      bumpRoutingMetric("stillbornStreams");
+      bumpRoutingMetric("emptyResponses");
+      streamController?.handleError?.(new Error(errMsg));
+      saveFailedRequest({ provider, model, connectionId, apiKey, endpoint: clientRawRequest?.endpoint, errorStatus: 502, isStream: true, error: errMsg, comboName: comboName || clientRawRequest?.comboName || null }).catch(() => { });
+      saveRequestDetail(buildRequestDetail({
+        provider, model, connectionId,
+        comboName,
+        difficulty: clientRawRequest?.difficulty || null,
+        latency: { ttft: 0, total: Date.now() - requestStartTime },
+        tokens: { prompt_tokens: 0, completion_tokens: 0 },
+        request: extractRequestConfig(body, stream),
+        providerRequest: finalBody || translatedBody || null,
+        response: { error: errMsg, status: 502, thinking: null },
+        pxpipe,
+        status: "error"
+      }, { id: streamDetailId, timestamp: streamTimestamp })).catch(() => { });
+      return {
+        success: false,
+        status: 502,
+        error: errMsg,
+        response: new Response(JSON.stringify({ error: { message: `[502 · ${provider}/${model}]: ${errMsg}` } }), {
+          status: 502,
+          headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' },
+        }),
+      };
+    }
+    // Peek consumed some chunks; pipe the replayed stream so nothing is lost.
+    if (payload.stream) committedBody = payload.stream;
+  }
   fireRequestSuccess();
 
   saveRequestDetail(buildRequestDetail({
@@ -187,6 +230,17 @@ export function buildOnStreamComplete({ provider, model, connectionId, apiKey, r
     };
     const safeContent = contentObj?.content || "[Empty streaming response]";
     const safeThinking = contentObj?.thinking || null;
+    // The commit gate (peekStreamHasPayload) already fails over most empty
+    // responses before the stream is handed to the client, so reaching here
+    // with isEmpty means the answer was recorded as a success while carrying no
+    // output at all — which is what made empty replies invisible in the history.
+    const wasEmpty = contentObj?.isEmpty === true;
+
+    if (wasEmpty) {
+      bumpRoutingMetric("emptyResponses");
+      if (log?.errorLine) log.errorLine(reqTag, "✗", `EMPTY ${provider}/${model} · no content, reasoning, or tool call`);
+      else console.warn(`[STREAM] ${provider} | ${model} | empty response reached completion`);
+    }
 
     if (!isTestRequest) saveRequestDetail(buildRequestDetail({
       provider, model, connectionId,
@@ -199,7 +253,7 @@ export function buildOnStreamComplete({ provider, model, connectionId, apiKey, r
       providerResponse: safeContent,
       response: { content: safeContent, thinking: safeThinking, type: "streaming" },
       pxpipe,
-      status: "success"
+      status: wasEmpty ? "error" : "success"
     }, { id: streamDetailId, timestamp: streamTimestamp })).catch(err => {
       console.error("[RequestDetail] Failed to update streaming content:", err.message);
     });

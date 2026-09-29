@@ -22,7 +22,7 @@ import { augmentModelsWithCapacityAdapter, withCapacityAdapterStripping, getActi
 import { handleBypassRequest } from "open-sse/utils/bypassHandler.js";
 import { resolveConnectionProxyConfig } from "@/lib/network/connectionProxy";
 import { HTTP_STATUS } from "open-sse/config/runtimeConfig.js";
-import { MAX_FALLBACK_ATTEMPTS, MAX_TOTAL_ROTATION_ATTEMPTS, MODEL_FAILOVER_THRESHOLD, MODEL_FAILOVER_WINDOW_S, LKG_TTL_S } from "open-sse/config/errorConfig.js";
+import { MAX_FALLBACK_ATTEMPTS, MAX_TOTAL_ROTATION_ATTEMPTS, MODEL_FAILOVER_THRESHOLD, MODEL_FAILOVER_WINDOW_S, LKG_TTL_S, clampModelCooldownSeconds } from "open-sse/config/errorConfig.js";
 import {
   incrModelFailCount,
   resetModelFailCount,
@@ -632,6 +632,19 @@ export async function handleSingleModelChat(body, modelStr, clientRawRequest = n
           if (provider && model && `${provider}/${model}` !== modelStr) {
             setModelFailCount(`${provider}/${model}`, MODEL_FAILOVER_THRESHOLD, MODEL_FAILOVER_WINDOW_S).catch(() => {});
           }
+          // Upstream 429 "at capacity" is a PER-MODEL signal. Once the account
+          // pool is exhausted (this branch), lock the model provider-wide so
+          // the next request skips it instead of re-hammering every account.
+          // The old guard lived in the MAX_FALLBACK_ATTEMPTS branch further
+          // down, which small/medium pools never reach — so the cooldown was
+          // effectively dead and requests hot-looped.
+          if (provider === "tokenharbor" && (effectiveStatus === 429 || lastStatus === 429)
+            && /model is at capacity|at capacity for your account|retry in about/i.test(String(errorMsg || ""))) {
+            const retryMatch = String(errorMsg).match(/retry in about (\d+) seconds/i);
+            const retrySecs = clampModelCooldownSeconds(retryMatch ? parseInt(retryMatch[1], 10) : NaN);
+            setProviderModelCooldown(provider, model, retrySecs).catch(() => {});
+            log.warn("FALLBACK", `[TokenHarbor] Account pool exhausted at model capacity for ${model}. Set ${retrySecs}s provider-wide model cooldown.`);
+          }
           if (credentials.lastErrorCode === "ACCOUNT_EXHAUSTED" || credentials.lastErrorCode === "ACCOUNT_UNAVAILABLE") {
             const ttlSec = credentials.retryAfter && new Date(credentials.retryAfter).getTime() > Date.now()
               ? Math.min(Math.ceil((new Date(credentials.retryAfter).getTime() - Date.now()) / 1000), 86400)
@@ -1065,12 +1078,10 @@ export async function handleSingleModelChat(body, modelStr, clientRawRequest = n
       lastStatus = effectiveStatus || result.status;
       if (excludeConnectionIds.size >= MAX_FALLBACK_ATTEMPTS) {
         log.warn("FALLBACK", `Reached maximum fallback attempts (${MAX_FALLBACK_ATTEMPTS}), stopping`);
-        if (provider === "tokenharbor" && (effectiveStatus === 429 || lastStatus === 429) && /model is at capacity|at capacity for your account|retry in about/i.test(String(lastError || ""))) {
-          const retryMatch = String(lastError).match(/retry in about (\d+) seconds/i);
-          const retrySecs = retryMatch ? parseInt(retryMatch[1], 10) : 30;
-          setProviderModelCooldown(provider, model, retrySecs).catch(() => {});
-          log.warn("FALLBACK", `[TokenHarbor] All ${MAX_FALLBACK_ATTEMPTS} attempted accounts reached model capacity for ${model}. Set ${retrySecs}s model cooldown.`);
-        }
+        // The per-model capacity cooldown is promoted in the account-pool-exhausted
+        // branch above (where the pool actually runs dry). This attempt cap can be
+        // hit while other accounts are still healthy, so a model-wide lock would be
+        // wrong here.
         return errorResponse(lastStatus || HTTP_STATUS.SERVICE_UNAVAILABLE, `Max fallback attempts (${MAX_FALLBACK_ATTEMPTS}) reached: ${lastError}`);
       }
       continue;

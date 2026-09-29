@@ -55,6 +55,28 @@ export const COMBO_TARGET_TIMEOUT_MS = 120000;
 // Absolute wall-clock cap for one fallback combo pass; exceeding it returns
 // 504 COMBO_TIMEOUT instead of letting member timeouts stack without bound.
 export const COMBO_LOOP_SAFETY_MS = 300000;
+// Provider-wide PER-MODEL cooldown for upstream 429 "at capacity" responses.
+// The signal is model-scoped (not account-scoped), so every account of the
+// provider is locked out for the model at once. The upstream hint is clamped
+// into this window: too short and the model is still saturated when the lock
+// expires (hot loop), too long and healthy accounts sit idle. Seconds.
+export const MODEL_CAPACITY_COOLDOWN_MIN_SECONDS = 60;
+export const MODEL_CAPACITY_COOLDOWN_MAX_SECONDS = 120;
+export const MODEL_CAPACITY_COOLDOWN_DEFAULT_SECONDS = 90;
+
+/**
+ * Clamp an upstream "retry in about N seconds" hint into the configured
+ * per-model capacity window. Non-finite / missing hints fall back to the
+ * configured default (the middle of the window).
+ */
+export function clampModelCooldownSeconds(upstreamHintSeconds) {
+  const hint = Number(upstreamHintSeconds);
+  if (!Number.isFinite(hint)) return MODEL_CAPACITY_COOLDOWN_DEFAULT_SECONDS;
+  const rounded = Math.ceil(hint);
+  if (rounded < MODEL_CAPACITY_COOLDOWN_MIN_SECONDS) return MODEL_CAPACITY_COOLDOWN_MIN_SECONDS;
+  if (rounded > MODEL_CAPACITY_COOLDOWN_MAX_SECONDS) return MODEL_CAPACITY_COOLDOWN_MAX_SECONDS;
+  return rounded;
+}
 // Combo failover: a member that fails this many times CONSECUTIVELY (across
 // requests, tracked in memory cache) is deprioritized to the back of the combo so the
 // next request starts at a healthy model instead of re-burning rotations on
