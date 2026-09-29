@@ -78,6 +78,32 @@ function mergeJevApiKeys(stored, incoming) {
   return out;
 }
 
+// Deep-merge provider strategies so partial updates from different dashboard cards
+// (e.g. fallbackStrategy toggle vs proxyGroup selector) do not clobber each other.
+function mergeProviderStrategies(stored = {}, incoming = {}) {
+  if (!incoming || typeof incoming !== "object") return stored;
+  const merged = { ...(stored || {}) };
+  for (const [providerId, strat] of Object.entries(incoming)) {
+    if (!strat || typeof strat !== "object") {
+      delete merged[providerId];
+      continue;
+    }
+    const prev = stored[providerId] && typeof stored[providerId] === "object" ? stored[providerId] : {};
+    const next = { ...prev, ...strat };
+    for (const [k, v] of Object.entries(next)) {
+      if (v === null || v === undefined) {
+        delete next[k];
+      }
+    }
+    if (Object.keys(next).length === 0) {
+      delete merged[providerId];
+    } else {
+      merged[providerId] = next;
+    }
+  }
+  return merged;
+}
+
 export async function GET() {
   try {
     const settings = await getSettings();
@@ -193,6 +219,11 @@ export async function PATCH(request) {
     if (Object.prototype.hasOwnProperty.call(body, "comboStrategies")) {
       const current = await getSettings();
       body.comboStrategies = mergeComboStrategies(current.comboStrategies || {}, body.comboStrategies);
+    }
+
+    if (Object.prototype.hasOwnProperty.call(body, "providerStrategies")) {
+      const current = await getSettings();
+      body.providerStrategies = mergeProviderStrategies(current.providerStrategies || {}, body.providerStrategies);
     }
 
     const settings = await updateSettings(body);

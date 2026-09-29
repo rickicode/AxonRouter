@@ -240,7 +240,9 @@ export default function NoAuthProxyCard({ providerId, isFreeNoAuth = null }) {
       const strat = (rotateStrategy && rotateStrategy !== "none") ? rotateStrategy : "smart";
       setSelectedGroup(gVal);
       setRotateStrategy(strat);
-      save("group", null, gVal, strat);
+      if (gVal) {
+        save("group", null, gVal, strat);
+      }
     } else if (newMode === "all") {
       const strat = (rotateStrategy && rotateStrategy !== "none") ? rotateStrategy : "smart";
       setRotateStrategy(strat);

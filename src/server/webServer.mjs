@@ -433,6 +433,10 @@ if (typeof Bun !== "undefined") {
   // API burst. Match the gateway's idle-socket budget.
   server.keepAliveTimeout = 75_000;
   server.headersTimeout = 80_000;
+  // Node 18+ default requestTimeout is 300_000ms (5m), which kills long SSE
+  // streams (such as probing 400+ free models) with ECONNRESET mid-scan.
+  // Set to 0 to disable requestTimeout on the HTTP server.
+  server.requestTimeout = 0;
 }
 
 // Graceful shutdown with in-flight drain

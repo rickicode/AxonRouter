@@ -345,7 +345,7 @@ export async function POST(request, { params }) {
               totalCandidates: candidates.length,
             });
 
-            const STREAM_CHUNK_SIZE = 2;
+            const STREAM_CHUNK_SIZE = 4;
             for (let i = 0; i < candidates.length; i += STREAM_CHUNK_SIZE) {
               if (isClosed) break;
               const chunk = candidates.slice(i, i + STREAM_CHUNK_SIZE);
@@ -359,7 +359,7 @@ export async function POST(request, { params }) {
                 });
               }
               if (i + STREAM_CHUNK_SIZE < candidates.length && !isClosed) {
-                await sleep(150);
+                await sleep(50);
               }
             }
 

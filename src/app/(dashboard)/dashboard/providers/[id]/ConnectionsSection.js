@@ -51,8 +51,8 @@ function ConnectionsCardHeader({
  )}
       <div className="flex flex-wrap items-center gap-2 border-l border-border pl-2">
         <span className="text-xs text-text-muted font-medium whitespace-nowrap">Round Robin</span>
-        <Toggle checked={providerStrategy === "round-robin"} onChange={handleRoundRobinToggle} />
-        {providerStrategy === "round-robin" && (
+        <Toggle checked={(typeof providerStrategy === "object" ? providerStrategy?.fallbackStrategy : providerStrategy) === "round-robin"} onChange={handleRoundRobinToggle} />
+        {((typeof providerStrategy === "object" ? providerStrategy?.fallbackStrategy : providerStrategy) === "round-robin") && (
           <div className="flex items-center gap-1">
             <span className="text-xs text-text-muted">Sticky:</span>
             <input

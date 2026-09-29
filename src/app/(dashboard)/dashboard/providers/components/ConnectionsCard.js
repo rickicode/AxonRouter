@@ -445,18 +445,23 @@ export default function ConnectionsCard({ providerId, isOAuth }) {
  }, [fetch_]);
 
  const saveStrategy = async (strategy, stickyLimit) => {
- try {
- const res = await fetch("/api/settings", { cache: "no-store" });
- const data = res.ok ? await res.json() : {};
- const current = data.providerStrategies || {};
- const override = {};
- if (strategy) override.fallbackStrategy = strategy;
- if (strategy === "round-robin" && stickyLimit !== "") override.stickyRoundRobinLimit = Number(stickyLimit) || 3;
- const updated = { ...current };
- if (Object.keys(override).length === 0) delete updated[providerId];
- else updated[providerId] = override;
- await fetch("/api/settings", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ providerStrategies: updated }) });
- } catch (e) { console.log("saveStrategy error:", e); }
+   try {
+     const res = await fetch("/api/settings", { cache: "no-store" });
+     const data = res.ok ? await res.json() : {};
+     const current = data.providerStrategies || {};
+     const override = { ...(current[providerId] || {}) };
+     if (strategy) {
+       override.fallbackStrategy = strategy;
+     } else {
+       delete override.fallbackStrategy;
+       delete override.stickyRoundRobinLimit;
+     }
+     if (strategy === "round-robin" && stickyLimit !== "") override.stickyRoundRobinLimit = Number(stickyLimit) || 3;
+     const updated = { ...current };
+     if (Object.keys(override).length === 0) delete updated[providerId];
+     else updated[providerId] = override;
+     await fetch("/api/settings", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ providerStrategies: updated }) });
+   } catch (e) { console.log("saveStrategy error:", e); }
  };
 
  const handleSwapPriority = async (i1, i2) => {

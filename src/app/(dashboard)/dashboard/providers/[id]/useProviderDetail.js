@@ -348,7 +348,7 @@ export function useProviderDetail() {
  setProxyGroups(proxyGroupsData);
  }
  const override = (settingsData.providerStrategies || {})[providerId] || {};
- setProviderStrategy(override.fallbackStrategy || null);
+ setProviderStrategy(override);
  setProviderStickyLimit(override.stickyRoundRobinLimit != null ? String(override.stickyRoundRobinLimit) : "1");
  const thinkingCfg = (settingsData.providerThinking || {})[providerId] || {};
  setThinkingMode(thinkingCfg.mode || "auto");
@@ -440,7 +440,7 @@ export function useProviderDetail() {
  const strategy = enabled ? "round-robin" : null;
  const sticky = enabled ? (providerStickyLimit || "1") : providerStickyLimit;
  if (enabled && !providerStickyLimit) setProviderStickyLimit("1");
- setProviderStrategy(strategy);
+ setProviderStrategy((prev) => ({ ...(typeof prev === "object" ? prev : {}), fallbackStrategy: strategy }));
  saveProviderStrategy(strategy, sticky);
  };
 
