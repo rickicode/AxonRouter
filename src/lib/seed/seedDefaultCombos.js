@@ -19,13 +19,10 @@ const AUTO_CODING_STRATEGY = {
     "clf/mimo-v2.6-flash",
     "clf/deepseek-v4.1-flash",
     "kcf/cohere/north-mini-code:free",
-    "kcf/inclusionai/ling-3.0-flash-fin:free",
-    "kcf/inclusionai/ling-3.0-flash-vl:free",
   ],
   hardModels: [
     "ag/gemini-3.8-flash-high",
     "gcli/grok-4.7",
-    "clf/gemini-3.8-flash",
     "clf/muse-spark-1.3-contributor",
     "ocz/muse-spark-1.3-contributor-free",
     "kcf/poolside/laguna-s-2.1:free",

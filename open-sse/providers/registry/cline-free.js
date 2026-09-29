@@ -70,14 +70,6 @@ const clineFree = {
       description: "Fast and efficient with 1M context window",
     },
     {
-      id: "gemini-3.8-flash",
-      name: "Gemini 3.8 Flash (Free)",
-      alias: "gemini-3.8-flash",
-      aliases: ["google/gemini-3.8-flash", "gemini-3.8-flash", "cline-free/gemini-3.8-flash", "clf/gemini-3.8-flash"],
-      upstreamModelId: "cline-free/gemini-3.8-flash",
-      description: "Google's most intelligent Flash model",
-    },
-    {
       id: "muse-spark-1.3-contributor",
       name: "Muse Spark 1.3 Contributor (Free)",
       alias: "muse-spark-1.3-contributor",
