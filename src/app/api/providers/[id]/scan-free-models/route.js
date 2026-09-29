@@ -346,11 +346,9 @@ export async function POST(request, { params }) {
             });
 
             const STREAM_CHUNK_SIZE = 4;
-            for (let i = 0; i < candidates.length; i += STREAM_CHUNK_SIZE) {
-              if (isClosed) break;
-              const chunk = candidates.slice(i, i + STREAM_CHUNK_SIZE);
-              const chunkResults = await Promise.all(chunk.map((c) => probeCandidate(c)));
-              for (const r of chunkResults) {
+            const probeAndEmit = async (cand) => {
+              const r = await probeCandidate(cand);
+              if (!isClosed) {
                 results.push(r);
                 sendEvent("probe", {
                   ...r,
@@ -358,6 +356,11 @@ export async function POST(request, { params }) {
                   totalCandidates: candidates.length,
                 });
               }
+            };
+            for (let i = 0; i < candidates.length; i += STREAM_CHUNK_SIZE) {
+              if (isClosed) break;
+              const chunk = candidates.slice(i, i + STREAM_CHUNK_SIZE);
+              await Promise.all(chunk.map((c) => probeAndEmit(c)));
               if (i + STREAM_CHUNK_SIZE < candidates.length && !isClosed) {
                 await sleep(50);
               }

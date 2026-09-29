@@ -20,6 +20,7 @@ export default function ScanFreeModelsModal({
   providerAlias,
   connections = [],
   onAddModels,
+  isFreeNoAuth = false,
 }) {
   const [scanning, setScanning] = useState(false);
   const [progress, setProgress] = useState(null);
@@ -267,7 +268,7 @@ export default function ScanFreeModelsModal({
         )}
 
         {/* Warning if No Active Credentials */}
-        {connections.length === 0 && !providerId.includes("free") && (
+        {connections.length === 0 && !isFreeNoAuth && !providerId.endsWith("-free") && (
           <div className="rounded-sm border border-warning/40 bg-warning/10 p-2.5 sm:p-3 text-xs text-warning flex items-start sm:items-center gap-2">
             <Icon name="warning" size={16} className="shrink-0 mt-0.5 sm:mt-0" />
             <span className="flex-1">No active connections available for this provider. Add an account first to run model probes.</span>

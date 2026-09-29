@@ -16,7 +16,7 @@ export default function ModelsSection(d) {
     providerId, providerStorageAlias, providerDisplayAlias, providerThinkingLevels, thinkingMode,
     models = [], kiloFreeModels = [], customModels = [], disabledModelIds = [], modelAliases = {}, connections = [], copied,
     modelTestResults, modelTestErrors = {}, testingModelIds, isFreeNoAuth, handleThinkingModeChange, handleDisableAll,
-    handleEnableAll, handleDisableModel, handleEnableModel, handleAddCustomModel, handleDeleteCustomModel,
+    handleEnableAll, handleDisableModel, handleEnableModel, handleAddCustomModel, handleAddCustomModelsBatch, handleDeleteCustomModel,
     handleSetAlias, handleDeleteAlias, handleTestModel, handleImportQoderModels, handleImportLiveModels,
     handleImportClineModels, setShowAddCustomModel, importingQoderModels,
     importingClineModels, importingLiveModels, suggestedModels = [], getCaps, copy, resolveThinkingSuffix,
@@ -416,10 +416,9 @@ export default function ModelsSection(d) {
         providerId={providerId}
         providerAlias={providerDisplayAlias}
         connections={connections}
+        isFreeNoAuth={isFreeNoAuth}
         onAddModels={async (modelIds) => {
-          for (const mId of modelIds) {
-            await handleAddCustomModel(mId, "llm", providerStorageAlias);
-          }
+          await handleAddCustomModelsBatch(modelIds, "llm", providerStorageAlias);
         }}
       />
     </Card>

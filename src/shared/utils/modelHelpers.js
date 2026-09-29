@@ -30,8 +30,9 @@ function checkFree(model, providerId) {
   // 1. Model-level: explicit flag
   if (model.isFree === true) return true;
 
-  // 2. Provider-level: noAuth = always free
+  // 2. Provider-level: noAuth = always free; dedicated free providers (e.g. cline-free)
   if (providerId) {
+    if (providerId.endsWith("-free") || providerId.startsWith("free-")) return true;
     const provider = AI_PROVIDERS[providerId];
     if (provider?.noAuth) return true;
     if (provider?.hasFree) return true;

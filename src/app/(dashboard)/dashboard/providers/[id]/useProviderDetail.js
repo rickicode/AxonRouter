@@ -576,6 +576,24 @@ export function useProviderDetail() {
  }
  };
 
+ const handleAddCustomModelsBatch = async (modelIds, type = "llm", providerAliasOverride = providerStorageAlias) => {
+ try {
+ await Promise.all(
+ modelIds.map((id) =>
+ fetch("/api/models/custom", {
+ method: "POST",
+ headers: { "Content-Type": "application/json" },
+ body: JSON.stringify({ providerAlias: providerAliasOverride, id, type }),
+ })
+ )
+ );
+ await fetchCustomModels();
+ if (typeof window !== "undefined") window.dispatchEvent(new CustomEvent("customModelChanged"));
+ } catch (error) {
+ notify.error("Failed to add some custom models");
+ }
+ };
+
  const handleDeleteCustomModel = async (modelId, type = "llm", providerAliasOverride = providerStorageAlias) => {
  try {
  const params = new URLSearchParams({ providerAlias: providerAliasOverride, id: modelId, type });
@@ -1160,7 +1178,7 @@ export function useProviderDetail() {
  handleAgRiskConfirm, handleRoundRobinToggle, handleStickyLimitChange, handleThinkingModeChange,
  handleAutoPingConnection, handleUpdateNode, handleUnlockModel,
  handleDisableModel, handleEnableModel, handleDisableAll, handleEnableAll, allSelected,
- handleSetAlias, handleDeleteAlias, handleAddCustomModel, handleDeleteCustomModel,
+ handleSetAlias, handleDeleteAlias, handleAddCustomModel, handleAddCustomModelsBatch, handleDeleteCustomModel,
  handleImportQoderModels, handleImportLiveModels, handleImportClineModels,
  handleRunOneByOneTest, handleStopOneByOneTest,
  handleResetConnectionStatus, handleBulkResetStatus,
