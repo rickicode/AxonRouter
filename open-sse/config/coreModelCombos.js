@@ -22,7 +22,6 @@ export const CORE_MODEL_COMBOS = {
     "uk/deepseek/deepseek-v4-flash",
     "th/deepseek-v4.1-flash:free",
     "kilocode/deepseek/deepseek-chat",
-    "openrouter/deepseek/deepseek-v4-flash-0731:free",
   ],
   "deepseek-v4-pro": [
     "uk/deepseek/deepseek-v4-pro",
@@ -83,7 +82,6 @@ export const GENERAL_LATEST_COMBOS = {
     "uk/deepseek/deepseek-v4-flash",
     "th/deepseek-v4.1-flash:free",
     "kilocode/deepseek/deepseek-chat",
-    "openrouter/deepseek/deepseek-v4-flash-0731:free",
   ],
   "deepseek-pro-latest": [
     "uk/deepseek/deepseek-v4-pro",
