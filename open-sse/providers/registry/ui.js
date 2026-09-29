@@ -8861,10 +8861,6 @@ export const REGISTRY_UI = [
         name: "DeepSeek V4.1 Flash (Free)"
       },
       {
-        id: "gemini-3.8-flash",
-        name: "Gemini 3.8 Flash (Free)"
-      },
-      {
         id: "muse-spark-1.3-contributor",
         name: "Muse Spark 1.3 Contributor (Free)"
       }
