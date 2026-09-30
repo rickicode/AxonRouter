@@ -56,6 +56,28 @@ export class TokenHarborExecutor extends BaseExecutor {
     return headers;
   }
 
+  parseError(response, bodyText) {
+    // A hard region refusal is unambiguously the exit IP, so the POOL is at fault.
+    // Declaring it pool-scoped lets chatCore mark the pool and retry THIS request
+    // through another pool, instead of only poisoning the pool for later requests
+    // (without a parseError the executor's own markPoolUnfit still runs, but the
+    // in-flight request is spent).
+    //
+    // Deliberately NOT included: `request_forbidden` ("This request was refused…"),
+    // which TokenHarbor returns far more often but which is ambiguous between a
+    // dead account and a refused egress. Rotating the pool on it would burn through
+    // the pool fleet on what is usually an account problem — the account-lockout
+    // path owns that one. Only the explicit geo/sanctions refusal is pool-scoped.
+    if (response?.status === 403 && /region is not available/i.test(String(bodyText || ""))) {
+      return {
+        status: 403,
+        message: "TokenHarbor region block (exit IP not served) — rotating proxy pool",
+        poolScoped: { reason: "region_blocked" },
+      };
+    }
+    return super.parseError(response, bodyText);
+  }
+
   transformRequest(model, body, stream) {
     const out = { ...body };
     if (stream && !out.stream_options) {

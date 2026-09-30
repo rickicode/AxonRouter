@@ -176,3 +176,46 @@ describe("chat.js handler source invariants", () => {
     expect(window).not.toMatch(/setProviderModelCooldown/);
   });
 });
+
+// The executor had no parseError, so a 403 region refusal only poisoned the pool
+// for FUTURE requests (via its own markPoolUnfit) and the in-flight request was
+// spent. Declaring it pool-scoped lets chatCore rotate within the same request.
+describe("TokenHarborExecutor.parseError", () => {
+  let ex;
+  beforeEach(async () => {
+    const mod = await import("../../open-sse/executors/tokenharbor.js");
+    ex = new mod.TokenHarborExecutor();
+  });
+
+  it("declares the pool scoped for the explicit region refusal", () => {
+    const body = JSON.stringify({
+      error: { message: "API access from your region is not available. Token Harbor cannot serve requests from regions under US sanctions…", type: "invalid_request_error" },
+    });
+    const parsed = ex.parseError({ status: 403 }, body);
+    expect(parsed.status).toBe(403);
+    expect(parsed.poolScoped).toBeTruthy();
+    expect(parsed.poolScoped.reason).toBe("region_blocked");
+  });
+
+  it("does NOT declare the pool scoped for request_forbidden (account problem)", () => {
+    // Rotating pools on this would burn the pool fleet on what is usually a dead
+    // account; account lockout owns that case.
+    const body = JSON.stringify({
+      error: { message: "This request was refused. If you believe this is a mistake, contact support from the email address on your account.", code: "request_forbidden" },
+    });
+    expect(ex.parseError({ status: 403 }, body).poolScoped).toBeFalsy();
+  });
+
+  it("does NOT declare the pool scoped for unverified-email 403s", () => {
+    const body = JSON.stringify({
+      error: { message: "Verify your email address to use the API…", type: "email_verification_required" },
+    });
+    expect(ex.parseError({ status: 403 }, body).poolScoped).toBeFalsy();
+  });
+
+  it("leaves other statuses to the base parser", () => {
+    const parsed = ex.parseError({ status: 429 }, "This model is at capacity for your account right now.");
+    expect(parsed.status).toBe(429);
+    expect(parsed.poolScoped).toBeFalsy();
+  });
+});
