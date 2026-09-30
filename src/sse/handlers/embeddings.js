@@ -15,7 +15,7 @@ import { MAX_FALLBACK_ATTEMPTS } from "open-sse/config/errorConfig.js";
 import * as log from "../utils/logger.js";
 import { updateProviderCredentials, checkAndRefreshToken } from "../services/tokenRefresh.js";
 import { saveRequestUsage } from "@/lib/usageDb.js";
-import { saveCapabilityUsage } from "../services/capabilityUsage.js";
+import { saveCapabilityUsage, beginCapabilityPending } from "../services/capabilityUsage.js";
 
 function resolveEmbeddingUsage(raw, input) {
   if (raw && typeof raw === "object" && !Array.isArray(raw)) {
@@ -159,6 +159,14 @@ export async function handleEmbeddings(request) {
     // Timed per attempt (not per request) so a credential fallback does not
     // attribute the first account's latency to the second account's row.
     const attemptStart = Date.now();
+    // Make the call visible in activeRequests / ProviderTopology for its lifetime.
+    const finishPending = beginCapabilityPending({
+      model,
+      provider,
+      connectionId: credentials.connectionId,
+      apiKey,
+      isTestRequest,
+    });
 
     const result = await handleEmbeddingsCore({
       body: { ...body, model: `${provider}/${model}` },
@@ -193,6 +201,7 @@ export async function handleEmbeddings(request) {
     };
 
     if (result.success) {
+      finishPending(false);
       const usage = resolveEmbeddingUsage(result.usage, body.input);
       // Probes must not pollute production usage history.
       if (usage && !isTestRequest) {
@@ -219,6 +228,7 @@ export async function handleEmbeddings(request) {
     // quota and are exactly what an operator needs to see, so record them with
     // the upstream status preserved.
     if (!isTestRequest) {
+      finishPending(true);
       saveCapabilityUsage({
         provider,
         model,

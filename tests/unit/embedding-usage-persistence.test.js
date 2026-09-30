@@ -4,6 +4,8 @@ const mocks = vi.hoisted(() => ({
   getProviderConnectionById: vi.fn(async () => null),
   handleEmbeddingsCore: vi.fn(),
   saveRequestUsage: vi.fn(),
+  saveRequestDetail: vi.fn(),
+  trackPendingRequest: vi.fn(),
 }));
 
 vi.mock("../../src/sse/services/auth.js", () => ({
@@ -35,7 +37,14 @@ vi.mock("../../src/sse/services/tokenRefresh.js", () => ({
   updateProviderCredentials: vi.fn(),
   checkAndRefreshToken: async (_provider, credentials) => credentials,
 }));
-vi.mock("@/lib/usageDb.js", () => ({ saveRequestUsage: mocks.saveRequestUsage }));
+// Both writers are mocked: capabilityUsage also records request_details and the
+// in-flight pending row, and vitest throws on property access for any export a
+// vi.mock factory omits (optional chaining does not help).
+vi.mock("@/lib/usageDb.js", () => ({
+  saveRequestUsage: mocks.saveRequestUsage,
+  saveRequestDetail: mocks.saveRequestDetail,
+  trackPendingRequest: mocks.trackPendingRequest,
+}));
 
 import { handleEmbeddings } from "../../src/sse/handlers/embeddings.js";
 
@@ -43,6 +52,8 @@ describe("embedding usage persistence", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mocks.saveRequestUsage.mockResolvedValue(undefined);
+    mocks.saveRequestDetail.mockResolvedValue(undefined);
+    mocks.trackPendingRequest.mockResolvedValue(undefined);
     mocks.handleEmbeddingsCore.mockResolvedValue({
       success: true,
       usage: { prompt_tokens: 12, total_tokens: 12 },

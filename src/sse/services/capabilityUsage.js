@@ -7,9 +7,47 @@
 // failures (429/503/timeout) are visible as cost/burn instead of vanishing.
 // Probes (x-axonrouter-test-request) never write. Writes are the same
 // fire-and-forget enqueue the chat path uses — never awaited on the hot path.
-import { saveRequestUsage, saveRequestDetail } from "@/lib/usageDb.js";
+import { saveRequestUsage, saveRequestDetail, trackPendingRequest } from "@/lib/usageDb.js";
 
 const DEFAULT_TOKENS = { prompt_tokens: 0, completion_tokens: 0 };
+
+/**
+ * Register a capability call as an in-flight request and return its finisher.
+ *
+ * trackPendingRequest was only ever called from the chat path, so a capability
+ * provider never appeared in `activeRequests` — and ProviderTopology renders an
+ * empty graph unless a provider is in that set. Embeddings are structurally the
+ * worst case: they finish in well under a second, so they could never be sampled
+ * as "active" no matter how often the dashboard polled.
+ *
+ * `requestId` must be unique per attempt (the capability handlers retry on a new
+ * account), so a random suffix is appended when the caller does not supply one —
+ * reusing a key would let a second attempt delete the first attempt's row and
+ * leave the topology flapping.
+ *
+ * @returns {(error?: boolean) => void} finisher; safe to call once
+ */
+export function beginCapabilityPending({
+  model,
+  provider,
+  connectionId,
+  apiKey = null,
+  requestId = null,
+  isTestRequest = false,
+}) {
+  if (isTestRequest) return () => {};
+  const key =
+    requestId ||
+    `${provider}/${model}:${connectionId || "-"}:${Date.now()}:${Math.random().toString(36).slice(2, 10)}`;
+  trackPendingRequest?.(model, provider, connectionId, true, false, {
+    requestId: key,
+    apiKey,
+    isStream: false,
+  })?.catch?.(() => {});
+  return (error = false) => {
+    trackPendingRequest?.(model, provider, connectionId, false, error, { requestId: key })?.catch?.(() => {});
+  };
+}
 
 function zeroTokens(tokens) {
   const inTok = tokens ? (tokens.prompt_tokens ?? tokens.input_tokens ?? 0) : 0;
