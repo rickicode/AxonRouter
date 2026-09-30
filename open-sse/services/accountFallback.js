@@ -167,6 +167,33 @@ export function getModelLockKey(model) {
 }
 
 /**
+ * Every key form a model lock may have been written under, for one logical model.
+ *
+ * Locks are keyed by a raw model string that callers spell inconsistently: the
+ * combo member spec writes "tokenharbor/deepseek/deepseek-v4.1-flash:free" while
+ * the resolved account writes "deepseek-v4.1-flash:free". Both spellings reach
+ * buildModelLockUpdate, so the same model ends up with locks under two different
+ * keys. An exact-match availability check then misses one of them and keeps
+ * selecting an account that is already locked — observed as 47 upstream 429s
+ * against 16 real requests, i.e. a "failing" model that was locked all along and
+ * was in fact fine.
+ *
+ * This returns the forms to CHECK rather than rewriting stored keys: normalizing
+ * on write would be ambiguous, because a leading segment is not always a provider
+ * ("z-ai/glm-5.3-flash" and "anthropic/claude-sonnet-4.6" are real model ids).
+ */
+export function modelLockKeyCandidates(model, provider = null) {
+  if (!model) return [MODEL_LOCK_ALL];
+  const forms = new Set([model]);
+  // M spelled bare -> the provider-prefixed spelling.
+  if (provider) forms.add(`${provider}/${model}`);
+  // M spelled with a leading segment -> the same model without it.
+  const firstSlash = String(model).indexOf("/");
+  if (firstSlash > 0) forms.add(String(model).slice(firstSlash + 1));
+  return Array.from(forms).map((m) => `${MODEL_LOCK_PREFIX}${m}`);
+}
+
+/**
  * Normalized refreshBlocked check. Background writes the raw error string
  * (e.g. "invalid_grant"), request paths write true — every consumer must
  * treat any meaningful truthy marker as blocked, except explicit false-ish
@@ -192,11 +219,21 @@ export function isModelLockActive(connection, model) {
   if (connection.lastError && fatalPattern.test(connection.lastError)) {
     return true;
   }
-  const key = getModelLockKey(model);
-  const expiries = [connection[key], connection.modelLocks?.[model], connection.modelLock___all, connection.modelLocks?.__all, connection.lockedAllUntil, connection.rateLimitedUntil]
+  const keys = modelLockKeyCandidates(model, connection.provider);
+  const expiries = keys.flatMap((key) => [
+    connection[key],
+    connection.modelLocks?.[key.slice(MODEL_LOCK_PREFIX.length)],
+  ]);
+  expiries.push(
+    connection[MODEL_LOCK_ALL],
+    connection.modelLocks?.__all,
+    connection.lockedAllUntil,
+    connection.rateLimitedUntil
+  );
+  return expiries
     .map((value) => (value ? new Date(value).getTime() : 0))
-    .filter((value) => Number.isFinite(value));
-  return expiries.some((expiry) => expiry > Date.now());
+    .filter((value) => Number.isFinite(value))
+    .some((expiry) => expiry > Date.now());
 }
 
 /**
@@ -208,16 +245,21 @@ export function getEarliestModelLockUntil(connection, model = null) {
   let earliest = null;
   const now = Date.now();
   const candidates = model
-    ? [
-        connection[`modelLock_${model}`],
-        connection.modelLocks?.[model],
-        connection.modelLock___all,
-        connection.modelLocks?.__all,
-        connection.lockedAllUntil,
-        connection.rateLimitedUntil,
-      ].filter(Boolean)
+    ? modelLockKeyCandidates(model, connection.provider).flatMap((key) => [
+        connection[key],
+        connection.modelLocks?.[key.slice(MODEL_LOCK_PREFIX.length)],
+      ])
     : [];
-  if (!model) {
+  if (model) {
+    // Account-wide locks apply to every model, so they belong in the model-scoped
+    // view too — the UI shows this as a per-model cooldown.
+    candidates.push(
+      connection[MODEL_LOCK_ALL],
+      connection.modelLocks?.__all,
+      connection.lockedAllUntil,
+      connection.rateLimitedUntil
+    );
+  } else {
     for (const [key, val] of Object.entries(connection)) {
       if (key.startsWith(MODEL_LOCK_PREFIX) && val) candidates.push(val);
     }

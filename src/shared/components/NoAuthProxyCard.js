@@ -6,7 +6,7 @@ import Card from "./Card";
 import Select from "./Select";
 import Badge from "./Badge";
 import Button from "./Button";
-import { FREE_PROVIDERS } from "@/shared/constants/providers";
+import { FREE_PROVIDERS, resolveProviderId } from "@/shared/constants/providers";
 import Icon from "@/shared/components/Icon";
 
 const NONE_PROXY_POOL_VALUE = "__none__";
@@ -72,7 +72,11 @@ export default function NoAuthProxyCard({ providerId, isFreeNoAuth = null }) {
       setProxyPools(pools);
       setProxyGroups(groupsData || { defaultGroups: [], customGroups: [] });
 
-      const override = (settingsData.providerStrategies || {})[providerId] || {};
+      // providerStrategies is keyed by canonical provider id, but this card is
+      // rendered with whatever id the route carried, which may be an alias
+      // ("oc", "ag"). Reading the raw key missed the configured proxyGroup and
+      // the card fell back to "Direct" for a provider that was actually proxied.
+      const override = (settingsData.providerStrategies || {})[resolveProviderId(providerId)] || {};
       if (override.proxyGroup) {
         setRoutingMode("group");
         setSelectedGroup(override.proxyGroup);

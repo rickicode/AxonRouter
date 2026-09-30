@@ -675,8 +675,16 @@ const DIFFICULTY_DEFAULTS = {
   jevProvider: "",
   jevApiKeys: null,
   jevEndpoint: "",
-  jevConfidenceThreshold: 0.7,
+  // The classifier's confidence is SELF-REPORTED by the Jev model and defaults to
+  // 0.85 when the field is absent (classifyWithJev), so a 0.7 threshold rejected
+  // most real answers — observed 0.56/0.65 — and pushed every request to the hard
+  // tier. 0.6 is low enough that a genuinely ambiguous verdict still escalates
+  // while an ordinary one is honoured.
+  jevConfidenceThreshold: 0.6,
   jevTimeoutMs: 2500,
+  // Growth (in estimated body tokens) allowed before a cached per-session tier is
+  // re-classified instead of reused. See canReuseSessionTier().
+  reuseMaxGrowthTokens: 20000,
 };
 
 // Session filter keys cache by session_id / conversation_id / x-pplx-session / user when known,
@@ -787,6 +795,23 @@ const COMPLEX_CODING_REGEX = /\b(?:race condition|deadlock|memory leak|architect
 const CASUAL_OR_GREETING_REGEX = /^(?:halo|hai|hi|hello|hey|selamat (?:pagi|siang|sore|malam)|thanks|terima kasih|makasih|ping|pong|test|tes|p|siapa namamu|who are you|jam berapa|what time is it)[!?.\s]*$/i;
 const CONTEXT_ACTION_REGEX = /\b(?:fix|perbaiki|benerin|debug|patch|error|gagal|bug|crash|exception|lanjut|continue|coba lagi|retry|ubah|ganti|edit|tambah|update|refactor|solve|selesaikan)\b/i;
 
+/**
+ * Whether a cached per-session tier may be reused for an ordinary (non-huge)
+ * turn. Guards the reuse added in handleDifficultyChat: hold the tier while the
+ * conversation grows normally, and re-open classification once it jumps far
+ * enough that the earlier verdict is no longer a safe assumption.
+ *
+ * Uses the token count recorded when the decision was cached rather than raw
+ * message length, so it measures the same thing the classifier saw.
+ */
+function canReuseSessionTier(cached, bodyTokens, cfg = {}) {
+  if (!cached || typeof cached !== "object") return false;
+  const growthBudget = Number(cfg.reuseMaxGrowthTokens) || 20_000;
+  const prevTokens = Number(cached.bodyTokens) || 0;
+  if (prevTokens <= 0) return false; // no baseline recorded: classify once, then reuse
+  return bodyTokens <= prevTokens + growthBudget;
+}
+
 function heuristicDifficulty(body, policy = "balanced") {
   const arr = Array.isArray(body.messages) ? body.messages : (Array.isArray(body.input) ? body.input : null);
   let activeToolTurns = 0;
@@ -836,6 +861,15 @@ function heuristicDifficulty(body, policy = "balanced") {
   const ERROR_ACTION_RE = /\b(?:error|gagal|fail(?:ed|ure)?|crash|exception|bug|timeout|traceback|stacktrace|fatal)\b/i;
   if (activeToolTurns > 0 && ERROR_ACTION_RE.test(userText)) {
     return { tier: "hard", source: "heuristic-tool-error", domain, ambiguity: "low", confidence: 0.9 };
+  }
+
+  // A tool DEFINITION count is a strong, free complexity signal: an agent session
+  // wiring up 20+ tools is not a chat request, whatever the prompt says. Catching
+  // it here removes the JEV round-trip entirely for exactly the traffic that was
+  // paying the most latency.
+  const toolDefs = Array.isArray(body?.tools) ? body.tools.length : 0;
+  if (toolDefs >= 20) {
+    return { tier: "hard", source: "heuristic-many-tools", domain: domain || "coding", ambiguity: "low", confidence: 0.9 };
   }
 
   return null;
@@ -948,13 +982,19 @@ export async function handleDifficultyChat({ body, models = [], handleSingleMode
     domain = h.domain;
     source = h.source;
     confidence = h.confidence;
-  } else if (cachedTier && bodyTokens >= cfg.contextLockTokens) {
-    // Large follow-up keeps the last tier. Hard signals above still win.
+  } else if (cachedTier && (bodyTokens >= cfg.contextLockTokens || canReuseSessionTier(cached, bodyTokens, cfg))) {
+    // classifyReuseMs exists so a multi-turn conversation classifies once. It was
+    // only honoured for contexts >= contextLockTokens (60k tokens), so an ordinary
+    // session re-ran the classifier on every single turn — a JEV round-trip (~1s,
+    // jevTimeoutMs up to 2.5s) per turn, for a decision that barely moves. The
+    // heuristic above still wins first, so hard signals (vision, tool errors,
+    // complex coding) re-classify regardless of what is cached.
     tier = cachedTier;
     source = "context-lock";
     domain = typeof cached === "object" ? cached.domain : "general";
     ambiguity = typeof cached === "object" ? cached.ambiguity : "low";
     confidence = typeof cached === "object" ? cached.confidence : 1.0;
+    bumpRoutingMetric("sessionTierReuse");
   } else if (mode === "jev-only") {
     const jevRes = await classifyWithJev(body, {
       // endpoint + model + API key already resolved once (TypeSafe pool vs Zen)
@@ -987,7 +1027,7 @@ export async function handleDifficultyChat({ body, models = [], handleSingleMode
         ambiguity = "high";
         confidence = 0.0;
       }
-    } else if (jevRes.confidence >= (cfg.jevConfidenceThreshold ?? 0.7)) {
+    } else if (jevRes.confidence >= (cfg.jevConfidenceThreshold ?? DIFFICULTY_DEFAULTS.jevConfidenceThreshold)) {
       bumpRoutingMetric("jevUsed");
       tier = jevRes.tier;
       source = "jev";
@@ -996,11 +1036,29 @@ export async function handleDifficultyChat({ body, models = [], handleSingleMode
       confidence = jevRes.confidence;
     } else {
       bumpRoutingMetric("jevEscalated");
-      log.info("DIFFICULTY", `Jev confidence ${jevRes.confidence} < threshold ${cfg.jevConfidenceThreshold ?? 0.7} (jev-only mode) — escalating to hard`, { comboName });
-      tier = "hard";
+      // Low confidence must not discard the classifier's answer, but it must not be
+      // trusted either. Hardcoding "hard" here bypassed resolveTierMatrix — the only
+      // place difficultyPolicy is honoured — so a cost_efficient combo paid the JEV
+      // round-trip and then paid for the most expensive tier anyway.
+      //
+      // So: keep what Jev said, and treat the verdict as one notch more ambiguous
+      // than reported. Under the default `balanced` policy a marginal "easy" still
+      // lands on the hard tier, so the conservative contract is unchanged; under
+      // `cost_efficient` — which is the policy that exists to spend less — a
+      // difficulty of "easy" is honoured regardless of ambiguity. Both policies now
+      // actually behave as configured.
+      const escalatedAmbiguity = jevRes.ambiguity === "low" ? "medium" : jevRes.ambiguity;
+      const resolvedTier = resolveTierMatrix(
+        jevRes.difficulty || "hard",
+        escalatedAmbiguity,
+        jevRes.domain,
+        policy
+      );
+      log.info("DIFFICULTY", `Jev confidence ${jevRes.confidence} < threshold ${cfg.jevConfidenceThreshold ?? DIFFICULTY_DEFAULTS.jevConfidenceThreshold} (jev-only) — ${jevRes.difficulty || "hard"}/${jevRes.ambiguity}→${escalatedAmbiguity} = ${resolvedTier} tier under policy ${policy}`, { comboName });
+      tier = resolvedTier;
       source = "jev-low-conf";
       domain = jevRes.domain;
-      ambiguity = jevRes.ambiguity;
+      ambiguity = escalatedAmbiguity;
       confidence = jevRes.confidence;
     }
   } else if (mode === "two-layer") {
@@ -1031,7 +1089,7 @@ export async function handleDifficultyChat({ body, models = [], handleSingleMode
         ambiguity = "high";
         confidence = 0.0;
       }
-    } else if (jevRes.confidence >= (cfg.jevConfidenceThreshold ?? 0.7)) {
+    } else if (jevRes.confidence >= (cfg.jevConfidenceThreshold ?? DIFFICULTY_DEFAULTS.jevConfidenceThreshold)) {
       bumpRoutingMetric("jevUsed");
       tier = jevRes.tier;
       source = "jev";
@@ -1040,7 +1098,7 @@ export async function handleDifficultyChat({ body, models = [], handleSingleMode
       confidence = jevRes.confidence;
     } else {
       bumpRoutingMetric("jevEscalated");
-      log.info("DIFFICULTY", `Jev confidence ${jevRes.confidence} < threshold ${cfg.jevConfidenceThreshold ?? 0.7} — escalating to LLM judge`, { comboName });
+      log.info("DIFFICULTY", `Jev confidence ${jevRes.confidence} < threshold ${cfg.jevConfidenceThreshold ?? DIFFICULTY_DEFAULTS.jevConfidenceThreshold} — escalating to LLM judge`, { comboName });
       if (judgeModel) {
         const jr = await classifyWithJudge(body, judgeModel, handleSingleModel, cfg.judgeTimeoutMs, log, comboName, policy, cachedTier);
         tier = jr?.tier || cachedTier || "hard";
@@ -1074,7 +1132,7 @@ export async function handleDifficultyChat({ body, models = [], handleSingleMode
     source = "policy-fallback";
     domain = detectDomain(body);
   }
-  if (!h && sKey) difficultyCacheSet(sKey, { tier, domain, ambiguity, confidence, policy, ...(cached?.winningModel ? { winningModel: cached.winningModel } : {}) });
+  if (!h && sKey) difficultyCacheSet(sKey, { tier, domain, ambiguity, confidence, policy, bodyTokens, ...(cached?.winningModel ? { winningModel: cached.winningModel } : {}) });
   log.info("DIFFICULTY", `Combo "${comboName}" | tier=${tier} (${source}) | domain=${domain} | policy=${policy} | ~${bodyTokens} tok`);
   notify({
     tier,

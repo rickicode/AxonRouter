@@ -326,9 +326,52 @@ describe("TypeSafe Jev classifier and judgeMode cascade", () => {
       });
 
       expect(res.ok).toBe(true);
-      expect(calls).toEqual(["hard-a"]); // escalated to hard without judgeModel
+      expect(calls).toEqual(["hard-a"]); // conservative default policy keeps the hard tier
       const afterMetrics = getRoutingMetrics();
       expect(afterMetrics.jevEscalated).toBe(beforeMetrics.jevEscalated + 1);
+    });
+
+    it("low confidence still honours difficultyPolicy instead of hardcoding the hard tier", async () => {
+      // Regression guard: the low-confidence branch used to assign `tier = "hard"`
+      // directly, so resolveTierMatrix — the only place difficultyPolicy is applied —
+      // never ran for it. A cost_efficient combo therefore paid the Jev round-trip
+      // and then paid for the most expensive tier, making the policy a no-op.
+      const calls = [];
+
+      vi.spyOn(globalThis, "fetch").mockResolvedValue(
+        jevMockRes({ difficulty: "easy", ambiguity: "low", domain: "general", confidence: 0.4 })
+      );
+
+      const handleSingleModel = vi.fn(async (b, m) => {
+        calls.push(m);
+        return okRes("pong");
+      });
+
+      const body = {
+        messages: [{ role: "user", content: "Some ambiguous instruction that might need deep review." }],
+        stream: false,
+      };
+
+      const res = await handleDifficultyChat({
+        body,
+        models: ["easy-a", "hard-a"],
+        handleSingleModel,
+        log: quietLog,
+        comboName: "jev-only-cost-efficient",
+        judgeModel: "judge-model",
+        tuning: {
+          judgeMode: "jev-only",
+          jevConfidenceThreshold: 0.7,
+          policy: "cost_efficient",
+          easyModels: ["easy-a"],
+          hardModels: ["hard-a"],
+        },
+      });
+
+      expect(res.ok).toBe(true);
+      // cost_efficient + difficulty "easy" => cheap tier, even though confidence is
+      // below threshold. This is the case that silently cost money before.
+      expect(calls).toEqual(["easy-a"]);
     });
 
     it("runs Jev only; on Jev failure escalates to LLM judge when one is configured", async () => {

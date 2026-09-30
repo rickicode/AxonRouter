@@ -4,16 +4,25 @@ import { getProxyPools, getProxyPoolById } from "@/lib/db/repos/proxyPoolsRepo.j
 import { getProxyGroupByName, getProxyGroupById } from "@/lib/db/repos/proxyGroupsRepo.js";
 import { getProviderProxyStats } from "@/lib/db/repos/analyticsRepo.js";
 import { countProviderConnections } from "@/lib/db/repos/connectionsRepo.js";
+import { resolveProviderId } from "@/shared/constants/providers.js";
 
 export const dynamic = "force-dynamic";
 
 export async function GET(request, context) {
   try {
     const params = await context?.params;
-    const providerId = params?.id;
-    if (!providerId) {
+    const requestedId = params?.id;
+    if (!requestedId) {
       return NextResponse.json({ error: "Provider ID is required" }, { status: 400 });
     }
+
+    // The dashboard can address a provider by alias ("oc" for opencode, "ag" for
+    // antigravity). providerStrategies is keyed by canonical id, so looking it up
+    // with the alias silently missed the configured proxyGroup and the response
+    // reported routingMode "direct" for a provider that was in fact proxied.
+    // Canonicalize here so both the config read and the analytics query below
+    // agree with every other reader.
+    const providerId = resolveProviderId(requestedId);
 
     const settings = await getSettings();
     const providerStrategy = (settings.providerStrategies || {})[providerId] || {};

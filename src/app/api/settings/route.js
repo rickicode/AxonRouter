@@ -2,6 +2,7 @@ import { NextResponse } from "@/lib/http/response.js";
 import { getSettings, updateSettings } from "@/lib/localDb";
 import { applyOutboundProxyEnv } from "@/lib/network/outboundProxy";
 import { resetComboRotation } from "open-sse/services/combo.js";
+import { resolveProviderId } from "@/shared/constants/providers.js";
 import { JEV_ALL_MODELS, JEV_PROVIDERS, isKnownJevEndpoint, jevProviderById } from "open-sse/config/jevModels.js";
 import bcrypt from "bcryptjs";
 
@@ -83,12 +84,24 @@ function mergeJevApiKeys(stored, incoming) {
 function mergeProviderStrategies(stored = {}, incoming = {}) {
   if (!incoming || typeof incoming !== "object") return stored;
   const merged = { ...(stored || {}) };
-  for (const [providerId, strat] of Object.entries(incoming)) {
+  for (const [providerKey, strat] of Object.entries(incoming)) {
     if (!strat || typeof strat !== "object") {
-      delete merged[providerId];
+      delete merged[providerKey];
       continue;
     }
-    const prev = stored[providerId] && typeof stored[providerId] === "object" ? stored[providerId] : {};
+    // Strategies are keyed by canonical provider id. The dashboard can address a
+    // provider by its alias ("oc" for opencode, "ag" for antigravity), and every
+    // reader — getProviderCredentials, the proxy-stats route — looks up the
+    // canonical key. Storing the alias would make the setting invisible to all of
+    // them, so the provider silently falls back to direct egress. Canonicalize on
+    // write, and fold an existing alias-keyed entry into the canonical one so a
+    // pre-existing bad row is repaired instead of shadowed.
+    const providerId = resolveProviderId(providerKey);
+    const aliasEntry = stored[providerKey];
+    const prev =
+      (stored[providerId] && typeof stored[providerId] === "object" ? stored[providerId] : {}) ||
+      (aliasEntry && typeof aliasEntry === "object" ? aliasEntry : {});
+    if (aliasEntry && aliasEntry !== stored[providerId]) delete merged[providerKey];
     const next = { ...prev, ...strat };
     for (const [k, v] of Object.entries(next)) {
       if (v === null || v === undefined) {
@@ -97,6 +110,7 @@ function mergeProviderStrategies(stored = {}, incoming = {}) {
     }
     if (Object.keys(next).length === 0) {
       delete merged[providerId];
+      delete merged[providerKey];
     } else {
       merged[providerId] = next;
     }
