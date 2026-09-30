@@ -110,13 +110,18 @@ export async function handleStreamingResponse({ providerResponse, provider, mode
     ? buildAbortedResponsesTerminalBytes
     : (message) => buildStreamErrorBytes(HTTP_STATUS.GATEWAY_TIMEOUT, message, sourceFormat);
   const stallTimeoutMs = PROVIDERS[provider]?.stallTimeoutMs || STREAM_STALL_TIMEOUT_MS;
+  // Per-provider override for the commit peek. A slow upstream (long prompt
+  // prefill) otherwise times out the peek, which is treated as inconclusive and
+  // commits as a success — so a healthy but slow answer is recorded as empty and
+  // never retried.
+  const commitPeekMs = PROVIDERS[provider]?.commitPeekMs || STREAM_COMMIT_PEEK_MS;
   const transformedBody = pipeWithDisconnect(providerResponse, transformStream, streamController, onAbortTerminal, stallTimeoutMs);
 
   // Commit gate: a stream that dies with zero bytes (accepted headers, dead
   // socket) must fail over like any other upstream failure — not commit as a
   // success that hangs the client forever. Timeout/keepalive = inconclusive,
   // commit as before (fail-open).
-  const peeked = await peekStreamHead(transformedBody, STREAM_COMMIT_PEEK_MS);
+  const peeked = await peekStreamHead(transformedBody, commitPeekMs);
   if (peeked.failed) {
     const errMsg = peeked.error?.message || "upstream stream produced no data";
     if (log?.errorLine) log.errorLine(reqTag, "✗", `STILLBORN ${provider}/${model} · ${errMsg}`);
@@ -157,7 +162,7 @@ export async function handleStreamingResponse({ providerResponse, provider, mode
   // and stops the combo cascade on a member that produced nothing.
   let committedBody = peeked.stream;
   if (committedBody) {
-    const payload = await peekStreamHasPayload(committedBody);
+    const payload = await peekStreamHasPayload(committedBody, { timeoutMs: commitPeekMs });
     if (payload.empty) {
       const shape = (payload.sample ?? "").replace(/\s+/g, " ").slice(0, 400);
       // An upstream that DIES mid-stream hands back a terminal error frame
