@@ -465,11 +465,38 @@ export async function peekStreamHasPayload(stream, { maxChunks = 8, timeoutMs = 
       if (parsed?.type === "content_block_delta" && parsed?.delta?.type === "thinking_delta") return "payload";
       if (parsed?.type === "content_block_delta" && parsed?.delta?.type === "input_json_delta") return "payload";
 
-      // Gemini native shape.
-      if (Array.isArray(parsed?.candidates?.[0]?.content?.parts)) {
-        if (parsed.candidates[0].content.parts.some((p) => p?.text || p?.functionCall)) return "payload";
+      // Usage frame with a non-zero completion count is PROOF the upstream
+      // generated output, even when this response shape carries no delta we
+      // recognise (observed on antigravity/*-thinking: real answers reported
+      // OUT 106-7830 while the frames stayed opaque to the checks below).
+      // Trusting a positive count here is what stops those from being thrown
+      // away; a zero/absent count proves nothing and falls through.
+      const usage = parsed?.usage;
+      if (usage) {
+        const out = usage.completion_tokens ?? usage.output_tokens ?? usage.outputTokenCount;
+        if (typeof out === "number" && out > 0) return "payload";
+        if (usage.prompt_tokens || usage.input_tokens) sawTerminal = true;
       }
-      if (parsed?.candidates?.[0]?.finishReason) sawTerminal = true;
+      const msgUsage = parsed?.message?.usage ?? parsed?.response?.usage;
+      if (msgUsage) {
+        const out = msgUsage.output_tokens ?? msgUsage.completion_tokens;
+        if (typeof out === "number" && out > 0) return "payload";
+      }
+
+      // Gemini native shape. The antigravity response translator nests it one
+      // level deeper under `response`, so unwrap before checking.
+      const geminiEnvelope = parsed?.response ?? parsed;
+      if (Array.isArray(geminiEnvelope?.candidates?.[0]?.content?.parts)) {
+        // A part counts as output only with a NON-EMPTY text. The antigravity
+        // translator deliberately emits `parts: [{ text: "" }]` for a response
+        // that produced nothing, so treating any present part as payload would
+        // hide exactly the empty case this probe exists to catch.
+        const parts = geminiEnvelope.candidates[0].content.parts;
+        if (parts.some((p) => p?.functionCall || (typeof p?.text === "string" && p.text.length > 0))) return "payload";
+      }
+      if (geminiEnvelope?.candidates?.[0]?.finishReason) sawTerminal = true;
+      const meta = geminiEnvelope?.usageMetadata;
+      if (typeof meta?.candidatesTokenCount === "number" && meta.candidatesTokenCount > 0) return "payload";
 
       const choice = parsed?.choices?.[0];
       if (!choice) continue;

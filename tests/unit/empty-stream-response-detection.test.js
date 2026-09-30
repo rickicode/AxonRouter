@@ -198,6 +198,79 @@ describe("peekStreamHasPayload — latency: no waiting on the close", () => {
   });
 });
 
+describe("peekStreamHasPayload — usage frames are proof of output", () => {
+  // Regression from production: antigravity/claude-opus-4-6-thinking answered
+  // with real content (OUT 106-7830 tokens logged) but its frames exposed no
+  // delta shape this probe recognises, so 64 healthy responses were flagged
+  // EMPTY and thrown away. A non-zero completion count is direct evidence the
+  // upstream generated output and must win over any other signal.
+  it("treats a non-zero completion_tokens frame as payload", async () => {
+    const r = await peekStreamHasPayload(
+      sseStream([
+        'data: {"choices":[{"index":0,"delta":{"role":"assistant"}}]}\n\n',
+        'data: {"choices":[{"index":0,"delta":{},"finish_reason":"stop"}],"usage":{"prompt_tokens":85752,"completion_tokens":106,"total_tokens":85858}}\n\n',
+        "data: [DONE]\n\n",
+      ])
+    );
+    expect(r.empty).toBe(false);
+  });
+
+  it("accepts an Anthropic message_delta usage shape", async () => {
+    const r = await peekStreamHasPayload(
+      sseStream([
+        'data: {"type":"message_start","message":{"role":"assistant"}}\n\n',
+        'data: {"type":"message_delta","delta":{"stop_reason":"end_turn"},"usage":{"output_tokens":238}}\n\n',
+        'data: {"type":"message_stop"}\n\n',
+      ])
+    );
+    expect(r.empty).toBe(false);
+  });
+
+  it("accepts Gemini usageMetadata candidatesTokenCount", async () => {
+    const r = await peekStreamHasPayload(
+      sseStream([
+        'data: {"candidates":[{"content":{"role":"model","parts":[]},"finishReason":"STOP"}],"usageMetadata":{"promptTokenCount":10,"candidatesTokenCount":302}}\n\n',
+      ])
+    );
+    expect(r.empty).toBe(false);
+  });
+
+  it("still flags a genuinely empty response whose usage is all zeros", async () => {
+    const r = await peekStreamHasPayload(
+      sseStream([
+        'data: {"choices":[{"index":0,"delta":{"role":"assistant"}}]}\n\n',
+        'data: {"choices":[{"index":0,"delta":{},"finish_reason":"stop"}],"usage":{"prompt_tokens":85752,"completion_tokens":0,"total_tokens":85752}}\n\n',
+        "data: [DONE]\n\n",
+      ])
+    );
+    expect(r.empty).toBe(true);
+  });
+
+  // The exact production shape (openai->antigravity, FMT: openai→antigravity):
+  // candidates nested under `response`, and the translator emits
+  // `parts: [{ text: "" }]` for an answer that produced nothing. Reading any
+  // present part as payload would suppress the very detection we need; the
+  // real signal is the non-zero usageMetadata.candidatesTokenCount.
+  it("reads the antigravity response envelope and ignores the empty-text placeholder part", async () => {
+    const r = await peekStreamHasPayload(
+      sseStream([
+        'data: {"response":{"candidates":[{"content":{"role":"model","parts":[{"text":"real answer"}]},"finishReason":null}],"usageMetadata":{"promptTokenCount":41357}}}\n\n',
+        'data: {"response":{"candidates":[{"content":{"role":"model","parts":[]},"finishReason":"STOP"}],"usageMetadata":{"candidatesTokenCount":302}}}\n\n',
+      ])
+    );
+    expect(r.empty).toBe(false);
+  });
+
+  it("flags an antigravity envelope that only carries the empty-text placeholder", async () => {
+    const r = await peekStreamHasPayload(
+      sseStream([
+        'data: {"response":{"candidates":[{"content":{"role":"model","parts":[{"text":""}]},"finishReason":"STOP"}],"usageMetadata":{"promptTokenCount":41357,"candidatesTokenCount":0}}}\n\n',
+      ])
+    );
+    expect(r.empty).toBe(true);
+  });
+});
+
 describe("peekStreamHasPayload — fail-open on inconclusive input", () => {
   it("does not flag a stream that is still open after the peek budget", async () => {
     // Never closes, never sends payload within maxChunks: inconclusive, so we
