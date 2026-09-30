@@ -28,6 +28,14 @@ COPY gateway ./gateway
 COPY open-sse ./open-sse
 COPY src ./src
 
+# COPY reproduces build-context mode bits verbatim. A checkout produced under a
+# restrictive umask (077) therefore bakes mode-0600 sources into the image. The
+# container runs as uid 1000 (`node`) and cannot read them, and because these
+# files are pulled in by a dynamic import() on the request path the failure is an
+# opaque EACCES / HTTP 500 at request time rather than a build error.
+# Normalize while still root, before dropping privileges via USER below.
+RUN chmod -R a+rX /app/gateway /app/open-sse /app/src
+
 ENV NODE_ENV=production
 ENV GATEWAY_PORT=3778
 ENV HOSTNAME=0.0.0.0

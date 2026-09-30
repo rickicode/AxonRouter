@@ -47,6 +47,11 @@ COPY --from=builder /app/gateway ./gateway
 COPY --from=builder /app/server.js ./server.js
 COPY --from=builder /app/node_modules/node-machine-id ./node_modules/node-machine-id
 
+# See Dockerfile.gateway: COPY preserves build-context mode bits, so a checkout
+# made under a restrictive umask ships sources the runtime uid cannot read.
+# Normalize here, while still root, before the app drops to uid 1000 (`node`).
+RUN chmod -R a+rX /app/dist /app/public /app/src /app/open-sse /app/gateway /app/server.js
+
 RUN mkdir -p /app/data /app/data-home && chown -R node:node /app/data /app/data-home && \
   ln -sf /app/data-home /root/.axonrouter 2>/dev/null || true
 
