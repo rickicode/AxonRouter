@@ -126,8 +126,38 @@ async function requireLlmAccess(c, next) {
 // ── Handlers (imported from the existing pipeline — untouched) ───────────────
 const srcSse = "@/sse/handlers";
 let pipelineInitialized = false;
+/**
+ * Point this process's log files at a per-worker directory and start capturing.
+ *
+ * The gateway runs as a cluster (GATEWAY_WORKERS, 4 on this deployment). Every
+ * worker handles requests, so every worker emits request-lifecycle lines and
+ * background refresh lines — but they are separate processes with separate
+ * buffers. Sharing one file would interleave flushes and hand a single rotation
+ * to four writers. Tagging the directory per worker keeps each process the sole
+ * writer of its own console.log / request.log / background.log.
+ *
+ * Set CONSOLE_LOG_CAPTURE=false to keep gateway output on stdout only.
+ */
+async function initGatewayLogCapture() {
+  if (process.env.CONSOLE_LOG_CAPTURE === "false") return;
+  try {
+    const workerTag = cluster.isWorker ? `w${cluster.worker.id}` : "primary";
+    const baseDir = path.join(process.env.DATA_DIR || "/app/data", "logs", "gateway", workerTag);
+    // Both are read by consoleLogBuffer: CONSOLE_LOG_FILE for the combined stream,
+    // CONSOLE_LOG_DIR for the per-channel files.
+    process.env.CONSOLE_LOG_DIR = baseDir;
+    process.env.CONSOLE_LOG_FILE = path.join(baseDir, "console.log");
+    const { initConsoleLogCapture } = await import("@/lib/consoleLogBuffer.js");
+    initConsoleLogCapture();
+  } catch (e) {
+    // Logging must never keep the gateway from serving.
+    console.warn("[Gateway] Console log capture unavailable:", e?.message || e);
+  }
+}
+
 async function ensureInitialized() {
   if (pipelineInitialized) return;
+  await initGatewayLogCapture();
   try {
     const { initValkey } = await import("@/lib/cache/valkeyClient.js");
     await initValkey();

@@ -26,6 +26,11 @@ services:
       - "3778:3778"
     volumes:
       - axonrouter-data:/app/data
+      # Per-worker log channel files (console.log / request.log / background.log)
+      # under /app/data/logs/gateway/. Bind-mounted so gateway logs are readable
+      # from the host without `docker exec`. Separate from the dashboard's own
+      # logs, which write straight into /app/data/logs.
+      - ${LOG_DIR:-/opt/axonrouter/logs}:/app/data/logs
     env_file:
       - .env
     environment:
