@@ -275,6 +275,18 @@ export function buildOnStreamComplete({ provider, model, connectionId, apiKey, r
       providerRequest: finalBody || translatedBody || null,
       providerResponse: safeContent,
       response: { content: safeContent, thinking: safeThinking, type: "streaming" },
+      // An empty response is recorded as an error, but without a reason the row
+      // is indistinguishable from an upstream failure: 13 atria-asi rows in 3h
+      // carried status "error" with no error field at all. The reason has to
+      // survive to the history, not just to the log.
+      error: wasEmpty
+        ? {
+            message: "stream completed with no content, reasoning, or tool call",
+            type: "empty_response",
+            provider,
+            model,
+          }
+        : null,
       pxpipe,
       status: wasEmpty ? "error" : "success"
     }, { id: streamDetailId, timestamp: streamTimestamp })).catch(err => {

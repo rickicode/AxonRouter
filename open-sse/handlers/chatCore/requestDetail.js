@@ -79,6 +79,10 @@ export function buildRequestDetail(base, overrides = {}) {
     providerRequest: base.providerRequest || null,
     providerResponse: base.providerResponse || null,
     response: base.response || {},
+    // Reader-side queries look for data->>'error' (see requestDetailsRepo's
+    // error projection), so an empty response needs the reason at the root, not
+    // only inside response.
+    error: base.error ? String(base.error.message || base.error) : undefined,
     pxpipe: base.pxpipe || undefined,
     status: base.status || "success",
     endpoint: overrides.endpoint || base.endpoint || undefined,
