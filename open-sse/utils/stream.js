@@ -231,6 +231,24 @@ export function createSSEStream(options = {}) {
                 totalContentLength += reasoning.length;
                 accumulatedThinking += reasoning;
               }
+              // Responses API: text arrives as `response.output_text.delta`
+              // events — under neither `choices` nor `candidates`. Without
+              // counting them here, every streaming Responses answer finished
+              // with totalContentLength 0 and was recorded as empty even though
+              // the client had the full text.
+              const responsesDeltaText = parsed?.type === "response.output_text.delta"
+                ? parsed.delta
+                : null;
+              if (typeof responsesDeltaText === "string" && responsesDeltaText.length > 0) {
+                totalContentLength += responsesDeltaText.length;
+                accumulatedContent += responsesDeltaText;
+              }
+              if (parsed?.type === "response.output_text.done" && typeof parsed?.text === "string") {
+                if (accumulatedContent.length < parsed.text.length) {
+                  accumulatedContent = parsed.text;
+                  totalContentLength = Math.max(totalContentLength, parsed.text.length);
+                }
+              }
               if (Array.isArray(delta?.tool_calls) && delta.tool_calls.length > 0) {
                 emittedToolCall = true;
               }
