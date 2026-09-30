@@ -33,13 +33,25 @@ export function tagForSession(seed) {
 }
 
 // Print one correlated line: [time] tag symbol message
+// Marks the next console write as belonging to the request lifecycle, so
+// consoleLogBuffer can split it into logs/request.log. Set-and-read is
+// synchronous with the console.* call that follows, so no async race exists.
+// The global (rather than an import of consoleLogBuffer) keeps this file free of
+// any @/lib dependency, which matters because open-sse imports this logger and
+// must stay decoupled from the app's fs/buffer plumbing.
+function markRequestChannel() {
+  global.__consoleLogChannel = "request";
+}
+
 export function line(tag, symbol, message) {
   if (LEVEL > LOG_LEVELS.INFO) return;
+  markRequestChannel();
   console.log(`[${formatTime()}] ${tag} ${symbol} ${message}`);
 }
 
 // Like line() but always printed regardless of LOG_LEVEL (errors must never be hidden)
 export function errorLine(tag, symbol, message) {
+  markRequestChannel();
   console.log(`[${formatTime()}] ${tag} ${symbol} ${message}`);
 }
 
@@ -96,17 +108,20 @@ export function error(tag, message, data) {
 
 export function request(method, path, extra) {
   const dataStr = extra ? ` ${formatData(extra)}` : "";
+  markRequestChannel();
   console.log(`\x1b[36m[${formatTime()}] 📥 ${method} ${path}${dataStr}\x1b[0m`);
 }
 
 export function response(status, duration, extra) {
   const icon = status < 400 ? "📤" : "💥";
   const dataStr = extra ? ` ${formatData(extra)}` : "";
+  markRequestChannel();
   console.log(`[${formatTime()}] ${icon} ${status} (${duration}ms)${dataStr}`);
 }
 
 export function stream(event, data) {
   const dataStr = data ? ` ${formatData(data)}` : "";
+  markRequestChannel();
   console.log(`[${formatTime()}] 🌊 [STREAM] ${event}${dataStr}`);
 }
 

@@ -6,6 +6,19 @@ import { getDataDir } from "./dataDir.js";
 
 const consoleLevels = ["log", "info", "warn", "error", "debug"];
 
+// Two channels only, because that is the split an operator actually needs: the
+// request lifecycle, versus everything the router does on its own (token refresh
+// sweeps, quota maintenance, proxy health). Both channels are ALSO kept in the
+// combined file, so the dashboard console keeps its full history across a reload
+// — splitting the files must not cost the console anything.
+export const LOG_CHANNEL_REQUEST = "request";
+export const LOG_CHANNEL_BACKGROUND = "background";
+
+const CHANNEL_FILES = {
+  [LOG_CHANNEL_REQUEST]: "request.log",
+  [LOG_CHANNEL_BACKGROUND]: "background.log",
+};
+
 if (!global._consoleLogBufferState) {
   global._consoleLogBufferState = {
     logs: [],
@@ -23,7 +36,7 @@ if (!state.emitter) {
   state.emitter.setMaxListeners(50);
 }
 
-if (!state.pendingLines) state.pendingLines = [];
+if (!state.pendingEntries) state.pendingEntries = [];
 if (!state.flushTimer) state.flushTimer = null;
 
 const FLUSH_INTERVAL_MS = 100;
@@ -95,45 +108,78 @@ export function rotateLogFiles(baseFile, maxFiles = 5) {
   }
 }
 
-export function writeLogLines(lines) {
-  if (!lines || !lines.length || isWriting) return Promise.resolve();
+export function getChannelLogFilePath(channel) {
+  const fileName = CHANNEL_FILES[channel];
+  if (!fileName) return null;
+  if (process.env.CONSOLE_LOG_DIR) return path.join(process.env.CONSOLE_LOG_DIR, fileName);
+  try {
+    const dataDir = getDataDir();
+    return path.join(dataDir, "logs", fileName);
+  } catch {
+    return path.join(process.cwd(), "logs", fileName);
+  }
+}
+
+function prepareAppend(logFile, payload) {
+  const maxFileSize = Number(process.env.CONSOLE_LOG_MAX_BYTES) || CONSOLE_LOG_CONFIG.maxFileSizeBytes || 5 * 1024 * 1024;
+  const maxFiles = Number(process.env.CONSOLE_LOG_MAX_FILES) || CONSOLE_LOG_CONFIG.maxFiles || 5;
+
+  let payloadBytes = Buffer.byteLength(payload, "utf8");
+  if (payloadBytes > maxFileSize) {
+    payload = Buffer.from(payload, "utf8").subarray(payloadBytes - maxFileSize).toString("utf8");
+    payloadBytes = Buffer.byteLength(payload, "utf8");
+  }
+
+  let currentSize = 0;
+  try {
+    currentSize = fs.statSync(logFile).size;
+  } catch {
+    currentSize = 0;
+  }
+
+  if (currentSize + payloadBytes > maxFileSize) {
+    rotateLogFiles(logFile, maxFiles);
+  }
+  return { file: logFile, payload };
+}
+
+/**
+ * Append one batch to the combined file plus its per-channel file.
+ * entries: [{ line, channel }]
+ */
+export function writeLogEntries(entries) {
+  if (!entries || !entries.length || isWriting) return Promise.resolve();
   isWriting = true;
   try {
     const logFile = getLogFilePath();
     ensureLogDir(logFile);
 
-    let payload = lines.join("\n") + "\n";
-    let payloadBytes = Buffer.byteLength(payload, "utf8");
+    const targets = [prepareAppend(logFile, entries.map((e) => e.line).join("\n") + "\n")];
 
-    const maxFileSize = Number(process.env.CONSOLE_LOG_MAX_BYTES) || CONSOLE_LOG_CONFIG.maxFileSizeBytes || 5 * 1024 * 1024;
-    const maxFiles = Number(process.env.CONSOLE_LOG_MAX_FILES) || CONSOLE_LOG_CONFIG.maxFiles || 5;
-
-    if (payloadBytes > maxFileSize) {
-      payload = Buffer.from(payload, "utf8").subarray(payloadBytes - maxFileSize).toString("utf8");
-      payloadBytes = Buffer.byteLength(payload, "utf8");
+    for (const channel of Object.keys(CHANNEL_FILES)) {
+      const lines = entries.filter((e) => e.channel === channel).map((e) => e.line);
+      if (!lines.length) continue;
+      const channelFile = getChannelLogFilePath(channel);
+      if (!channelFile) continue;
+      ensureLogDir(channelFile);
+      targets.push(prepareAppend(channelFile, lines.join("\n") + "\n"));
     }
 
-    let currentSize = 0;
-    try {
-      currentSize = fs.statSync(logFile).size;
-    } catch {
-      currentSize = 0;
-    }
-
-    if (currentSize + payloadBytes > maxFileSize) {
-      rotateLogFiles(logFile, maxFiles);
-    }
-
-    // Async append (event loop stays free), but writeLogLines returns a
-    // promise that resolves once the file write lands so callers/tests can
-    // await durability; console.log hook just fires it off.
-    return fs.promises.appendFile(logFile, payload, "utf8").catch(() => {});
+    return Promise.all(
+      targets.map(({ file, payload }) => fs.promises.appendFile(file, payload, "utf8").catch(() => {}))
+    );
   } catch {
     // Fail-safe
     return Promise.resolve();
   } finally {
     isWriting = false;
   }
+}
+
+// Kept for callers/tests that still hand over plain lines.
+export function writeLogLines(lines) {
+  if (!lines || !lines.length) return Promise.resolve();
+  return writeLogEntries(lines.map((line) => ({ line, channel: LOG_CHANNEL_BACKGROUND })));
 }
 
 function loadInitialLogsFromFile() {
@@ -167,11 +213,13 @@ function loadInitialLogsFromFile() {
 
 export function flushPendingLines() {
   state.flushTimer = null;
-  if (!state.pendingLines.length) return Promise.resolve();
+  if (!state.pendingEntries.length) return Promise.resolve();
 
-  const lines = state.pendingLines.splice(0, state.pendingLines.length);
-  state.emitter.emit("lines", lines);
-  return Promise.resolve(writeLogLines(lines));
+  const entries = state.pendingEntries.splice(0, state.pendingEntries.length);
+  // SSE subscribers keep receiving the plain ordered string array they always
+  // did — the channel split is a file concern and must not become an API change.
+  state.emitter.emit("lines", entries.map((e) => e.line));
+  return Promise.resolve(writeLogEntries(entries));
 }
 
 function scheduleFlush() {
@@ -200,14 +248,14 @@ function formatArg(arg) {
   }
 }
 
-function appendLine(line) {
+function appendLine(line, channel) {
   state.logs.push(line);
   const maxLines = CONSOLE_LOG_CONFIG.maxLines;
   if (state.logs.length > maxLines) {
     state.logs = state.logs.slice(-maxLines);
   }
-  state.pendingLines.push(line);
-  if (state.pendingLines.length >= MAX_BATCH_LINES) {
+  state.pendingEntries.push({ line, channel });
+  if (state.pendingEntries.length >= MAX_BATCH_LINES) {
     if (state.flushTimer) {
       clearTimeout(state.flushTimer);
       state.flushTimer = null;
@@ -218,6 +266,21 @@ function appendLine(line) {
   }
 }
 
+// The logger marks its own lines via a global rather than importing this module:
+// logger.js is used from open-sse, and a hard @/lib import from there would drag
+// the whole buffer (and its fs patching) into the provider-agnostic engine. The
+// read+clear is synchronous with console.log, so a plain global is race-free.
+function takeChannel() {
+  const channel = global.__consoleLogChannel;
+  if (channel === LOG_CHANNEL_REQUEST || channel === LOG_CHANNEL_BACKGROUND) {
+    global.__consoleLogChannel = null;
+    return channel;
+  }
+  // Untagged output (raw console.log from a library, a stray process warning) is
+  // background work by definition: it is not part of serving a request.
+  return LOG_CHANNEL_BACKGROUND;
+}
+
 export function initConsoleLogCapture() {
   loadInitialLogsFromFile();
 
@@ -226,7 +289,8 @@ export function initConsoleLogCapture() {
   for (const level of consoleLevels) {
     state.originals[level] = console[level];
     console[level] = (...args) => {
-      appendLine(toLogLine(level, args));
+      const channel = takeChannel();
+      appendLine(toLogLine(level, args), channel);
       state.originals[level](...args);
     };
   }
