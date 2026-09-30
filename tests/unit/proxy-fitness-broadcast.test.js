@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeAll, afterAll, beforeEach } from "vitest";
 
 // The gateway runs a cluster and the fitness registry is globalThis-backed, i.e.
 // one map per process. Without a broker a pool marked unfit by one worker stayed
@@ -6,11 +6,6 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 // closes that gap: mark -> broadcast -> another worker applies it locally.
 const channels = {};
 const published = [];
-
-// The broker is only joined when an endpoint is configured (valkeyClient otherwise
-// falls back to a default host). Production sets VALKEY_URL; the test must too, or
-// ensureBroker() correctly no-ops and there is no bus to assert against.
-process.env.VALKEY_URL = process.env.VALKEY_URL || "redis://127.0.0.1:6379";
 
 vi.mock("@/lib/cache/valkeyClient.js", () => ({
   getValkey: async () => ({}),
@@ -24,6 +19,24 @@ const {
   isPoolFit,
   resetPoolFitness,
 } = await import("../../open-sse/services/proxyPoolFitness.js");
+
+// ensureBroker() only joins the bus when an endpoint is configured, so the test
+// needs one. Set it per-file and restore afterwards: vitest reuses worker
+// PROCESSES across files, so a module-level process.env write here leaked into
+// every later fitness test in that worker and made them open a real connection
+// attempt mid-run (7 files started failing in the full suite).
+const ENV_KEYS = ["VALKEY_URL", "REDIS_URL", "VALKEY_HOST", "REDIS_HOST"];
+let savedEnv = null;
+beforeAll(() => {
+  savedEnv = ENV_KEYS.map((k) => [k, process.env[k]]);
+  for (const k of ENV_KEYS) delete process.env[k];
+  process.env.VALKEY_URL = "redis://127.0.0.1:6379";
+});
+afterAll(() => {
+  for (const [k, v] of savedEnv) {
+    if (v === undefined) delete process.env[k]; else process.env[k] = v;
+  }
+});
 
 const CH = "axon:events:pool-fitness";
 const tick = () => new Promise((r) => setTimeout(r, 5));
@@ -113,5 +126,25 @@ describe("pool fitness broker connects eagerly", () => {
     await mod.ensurePoolFitnessHydrated();
     await tick();
     expect(typeof channels[CH], "hydration must join the fitness bus").toBe("function");
+  });
+});
+
+// Regression: publishMark() chained straight onto ensureBroker(), which returns
+// null when no broker endpoint is configured. That made markPoolUnfit throw
+// "Cannot read properties of null (reading 'then')" in every process without
+// VALKEY_URL — which is why 7 fitness/proxy test files failed in the full suite
+// while passing in isolation, and would have silently disabled pool-fitness
+// marking for any broker-less deployment.
+describe("pool fitness without a broker", () => {
+  it("markPoolUnfit works and still filters locally when no broker is configured", async () => {
+    vi.resetModules();
+    for (const k of ENV_KEYS) delete process.env[k];
+    const mod = await import("../../open-sse/services/proxyPoolFitness.js");
+
+    expect(() => mod.markPoolUnfit("pool-X", "tokenharbor::*", Date.now() + 60_000, "region_blocked")).not.toThrow();
+    expect(mod.isPoolFit("pool-X", "tokenharbor::gpt-5.6-luna")).toBe(false);
+
+    expect(() => mod.clearPoolUnfit("pool-X", "tokenharbor::*")).not.toThrow();
+    expect(mod.isPoolFit("pool-X", "tokenharbor::gpt-5.6-luna")).toBe(true);
   });
 });

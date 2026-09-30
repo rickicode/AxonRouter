@@ -78,7 +78,13 @@ function ensureBroker() {
 
 function publishMark(entry) {
   if (brokerUnavailable) return;
-  void ensureBroker().then((mod) => mod?.publishValkey(FITNESS_CHANNEL, entry)).catch(() => {});
+  // ensureBroker() returns null when no broker endpoint is configured. That is a
+  // normal state (tests, CLI), not an error — chaining onto it threw
+  // "Cannot read properties of null (reading 'then')" out of markPoolUnfit,
+  // which took down pool-fitness marking in every such process.
+  const ready = ensureBroker();
+  if (!ready) return;
+  void ready.then((mod) => mod?.publishValkey(FITNESS_CHANNEL, entry)).catch(() => {});
 }
 
 function schedulePersist() {
