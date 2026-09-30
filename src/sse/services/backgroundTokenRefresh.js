@@ -2,6 +2,7 @@
 // Fail-open everywhere: tick errors and per-connection failures never kill the interval.
 
 import * as log from "../utils/logger.js";
+import { connectionLabel } from "../utils/connectionLabel.js";
 import { acquireLock, releaseLock, isCacheAvailable } from "@/lib/cache/client.js";
 
 // Single-process guard: without this,
@@ -267,16 +268,19 @@ export async function runBackgroundTokenRefreshTick(deps = {}) {
       try {
         const result = await refresh(conn);
         if (result !== null) {
-          log.info("BG_TOKEN_REFRESH", "Connection refresh finished", {
-            id: conn.id,
-            email: conn.email || conn.name || conn.id,
+          // DEBUG, not INFO: a successful proactive refresh is the expected steady
+          // state, and with hundreds of connections inside the 30-minute lead
+          // window this fired every ~1.5s per connection. At INFO it buried the
+          // request log — every request line was buried under refresh noise.
+          // Failures stay at WARN below, so real problems remain visible.
+          log.debug("BG_TOKEN_REFRESH", "Connection refresh finished", {
+            account: connectionLabel(conn),
             provider: conn.provider,
           });
         }
       } catch (err) {
         log.warn("BG_TOKEN_REFRESH", "Connection refresh failed (swallowed)", {
-          id: conn?.id,
-          email: conn?.email || conn?.name || conn?.id,
+          account: connectionLabel(conn),
           provider: conn?.provider,
           error: err?.message ?? String(err),
         });

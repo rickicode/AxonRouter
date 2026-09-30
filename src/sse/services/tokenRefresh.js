@@ -1,5 +1,6 @@
 // Re-export from open-sse with local logger
 import * as log from "../utils/logger.js";
+import { connectionLabel } from "../utils/connectionLabel.js";
 import { updateProviderConnection, getProviderConnectionById, getProviderConnections } from "../../lib/localDb.js";
 import {
   getProjectIdForConnection,
@@ -231,9 +232,13 @@ function _refreshProjectId(provider, connectionId, accessToken, accountTag = nul
  *
  * @param {string} connectionId
  * @param {object} newCredentials
+ * @param {object} [identity] connection row/credentials carrying the human label.
+ *   newCredentials holds tokens only, so without this the log line could only fall
+ *   back to the connection id. Callers on the refresh path pass the creds they
+ *   already hold; see connectionLabel.js.
  * @returns {Promise<boolean>}
  */
-export async function updateProviderCredentials(connectionId, newCredentials) {
+export async function updateProviderCredentials(connectionId, newCredentials, identity = null) {
   try {
     const updates = {};
 
@@ -268,9 +273,14 @@ export async function updateProviderCredentials(connectionId, newCredentials) {
     if (newCredentials.projectId)            updates.projectId = newCredentials.projectId;
 
     const result = await updateProviderConnection(connectionId, updates);
-    log.info("TOKEN_REFRESH", "Credentials updated in localDb", {
-      connectionId,
-      success: !!result
+    // DEBUG + labelled: one line per proactive refresh times every connection inside
+    // the lead window was drowning the request log, and the bare UUID gave an operator
+    // nothing to match the request lines' account name against. See
+    // utils/connectionLabel.js for the single precedence chain.
+    log.debug("TOKEN_REFRESH", "Credentials updated in localDb", {
+      account: connectionLabel(identity || { connectionId }),
+      provider: identity?.provider || null,
+      success: !!result,
     });
 
     // If this is a Cline connection (cline or cline-free) and refreshToken was updated,
@@ -344,7 +354,8 @@ export async function checkAndRefreshToken(provider, credentials, options = {}) 
     const remaining = expiresAt ? expiresAt - Date.now() : null;
     const refreshLead = _getRefreshLeadMs(provider);
 
-    log.info("TOKEN_REFRESH", "Refreshing provider credentials proactively", {
+    log.debug("TOKEN_REFRESH", "Refreshing provider credentials proactively", {
+      account: connectionLabel(creds),
       provider,
       expiresIn: remaining === null ? null : Math.round(remaining / 1000),
       refreshLeadMs: refreshLead,
@@ -402,7 +413,7 @@ export async function checkAndRefreshToken(provider, credentials, options = {}) 
             refreshBlocked: newCreds.error || "unrecoverable",
             refreshBlockedAt: refreshErrorAt,
           },
-        }).catch(() => {});
+        }, creds).catch(() => {});
       }
       return { ...creds, refreshError: newCreds.error, refreshErrorAt };
     }
@@ -420,7 +431,7 @@ export async function checkAndRefreshToken(provider, credentials, options = {}) 
       };
 
       // Persist to DB (non-blocking path continues below)
-      await updateProviderCredentials(creds.connectionId, mergedCreds);
+      await updateProviderCredentials(creds.connectionId, mergedCreds, creds);
 
       creds = {
         ...creds,
@@ -463,7 +474,7 @@ export async function checkAndRefreshToken(provider, credentials, options = {}) 
 
         await updateProviderCredentials(creds.connectionId, {
           providerSpecificData: updatedSpecific,
-        });
+        }, creds);
 
         creds.providerSpecificData = updatedSpecific;
         creds.copilotToken = copilotTokenResult.token;

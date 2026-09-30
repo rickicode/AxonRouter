@@ -1406,7 +1406,10 @@ export async function getRecentLogs(limit = 200) {
     const db = await getAdapter();
     const safeLimit = Math.min(Math.max(Number(limit) || 200, 1), 500);
     const rows = await db.all(
-      `SELECT timestamp, provider, model, connection_id, prompt_tokens, completion_tokens, status, tokens
+      // meta must be selected: the mapper below reads meta.error, and without the
+      // column in the projection row.meta is always undefined, so every request-log
+      // row reported error=null no matter what the upstream actually returned.
+      `SELECT timestamp, provider, model, connection_id, prompt_tokens, completion_tokens, status, tokens, meta
        FROM usage_history ORDER BY id DESC LIMIT $1`,
       [safeLimit],
     );
