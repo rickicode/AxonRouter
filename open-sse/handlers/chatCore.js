@@ -388,7 +388,13 @@ const buildProxyOptions = (psd = {}) => ({
   noFitPool: psd?.noFitPool === true,
 });
 
-const proxyScope = `${provider}::${model}`;
+// Egress-level pool failures are NOT model-scoped. A pool that is dead,
+// region-blocked or per-IP limited breaks EVERY model this provider sends through
+// it, so the fitness mark has to be provider-wide (`provider::*`) or the picker's
+// wildcard check never matches it and the same broken pool keeps serving the
+// account's other models. `provider::model` marks only ever excluded the one model
+// that happened to trip over the bad egress.
+const proxyEgressScope = `${provider}::*`;
 let proxyOptions = buildProxyOptions(credentials?.providerSpecificData || {});
 
 if (proxyOptions.vercelRelayUrl) {
@@ -428,7 +434,7 @@ const failedPoolIds = new Set();
 const tryNextPool = async (poolScoped, reasonMsg) => {
   const failed = {
     poolId: poolScoped?.poolId || proxyOptions.proxyPoolId || null,
-    scope: poolScoped?.scope || proxyScope,
+    scope: poolScoped?.scope || proxyEgressScope,
     reason: poolScoped?.reason || "pool-scoped",
   };
   if (failed.poolId) {
@@ -523,7 +529,7 @@ const executeWithPoolFallback = async (attempt = 0) => {
   } catch (error) {
     let poolScoped = executor.parseError ? executor.parseError(error)?.poolScoped : null;
     if (!poolScoped && proxyOptions?.proxyPoolId && isProxyNetworkError(error)) {
-      poolScoped = { poolId: proxyOptions.proxyPoolId, scope: proxyScope, reason: "proxy_connection_failed" };
+      poolScoped = { poolId: proxyOptions.proxyPoolId, scope: proxyEgressScope, reason: "proxy_connection_failed" };
     }
     if (poolScoped) {
       if (typeof resolveProxyConfig === "function" && attempt < MAX_POOL_RETRIES) {

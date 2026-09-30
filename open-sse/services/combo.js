@@ -1174,10 +1174,11 @@ export async function handleDifficultyChat({ body, models = [], handleSingleMode
     }
 
     // 1. Prompt-Cache Affinity: prioritize sticky model from previous turn if in tier and healthy
+    let stickyBad = false;
     if (stickyModel && candidateModels.includes(stickyModel)) {
       const failInfo = difficultyModelHealth.get(stickyModel);
-      const isStickyBad = failInfo && (now - failInfo.failedAt < MODEL_FAILURE_COOLDOWN_MS);
-      if (!isStickyBad) {
+      stickyBad = Boolean(failInfo && (now - failInfo.failedAt < MODEL_FAILURE_COOLDOWN_MS));
+      if (!stickyBad) {
         candidateModels = [stickyModel, ...candidateModels.filter((x) => x !== stickyModel)];
         bumpRoutingMetric("lkgHits");
         log.info("DIFFICULTY", `Prompt-Cache Affinity: sticking to previous model "${stickyModel}"`);
@@ -1185,9 +1186,16 @@ export async function handleDifficultyChat({ body, models = [], handleSingleMode
     }
 
     // 2. Health-aware sorting: deprioritize models that recently failed (< 25s)
+    //    Sticky only wins the tie while it is itself healthy. Unconditionally pinning
+    //    it to the front defeated the health check: a previous turn that exhausted
+    //    every tier leaves no cache entry, so the old winner stays sticky AND marked
+    //    failed — the next request then opened with the one member already known down,
+    //    wasting a full round trip exactly when the combo was under pressure.
     candidateModels.sort((a, b) => {
-      if (stickyModel && a === stickyModel) return -1;
-      if (stickyModel && b === stickyModel) return 1;
+      if (stickyModel && !stickyBad) {
+        if (a === stickyModel) return -1;
+        if (b === stickyModel) return 1;
+      }
       const failA = difficultyModelHealth.get(a);
       const failB = difficultyModelHealth.get(b);
       const isBadA = failA && (now - failA.failedAt < MODEL_FAILURE_COOLDOWN_MS);
@@ -1685,7 +1693,12 @@ export async function classifyWithJev(body, optionsOrKey = {}, maybeOptions = {}
         );
         jevCooldowns.set(cooldownKey, Date.now() + cooldownMs);
         if (proxyOptions?.proxyPoolId) {
-          markPoolUnfit(proxyOptions.proxyPoolId, `${target.provider}::jev`, undefined, `http ${status}`);
+          // Provider-wide, not `provider::jev`: the failure above is a per-IP quota on the
+          // exit, so every request of that provider — classifier AND chat — must stop
+          // picking this pool. The classifier's own pick scope stays `provider::jev`
+          // so rotation state is still isolated; the wildcard is what makes the mark
+          // visible to both paths.
+          markPoolUnfit(proxyOptions.proxyPoolId, `${target.provider}::*`, undefined, `http ${status}`);
         }
         log?.warn?.(
           "DIFFICULTY",

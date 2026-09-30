@@ -95,7 +95,14 @@ export function pickProxyPoolId(poolIds, strategy, providerId, opts = {}) {
   const isFreebuff = providerId === "freebuff" || scope?.startsWith("freebuff::");
   const isOpenCode = providerId === "opencode" || scope?.startsWith("opencode::");
   const isKilocodeFree = providerId === "kilocode-free" || providerId === "kcf" || scope?.startsWith("kilocode-free::") || scope?.startsWith("kcf::");
-  if ((strategy === "smart" || isFreebuff || isOpenCode || isKilocodeFree) && scope) {
+  // Fitness is honored for EVERY provider that supplies a scope, not just an
+  // allow-list of three plus the "smart" strategy. TokenHarbor marks a pool unfit
+  // on a 403 region/refusal and Freebuff on a limited IP, but any other provider —
+  // or one on plain round-robin — silently kept re-picking the exact pool it had
+  // just been told was bad. fitPoolIds/isPoolFit are fail-open by contract: with no
+  // marks for the scope they return the input untouched, so applying this
+  // unconditionally is a no-op for everything that never reported an unfit pool.
+  if (scope) {
     eligible = fitPoolIds(eligible, scope);
   }
 

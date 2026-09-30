@@ -414,6 +414,47 @@ describe("handleDifficultyChat (smart routing)", () => {
     expect(calls[1]).toBe("easy-1");
   });
 
+  it("a turn that exhausted every tier must not pin the next turn to the model it just killed", async () => {
+    // Regression: the health-aware sort gave the sticky model unconditional
+    // priority, so the "is it still healthy?" check that the affinity block had
+    // just performed was thrown away. A turn where every tier fails leaves no
+    // cache entry, so the previous winner stays sticky AND marked failed — the
+    // next turn then opened with the one member already known to be down.
+    const calls = [];
+    let phase = 0;
+    const handleSingleModel = vi.fn(async (_b, m) => {
+      calls.push(m);
+      if (phase === 1) return errRes(500);                 // whole turn fails: no cache write
+      if (m === "sticky-model") return phase === 0 ? okRes("winner") : errRes(500);
+      return phase === 0 ? errRes(500) : okRes("other");    // backup fails turn 1, recovers turn 3
+    });
+
+    const body = { messages: [{ role: "user", content: "hi" }], stream: false };
+    // sticky-model is NOT first in the tier, so "sticky stays pinned to the front"
+    // and "tier order" are distinguishable.
+    const tuning = { easyModels: ["backup-model", "sticky-model"] };
+
+    // Turn 1 — backup fails, sticky wins and becomes the cached winner.
+    await handleDifficultyChat({ body, models: ["backup-model", "sticky-model"], handleSingleModel, log: quietLog, comboName: "smart-model", tuning });
+    expect(calls).toEqual(["backup-model", "sticky-model"]);
+
+    // Turn 2 — sticky-model is now known-bad; the turn exhausts and returns 502.
+    phase = 1;
+    calls.length = 0;
+    const exhausted = await handleDifficultyChat({ body, models: ["backup-model", "sticky-model"], handleSingleModel, log: quietLog, comboName: "smart-model", tuning });
+    expect(exhausted.ok).toBe(false);
+    // easy tier (affinity floats the still-healthy cached winner to the front, then it
+    // fails) and the hard tier (plain configured order) — all four fail
+    expect(calls).toEqual(["sticky-model", "backup-model", "backup-model", "sticky-model"]);
+
+    // Turn 3 — the fix: the failed sticky model is NOT retried first. It is still
+    // down, so the old order would spend a round trip proving that again first.
+    phase = 2;
+    calls.length = 0;
+    await handleDifficultyChat({ body, models: ["backup-model", "sticky-model"], handleSingleModel, log: quietLog, comboName: "smart-model", tuning });
+    expect(calls).toEqual(["backup-model"]);
+  });
+
   it("health-aware sorting: deprioritizes recently failed model within the tier", async () => {
     const calls = [];
     let callCount = 0;

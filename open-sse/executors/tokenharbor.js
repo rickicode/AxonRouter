@@ -13,6 +13,25 @@ import { peekStreamHead } from "../utils/streamHandler.js";
 const HEDGE_DELAY_MS = 1000;
 const MAX_HEDGE_CONCURRENCY = 4;
 const MAX_TOTAL_HEDGE_ATTEMPTS = 10;
+// Fleet-size threshold that switches the model-capacity cooldown from the upstream
+// hint (clamped) to a fixed long park. See the cooldown site for why.
+const LARGE_FLEET_ACCOUNT_THRESHOLD = 1000;
+const LARGE_FLEET_COOLDOWN_SECONDS = 300;
+const FLEET_SIZE_TTL_MS = 60_000;
+let fleetSizeCache = { at: 0, size: 0 };
+
+async function tokenHarborFleetSize() {
+  if (Date.now() - fleetSizeCache.at < FLEET_SIZE_TTL_MS) return fleetSizeCache.size;
+  try {
+    const { countProviderConnections } = await import("@/lib/db/repos/connectionsRepo.js");
+    const n = Number(await countProviderConnections("tokenharbor")) || 0;
+    fleetSizeCache = { at: Date.now(), size: n };
+    return n;
+  } catch {
+    // Never let a failed count widen the cooldown decision — 0 means "small fleet".
+    return fleetSizeCache.size;
+  }
+}
 export class TokenHarborExecutor extends BaseExecutor {
   constructor() {
     super("tokenharbor", PROVIDERS.tokenharbor || { baseUrl: "https://tokenharbor.ai/v1/chat/completions" });
@@ -95,7 +114,11 @@ export class TokenHarborExecutor extends BaseExecutor {
               // markPoolUnfit is SYNC (returns undefined) and takes (poolId, scope, until, reason).
               // Passing errReason as the 3rd arg landed it in `until`, breaking isPoolFit()'s
               // numeric comparison — the pool never became unfit. Pass it as `reason`.
-              markPoolUnfit(pOptions.proxyPoolId, `tokenharbor::${model}`, undefined, errReason);
+              // Scope provider-wide (`tokenharbor::*`): a region-blocked or refusing egress
+              // is a property of the exit IP, not of this model. A `tokenharbor::model`
+              // mark only excluded the one model that tripped over it while the account's
+              // other models kept being routed straight back through the blocked pool.
+              markPoolUnfit(pOptions.proxyPoolId, "tokenharbor::*", undefined, errReason);
               void recordRuntimeProxyFailure(pOptions.proxyPoolId)?.catch?.(() => {});
               log?.warn?.("HEDGE", `[TokenHarbor] Region block on pool ${pOptions.proxyPoolId}, marked unfit (not locking account ${connName})`);
             } else if (isRegionBlock && !pOptions?.connectionProxyEnabled) {
@@ -196,7 +219,7 @@ export class TokenHarborExecutor extends BaseExecutor {
             if (nextCreds && !nextCreds.allRateLimited && nextCreds.apiKey) {
               triedConnectionIds.add(nextCreds.connectionId);
               let nextProxyOptions = null;
-              const proxyData = nextCreds.providerSpecificData || { proxyGroup: "proxy100" };
+              const proxyData = nextCreds.providerSpecificData || {};
               const resolvedProxy = await resolveConnectionProxyConfig(proxyData, nextCreds.connectionId);
               if (resolvedProxy?.proxyPoolId) {
                 nextProxyOptions = {
@@ -248,7 +271,7 @@ export class TokenHarborExecutor extends BaseExecutor {
           if (nextCreds && !nextCreds.allRateLimited && nextCreds.apiKey) {
             triedConnectionIds.add(nextCreds.connectionId);
             let nextProxyOptions = null;
-            const proxyData = nextCreds.providerSpecificData || { proxyGroup: "proxy100" };
+            const proxyData = nextCreds.providerSpecificData || {};
             const resolvedProxy = await resolveConnectionProxyConfig(proxyData, nextCreds.connectionId);
             if (resolvedProxy?.proxyPoolId) {
               nextProxyOptions = {
@@ -287,11 +310,20 @@ export class TokenHarborExecutor extends BaseExecutor {
     if (!winner && capacityFailures > 0 && exhaustedPool) {
       const retryMatch = lastError?.match(/retry in about (\d+) seconds/i);
       const upstreamHint = retryMatch ? parseInt(retryMatch[1], 10) : NaN;
-      const retrySecs = clampModelCooldownSeconds(upstreamHint);
+      const fleetSize = await tokenHarborFleetSize();
+      // Above the threshold the "at capacity" signal is fleet-wide, not per-account:
+      // every account burns out at roughly the same time, so the upstream "retry in
+      // ~30s" hint is far shorter than the fleet needs to actually recover. Parking
+      // the model for a minute just re-exhausts it, and every retry lands on 10 more
+      // accounts (the observed meltdown: 2k accounts tried, 17% success). Below the
+      // threshold the account genuinely is the problem and the short clamp is right.
+      const isLargeFleet = fleetSize > LARGE_FLEET_ACCOUNT_THRESHOLD;
+      const retrySecs = isLargeFleet ? LARGE_FLEET_COOLDOWN_SECONDS : clampModelCooldownSeconds(upstreamHint);
       void Promise.resolve(setProviderModelCooldown("tokenharbor", model, retrySecs)).catch(() => {});
       log?.warn?.(
         "HEDGE",
-        `[TokenHarbor] All ${capacityFailures} available account(s) reached model capacity for ${model}. ` +
+        `[TokenHarbor] All ${capacityFailures} available account(s) reached model capacity for ${model} ` +
+          `(fleet ${fleetSize}${isLargeFleet ? " >" + LARGE_FLEET_ACCOUNT_THRESHOLD : ""}). ` +
           `Setting ${retrySecs}s provider-wide model cooldown.`
       );
     }

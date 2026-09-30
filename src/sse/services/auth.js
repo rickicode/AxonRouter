@@ -585,6 +585,13 @@ export async function getProviderCredentials(provider, excludeConnectionIds = nu
     const candidateWindow = Math.min(Math.max(Number(options.candidateLimit) || 100, 25), 500);
     const settings = await getSettings();
     const providerOverride = (settings.providerStrategies || {})[providerId] || {};
+    // Resolved up here, not at the pick site, because the candidate-window scan
+    // below needs it: a "random" strategy must open on a RANDOM window. With a
+    // deterministic start every request scans the same first ~600 rows, so on an
+    // 18k-account fleet the tail never carries traffic and rots — and when the
+    // head does saturate the provider looks dead while thousands of healthy
+    // accounts sit unused.
+    const selectionStrategy = providerOverride.fallbackStrategy || settings.fallbackStrategy || "fill-first";
 
     // 1. Dead provider/model circuit: consecutive fleet-wide empty selections
     // short-circuit to a fast 503 — no PG scan, no rotation budget burned.
@@ -638,8 +645,18 @@ export async function getProviderCredentials(provider, excludeConnectionIds = nu
     // provider/model skip the PG scan. Windows ≥1 always re-read PG.
     const MAX_SELECTION_WINDOWS = Math.min(10, Math.max(2, Number(process.env.ROUTING_MAX_CANDIDATE_WINDOWS) || 6));
     const CONNECTION_CACHE_TTL_S = 60;
+    // How many window-widths the random start may land anywhere inside. 64 x 100
+    // rows spreads a large fleet across its first ~6.4k accounts per draw instead
+    // of pinning every request to the head of the table.
+    const randomStartWindows = selectionStrategy === "random";
+    const windowStart = randomStartWindows
+      ? Math.floor(Math.random() * Math.max(1, Number(process.env.ROUTING_WINDOW_SPREAD) || 64))
+      : 0;
     const loadWindow = async (windowIdx) => {
-      if (windowIdx === 0) {
+      // The 60s candidate cache is keyed per provider/model, so under a random
+      // start it would pin the whole minute to whichever window was drawn first
+      // and undo the spreading. Skip it there.
+      if (windowIdx === 0 && !randomStartWindows) {
         const cached = await getCachedConnections(`${providerId}::routing:${model || "*"}`).catch(() => null);
         if (Array.isArray(cached)) return cached;
       }
@@ -649,9 +666,9 @@ export async function getProviderCredentials(provider, excludeConnectionIds = nu
         routingModel: model,
         excludeIds: [...excludeSet],
         limit: candidateWindow,
-        offset: windowIdx * candidateWindow,
+        offset: (windowStart + windowIdx) * candidateWindow,
       });
-      if (windowIdx === 0 && batch.length > 0 && excludeSet.size === 0) {
+      if (windowIdx === 0 && batch.length > 0 && excludeSet.size === 0 && !randomStartWindows) {
         setCachedConnections(`${providerId}::routing:${model || "*"}`, batch, CONNECTION_CACHE_TTL_S).catch(() => {});
       }
       return batch;
@@ -906,8 +923,9 @@ export async function getProviderCredentials(provider, excludeConnectionIds = nu
     // a previously opened dead-circuit is closed.
     if (excludeSet.size === 0) resetDeadCircuit(providerId, model).catch(() => {});
 
-    // Per-provider strategy overrides global setting
-    const strategy = providerOverride.fallbackStrategy || settings.fallbackStrategy || "fill-first";
+    // Per-provider strategy overrides global setting (resolved above, before the
+    // candidate-window scan, because "random" also controls the scan start).
+    const strategy = selectionStrategy;
 
     let connection;
     // Pin to preferred connection if specified and available.
@@ -940,6 +958,20 @@ export async function getProviderCredentials(provider, excludeConnectionIds = nu
       const sequence = await incrSharedCounter(`rr:account:${provider}:${model || "*"}`);
       const start = Math.floor(Math.max(0, Number(sequence || 1) - 1) / stickyLimit) % ordered.length;
       connection = ordered[start];
+      if (connection?.id) {
+        try {
+          const touch = localDb.touchAccountLastUsed(connection.id);
+          if (touch && typeof touch.catch === "function") touch.catch(() => {});
+        } catch {}
+      }
+    } else if (strategy === "random") {
+      // Uniform over EVERY routable candidate in the window — deliberately not the
+      // top-5 slice used by fill-first below. That slice is a concentration
+      // heuristic for scarce fleets; applied to a large one it quietly reserves the
+      // same handful of accounts and lets the rest idle. Paired with the random
+      // window start above, load spreads across the fleet instead of hammering the
+      // head until it saturates and the provider reads as exhausted.
+      connection = availableConnections[Math.floor(Math.random() * availableConnections.length)];
       if (connection?.id) {
         try {
           const touch = localDb.touchAccountLastUsed(connection.id);
