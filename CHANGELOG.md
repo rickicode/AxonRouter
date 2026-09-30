@@ -1,8 +1,45 @@
-# v0.1.3 (2026-09-26)
+# v0.1.4 (2026-09-30)
 
 > NOTE: the historical `0.5.x` entries below came from the 9router-X fork lineage
 > that AxonRouter was seeded from. AxonRouter proper follows `0.1.x`; entries
 > below are kept for provenance only.
+
+## Features
+- **Registry-driven Jev (System One) upstreams**: the classifier an upgraded combo uses is no longer a hardcoded Zen/TypeSafe pair — any provider declaring `serviceKinds: ["jev"]` plus a `jevConfig` block is offered automatically. `open-sse/config/jevModels.js` derives `JEV_PROVIDERS`, `JEV_MODEL_CHOICES`, `DEFAULT_JEV_MODEL`, the endpoint lookups and `isKnownJevEndpoint` from the client-safe `REGISTRY_UI` projection, so adding an upstream is a registry edit only.
+- **OpenCode Free as a classifier upstream**: `opencode` (`oc/`) now declares `serviceKinds: ["llm","jev"]`, so the keyless System One endpoint (`https://opencode.ai/zen/v1/systemone`, `jev-1.13-free`) is usable with no API key and no connection. The Default picker value is now a keyless upstream, so `two-layer` classification runs out of the box instead of always degrading to the LLM judge.
+- **Per-provider classifier credentials**: global settings and combo overrides carry `jevProvider` (bare provider id; `""` = choose by priority) and `jevApiKeys` (`{ [providerId]: key }`). A pinned provider is a hard pin — an unconfigured pin degrades to the LLM judge rather than silently switching upstream. `typeSafeApiKey` is gone; keys are redacted on read and reported as `jevApiKeysConfigured`.
+- **Difficulty decision payload**: routing decisions now carry `jevProvider`, `jevEndpoint` and `jevModel` so per-upstream classifier usage is visible in combo analytics.
+- **Capability-aware Recent Requests**: the `Stream State` column rendered a hardcoded "Completed" dot for every row — no per-row value behind it. It is now `Capability` (llm / embedding / image / video / search / fetch / audio / speech) driven by `meta.callKind`, falling back to the request endpoint for rows written before capability ledgers existed. `getUsageStats` and the `getActiveRequests` ring path now both expose `callKind`.
+- **Sidebar re-ordered**: `Combo Adapter` moved out of its position *after* the Capabilities Providers accordion into Core & Routing, directly below `Overview`. `Quota Tracker` icon changed from `data_usage` (visually near-identical to Usage & Analytics' `bar_chart`) to `hourglass_empty`.
+- **Gateway log capture**: the request/background channel split previously only covered the dashboard process — `initConsoleLogCapture()` was called from the console-logs route, so the gateway, the process that actually serves `/v1/*`, wrote nothing to disk and was only reachable through `docker logs`. Capture now starts from the gateway's `ensureInitialized()`.
+
+## Fixes
+- **Smart routing removed the phantom medium tier**: `mediumModels` was deleted end-to-end (seed, API handlers, dashboard, rebuild tool, docs). The two-tier router now defaults to the hard tier wherever it previously produced a tier that no tier list served, and a classifier answer of `medium` collapses to `hard`; `resolveTierMatrix` no longer re-derives the removed tier.
+- **Combo analytics missed Jev usage on one path**: the nested difficulty call site in `handleSingleModelChat` now emits `jevUsed` (it only did so on the top-level path), so the Jev fast-path counter no longer under-reports.
+- **Startup 500 on `/v1/chat/completions`**: `Dockerfile`s now `chmod -R a+rX` the app tree. Files injected into the running image had been landing mode `600` uid `1001`, so `stream.js` was unreadable by the server process and every chat request threw.
+- **`usage_history.meta` was unreadable**: `saveRequestUsage` passed a JSON *string* for `meta`, so the `jsonb` column held a scalar string and `meta->>'callKind'` / `meta->>'comboName'` never resolved. It now passes the object, and `repairUsageHistoryMetaOnce` backfills existing rows once at boot (32,314 repaired; `comboName` coverage 690 → 8,574).
+- **Capability request details**: embeddings, classifier and judge calls wrote usage but no `request_details` row, so they were invisible in Usage & Analytics and in provider topology. `beginCapabilityPending` now opens a detail row on those paths, which also feeds `active_requests`.
+- **Token refresh spam**: refresh chatter was logged at INFO and flooded `/console`. It is DEBUG now, via a shared `connectionLabel()` label, so `TOKEN_REFRESH` no longer dominates the stream.
+- **`getRecentLogs` dropped `meta`**: the SELECT omitted it, so the `error` column on `/console` was always empty.
+- **Provider alias mismatch**: `oc` and `opencode` are the same upstream but were reported as `mode=direct` and `mode=group` respectively, splitting one provider into two in the topology. `proxy-stats`, `NoAuthProxyCard` and `mergeProviderStrategies` now canonicalize through `resolveProviderId`.
+- **Smart difficulty routing (5 defects)**: session tier cache was rebuilt every request instead of reused (`canReuseSessionTier` + a `bodyTokens` baseline); the low-confidence path returned early without honouring `difficultyPolicy`, so `balanced` fell back to easy and `cost_efficient` could yield hard — it now calls `resolveTierMatrix` with a one-notch-escalated ambiguity; the confidence threshold was loosened 0.7 → 0.6; a request carrying 20+ tool definitions now short-circuits to `heuristic-many-tools` instead of paying for a classifier call.
+- **Model locks checked under one key spelling**: locks written under a different provider prefix were invisible, so a locked model could still be selected. `modelLockKeyCandidates` now probes every spelling a lock could have been stored under (the leading segment is not always a provider id).
+
+## Tests
+- **Golden header snapshot is release-agnostic**: `sanitize()` in `golden-url-header.test.js` normalised tokens, credentials and device timestamps but left `X-Msh-Version` literal, so the snapshot embedded `0.1.3` and *every* version bump failed the translator suite for a reason unrelated to translation. It now normalises to `<VER>` (3 occurrences updated), decoupling the golden from the release number.
+- **WorkBuddy**: add Tencent WorkBuddy (workbuddy.ai) as a provider — shares the CodeBuddy Intl OpenAI-compatible gateway (`/v2/chat/completions`) but on its own host/brand. Device-code OAuth (Google/GitHub upstream), forced stream, OpenAI `reasoning_effort`/`reasoning_summary` mirroring, `passthroughModels`, and usage via the shared CodeBuddy billing handler. Catalog mirrors CodeBuddy-Intl (`wb` alias).
+- **Capability-aware degradation**: derive required capabilities (`tools`, `reasoning`, `parallelToolCalls`, modalities, `search`) from every request and degrade in place when the target model cannot express one — tool catalogs become transcript text (`[Tool Call: …]` / `[Tool Result: …]`) across OpenAI/Claude/Gemini/Responses wire shapes, reasoning/thinking fields are dropped, `max_tokens` clamps to the model ceiling; combo auto-switch now ranks `tools` as a hard capability. Replaces upstream 400s with a working degraded answer.
+- **Prometheus `/metrics`**: public text-format (0.0.4) endpoint on both the dashboard web server (3777) and the Hono gateway (3778) — process uptime/RSS/heap, speed-layer cache keys, Postgres up/down, and the full routing counter set (`upstream_attempts`, `circuit_trips`, `lkg_hits`, combo skips, …).
+- **Graceful drain**: `SIGINT`/`SIGTERM` now stop accepting new connections and wait up to 15s for in-flight SSE streams before exit — on 3777 via `drainAndShutdown()`, on 3778 the cluster primary stops respawning and each worker closes idle sockets. Restarting no longer cuts live agent streams.
+- **CSRF double-submit**: login issues a readable `csrf_token` cookie; state-changing dashboard mutations (POST/PUT/DELETE/PATCH on `/api/*`) must echo it in `x-csrf-token`, compared in constant time. CLI-token and API-key callers bypass it.
+- **JSON depth guard**: control-plane JSON bodies are depth-scanned (limit 32) before `JSON.parse`, closing a deeply-nested-JSON DoS path.
+- **`PAYLOAD_STORAGE_MODE`**: `bounded` (default) clamps prompt/response text to 32KB and redacts bearer/api-key patterns, `none` stores metadata only, `full` keeps legacy raw capture. Configured in `.env.example`.
+- **Architecture contract tests**: `tests/architecture/contracts.test.mjs` enforces — no raw SQL in API routes, no `next` imports anywhere in `src/`/`open-sse/`, every registry provider exports an id/name, zero CommonJS `require()` in API routes.
+- Console log channel suite covers the file split (`console.log` + `request.log` + `background.log`) and the `CONSOLE_LOG_DIR` / `CONSOLE_LOG_FILE` overrides used by gateway worker subdirectories.
+- Combo difficulty suite covers session tier reuse, low-confidence `difficultyPolicy` handling, the many-tools heuristic and multi-key model-lock lookup.
+- Live verification on the deployed host: capability rows for `classifier` and `embedding` in `/api/usage/request-details`, `cloudflare-ai/@cf/baai/bge-m3` in `active_requests`, `tier=easy (jev-low-conf) under policy cost_efficient`, `source=heuristic-many-tools`, and zero `TOKEN_REFRESH` lines across a 10-minute window.
+
+# v0.1.3 (2026-09-26)
 
 ## Fixes
 - **Combo PUT 404**: catch-all API routes (`[...slug]`) now convert to Hono regex params (`:slug{.+}`) in `routeLoader.mjs` instead of literal `*slug` suffixes. Repairs `PUT /api/combos/{uuid}`, `GET /api/v1/models/[...model]`, and `/v1beta/models/[...path]`; `buildParamsObject` parses regex params into Next-style arrays and `getRouteScore` ranks catch-alls last so literal subpaths win.
@@ -17,27 +54,7 @@
 - Architecture contracts now pass 100% after moving prune count queries into repositories (`countUsageHistory`, `countAnalyticsEvents`).
 - Runtime proxy-health verification: state machine thresholds (degraded@1–2, unhealthy@3–4, dead@5+, sticky, reset-on-success), `includeDead=false` auto-recovery filter, and prune rules all re-verified on live Postgres.
 
-# Unreleased
 
-## Features
-- **Registry-driven Jev (System One) upstreams**: the classifier an upgraded combo uses is no longer a hardcoded Zen/TypeSafe pair — any provider declaring `serviceKinds: ["jev"]` plus a `jevConfig` block is offered automatically. `open-sse/config/jevModels.js` derives `JEV_PROVIDERS`, `JEV_MODEL_CHOICES`, `DEFAULT_JEV_MODEL`, the endpoint lookups and `isKnownJevEndpoint` from the client-safe `REGISTRY_UI` projection, so adding an upstream is a registry edit only.
-- **OpenCode Free as a classifier upstream**: `opencode` (`oc/`) now declares `serviceKinds: ["llm","jev"]`, so the keyless System One endpoint (`https://opencode.ai/zen/v1/systemone`, `jev-1.13-free`) is usable with no API key and no connection. The Default picker value is now a keyless upstream, so `two-layer` classification runs out of the box instead of always degrading to the LLM judge.
-- **Per-provider classifier credentials**: global settings and combo overrides carry `jevProvider` (bare provider id; `""` = choose by priority) and `jevApiKeys` (`{ [providerId]: key }`). A pinned provider is a hard pin — an unconfigured pin degrades to the LLM judge rather than silently switching upstream. `typeSafeApiKey` is gone; keys are redacted on read and reported as `jevApiKeysConfigured`.
-- **Difficulty decision payload**: routing decisions now carry `jevProvider`, `jevEndpoint` and `jevModel` so per-upstream classifier usage is visible in combo analytics.
-
-## Fixes
-- **Smart routing removed the phantom medium tier**: `mediumModels` was deleted end-to-end (seed, API handlers, dashboard, rebuild tool, docs). The two-tier router now defaults to the hard tier wherever it previously produced a tier that no tier list served, and a classifier answer of `medium` collapses to `hard`; `resolveTierMatrix` no longer re-derives the removed tier.
-- **Combo analytics missed Jev usage on one path**: the nested difficulty call site in `handleSingleModelChat` now emits `jevUsed` (it only did so on the top-level path), so the Jev fast-path counter no longer under-reports.
-
-## Tests
-- **WorkBuddy**: add Tencent WorkBuddy (workbuddy.ai) as a provider — shares the CodeBuddy Intl OpenAI-compatible gateway (`/v2/chat/completions`) but on its own host/brand. Device-code OAuth (Google/GitHub upstream), forced stream, OpenAI `reasoning_effort`/`reasoning_summary` mirroring, `passthroughModels`, and usage via the shared CodeBuddy billing handler. Catalog mirrors CodeBuddy-Intl (`wb` alias).
-- **Capability-aware degradation**: derive required capabilities (`tools`, `reasoning`, `parallelToolCalls`, modalities, `search`) from every request and degrade in place when the target model cannot express one — tool catalogs become transcript text (`[Tool Call: …]` / `[Tool Result: …]`) across OpenAI/Claude/Gemini/Responses wire shapes, reasoning/thinking fields are dropped, `max_tokens` clamps to the model ceiling; combo auto-switch now ranks `tools` as a hard capability. Replaces upstream 400s with a working degraded answer.
-- **Prometheus `/metrics`**: public text-format (0.0.4) endpoint on both the dashboard web server (3777) and the Hono gateway (3778) — process uptime/RSS/heap, speed-layer cache keys, Postgres up/down, and the full routing counter set (`upstream_attempts`, `circuit_trips`, `lkg_hits`, combo skips, …).
-- **Graceful drain**: `SIGINT`/`SIGTERM` now stop accepting new connections and wait up to 15s for in-flight SSE streams before exit — on 3777 via `drainAndShutdown()`, on 3778 the cluster primary stops respawning and each worker closes idle sockets. Restarting no longer cuts live agent streams.
-- **CSRF double-submit**: login issues a readable `csrf_token` cookie; state-changing dashboard mutations (POST/PUT/DELETE/PATCH on `/api/*`) must echo it in `x-csrf-token`, compared in constant time. CLI-token and API-key callers bypass it.
-- **JSON depth guard**: control-plane JSON bodies are depth-scanned (limit 32) before `JSON.parse`, closing a deeply-nested-JSON DoS path.
-- **`PAYLOAD_STORAGE_MODE`**: `bounded` (default) clamps prompt/response text to 32KB and redacts bearer/api-key patterns, `none` stores metadata only, `full` keeps legacy raw capture. Configured in `.env.example`.
-- **Architecture contract tests**: `tests/architecture/contracts.test.mjs` enforces — no raw SQL in API routes, no `next` imports anywhere in `src/`/`open-sse/`, every registry provider exports an id/name, zero CommonJS `require()` in API routes.
 
 # v0.5.75 (2026-09-10)
 

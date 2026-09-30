@@ -654,6 +654,7 @@ export async function getActiveRequests() {
         clientApiKey: keyName,
         rawApiKey: entry.apiKey || "",
         endpoint: entry.endpoint || "/v1/chat/completions",
+        callKind: entry.callKind || meta.callKind || null,
         isStream,
         promptTokens: tokens.prompt_tokens || tokens.input_tokens || entry.promptTokens || 0,
         completionTokens: tokens.completion_tokens || tokens.output_tokens || entry.completionTokens || 0,
@@ -1092,6 +1093,10 @@ export async function getUsageStats(period = "all") {
         clientApiKey: keyName,
         rawApiKey: row.api_key || "",
         endpoint: row.endpoint || "/v1/chat/completions",
+        // Exposed so Recent Requests can tell an embedding/image/video/search call
+        // apart from a chat one. Not derivable from isStream (every capability sets
+        // it false) and the endpoint alone is ambiguous for bare-model requests.
+        callKind: meta.callKind || null,
         isStream,
         promptTokens: tokens.prompt_tokens || tokens.input_tokens || row.prompt_tokens || 0,
         completionTokens: tokens.completion_tokens || tokens.output_tokens || row.completion_tokens || 0,

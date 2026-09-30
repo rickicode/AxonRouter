@@ -292,7 +292,7 @@ export default function RealtimeRequestsCard({
  <thead>
       <tr className="text-text-muted font-medium text-[11px]">
         <th scope="col" className="h-8 px-3 w-24 text-xs font-medium text-text-muted">Type</th>
- <th scope="col" className="h-8 px-3 w-28 text-xs font-medium text-text-muted">Stream State</th>
+ <th scope="col" className="h-8 px-3 w-28 text-xs font-medium text-text-muted">Capability</th>
  <th scope="col" className="h-8 px-3 text-xs font-medium text-text-muted">Model</th>
  <th scope="col" className="h-8 px-3 w-28 text-xs font-medium text-text-muted">Provider</th>
  <th scope="col" className="h-8 px-3 w-44 text-xs font-medium text-text-muted">Upstream Account</th>

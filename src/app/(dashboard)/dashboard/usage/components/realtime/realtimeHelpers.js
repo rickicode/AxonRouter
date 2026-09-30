@@ -3,6 +3,54 @@
 import { useState, useEffect } from "react";
 import { formatTokens } from "@/shared/utils/formatTokens";
 
+// Capability shown per request in Recent Requests. The column this backs used to
+// render a hardcoded "Completed" dot — identical for every row, so it carried no
+// information at all.
+//
+// meta.callKind is authoritative when present. Rows written before the capability
+// ledgers existed carry no callKind, so the endpoint is the fallback; that keeps
+// older history readable instead of collapsing every row to "LLM".
+const CAPABILITY_BY_CALL_KIND = {
+  chat: { label: "LLM", icon: "smart_toy", tone: "primary" },
+  classifier: { label: "LLM", icon: "route", tone: "primary" },
+  judge: { label: "LLM", icon: "route", tone: "primary" },
+  embedding: { label: "Embedding", icon: "grid_view", tone: "info" },
+  image: { label: "Image", icon: "image", tone: "warning" },
+  video: { label: "Video", icon: "movie", tone: "warning" },
+  search: { label: "Search", icon: "travel_explore", tone: "success" },
+  fetch: { label: "Fetch", icon: "download", tone: "success" },
+  tts: { label: "Audio", icon: "graphic_eq", tone: "info" },
+  stt: { label: "Speech", icon: "mic", tone: "info" },
+};
+
+const CAPABILITY_BY_ENDPOINT = [
+  [/\/embeddings?\b/i, CAPABILITY_BY_CALL_KIND.embedding],
+  [/\/images?\b|\/image\//i, CAPABILITY_BY_CALL_KIND.image],
+  [/\/videos?\b|\/video\//i, CAPABILITY_BY_CALL_KIND.video],
+  [/\/search\b/i, CAPABILITY_BY_CALL_KIND.search],
+  [/\/fetch\b/i, CAPABILITY_BY_CALL_KIND.fetch],
+  [/\/audio\/speech|\/tts\b/i, CAPABILITY_BY_CALL_KIND.tts],
+  [/\/audio\/transcriptions|\/stt\b/i, CAPABILITY_BY_CALL_KIND.stt],
+  [/\/chat\/completions|\/responses\b/i, CAPABILITY_BY_CALL_KIND.chat],
+];
+
+/**
+ * Resolve a request's capability kind.
+ * @param {object} req usage row (callKind and/or endpoint)
+ * @returns {{label: string, icon: string, tone: string}|null} null only when nothing is known
+ */
+export function capabilityOf(req) {
+  if (!req) return null;
+  const byKind = req.callKind && CAPABILITY_BY_CALL_KIND[req.callKind];
+  if (byKind) return byKind;
+  const endpoint = req.endpoint || "";
+  for (const [pattern, capability] of CAPABILITY_BY_ENDPOINT) {
+    if (pattern.test(endpoint)) return capability;
+  }
+  if (!req.callKind && !endpoint) return null;
+  return CAPABILITY_BY_CALL_KIND.chat;
+}
+
 export function timeAgo(timestamp) {
   if (!timestamp) return "-";
   const ms = new Date(timestamp).getTime();

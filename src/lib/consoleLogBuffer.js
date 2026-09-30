@@ -58,6 +58,10 @@ function ensureLogDir(logFile) {
 
 export function getLogFilePath() {
   if (process.env.CONSOLE_LOG_FILE) return process.env.CONSOLE_LOG_FILE;
+  // Symmetric with getChannelLogFilePath: a caller that relocates the channel
+  // files by directory should not have the combined stream silently land in a
+  // different tree, or console.log and request.log end up on separate mounts.
+  if (process.env.CONSOLE_LOG_DIR) return path.join(process.env.CONSOLE_LOG_DIR, "console.log");
   try {
     const dataDir = getDataDir();
     return path.join(dataDir, "logs", "console.log");

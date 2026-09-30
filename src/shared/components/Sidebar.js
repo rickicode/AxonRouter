@@ -16,18 +16,13 @@ const COMBINED_WEB_ITEM = { id: "web", label: "Web Fetch & Search", icon: "trave
 // Core & Routing
 const coreRoutingItems = [
   { href: "/dashboard/app", label: "Overview", icon: "dashboard" },
-  { href: "/dashboard/providers", label: "Providers", icon: "dns" },
-];
-
-// Routing items rendered after the Capabilities Providers accordion so the
-// capability kinds sit directly under "Providers" in the sidebar.
-const routingTailItems = [
   { href: "/dashboard/combos", label: "Combo Adapter", icon: "layers" },
+  { href: "/dashboard/providers", label: "Providers", icon: "dns" },
 ];
 
 // Monitoring
 const monitoringItems = [
-  { href: "/dashboard/quota", label: "Quota Tracker", icon: "data_usage" },
+  { href: "/dashboard/quota", label: "Quota Tracker", icon: "hourglass_empty" },
   { href: "/dashboard/usage", label: "Usage & Analytics", icon: "bar_chart" },
   { href: "/dashboard/benchmark", label: "Benchmark", icon: "speed" },
 ];
@@ -168,28 +163,6 @@ export default function Sidebar({ onClose }) {
             </div>
           )}
 
-          {routingTailItems.map((item) => (
-            <Link
-              key={item.href}
-              href={item.href}
-              prefetch={false}
-              onClick={onClose}
-              aria-current={isActive(item.href) ? "page" : undefined}
-              className={cn(
-                "flex h-8 items-center gap-2.5 px-2.5 rounded-sm text-[13px] font-medium transition-colors",
-                isActive(item.href)
-                  ? "bg-primary/10 text-primary"
-                  : "text-text-muted hover:bg-surface-2 hover:text-text-main"
-              )}
-            >
-              <Icon
-                name={item.icon}
-                size={18}
-                className={isActive(item.href) ? "fill-current" : ""}
-              />
-              <span>{item.label}</span>
-            </Link>
-          ))}
         </div>
 
         {/* Monitoring Section */}

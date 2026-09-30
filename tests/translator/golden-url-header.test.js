@@ -24,11 +24,18 @@ const SPECIALIZED = new Set([
 ]);
 
 // Sanitize header: khử token + field thời gian động / hostname (kimi X-Msh-Device-*) để snapshot ổn định.
+// X-Msh-Version is package.json's version — it changes on every release, exactly like a
+// timestamp. Leaving it literal couples the golden snapshot to the release number, so a
+// version bump fails this suite for a reason that has nothing to do with translation.
 function sanitize(headers) {
   const out = {};
   for (const [k, v] of Object.entries(headers)) {
     if (k === "X-Msh-Device-Name") {
       out[k] = "servX";
+      continue;
+    }
+    if (k === "X-Msh-Version") {
+      out[k] = "<VER>";
       continue;
     }
     out[k] = typeof v === "string"

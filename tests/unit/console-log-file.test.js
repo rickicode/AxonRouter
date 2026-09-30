@@ -117,3 +117,44 @@ describe("consoleLogBuffer file logging & rotation", () => {
     expect(logs).toContain("startup line 3");
   }, 10000);
 });
+
+describe("CONSOLE_LOG_DIR relocation", () => {
+  beforeEach(() => {
+    // The gateway tags each worker with a directory only — CONSOLE_LOG_FILE is
+    // not set. The combined stream must follow the channels into that directory
+    // rather than falling back to the default data dir.
+    delete process.env.CONSOLE_LOG_FILE;
+    process.env.CONSOLE_LOG_DIR = path.join(TEST_DIR, "gateway", "w2");
+  });
+
+  afterEach(() => {
+    delete process.env.CONSOLE_LOG_DIR;
+  });
+
+  it("resolves the combined log inside CONSOLE_LOG_DIR", async () => {
+    const mod = await import("../../src/lib/consoleLogBuffer.js");
+    expect(mod.getLogFilePath()).toBe(
+      path.join(TEST_DIR, "gateway", "w2", "console.log")
+    );
+  }, 10000);
+
+  it("keeps channel files alongside the combined log", async () => {
+    const mod = await import("../../src/lib/consoleLogBuffer.js");
+    const dir = process.env.CONSOLE_LOG_DIR;
+
+    expect(mod.getChannelLogFilePath(mod.LOG_CHANNEL_REQUEST)).toBe(
+      path.join(dir, "request.log")
+    );
+    expect(mod.getChannelLogFilePath(mod.LOG_CHANNEL_BACKGROUND)).toBe(
+      path.join(dir, "background.log")
+    );
+    expect(path.dirname(mod.getLogFilePath())).toBe(dir);
+  }, 10000);
+
+  it("lets an explicit CONSOLE_LOG_FILE win over the directory", async () => {
+    const explicit = path.join(TEST_DIR, "explicit.log");
+    process.env.CONSOLE_LOG_FILE = explicit;
+    const mod = await import("../../src/lib/consoleLogBuffer.js");
+    expect(mod.getLogFilePath()).toBe(explicit);
+  }, 10000);
+});

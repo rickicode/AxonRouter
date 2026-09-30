@@ -4,7 +4,7 @@ import { useState } from "react";
 import Badge from "@/shared/components/Badge";
 import Button from "@/shared/components/Button";
 import { cn } from "@/shared/utils/cn";
-import { fmt, TimeAgo } from "./realtimeHelpers";
+import { fmt, TimeAgo, capabilityOf } from "./realtimeHelpers";
 import Icon from "@/shared/components/Icon";
 
 export default function RealtimeRequestRow({ req, onOpenError }) {
@@ -28,12 +28,33 @@ export default function RealtimeRequestRow({ req, onOpenError }) {
  )}
  </td>
 
- {/* Stream State (Streaming vs Completed) */}
+ {/* Capability (llm / embedding / image / video / search / ...) */}
  <td className="h-8 px-3 text-sm">
+ {(() => {
+ const capability = capabilityOf(r);
+ if (!capability) {
+ return (
  <span className="inline-flex items-center gap-1 text-[11px] text-text-muted">
  <span className="size-1.5 rounded-full bg-text-muted/60" />
- Completed
+ Unknown
  </span>
+ );
+ }
+ return (
+ <span
+ className={cn(
+ "inline-flex items-center gap-1 rounded-sm border px-2 py-1 text-[11px] font-medium",
+ capability.tone === "info" && "bg-info/10 border-info/30 text-info",
+ capability.tone === "primary" && "bg-primary/10 border-primary/30 text-primary",
+ capability.tone === "success" && "bg-success/10 border-success/30 text-success",
+ capability.tone === "warning" && "bg-warning/10 border-warning/30 text-warning",
+ )}
+ >
+ <Icon name={capability.icon} size={11} />
+ {capability.label}
+ </span>
+ );
+ })()}
  </td>
 
       {/* Model */}
@@ -138,6 +159,21 @@ export function RealtimeRequestCardMobile({ req, onOpenError }) {
 />
         </span>
         <span className="flex min-w-0 items-center gap-2 text-[11px] text-text-muted">
+          {(() => {
+            const capability = capabilityOf(r);
+            if (!capability) return null;
+            return (
+              <span className={cn("inline-flex shrink-0 items-center gap-1 font-medium",
+                capability.tone === "info" && "text-info",
+                capability.tone === "primary" && "text-primary",
+                capability.tone === "success" && "text-success",
+                capability.tone === "warning" && "text-warning",
+              )}>
+                <Icon name={capability.icon} size={11} />
+                {capability.label}
+              </span>
+            );
+          })()}
           <span className="truncate">{r.provider || "unknown"}</span>
           <span aria-hidden="true" className="text-text-muted/40">·</span>
           <span className="shrink-0 font-mono">{r.isStream ? "STREAM" : "JSON"}</span>
