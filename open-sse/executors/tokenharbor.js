@@ -219,7 +219,11 @@ export class TokenHarborExecutor extends BaseExecutor {
             if (nextCreds && !nextCreds.allRateLimited && nextCreds.apiKey) {
               triedConnectionIds.add(nextCreds.connectionId);
               let nextProxyOptions = null;
-              const proxyData = nextCreds.providerSpecificData || {};
+              // Scope the pool picker so a pool another request already reported
+              // as unfit (region block, per-IP limit, dead egress) is skipped here
+              // too. Without a scope fitPoolIds() is a no-op and this failover path
+              // re-picks exactly the pool that just failed.
+              const proxyData = { ...(nextCreds.providerSpecificData || {}), proxyPoolScope: `tokenharbor::${model || "*"}` };
               const resolvedProxy = await resolveConnectionProxyConfig(proxyData, nextCreds.connectionId);
               if (resolvedProxy?.proxyPoolId) {
                 nextProxyOptions = {
@@ -271,7 +275,9 @@ export class TokenHarborExecutor extends BaseExecutor {
           if (nextCreds && !nextCreds.allRateLimited && nextCreds.apiKey) {
             triedConnectionIds.add(nextCreds.connectionId);
             let nextProxyOptions = null;
-            const proxyData = nextCreds.providerSpecificData || {};
+            // Scope the pool picker so a pool another request already reported as
+            // unfit (region block, per-IP limit, dead egress) is skipped here too.
+            const proxyData = { ...(nextCreds.providerSpecificData || {}), proxyPoolScope: `tokenharbor::${model || "*"}` };
             const resolvedProxy = await resolveConnectionProxyConfig(proxyData, nextCreds.connectionId);
             if (resolvedProxy?.proxyPoolId) {
               nextProxyOptions = {

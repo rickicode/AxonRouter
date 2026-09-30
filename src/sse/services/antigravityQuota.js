@@ -345,7 +345,8 @@ export async function syncAntigravityConnectionStatus(connectionId, quotas, exis
 
 async function _doRefresh(connectionId, accessToken, providerSpecificData, now) {
   try {
-    const proxyCfg = await resolveConnectionProxyConfig(providerSpecificData || {});
+    // Scoped so the refresh rotates off a pool already marked unfit for antigravity.
+    const proxyCfg = await resolveConnectionProxyConfig({ ...(providerSpecificData || {}), proxyPoolScope: "antigravity::*" });
     const proxyOptions = {
       connectionProxyEnabled: proxyCfg.connectionProxyEnabled === true,
       connectionProxyUrl: proxyCfg.connectionProxyUrl || "",

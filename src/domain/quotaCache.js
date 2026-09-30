@@ -425,7 +425,12 @@ async function refreshOne(connectionId) {
     let proxyOptions = null;
     try {
       const { resolveConnectionProxyConfig } = await import("@/lib/network/connectionProxy");
-      proxyOptions = await resolveConnectionProxyConfig(conn).catch(() => null);
+      // Must be providerSpecificData, not the connection row: the resolver reads
+      // psd.proxyPoolIds / psd.proxyGroup, and a row nests them one level down, so
+      // passing the row silently resolved to "no proxy". Scope it so an unfit
+      // pool is skipped here too.
+      const psd = { ...(conn.providerSpecificData || {}), proxyPoolScope: `${conn.provider}::*` };
+      proxyOptions = await resolveConnectionProxyConfig(psd, conn.id).catch(() => null);
     } catch {}
     const usage = await getUsageForProvider(conn, { proxyOptions }).catch(() => null);
     if (usage?.quotas) setQuotaCache(connectionId, conn.provider, usage.quotas);

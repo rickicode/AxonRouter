@@ -914,7 +914,10 @@ export async function testSingleConnection(id) {
   const connection = await getProviderConnectionById(id);
   if (!connection) return { valid: false, error: "Connection not found", latencyMs: 0, testedAt: new Date().toISOString() };
 
-  const effectiveProxy = await resolveConnectionProxyConfig(connection.providerSpecificData || {}, connection.id);
+  // Scope the picker so the Test button does not re-pick a pool already
+  // reported unfit and report a healthy connection as dead.
+  const psd = { ...(connection.providerSpecificData || {}), proxyPoolScope: `${connection.provider}::*` };
+  const effectiveProxy = await resolveConnectionProxyConfig(psd, connection.id);
 
   if (effectiveProxy.connectionProxyEnabled && effectiveProxy.connectionProxyUrl && !effectiveProxy.vercelRelayUrl) {
     const proxyResult = await testProxyUrl({ proxyUrl: effectiveProxy.connectionProxyUrl });

@@ -63,7 +63,11 @@ async function getCodexConnection(connectionId) {
     return { response: Response.json({ error: "Codex reset credits require an OAuth or access-token connection." }, { status: 400 }) };
   }
 
-  const proxyConfig = await resolveConnectionProxyConfig(connection.providerSpecificData);
+  // Scoped so the reset rotates off a pool already marked unfit for this provider.
+  const proxyConfig = await resolveConnectionProxyConfig(
+    { ...(connection.providerSpecificData || {}), proxyPoolScope: `${connection.provider}::*` },
+    connection.id,
+  );
   const proxyOptions = {
     connectionProxyEnabled: proxyConfig.connectionProxyEnabled === true,
     connectionProxyUrl: proxyConfig.connectionProxyUrl || "",

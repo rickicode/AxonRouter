@@ -179,7 +179,11 @@ export class OpenRouterExecutor extends BaseExecutor {
               triedConnectionIds.add(nextCreds.connectionId);
               let nextProxyOptions = null;
               if (nextCreds.providerSpecificData) {
-                const resolvedProxy = await resolveConnectionProxyConfig(nextCreds.providerSpecificData, nextCreds.connectionId);
+                // Scope the picker (see tokenharbor.js): a pool another request
+                // already reported unfit must be skipped on the failover path too,
+                // not only on the first attempt.
+                const psd = { ...nextCreds.providerSpecificData, proxyPoolScope: `openrouter::${model || "*"}` };
+                const resolvedProxy = await resolveConnectionProxyConfig(psd, nextCreds.connectionId);
                 if (resolvedProxy?.proxyPoolId) {
                   nextProxyOptions = {
                     connectionProxyEnabled: resolvedProxy.connectionProxyEnabled,
@@ -216,7 +220,11 @@ export class OpenRouterExecutor extends BaseExecutor {
               triedConnectionIds.add(nextCreds.connectionId);
               let nextProxyOptions = null;
               if (nextCreds.providerSpecificData) {
-                const resolvedProxy = await resolveConnectionProxyConfig(nextCreds.providerSpecificData, nextCreds.connectionId);
+                // Scope the picker (see tokenharbor.js): a pool another request
+                // already reported unfit must be skipped on the failover path too,
+                // not only on the first attempt.
+                const psd = { ...nextCreds.providerSpecificData, proxyPoolScope: `openrouter::${model || "*"}` };
+                const resolvedProxy = await resolveConnectionProxyConfig(psd, nextCreds.connectionId);
                 if (resolvedProxy?.proxyPoolId) {
                   nextProxyOptions = {
                     connectionProxyEnabled: resolvedProxy.connectionProxyEnabled,
