@@ -131,6 +131,15 @@ describe("TokenHarbor executor source invariants", () => {
     // No raw 30s fallback left in the cooldown path.
     expect(src).not.toMatch(/retrySecs\s*=\s*retryMatch\s*\?\s*parseInt\([^)]*\)\s*:\s*30/);
   });
+
+  it("carries connName on the failure result so capacity logs name the account", () => {
+    // The 429/capacity early-return omitted `connName`, so every hedge line
+    // read "Account undefined at model capacity" (36 of 36 in a 30m window) and
+    // gave no way to tell which credential was being rotated away from.
+    const failureReturn = src.match(/return\s*\{[^}]*isModelCapacity[^}]*\}/);
+    expect(failureReturn).not.toBeNull();
+    expect(failureReturn[0]).toMatch(/connName/);
+  });
 });
 
 describe("chat.js handler source invariants", () => {

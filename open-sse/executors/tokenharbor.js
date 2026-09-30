@@ -114,6 +114,7 @@ export class TokenHarborExecutor extends BaseExecutor {
               status: resp.status,
               error: errReason,
               connId,
+              connName,
               isModelCapacity,
               isRegionBlock,
               response: new Response(bodyText, {
