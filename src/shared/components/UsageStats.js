@@ -350,6 +350,11 @@ const PERIODS = [
  { value: "60d", label: "60D" },
 ];
 
+// Matches the page's own stats refresh cadence (the 60s bucket poll): the
+// on-demand byAccount fetch stays valid until the rest of the page has moved on
+// too, so the Accounts tab is never staler than the tables beside it.
+const ACCOUNT_TTL_MS = 60 * 1000;
+
 export default function UsageStats({
  period: periodProp,
  setPeriod: setPeriodProp,
@@ -375,6 +380,10 @@ export default function UsageStats({
  const [viewMode, setViewMode] = useState("costs");
  const [providers, setProviders] = useState([]);
  const [periodLocal, setPeriodLocal] = useState("today");
+ // byAccount is 82% of the stats payload and only the Accounts tab reads it, so
+ // the server omits it unless asked. Cached per period: opening the tab pulls it
+ // once, a period switch pulls it again, switching away and back reuses it.
+ const [accountStats, setAccountStats] = useState(null);
  // Which live panel is showing below lg, where the three panels share one slot.
  const [livePanel, setLivePanel] = useState(() => {
    const fromUrl = searchParams.get("live");
@@ -506,6 +515,31 @@ export default function UsageStats({
  statsAbortRef.current?.abort();
  };
  }, [fetchStats]);
+
+ // The Accounts table's rows (byAccount) are 82% of the stats payload, so the
+ // server leaves them out until this tab asks for them. Cached per period with a
+ // TTL matched to the page's own 60s refresh, so the rows track live usage
+ // instead of freezing at whatever they were when the tab was first opened. A
+ // failed fetch retries on the next trigger rather than looping.
+ useEffect(() => {
+ if (tableView !== "account") return;
+ const fresh =
+ accountStats?.period === period && Date.now() - accountStats.fetchedAt < ACCOUNT_TTL_MS;
+ if (fresh) return;
+ let cancelled = false;
+ fetch(`/api/usage/stats?period=${period}&include=byAccount`, { cache: "no-store" })
+ .then((r) => (r.ok ? r.json() : null))
+ .then((data) => {
+ if (!cancelled && data) {
+ setAccountStats({ period, data: data.byAccount || {}, fetchedAt: Date.now() });
+ }
+ })
+ .catch(() => {});
+ return () => {
+ cancelled = true;
+ };
+ // `stats` identity changes on every refresh, which is what re-checks the TTL.
+ }, [tableView, period, stats, accountStats]);
 
  // The 10-minute bucket series is computed server-side per request, so it only
  // advances when we ask for it. Without this poll the stream freezes on the
@@ -665,8 +699,11 @@ export default function UsageStats({
  }
  case "account": {
  const pendingMap = {};
+ // Rows come from the on-demand fetch; stats.byAccount is the fallback for an
+ // older/cached payload that still carries them inline.
+ const accountData = accountStats?.period === period ? accountStats.data : stats.byAccount;
  if (stats?.pending?.byAccount) {
- Object.entries(stats.byAccount || {}).forEach(([accountKey, data]) => {
+ Object.entries(accountData || {}).forEach(([accountKey, data]) => {
  const connPending = stats.pending.byAccount[data.connectionId];
  if (connPending) {
  const modelKey = data.provider ? `${data.rawModel} (${data.provider})` : data.rawModel;
@@ -676,7 +713,7 @@ export default function UsageStats({
  }
  return {
  columns: ACCOUNT_COLUMNS,
- groupedData: groupDataByKey(sortData(stats.byAccount, pendingMap, sortBy, sortOrder), "accountName"),
+ groupedData: groupDataByKey(sortData(accountData, pendingMap, sortBy, sortOrder), "accountName"),
  storageKey: "usage-stats:expanded-accounts",
  emptyMessage: "No account-specific usage recorded yet.",
  renderSummaryCells: (group) => (
@@ -750,7 +787,7 @@ export default function UsageStats({
  };
  }
  }
- }, [stats, tableView, sortBy, sortOrder]);
+ }, [stats, accountStats, period, tableView, sortBy, sortOrder]);
 
  if (!stats && !loading) {
  return (
