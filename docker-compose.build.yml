@@ -1,5 +1,12 @@
 # Local Build Compose file for AxonRouter.
 # Builds axonrouter-api and axonrouter-web locally from Dockerfiles.
+#
+# `docker compose build` never reads service env_file, but Compose still
+# validates that the referenced file exists — so a build from a plain checkout
+# (which has no .env; it is gitignored and lives only in the deploy directory)
+# failed with "env file .env not found". Marking it required: false lets the
+# image build standalone, while `up` in a deploy directory still picks up .env
+# for secrets such as JWT_SECRET, API_KEY_SECRET and ENCRYPTION_KEY.
 services:
   axonrouter-api:
     build:
@@ -15,7 +22,8 @@ services:
     volumes:
       - axonrouter-data:/app/data
     env_file:
-      - .env
+      - path: .env
+        required: false
     environment:
       DATA_DIR: /app/data
       GATEWAY_PORT: "${GATEWAY_PORT:-3778}"
@@ -61,7 +69,8 @@ services:
       - axonrouter-data:/app/data
       - ${LOG_DIR:-/opt/axonrouter/logs}:/app/data/logs
     env_file:
-      - .env
+      - path: .env
+        required: false
     environment:
       DATA_DIR: /app/data
       PORT: "3777"
