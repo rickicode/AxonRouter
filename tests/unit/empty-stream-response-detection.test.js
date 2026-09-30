@@ -13,6 +13,8 @@
  */
 import { describe, it, expect } from "vitest";
 import { peekStreamHasPayload } from "../../open-sse/utils/streamHandler.js";
+import { createSSEStream, createSSETransformStreamWithLogger } from "../../open-sse/utils/stream.js";
+import { FORMATS } from "../../open-sse/translator/formats.js";
 
 const enc = (s) => new TextEncoder().encode(s);
 
@@ -289,6 +291,50 @@ describe("peekStreamHasPayload — usage frames are proof of output", () => {
   it("reports a zero-length sample when nothing at all was read", async () => {
     const r = await peekStreamHasPayload(sseStream(["data: [DONE]\n\n"]));
     expect(typeof r.sample).toBe("string");
+  });
+});
+
+describe("stream.js counts text from the antigravity envelope", () => {
+  // Same nesting bug, second call site. finalizeStream() tallied text only from a
+  // TOP-LEVEL candidates array, so every antigravity answer — real text, sent to
+  // the client, OUT 301 and up — still reported totalContentLength 0 and was
+  // flagged isEmpty at completion. The gate missed it (it unwrapped correctly),
+  // which is why only the completion log showed it.
+  it("accumulates content length through the nested response envelope", async () => {
+    const captured = [];
+    const frames = [
+      'data: {"response":{"candidates":[{"content":{"role":"model","parts":[{"text":"hello"}]},"finishReason":null}]}}\n\n',
+      'data: {"response":{"candidates":[{"content":{"role":"model","parts":[{"text":" world"}]},"finishReason":null}]}}\n\n',
+      'data: {"response":{"candidates":[{"content":{"role":"model","parts":[{"text":""}]},"finishReason":"STOP"}]}}\n\n',
+    ].join("");
+
+    const output = sseStream([frames]).pipeThrough(
+      createSSETransformStreamWithLogger(
+        FORMATS.OPENAI,
+        FORMATS.GEMINI,
+        "antigravity",
+        null,
+        null,
+        "gemini-3.8-flash",
+        null,
+        null,
+        (content, usage, ttftAt) => {
+          captured.push({ content, usage, ttftAt });
+          return null;
+        },
+      ),
+    );
+    const reader = output.getReader();
+    for (;;) {
+      const { done } = await reader.read();
+      if (done) break;
+    }
+
+    const payload = captured[0];
+    expect(payload).toBeTruthy();
+    // onStreamComplete receives the census object, not a bare string.
+    expect(String(payload.content?.content ?? "")).toContain("hello");
+    expect(payload.content?.isEmpty).toBe(false);
   });
 });
 
