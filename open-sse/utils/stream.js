@@ -341,6 +341,30 @@ export function createSSEStream(options = {}) {
           continue;
         }
 
+        // Responses API text, on the translate path: atria-asi serves
+        // /v1/responses but its client format is plain OpenAI, so these frames
+        // reach the accounting below with no `choices` and no `candidates`.
+        // Without this, every atria answer finished with totalContentLength 0
+        // and was reported empty despite the client having the full text.
+        // `response.output_text.done` repeats the full text, so only count it
+        // when no deltas were seen — otherwise the total double-counts.
+        const responsesDeltaText =
+          parsed?.type === "response.output_text.delta" && typeof parsed.delta === "string"
+            ? parsed.delta
+            : null;
+        if (responsesDeltaText && responsesDeltaText.length > 0) {
+          totalContentLength += responsesDeltaText.length;
+          accumulatedContent += responsesDeltaText;
+        } else if (
+          parsed?.type === "response.output_text.done" &&
+          typeof parsed.text === "string" &&
+          parsed.text.length > 0 &&
+          totalContentLength === 0
+        ) {
+          totalContentLength = parsed.text.length;
+          accumulatedContent = parsed.text;
+        }
+
         // Claude format - content
         if (parsed.delta?.text) {
           totalContentLength += parsed.delta.text.length;

@@ -93,9 +93,11 @@ describe("stream.js counts OpenAI Responses output_text deltas", () => {
   const runResponses = async (frames) => {
     const captured = [];
     const transform = createSSEStream({
-      mode: "passthrough",
-      targetFormat: "openai-responses",
-      sourceFormat: "openai-responses",
+      // atria-asi serves /v1/responses while the client speaks plain OpenAI, so
+      // these frames take the TRANSLATE path — not passthrough. Fixing only the
+      // passthrough branch left production unchanged.
+      targetFormat: "openai",
+      sourceFormat: "openai",
       provider: "atria-asi",
       model: "Atria-Dawn-Preview",
       onStreamComplete: (payload) => { captured.push(payload); },
