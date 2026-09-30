@@ -7,6 +7,11 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 const channels = {};
 const published = [];
 
+// The broker is only joined when an endpoint is configured (valkeyClient otherwise
+// falls back to a default host). Production sets VALKEY_URL; the test must too, or
+// ensureBroker() correctly no-ops and there is no bus to assert against.
+process.env.VALKEY_URL = process.env.VALKEY_URL || "redis://127.0.0.1:6379";
+
 vi.mock("@/lib/cache/valkeyClient.js", () => ({
   getValkey: async () => ({}),
   subscribeValkey: (ch, fn) => { channels[ch] = fn; },
@@ -90,5 +95,23 @@ describe("pool fitness cross-worker broadcast", () => {
   it("a malformed broadcast is ignored rather than throwing", () => {
     expect(() => channels[CH]?.("{not json")).not.toThrow();
     expect(() => channels[CH]?.(JSON.stringify({ nope: true }))).not.toThrow();
+  });
+});
+// Regression: the subscription was created lazily inside publishMark(), so a
+// worker that had not yet marked a pool had no subscriber at all and the bus sat
+// at zero listeners. Verified in production — PUBSUB NUMSUB returned 0 for
+// axon:events:pool-fitness while axon:events:cooldown had 5.
+describe("pool fitness broker connects eagerly", () => {
+  it("subscribes as soon as hydration runs, before anything is marked", async () => {
+    // Fresh module instance: ensureBroker() memoises, so an already-warm instance
+    // would never re-subscribe and the assertion would pass for the wrong reason.
+    vi.resetModules();
+    delete channels[CH];
+    const mod = await import("../../open-sse/services/proxyPoolFitness.js");
+    expect(typeof channels[CH], "no subscription before hydration").toBe("undefined");
+
+    await mod.ensurePoolFitnessHydrated();
+    await tick();
+    expect(typeof channels[CH], "hydration must join the fitness bus").toBe("function");
   });
 });

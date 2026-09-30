@@ -41,24 +41,44 @@ function applyMark(poolId, scope, until, reason) {
   fitness.set(poolId, byScope);
 }
 
+// A bus only exists when a broker endpoint is actually configured. valkeyClient
+// falls back to a default host, so importing it unconditionally opened a
+// connection attempt even where no broker was intended — which in the test run
+// produced an unhandled rejection outliving worker teardown.
+function brokerConfigured() {
+  return Boolean(
+    process.env.VALKEY_URL || process.env.REDIS_URL ||
+    process.env.VALKEY_HOST || process.env.REDIS_HOST,
+  );
+}
+
+// Establish the subscription eagerly. Creating it lazily inside publishMark() left
+// a worker that had not yet marked anything with no subscriber at all: verified in
+// production as PUBSUB NUMSUB = 0 on axon:events:pool-fitness while
+// axon:events:cooldown had 5.
+function ensureBroker() {
+  if (brokerUnavailable || brokerReady) return brokerReady;
+  if (!brokerConfigured()) return null;
+  brokerReady = (async () => {
+    const mod = await import("@/lib/cache/valkeyClient.js");
+    // Same shape as src/lib/cache/client.js — subscribeValkey resolves its own
+    // client, so do not await a connection here.
+    mod.subscribeValkey(FITNESS_CHANNEL, (raw) => {
+      try {
+        const m = JSON.parse(raw);
+        if (!m?.poolId || !m?.scope) return;
+        if (m.clear) applyRemote(m.poolId, m.scope, true);
+        else applyMark(m.poolId, m.scope, m.until, m.reason);
+      } catch { /* malformed broadcast is ignored */ }
+    });
+    return mod;
+  })().catch(() => { brokerUnavailable = true; return null; });
+  return brokerReady;
+}
+
 function publishMark(entry) {
   if (brokerUnavailable) return;
-  if (!brokerReady) {
-    brokerReady = (async () => {
-      const mod = await import("@/lib/cache/valkeyClient.js");
-      await mod.getValkey();
-      mod.subscribeValkey(FITNESS_CHANNEL, (raw) => {
-        try {
-          const m = JSON.parse(raw);
-          if (!m?.poolId || !m?.scope) return;
-          if (m.clear) applyRemote(m.poolId, m.scope, true);
-          else applyMark(m.poolId, m.scope, m.until, m.reason);
-        } catch { /* malformed broadcast is ignored */ }
-      });
-      return mod;
-    })().catch(() => { brokerUnavailable = true; return null; });
-  }
-  void brokerReady.then((mod) => mod?.publishValkey(FITNESS_CHANNEL, entry)).catch(() => {});
+  void ensureBroker().then((mod) => mod?.publishValkey(FITNESS_CHANNEL, entry)).catch(() => {});
 }
 
 function schedulePersist() {
@@ -83,6 +103,10 @@ export function hydratePoolFitness(snapshot = {}) {
 }
 
 export async function ensurePoolFitnessHydrated() {
+  // Join the bus as part of hydration rather than on first mark: this runs on
+  // every resolveConnectionProxyConfig, so each cluster worker subscribes during
+  // its first proxy resolution instead of only after it happens to fail a pool.
+  ensureBroker();
   if (!hydratePromise) {
     hydratePromise = import("@/lib/db/repos/settingsRepo.js")
       .then(({ getSettings }) => getSettings())
