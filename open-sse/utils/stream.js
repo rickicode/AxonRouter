@@ -116,6 +116,10 @@ export function createSSEStream(options = {}) {
     }
 
     if (onStreamComplete) {
+      if (totalContentLength === 0 && !emittedToolCall) {
+        // TEMP DIAGNOSTIC
+        console.warn(`[EMPTYRAW2] tgt=${targetFormat} src=${sourceFormat} mode=${mode} last=${(globalThis.__lf2||"").slice(0,220)}`);
+      }
       onStreamComplete({
         content: accumulatedContent,
         thinking: accumulatedThinking,
@@ -306,6 +310,7 @@ export function createSSEStream(options = {}) {
         if (!trimmed) continue;
 
         const parsed = parseSSELine(trimmed, targetFormat);
+        globalThis.__lf2 = trimmed.slice(0, 220); // TEMP DIAGNOSTIC
         if (!parsed) continue;
 
         // Responses API same-format passthrough: preserve event framing + track terminal state
