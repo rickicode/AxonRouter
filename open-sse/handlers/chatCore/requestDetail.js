@@ -171,4 +171,30 @@ export function saveUsageStats({
       ...(safeExtra || {}),
     },
   }).catch(() => {});
+
+  // Chat records its own full request/response detail in
+  // src/sse/handlers/chat.js. Classifier and judge calls are issued internally from
+  // combo.js and never reach that handler, so they produced a usage row and no
+  // request row — invisible in Recent Requests and in the request-detail
+  // drill-down. Record a summary row for those call kinds; the bodies stay inside
+  // open-sse and are intentionally not plumbed through here.
+  if (callKind && callKind !== "chat") {
+    saveRequestDetail({
+      provider: provider || "unknown",
+      model: model || "unknown",
+      connectionId: connectionId || null,
+      comboName: comboName || null,
+      callKind,
+      endpoint: endpoint || null,
+      latency: latency || {},
+      tokens: normalized,
+      request: {
+        endpoint: endpoint || null,
+        ...(difficulty ? { difficulty } : {}),
+        ...(safeExtra || {}),
+      },
+      status: failed ? String(status) : "success",
+      ...(error ? { error: String(typeof error === "object" ? (error.message || JSON.stringify(error)) : error).slice(0, 500) } : {}),
+    }).catch(() => {});
+  }
 }

@@ -1,5 +1,5 @@
 import { createPostgresAdapter } from "./adapters/postgresAdapter.js";
-import { PG_SCHEMA_SQL, ensureMonthlyPartitions, pruneStalePartitions, repairLegacyJsonbOnce } from "./schema.pg.js";
+import { PG_SCHEMA_SQL, ensureMonthlyPartitions, pruneStalePartitions, repairLegacyJsonbOnce, repairUsageHistoryMetaOnce } from "./schema.pg.js";
 import { ANALYTICS_SCHEMA_SQL } from "./analyticsSchema.js";
 
 // Singleton adapter state
@@ -23,6 +23,7 @@ async function initAdapter() {
       await tx.exec(ANALYTICS_SCHEMA_SQL);
       await ensureMonthlyPartitions(tx);
       await repairLegacyJsonbOnce(tx);
+      await repairUsageHistoryMetaOnce(tx).catch(() => {});
       await pruneStalePartitions(tx).catch(() => {});
     });
   } catch (err) {

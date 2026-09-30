@@ -400,6 +400,38 @@ export async function repairLegacyJsonbOnce(adapter) {
 }
 
 /**
+ * Second, separately version-gated repair for usage_history.meta.
+ *
+ * repairLegacyJsonbOnce() already contains this exact UPDATE, but it is gated on
+ * the 'legacy_jsonb_repaired' flag, which is already 'true' on every deployed
+ * instance — so it can never run again. That mattered little while meta was only
+ * imported from a legacy dump, but the gateway's own write path was handing
+ * insertHistoryChunk a JSON *string* for meta, so every row written since has
+ * landed as a jsonb scalar of type 'string'. Nothing errored; the rows were simply
+ * unreadable to meta->>'callKind' / meta->>'comboName' / meta->>'difficulty', which
+ * is what the dashboard and getComboAnalytics filter on.
+ *
+ * Uses its own _meta key so it runs exactly once and cannot re-scan the
+ * partitioned table on every boot. The write path no longer produces these rows;
+ * this only repairs the backlog.
+ */
+export async function repairUsageHistoryMetaOnce(adapter) {
+  const done = await adapter.get("SELECT value FROM _meta WHERE key = 'usage_history_meta_object'");
+  if (done?.value === "true") return;
+
+  await adapter.exec(`
+    UPDATE usage_history
+       SET meta = safe_input_jsonb(meta #>> '{}')
+     WHERE jsonb_typeof(meta) = 'string'
+       AND (meta #>> '{}') LIKE '{%'
+       AND safe_input_jsonb(meta #>> '{}') IS NOT NULL;
+
+    INSERT INTO _meta (key, value) VALUES ('usage_history_meta_object', 'true')
+    ON CONFLICT (key) DO UPDATE SET value = 'true';
+  `);
+}
+
+/**
  * Ensure a rolling UTC partition window exists. The one-month lookback keeps
  * delayed writes/imports safe; six months ahead avoids deploy-boundary gaps.
  */

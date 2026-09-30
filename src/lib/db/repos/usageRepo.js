@@ -765,7 +765,17 @@ export async function saveRequestUsage(entry) {
     // meta must always land as a jsonb OBJECT: legacy rows contain scalars and
     // arrays, which break dashboard queries that call jsonb_object_keys(meta).
     // Coerce anything that is not a plain object to {}.
-    const entryMeta = JSON.stringify(normalizeMetaObject(entry.meta)) || "{}";
+    //
+    // Pass the normalized OBJECT, never JSON.stringify(meta). insertHistoryChunk
+    // casts this parameter with ::jsonb, and handing it a JSON *string* made the
+    // driver land a jsonb scalar of type 'string' instead of an object. Nothing
+    // raised an error — the rows were simply unreadable: meta->>'callKind',
+    // meta->>'comboName' and meta->>'difficulty' all returned NULL, so the
+    // call-kind filters showed nothing for any capability (embedding, classifier,
+    // judge, search) and getComboAnalytics saw ~7% of the combo-attributed rows
+    // it should have. `tokens` is passed as an object on the very same insert and
+    // always landed as type 'object', which is the contract to match.
+    const entryMeta = normalizeMetaObject(entry.meta);
     // A non-ok status marks the row as failed for the daily rollup, while the
     // usage_history row keeps whatever token counts the upstream reported.
     // Without this a 429/timeout row counted as a SUCCESS in usage_daily even

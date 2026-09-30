@@ -142,9 +142,28 @@ export async function handleEmbeddingsCore({
   }
   log?.debug?.("EMBEDDINGS", `Success | usage=${JSON.stringify(normalized.usage || {})}`);
 
+  // Shape-only summary of the vector payload. The embedding vectors themselves are
+  // never worth persisting — they dwarf the rest of the request record and add
+  // nothing an operator debugging a failed or mis-sized call does not get from
+  // {vectorCount, dimensions}. Computed here because `normalized` is already in
+  // scope; deriving it at the caller would mean re-parsing the response body.
+  const summary = { vectorCount: null, dimensions: null };
+  const vectors = Array.isArray(normalized?.data)
+    ? normalized.data
+    : Array.isArray(normalized?.embeddings)
+      ? normalized.embeddings
+      : null;
+  if (vectors) {
+    summary.vectorCount = vectors.length;
+    const first = vectors[0] || {};
+    const vector = Array.isArray(first.embedding) ? first.embedding : Array.isArray(first.values) ? first.values : null;
+    if (vector) summary.dimensions = vector.length;
+  }
+
   return {
     success: true,
     usage: normalized.usage || null,
+    summary,
     response: new Response(JSON.stringify(normalized), {
       headers: {
         "Content-Type": "application/json",

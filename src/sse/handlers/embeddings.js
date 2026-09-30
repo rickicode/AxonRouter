@@ -156,6 +156,10 @@ export async function handleEmbeddings(request) {
     // chatCore; capability cores receive it from here. Null keeps direct egress.
     const proxyOptions = await resolveCapabilityProxy({ provider, model, credentials: refreshedCredentials });
 
+    // Timed per attempt (not per request) so a credential fallback does not
+    // attribute the first account's latency to the second account's row.
+    const attemptStart = Date.now();
+
     const result = await handleEmbeddingsCore({
       body: { ...body, model: `${provider}/${model}` },
       modelInfo: { provider, model },
@@ -175,6 +179,19 @@ export async function handleEmbeddings(request) {
       }
     });
 
+    const latencyMs = Date.now() - attemptStart;
+    // Counts and lengths only — the input text and the returned vectors are not
+    // persisted (see handleEmbeddingsCore's summary contract).
+    const requestSummary = {
+      model: body.model,
+      input: Array.isArray(body.input) ? `array[${body.input.length}]` : "string",
+      inputChars: Array.isArray(body.input)
+        ? body.input.reduce((n, t) => n + (typeof t === "string" ? t.length : 0), 0)
+        : String(body.input || "").length,
+      dimensions: body.dimensions ?? null,
+      encoding_format: body.encoding_format || "float",
+    };
+
     if (result.success) {
       const usage = resolveEmbeddingUsage(result.usage, body.input);
       // Probes must not pollute production usage history.
@@ -186,12 +203,35 @@ export async function handleEmbeddings(request) {
           model,
           connectionId: credentials.connectionId,
           apiKey,
+          account: credentials.connectionName,
           endpoint: url.pathname,
           tokens: usage,
           callKind: "embedding",
+          latencyMs,
+          request: requestSummary,
+          response: result.summary || null,
         });
       }
       return result.response;
+    }
+
+    // Failed attempts were invisible in both ledgers. They still burned upstream
+    // quota and are exactly what an operator needs to see, so record them with
+    // the upstream status preserved.
+    if (!isTestRequest) {
+      saveCapabilityUsage({
+        provider,
+        model,
+        connectionId: credentials.connectionId,
+        apiKey,
+        account: credentials.connectionName,
+        endpoint: url.pathname,
+        callKind: "embedding",
+        status: result.status || "error",
+        error: result.error || "Embeddings request failed",
+        latencyMs,
+        request: requestSummary,
+      });
     }
 
     // Probes never mutate production account state (locks, cooldowns).
