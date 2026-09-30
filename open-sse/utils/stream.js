@@ -357,13 +357,17 @@ export function createSSEStream(options = {}) {
           emittedToolCall = true;
         }
         // Gemini format - function call parts
-        if (Array.isArray(parsed.candidates?.[0]?.content?.parts)) {
-          if (parsed.candidates[0].content.parts.some((p) => p.functionCall)) emittedToolCall = true;
+        // Gemini format. The antigravity response translator nests the envelope
+        // under `response`, so read both levels — otherwise real text arrives,
+        // reaches the client, and still counts as a zero-length stream.
+        const geminiFrame = parsed?.response ?? parsed;
+        if (Array.isArray(geminiFrame?.candidates?.[0]?.content?.parts)) {
+          if (geminiFrame.candidates[0].content.parts.some((p) => p.functionCall)) emittedToolCall = true;
         }
         
         // Gemini format
-        if (parsed.candidates?.[0]?.content?.parts) {
-          for (const part of parsed.candidates[0].content.parts) {
+        if (geminiFrame?.candidates?.[0]?.content?.parts) {
+          for (const part of geminiFrame.candidates[0].content.parts) {
             if (part.text && typeof part.text === "string") {
               totalContentLength += part.text.length;
               // Check if this is thinking content
