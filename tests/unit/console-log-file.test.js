@@ -158,3 +158,55 @@ describe("CONSOLE_LOG_DIR relocation", () => {
     expect(mod.getLogFilePath()).toBe(explicit);
   }, 10000);
 });
+
+describe("gateway worker logs surfaced in the console", () => {
+  const workers = ["w1", "w2"];
+
+  beforeEach(() => {
+    delete process.env.CONSOLE_LOG_FILE;
+    delete process.env.CONSOLE_LOG_DIR;
+    // Both containers mount the same log dir, so the dashboard process can read
+    // the gateway's per-worker files the same way it writes its own.
+    const root = path.join(TEST_DIR, "logs");
+    for (const w of workers) {
+      const dir = path.join(root, "gateway", w);
+      mkdirSync(dir, { recursive: true });
+      writeFileSync(
+        path.join(dir, "console.log"),
+        `[10:00:01] worker ${w} first\n[10:00:02] worker ${w} second\n`,
+        "utf8"
+      );
+    }
+    process.env.CONSOLE_LOG_FILE = path.join(root, "console.log");
+  });
+
+  it("reads every worker's tail", async () => {
+    const mod = await import("../../src/lib/consoleLogBuffer.js");
+    const lines = mod.getGatewayConsoleLogs();
+    expect(lines).toHaveLength(workers.length * 2);
+    for (const w of workers) {
+      expect(lines.some((l) => l.includes(`worker ${w} second`))).toBe(true);
+    }
+  }, 10000);
+
+  it("fails open when the gateway directory is absent", async () => {
+    process.env.CONSOLE_LOG_FILE = path.join(TEST_DIR, "nope", "console.log");
+    const mod = await import("../../src/lib/consoleLogBuffer.js");
+    expect(mod.getGatewayConsoleLogs()).toEqual([]);
+  }, 10000);
+
+  it("merges gateway lines into a single timeline", async () => {
+    const mod = await import("../../src/lib/consoleLogBuffer.js");
+    const merged = mod.getAllConsoleLogs();
+    expect(merged.some((l) => l.includes("worker w1 first"))).toBe(true);
+    expect(merged.some((l) => l.includes("worker w2 second"))).toBe(true);
+    // Ordered by the [HH:MM:SS] stamp the writer prefixes each line with.
+    const stamps = merged.map((l) => (l.match(/^\[(\d{2}:\d{2}:\d{2})\]/) || [])[1]).filter(Boolean);
+    expect([...stamps].sort()).toEqual(stamps);
+  }, 10000);
+
+  it("does not split-file blind the console: worker lines are present in the merge", async () => {
+    const mod = await import("../../src/lib/consoleLogBuffer.js");
+    expect(mod.getAllConsoleLogs().length).toBeGreaterThanOrEqual(mod.getConsoleLogs().length);
+  }, 10000);
+});

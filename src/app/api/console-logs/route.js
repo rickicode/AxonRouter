@@ -1,11 +1,11 @@
 import { NextResponse } from "@/lib/http/response.js";
-import { clearConsoleLogs, getConsoleLogs, initConsoleLogCapture } from "@/lib/consoleLogBuffer";
+import { clearConsoleLogs, getAllConsoleLogs, initConsoleLogCapture } from "@/lib/consoleLogBuffer";
 
 initConsoleLogCapture();
 
 export async function GET() {
   try {
-    const logs = getConsoleLogs();
+    const logs = getAllConsoleLogs();
     return NextResponse.json({ success: true, logs });
   } catch (error) {
     console.error("Error getting console logs:", error);

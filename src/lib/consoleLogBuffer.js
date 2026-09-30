@@ -306,6 +306,84 @@ export function getConsoleLogs() {
   return state.logs;
 }
 
+// Read the tail of a file, bounded both by line count and by bytes so a large
+// console.log never gets slurped whole on a dashboard request.
+function tailLines(file, maxLines, readCapBytes = 512 * 1024) {
+  const stat = fs.statSync(file);
+  if (stat.size === 0) return [];
+  let text;
+  if (stat.size > readCapBytes) {
+    const fd = fs.openSync(file, "r");
+    try {
+      const buf = Buffer.alloc(readCapBytes);
+      fs.readSync(fd, buf, 0, readCapBytes, stat.size - readCapBytes);
+      text = buf.toString("utf8");
+      const nl = text.indexOf("\n"); // drop the half line cut at the window edge
+      if (nl >= 0) text = text.slice(nl + 1);
+    } finally {
+      fs.closeSync(fd);
+    }
+  } else {
+    text = fs.readFileSync(file, "utf8");
+  }
+  return text.split("\n").filter(Boolean).slice(-maxLines);
+}
+
+/**
+ * Lines from the gateway's per-worker logs.
+ *
+ * The gateway is a different process — four of them in cluster mode — so its
+ * output never enters this process's buffer. Without reading these files the
+ * dashboard console would show only dashboard lines, and the traffic that
+ * actually serves /v1/* would stay invisible in the one place an operator
+ * looks. The containers share the log directory, so they are readable here.
+ *
+ * Fails open: any problem returns [] and the console still serves its own lines.
+ */
+export function getGatewayConsoleLogs(maxLinesPerWorker = 150) {
+  try {
+    // The log root is wherever THIS process writes its own console.log, so any
+    // CONSOLE_LOG_FILE / CONSOLE_LOG_DIR override applies to the gateway too —
+    // otherwise relocating the dashboard's logs silently hides the gateway's.
+    let root;
+    try {
+      root = path.join(path.dirname(getLogFilePath()), "gateway");
+    } catch {
+      root = path.join(process.cwd(), "logs", "gateway");
+    }
+    if (!fs.existsSync(root)) return [];
+    const lines = [];
+    for (const entry of fs.readdirSync(root)) {
+      const file = path.join(root, entry, "console.log");
+      if (!fs.existsSync(file)) continue;
+      lines.push(...tailLines(file, maxLinesPerWorker));
+    }
+    return lines;
+  } catch {
+    return [];
+  }
+}
+
+// Lines are stamped "[HH:MM:SS]" by the writer, which sorts correctly within a
+// day. Plain string sort, stable, so lines without a stamp keep their order.
+const timeOf = (line) => {
+  const m = typeof line === "string" && line.match(/^\[(\d{2}:\d{2}:\d{2})\]/);
+  return m ? m[1] : "";
+};
+
+/**
+ * Everything the console should show: this process's buffer (all channels —
+ * splitting the files never costs the console anything) merged with the
+ * gateway workers' lines, ordered as one timeline.
+ */
+export function getAllConsoleLogs() {
+  const merged = [...getConsoleLogs(), ...getGatewayConsoleLogs()];
+  return merged
+    .map((line, index) => ({ line, index, stamp: timeOf(line) }))
+    .sort((a, b) => (a.stamp < b.stamp ? -1 : a.stamp > b.stamp ? 1 : a.index - b.index))
+    .map((entry) => entry.line);
+}
+
 export function clearConsoleLogs() {
   state.logs = [];
   state.emitter.emit("clear");
