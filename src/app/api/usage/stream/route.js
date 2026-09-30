@@ -46,7 +46,33 @@ function scheduleSharedRecalc(onDone) {
 
 export async function GET() {
   const encoder = new TextEncoder();
-  const state = { closed: false, keepalive: null, send: null, sendPending: null, cachedStats: null };
+  const state = { closed: false, keepalive: null, send: null, sendPending: null, cachedStats: null, hydrated: false };
+
+  // The client merges exactly these five fields over the stats it already holds
+  // from the REST fetch (UsageStats.js es.onmessage) and discards everything else
+  // in the frame straight after JSON.parse. Sending the whole aggregate anyway
+  // measured 431KB per frame at roughly one frame per second on production —
+  // 7.76MB in 20s, 379KB/s sustained — to deliver those five fields.
+  //
+  // The first frame that actually carries an aggregate still sends it whole, so a
+  // stream connecting to a warm server hydrates the panel instantly exactly as
+  // before; afterwards the aggregate comes from the REST fetch, which re-runs on
+  // every period change and on the 60s bucket poll. `pending` and `last10Minutes`
+  // stay on every frame — those are what the 60s bucketTick exists to refresh.
+  const buildFrame = (base, live) => {
+    const frame = {
+      activeRequests: live.activeRequests || [],
+      recentRequests: live.recentRequests || [],
+      errorProvider: live.errorProvider ?? null,
+      pending: base?.pending,
+      last10Minutes: base?.last10Minutes,
+    };
+    if (!state.hydrated && base && Object.keys(base).length > 0) {
+      state.hydrated = true;
+      return { ...base, ...frame };
+    }
+    return frame;
+  };
 
   const stream = new ReadableStream({
     async start(controller) {
@@ -61,8 +87,8 @@ export async function GET() {
         const base = state.cachedStats || shared.lastStats || {};
         try {
           const { activeRequests, recentRequests, errorProvider } = await getActiveRequests();
-          const stats = { ...base, activeRequests, recentRequests, errorProvider };
-          controller.enqueue(encoder.encode(`data: ${JSON.stringify(stats)}\n\n`));
+          const frame = buildFrame(base, { activeRequests, recentRequests, errorProvider });
+          controller.enqueue(encoder.encode(`data: ${JSON.stringify(frame)}\n\n`));
         } catch {
           state.closed = true;
           statsEmitter.off("update", state.send);
@@ -83,8 +109,10 @@ export async function GET() {
               state.cachedStats = shared.lastStats;
               try {
                 const { activeRequests, recentRequests, errorProvider } = await getActiveRequests();
-                const merged = { ...shared.lastStats, activeRequests, recentRequests, errorProvider };
-                controller.enqueue(encoder.encode(`data: ${JSON.stringify(merged)}\n\n`));
+                // cachedStats still takes the fresh aggregate server-side — the
+                // bucketTick needs it — it just no longer rides every frame.
+                const frame = buildFrame(shared.lastStats, { activeRequests, recentRequests, errorProvider });
+                controller.enqueue(encoder.encode(`data: ${JSON.stringify(frame)}\n\n`));
               } catch {
                 state.closed = true;
               }
