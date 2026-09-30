@@ -98,24 +98,24 @@ services:
         condition: service_started
         required: false
 
-  # Auto-updater: monitors GHCR every 12 hours and restarts updated containers
-  watchtower:
-    image: containrrr/watchtower:latest
-    container_name: axonrouter-watchtower
-    restart: always
-    volumes:
-      - /var/run/docker.sock:/var/run/docker.sock
-    environment:
-      WATCHTOWER_CLEANUP: "true"
-      WATCHTOWER_POLL_INTERVAL: "43200" # 12 hours
-      WATCHTOWER_INCLUDE_RESTARTING: "true"
-      DOCKER_API_VERSION: "${DOCKER_API_VERSION:-1.44}"
-    command: axonrouter-api axonrouter-web
-    logging:
-      driver: "json-file"
-      options:
-        max-size: "10m"
-        max-file: "2"
+  # Auto-updater: disabled 2026-10-01 — conflicts with bitt git deploy (no-registry standard)
+  # watchtower:
+  #   image: containrrr/watchtower:latest
+  #   container_name: axonrouter-watchtower
+  #   restart: always
+  #   volumes:
+  #     - /var/run/docker.sock:/var/run/docker.sock
+  #   environment:
+  #     WATCHTOWER_CLEANUP: "true"
+  #     WATCHTOWER_POLL_INTERVAL: "43200" # 12 hours
+  #     WATCHTOWER_INCLUDE_RESTARTING: "true"
+  #     DOCKER_API_VERSION: "${DOCKER_API_VERSION:-1.44}"
+  #   command: axonrouter-api axonrouter-web
+  #   logging:
+  #     driver: "json-file"
+  #     options:
+  #       max-size: "10m"
+  #       max-file: "2"
 
   # Valkey 8. Realtime coordination only: no persistence, LRU eviction, and no
   # host port. Reachable solely by the sibling containers on the compose network.
