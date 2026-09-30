@@ -1,4 +1,5 @@
 import { createErrorResult } from "../utils/error.js";
+import { proxyAwareFetch } from "../utils/proxyFetch.js";
 import { HTTP_STATUS } from "../config/runtimeConfig.js";
 import { refreshTokenByProvider } from "../services/tokenRefresh.js";
 import { PROVIDER_MEDIA } from "../providers/index.js";
@@ -90,6 +91,9 @@ export async function handleVideoProxyCore({
   timeoutMs = VIDEO_FETCH_TIMEOUT_MS,
   log,
   onCredentialsRefreshed,
+  // Proxy options in proxyAwareFetch shape (see buildProxyOptions). Null =
+  // direct egress, same as before.
+  proxyOptions = null,
 }) {
   const config = getVideoConfig(provider);
   if (!config) {
@@ -128,12 +132,12 @@ export async function handleVideoProxyCore({
       : defaultPlan();
     if (plan.error) return { planError: plan.error };
     return {
-      response: await fetch(plan.url, {
+      response: await proxyAwareFetch(plan.url, {
         method: plan.method,
         headers: plan.headers,
         body: plan.body,
         signal: fetchSignal,
-      }),
+      }, proxyOptions),
     };
   };
 

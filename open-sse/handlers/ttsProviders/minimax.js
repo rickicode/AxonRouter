@@ -1,3 +1,4 @@
+import { proxyAwareFetch, buildProxyOptions } from "../../utils/proxyFetch.js";
 import { Buffer } from "node:buffer";
 
 function hexToBase64(audioHex) {
@@ -10,8 +11,8 @@ function hexToBase64(audioHex) {
 }
 
 // MiniMax T2A HTTP: returns hex-encoded audio in non-streaming mode.
-export default async function minimaxTts({ baseUrl, apiKey, text, modelId, voiceId }) {
-  const res = await fetch(baseUrl, {
+export default async function minimaxTts({ baseUrl, apiKey, text, modelId, voiceId, proxyOptions = null }) {
+  const res = await proxyAwareFetch(baseUrl, {
     method: "POST",
     headers: { "Content-Type": "application/json", "Authorization": `Bearer ${apiKey}` },
     body: JSON.stringify({
@@ -33,7 +34,7 @@ export default async function minimaxTts({ baseUrl, apiKey, text, modelId, voice
         channel: 1,
       },
     }),
-  });
+  }, proxyOptions);
 
   const rawText = await res.text();
   let data = {};

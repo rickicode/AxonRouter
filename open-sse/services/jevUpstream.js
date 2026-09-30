@@ -36,6 +36,29 @@ export function setJevConnectionLoader(fn) {
   invalidateJevPools();
 }
 
+// Proxy resolver hook. open-sse stays agnostic: it never imports the proxy
+// resolver itself, the application layer (src/sse) injects one. Signature:
+//   (target) => Promise<proxyOptions|null>
+// where proxyOptions is the exact shape proxyAwareFetch() consumes
+// ({ connectionProxyEnabled, connectionProxyUrl, connectionNoProxy,
+//    strictProxy, failClosedProxy, proxyPoolId }).
+// Fail-open by contract: a resolver throw only means "no proxy".
+let proxyResolver = null;
+export function setJevProxyResolver(fn) {
+  proxyResolver = typeof fn === "function" ? fn : null;
+}
+
+async function attachProxyOptions(target, options, log) {
+  const resolver = typeof options.resolveProxy === "function" ? options.resolveProxy : proxyResolver;
+  if (!resolver) return;
+  try {
+    const resolved = await resolver(target);
+    if (resolved && typeof resolved === "object") target.proxyOptions = resolved;
+  } catch (e) {
+    log?.warn?.("PROXY", `[jev] proxy resolve failed for ${target.provider}: ${e?.message || e}`);
+  }
+}
+
 /** Drop cached pools so a newly added key/connection is picked up immediately. */
 export function invalidateJevPools() {
   poolCache.clear();
@@ -113,9 +136,12 @@ function settingKey(options, provider) {
  *   apiKey     — caller-level key (legacy TypeSafe setting / combo override)
  *   apiKeyFor  — (providerId) => key, per-provider caller credential
  *   apiKeys    — { [providerId]: key } caller credentials
+ *   resolveProxy — (target) => Promise<proxyOptions|null>, injected by the
+ *                application layer so the classifier egress honours the
+ *                operator's proxy config (see setJevProxyResolver)
  *   comboName  — log context
  * @returns {Promise<{family, provider, providerLabel, endpoint, model, apiKey,
- *   available, source, reason}>}
+ *   available, source, reason, keyless, proxyOptions}>}
  */
 export async function resolveJevTarget(options = {}, log = null) {
   const comboName = options.comboName || "default";
@@ -170,6 +196,8 @@ export async function resolveJevTarget(options = {}, log = null) {
 
   const build = (provider) => {
     const pool = pools.get(provider.provider) || [];
+    const poolIdx = pool.length ? (rotateIdx.get(provider.provider) || 0) % pool.length : 0;
+    const poolConn = provider.keyPool && pool.length ? pool[poolIdx] : null;
     const poolKey = provider.keyPool ? peekKey(provider.provider, pool) : "";
     const setting = settingKey(options, provider);
     const envKey = provider.keyPool ? process.env[provider.keyEnv] || "" : "";
@@ -209,6 +237,16 @@ export async function resolveJevTarget(options = {}, log = null) {
       source,
       reason,
       poolSize: pool.length,
+      // Keyless providers have no connection and no key: their egress IP *is* the
+      // identity (per-IP quota), so the caller must not silently fall back to a
+      // direct call that would burn the shared server IP.
+      keyless: !provider.keyPool,
+      connectionId: poolConn?.connectionId || poolConn?.id || null,
+      connectionName: poolConn?.name || poolConn?.connectionName || null,
+      // The chat path reads proxy config out of the selected connection's
+      // providerSpecificData; carrying it lets the caller resolve the same pool
+      // for the classifier (resolveJevProxy in src/sse/services/jevProxy.js).
+      providerSpecificData: poolConn?.providerSpecificData || null,
     };
   };
 
@@ -218,6 +256,7 @@ export async function resolveJevTarget(options = {}, log = null) {
     if (target.available) {
       commitRotate(target.provider, target.poolSize);
       delete target.poolSize;
+      await attachProxyOptions(target, options, log);
       return target;
     }
     if (!firstFailure) firstFailure = target;

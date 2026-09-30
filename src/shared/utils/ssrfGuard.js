@@ -19,6 +19,7 @@
 // same address to hex form ("::ffff:7f00:1") — a mismatch, not an oversight.
 
 import dns from "node:dns";
+import { proxyAwareFetch } from "open-sse/utils/proxyFetch.js";
 
 const BLOCKED_HOSTNAMES = new Set(["localhost", "ip6-localhost", "ip6-loopback"]);
 const BLOCKED_SUFFIXES = [".internal", ".local", ".localhost"];
@@ -199,11 +200,13 @@ export async function assertPublicUrlResolved(rawUrl) {
 // validated public URL can't 30x its way to an internal target. Bounded to
 // maxRedirects hops (fetch's own default following behavior has no bound
 // relevant here since we never let it auto-follow).
-export async function fetchPublic(url, init = {}, { maxRedirects = 5 } = {}) {
+export async function fetchPublic(url, init = {}, { maxRedirects = 5, proxyOptions = null } = {}) {
   await assertPublicUrlResolved(url);
   let currentUrl = url;
   for (let hop = 0; ; hop++) {
-    const res = await fetch(currentUrl, { ...init, redirect: "manual" });
+    // Operator-proxy aware: SSRF checks stay (public URLs only), egress goes
+    // through the configured pool when one is supplied, direct otherwise.
+    const res = await proxyAwareFetch(currentUrl, { ...init, redirect: "manual" }, proxyOptions);
     const isRedirect = res.status >= 300 && res.status < 400;
     const location = isRedirect ? res.headers.get("location") : null;
     if (!location) return res;

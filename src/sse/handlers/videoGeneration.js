@@ -8,6 +8,8 @@ import {
 import { getSettings, getProviderConnectionById } from "@/lib/localDb";
 import { getModelInfo } from "../services/model.js";
 import { handleVideoProxyCore, getVideoConfig, sanitizeSecrets } from "open-sse/handlers/videoCore.js";
+import { resolveCapabilityProxy } from "../services/capabilityProxy.js";
+import { saveCapabilityUsage } from "../services/capabilityUsage.js";
 import { errorResponse, unavailableResponse } from "open-sse/utils/error.js";
 import { HTTP_STATUS } from "open-sse/config/runtimeConfig.js";
 import { MAX_FALLBACK_ATTEMPTS } from "open-sse/config/errorConfig.js";
@@ -158,6 +160,9 @@ export async function handleVideoCreate(request, action) {
 
     const refreshedCredentials = await checkAndRefreshToken(provider, credentials);
 
+    const proxyOptions = await resolveCapabilityProxy({ provider, model, credentials: refreshedCredentials });
+
+    const videoStartedAt = Date.now();
     const result = await handleVideoProxyCore({
       provider,
       action,
@@ -165,6 +170,7 @@ export async function handleVideoCreate(request, action) {
       contentType: bodyInfo.contentType || null,
       idempotencyKey,
       credentials: refreshedCredentials,
+      proxyOptions,
       signal: request.signal,
       log,
       onCredentialsRefreshed: async (newCreds) => {
@@ -175,6 +181,14 @@ export async function handleVideoCreate(request, action) {
           testStatus: "active",
         });
       },
+    });
+
+    saveCapabilityUsage({
+      provider, model: model || "video", endpoint: `/v1/videos/${action}`,
+      connectionId: credentials.connectionId, callKind: "video",
+      status: result.success ? "ok" : `error_${result.status || 502}`,
+      error: result.error || null,
+      latencyMs: Date.now() - videoStartedAt,
     });
 
     if (result.success) {
@@ -238,6 +252,7 @@ export async function handleVideoGet(request, requestId, { content = false } = {
 
   const refreshedCredentials = await checkAndRefreshToken(provider, credentials);
 
+  const videoGetStartedAt = Date.now();
   const result = await handleVideoProxyCore({
     provider,
     requestId,
@@ -253,6 +268,14 @@ export async function handleVideoGet(request, requestId, { content = false } = {
         testStatus: "active",
       });
     },
+  });
+
+  saveCapabilityUsage({
+    provider, model: "video", endpoint: `/v1/videos/${requestId}`,
+    connectionId: credentials.connectionId, callKind: "video",
+    status: result.success ? "ok" : `error_${result.status || 502}`,
+    error: result.error || null,
+    latencyMs: Date.now() - videoGetStartedAt,
   });
 
   if (result.success) {

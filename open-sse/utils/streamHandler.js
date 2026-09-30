@@ -539,7 +539,7 @@ export async function peekStreamHasPayload(stream, { maxChunks = 8, timeoutMs = 
       if (outcome.done) {
         // Upstream closed. Payload-free close = empty response.
         try { reader.releaseLock(); } catch {}
-        return { empty: classify(buffered) !== "payload", chunks: seen, stream: null };
+        return { empty: classify(buffered) !== "payload", chunks: seen, stream: null, sample: buffered };
       }
       seen += 1;
       consumed.push(outcome.value);
@@ -551,8 +551,8 @@ export async function peekStreamHasPayload(stream, { maxChunks = 8, timeoutMs = 
       // A terminal signal with zero payload is decisive on the spot: no need to
       // wait for the socket to close, so an empty answer costs no extra latency.
       const verdict = classify(buffered);
-      if (verdict === "payload") return { empty: false, chunks: seen, stream: replay() };
-      if (verdict === "terminal") return { empty: true, chunks: seen, stream: null };
+      if (verdict === "payload") return { empty: false, chunks: seen, stream: replay(), sample: buffered };
+      if (verdict === "terminal") return { empty: true, chunks: seen, stream: null, sample: buffered };
     }
     // Peek budget exhausted without a close and without payload: inconclusive.
     return { empty: false, chunks: seen, stream: replay() };

@@ -62,7 +62,7 @@ function successResult(data) {
  * Run a single dedicated search provider attempt.
  * @returns {Promise<{success:boolean, status?:number, error?:string, data?:object}>}
  */
-async function tryDedicatedProvider({ provider, providerConfig, body, credentials, log, globalStartTime }) {
+async function tryDedicatedProvider({ provider, providerConfig, body, credentials, log, globalStartTime, proxyOptions = null }) {
   const startTime = Date.now();
   const token = credentials?.apiKey || credentials?.accessToken || undefined;
 
@@ -101,7 +101,7 @@ async function tryDedicatedProvider({ provider, providerConfig, body, credential
   log?.info?.("SEARCH", `${provider.id} | "${params.query.slice(0, 80)}" | type=${params.searchType}`);
 
   try {
-    const resp = await fetchPublic(url, { ...init, headers: sanitizeHeaders(init.headers), signal: controller.signal });
+    const resp = await fetchPublic(url, { ...init, headers: sanitizeHeaders(init.headers), signal: controller.signal }, { proxyOptions });
     clearTimeout(timer);
     if (!resp.ok) {
       const errText = await resp.text().catch(() => "");
@@ -153,7 +153,7 @@ async function tryDedicatedProvider({ provider, providerConfig, body, credential
  * @param {object|null} options.credentials  Provider credentials
  * @param {object}   [options.log]           Logger
  */
-export async function handleSearchCore({ body, provider, providerConfig, credentials, log }) {
+export async function handleSearchCore({ body, provider, providerConfig, credentials, log, proxyOptions = null }) {
   const globalStartTime = Date.now();
 
   // 1. Sanitize query
@@ -170,7 +170,8 @@ export async function handleSearchCore({ body, provider, providerConfig, credent
       body: normalizedBody,
       credentials,
       log,
-      globalStartTime
+      globalStartTime,
+      proxyOptions
     });
   } else if (provider.searchViaChat) {
     result = await handleChatSearch({
@@ -179,7 +180,8 @@ export async function handleSearchCore({ body, provider, providerConfig, credent
       maxResults: normalizedBody.max_results,
       model: normalizedBody.model || provider.searchViaChat.defaultModel,
       credentials,
-      log
+      log,
+      proxyOptions
     });
   } else {
     return errorResult(400, `Provider ${provider.id} does not support web search`);
@@ -201,7 +203,8 @@ export async function handleSearchCore({ body, provider, providerConfig, credent
       maxResults: normalizedBody.max_results,
       model: normalizedBody.model || provider.searchViaChat.defaultModel,
       credentials,
-      log
+      log,
+      proxyOptions
     });
     if (fallback.success) return successResult(fallback.data);
   }

@@ -8,6 +8,8 @@ import {
 import { getSettings } from "@/lib/localDb";
 import { getModelInfo, getComboModels } from "../services/model.js";
 import { handleImageGenerationCore } from "open-sse/handlers/imageGenerationCore.js";
+import { resolveCapabilityProxy } from "../services/capabilityProxy.js";
+import { saveCapabilityUsage } from "../services/capabilityUsage.js";
 import { errorResponse, unavailableResponse } from "open-sse/utils/error.js";
 import { HTTP_STATUS } from "open-sse/config/runtimeConfig.js";
 import { MAX_FALLBACK_ATTEMPTS } from "open-sse/config/errorConfig.js";
@@ -78,11 +80,21 @@ async function handleSingleModelImage(body, modelStr, { wantsStream, binaryOutpu
 
   // noAuth providers — no credential needed
   if (NO_AUTH_PROVIDERS.has(provider)) {
+    const proxyOptions = await resolveCapabilityProxy({ provider, model, keyless: true });
+    const startedAt = Date.now();
     const result = await handleImageGenerationCore({
       body,
       modelInfo: { provider, model },
       credentials: null,
+      proxyOptions,
       binaryOutput,
+    });
+    saveCapabilityUsage({
+      provider, model, endpoint: "/v1/images/generations",
+      connectionId: null, callKind: "image",
+      status: result.success ? "ok" : `error_${result.status || 502}`,
+      error: result.error || null,
+      isTestRequest, latencyMs: Date.now() - startedAt,
     });
     if (result.success) return result.response;
     return errorResponse(result.status || HTTP_STATUS.BAD_GATEWAY, result.error || "Image generation failed");
@@ -119,10 +131,14 @@ async function handleSingleModelImage(body, modelStr, { wantsStream, binaryOutpu
 
     const refreshedCredentials = await checkAndRefreshToken(provider, credentials);
 
+    const proxyOptions = await resolveCapabilityProxy({ provider, model, credentials: refreshedCredentials });
+
+    const imageStartedAt = Date.now();
     const result = await handleImageGenerationCore({
       body,
       modelInfo: { provider, model },
       credentials: refreshedCredentials,
+      proxyOptions,
       streamToClient: wantsStream,
       binaryOutput,
       onCredentialsRefreshed: async (newCreds) => {
@@ -137,6 +153,14 @@ async function handleSingleModelImage(body, modelStr, { wantsStream, binaryOutpu
         // Probes must not rewire production routing state.
         if (!isTestRequest) await clearAccountError(credentials.connectionId, credentials, model);
       }
+    });
+
+    saveCapabilityUsage({
+      provider, model, endpoint: "/v1/images/generations",
+      connectionId: credentials.connectionId, callKind: "image",
+      status: result.success ? "ok" : `error_${result.status || 502}`,
+      error: result.error || null,
+      isTestRequest, latencyMs: Date.now() - imageStartedAt,
     });
 
     if (result.success) return result.response;

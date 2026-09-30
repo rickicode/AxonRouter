@@ -1,10 +1,11 @@
 // OpenRouter TTS — via chat completions + audio modality (SSE stream)
+import { proxyAwareFetch, buildProxyOptions } from "../../utils/proxyFetch.js";
 import { PROVIDER_MEDIA } from "../../providers/index.js";
 
 const TTS_CFG = PROVIDER_MEDIA["openrouter"]?.ttsConfig || {};
 
 export default {
-  async synthesize(text, model, credentials) {
+  async synthesize(text, model, credentials, _responseFormat, opts = {}) {
     if (!credentials?.apiKey) throw new Error("No OpenRouter API key configured");
 
     // model format: "tts-model/voice" e.g. "openai/gpt-4o-mini-tts/alloy"
@@ -24,7 +25,7 @@ export default {
       voice = model;
     }
 
-    const res = await fetch(TTS_CFG.baseUrl, {
+    const res = await proxyAwareFetch(TTS_CFG.baseUrl, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -38,7 +39,7 @@ export default {
         stream: true,
         messages: [{ role: "user", content: text }],
       }),
-    });
+    }, opts.proxyOptions || buildProxyOptions(credentials?.providerSpecificData));
 
     if (!res.ok) {
       const err = await res.json().catch(() => ({}));

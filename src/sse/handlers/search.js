@@ -8,6 +8,8 @@ import {
 import { getSettings, getCombos } from "@/lib/localDb";
 import { AI_PROVIDERS, resolveProviderId } from "@/shared/constants/providers.js";
 import { handleSearchCore } from "open-sse/handlers/search/index.js";
+import { resolveCapabilityProxy } from "../services/capabilityProxy.js";
+import { saveCapabilityUsage } from "../services/capabilityUsage.js";
 import { errorResponse, unavailableResponse } from "open-sse/utils/error.js";
 import { HTTP_STATUS } from "open-sse/config/runtimeConfig.js";
 import { MAX_FALLBACK_ATTEMPTS } from "open-sse/config/errorConfig.js";
@@ -140,12 +142,22 @@ async function handleSingleProviderSearch(body, providerInput, request, apiKey, 
   // No-auth providers (e.g. searxng) bypass credential lookup
   if (resolvedProvider.noAuth) {
     log.info("AUTH", `\x1b[32m${providerId} no-auth mode\x1b[0m`);
+    const proxyOptions = await resolveCapabilityProxy({ provider: providerId, model: null, keyless: true });
+    const startedAt = Date.now();
     const result = await handleSearchCore({
       body: coreBody,
       provider: resolvedProvider,
       providerConfig,
       credentials: null,
-      log
+      log,
+      proxyOptions
+    });
+    saveCapabilityUsage({
+      provider: providerId, model: coreBody.model || null, endpoint: "/v1/search",
+      connectionId: null, callKind: "search",
+      status: result.success ? "ok" : `error_${result.status || 502}`,
+      error: result.error || null,
+      latencyMs: Date.now() - startedAt,
     });
     if (result.success) return result.response;
     return result.response || errorResponse(result.status || HTTP_STATUS.BAD_GATEWAY, result.error || "Search request failed");
@@ -207,12 +219,16 @@ async function handleSingleProviderSearch(body, providerInput, request, apiKey, 
 
     const refreshedCredentials = await checkAndRefreshToken(providerId, credentials);
 
+    const proxyOptions = await resolveCapabilityProxy({ provider: providerId, model: null, credentials: refreshedCredentials });
+
+    const searchStartedAt = Date.now();
     const result = await handleSearchCore({
       body: coreBody,
       provider: resolvedProvider,
       providerConfig,
       credentials: refreshedCredentials,
       log,
+      proxyOptions,
       onCredentialsRefreshed: async (newCreds) => {
         await updateProviderCredentials(credentials.connectionId, {
           accessToken: newCreds.accessToken,
@@ -224,6 +240,14 @@ async function handleSingleProviderSearch(body, providerInput, request, apiKey, 
       onRequestSuccess: async () => {
         await clearAccountError(credentials.connectionId, credentials);
       }
+    });
+
+    saveCapabilityUsage({
+      provider: credentialProviderId, model: coreBody.model || null, endpoint: "/v1/search",
+      connectionId: credentials.connectionId, callKind: "search",
+      status: result.success ? "ok" : `error_${result.status || 502}`,
+      error: result.error || null,
+      latencyMs: Date.now() - searchStartedAt,
     });
 
     if (result.success) return result.response;

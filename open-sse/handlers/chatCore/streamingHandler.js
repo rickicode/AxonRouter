@@ -159,8 +159,21 @@ export async function handleStreamingResponse({ providerResponse, provider, mode
   if (committedBody) {
     const payload = await peekStreamHasPayload(committedBody);
     if (payload.empty) {
-      const errMsg = "upstream returned an empty response (no content, reasoning, or tool call)";
-      if (log?.errorLine) log.errorLine(reqTag, "✗", `EMPTY ${provider}/${model} · ${errMsg}`);
+      const shape = (payload.sample ?? "").replace(/\s+/g, " ").slice(0, 400);
+      // An upstream that DIES mid-stream hands back a terminal error frame
+      // (`upstream connection lost` / gateway_timeout) instead of a close. The
+      // stream really did carry no content, but calling that "empty response"
+      // hides the actual fault: it is a lost connection, and it should be
+      // retried on another connection, not reasoned about as a blank answer.
+      const lostConnection = /upstream connection lost|gateway_timeout|ECONNRESET|aborted/i.test(shape);
+      const authRejected = /"(?:code|message)":"?(?:permission_denied|unauthorized|invalid[_ ]api[_ ]key|forbidden)|401|403/i.test(shape);
+      const errMsg = lostConnection
+        ? "upstream connection lost before any output"
+        : authRejected
+          ? "upstream rejected our credentials (no output)"
+          : "upstream returned an empty response (no content, reasoning, or tool call)";
+      const label = lostConnection ? "LOST" : authRejected ? "AUTHFAIL" : "EMPTY";
+      if (log?.errorLine) log.errorLine(reqTag, "✗", `${label} ${provider}/${model} · ${errMsg} [peek=${shape.slice(0, 220)}]`);
       else console.warn(`[STREAM] ${provider} | ${model} | empty response`);
       bumpRoutingMetric("stillbornStreams");
       bumpRoutingMetric("emptyResponses");
@@ -259,7 +272,7 @@ export function buildOnStreamComplete({ provider, model, connectionId, apiKey, r
     });
 
     // Persist stream usage to DB (no console line; the "📊 done" line below is authoritative)
-    saveUsageStats({ provider, model, tokens: usage, connectionId, apiKey, endpoint: clientRawRequest?.endpoint, label: "STREAM USAGE", silent: true, isStream: true, isTestRequest, comboName, requestId, latency, difficulty: clientRawRequest?.difficulty || null });
+    saveUsageStats({ provider, model, tokens: usage, connectionId, apiKey, endpoint: clientRawRequest?.endpoint, label: "STREAM USAGE", silent: true, isStream: true, isTestRequest, comboName, requestId, latency, difficulty: clientRawRequest?.difficulty || null, callKind: clientRawRequest?.callKind || "chat" });
     if (log?.line) log.line(reqTag, "📊", formatDoneLine({ usage, latency }));
   };
 

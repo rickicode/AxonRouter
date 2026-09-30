@@ -104,19 +104,34 @@ export function formatDoneLine({ usage, latency }) {
   return `DONE ${latency?.total ?? 0}ms${ttftStr} · ${inStr} · OUT ${outTok}`;
 }
 
-export function saveUsageStats({ provider, model, tokens, connectionId, apiKey, endpoint, label = "USAGE", silent = false, isStream, isTestRequest = false, comboName = null, requestId = null, latency = null, difficulty = null }) {
+export function saveUsageStats({
+  provider, model, tokens, connectionId, apiKey, endpoint,
+  label = "USAGE", silent = false, isStream, isTestRequest = false,
+  comboName = null, requestId = null, latency = null, difficulty = null,
+  // Capability/classifier support.
+  //   callKind        — dashboard discriminator (chat | classifier | judge |
+  //                     embedding | tts | stt | image | video | search | fetch)
+  //   status          — persisted verbatim, so 4xx/5xx/timeout rows are visible
+  //   allowZeroTokens — non-chat calls that report no usage still produce a row
+  //   meta            — extra structured context; coerced to an object because
+  //                     usage_history.meta is read with jsonb_object_keys
+  status = "ok", callKind = null, allowZeroTokens = false, error = null, meta: extraMeta = null,
+}) {
   if (isTestRequest) return;
-  if (!tokens || typeof tokens !== "object") return;
+  if (!tokens || typeof tokens !== "object") tokens = {};
 
   const inTokens = tokens.input_tokens ?? tokens.prompt_tokens ?? 0;
   const outTokens = tokens.output_tokens ?? tokens.completion_tokens ?? 0;
 
-  if (inTokens === 0 && outTokens === 0) return;
+  // Zero-token rows are dropped for chat (an empty completion is not a billable
+  // call) but must survive for capabilities: a classifier/audio/image call that
+  // reports no usage still consumed upstream capacity and belongs in the ledger.
+  if (!allowZeroTokens && inTokens === 0 && outTokens === 0) return;
 
   if (!silent) {
     const time = new Date().toLocaleTimeString("en-US", { hour12: false, hour: "2-digit", minute: "2-digit", second: "2-digit" });
     const accountSuffix = connectionId ? ` | account=${connectionId.slice(0, 8)}...` : "";
-    console.log(`${COLORS.green}[${time}] 📊 [${label}] ${provider.toUpperCase()} | in=${inTokens} | out=${outTokens}${accountSuffix}${COLORS.reset}`);
+    console.log(`${COLORS.green}[${time}] \u{1F4CA} [${label}] ${String(provider).toUpperCase()} | in=${inTokens} | out=${outTokens}${accountSuffix}${COLORS.reset}`);
   }
 
   // Canonicalize to one storage convention (prompt_tokens cache-inclusive) so
@@ -125,6 +140,10 @@ export function saveUsageStats({ provider, model, tokens, connectionId, apiKey, 
     prompt_tokens: tokens.prompt_tokens ?? tokens.input_tokens ?? 0,
     completion_tokens: tokens.completion_tokens ?? tokens.output_tokens ?? 0
   };
+
+  const failed = status !== "ok" && status !== "success";
+  const safeExtra = extraMeta && typeof extraMeta === "object" && !Array.isArray(extraMeta) ? extraMeta : null;
+  const resolvedStream = isStream !== undefined ? Boolean(isStream) : true;
 
   saveRequestUsage({
     provider: provider || "unknown",
@@ -135,12 +154,17 @@ export function saveUsageStats({ provider, model, tokens, connectionId, apiKey, 
     connectionId: connectionId || undefined,
     apiKey: apiKey || undefined,
     endpoint: endpoint || null,
-    isStream: isStream !== undefined ? Boolean(isStream) : true,
+    status,
+    isStream: resolvedStream,
     meta: {
-      isStream: isStream !== undefined ? Boolean(isStream) : true,
+      isStream: resolvedStream,
+      ...(callKind ? { callKind } : {}),
+      ...(failed ? { failed: true } : {}),
+      ...(error ? { error: String(typeof error === "object" ? (error.message || JSON.stringify(error)) : error).slice(0, 500) } : {}),
       ...(comboName ? { comboName } : {}),
       ...(latency ? { latency } : {}),
       ...(difficulty ? { difficulty } : {}),
+      ...(safeExtra || {}),
     },
   }).catch(() => {});
 }

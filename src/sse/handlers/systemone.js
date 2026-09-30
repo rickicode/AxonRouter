@@ -1,9 +1,16 @@
 import { extractApiKey, isValidApiKey } from "../services/auth.js";
 import { getSettings } from "@/lib/localDb";
 import { classifyWithJev } from "open-sse/services/combo.js";
+import { setJevProxyResolver } from "open-sse/services/jevUpstream.js";
+import { resolveJevProxy } from "../services/jevProxy.js";
 import { errorResponse } from "open-sse/utils/error.js";
 import { HTTP_STATUS } from "open-sse/config/runtimeConfig.js";
 import * as log from "../utils/logger.js";
+
+// Standalone classifier endpoint has no handleDifficultyChat wrapper, so the
+// proxy resolver is registered globally: the call still goes through
+// proxyAwareFetch with the operator's pool (fail-closed for keyless).
+setJevProxyResolver(resolveJevProxy);
 
 /**
  * Handle Jev System One classification requests.

@@ -3,7 +3,9 @@
  */
 
 import { checkFallbackError, formatRetryAfter } from "./accountFallback.js";
-import { unavailableResponse } from "../utils/error.js";
+import { unavailableResponse, extractQuotaResetMs } from "../utils/error.js";
+import { proxyAwareFetch } from "../utils/proxyFetch.js";
+import { markPoolUnfit } from "./proxyPoolFitness.js";
 import { COMBO_TARGET_TIMEOUT_MS, COMBO_LOOP_SAFETY_MS } from "../config/errorConfig.js";
 import { bumpRoutingMetric } from "./routingMetrics.js";
 import { MODEL_FAILOVER_THRESHOLD } from "../config/errorConfig.js";
@@ -871,7 +873,7 @@ const DIFFICULTY_JUDGE_PROMPT = `Classify this task. Reply with ONLY JSON, no ma
 {"difficulty":"easy|hard","ambiguity":"low|medium|high","domain":"general|summary|coding|design|data","confidence":0.0-1.0}
 Task:`;
 
-export async function handleDifficultyChat({ body, models = [], handleSingleModel, log, comboName, judgeModel, tuning = {}, rotationBudget = null, externalSignal = null, onDecision = null, memberHealth = null }) {
+export async function handleDifficultyChat({ body, models = [], handleSingleModel, log, comboName, judgeModel, tuning = {}, rotationBudget = null, externalSignal = null, onDecision = null, memberHealth = null, resolveProxy = null, recordUsage = true, isTestRequest = false }) {
   const notify = (d) => { try { onDecision && onDecision(d); } catch {} };
   // Capability gating (same contract as handleComboChat): detected ONCE from the
   // request body, then applied to every tier's candidate list before any sort.
@@ -904,6 +906,10 @@ export async function handleDifficultyChat({ body, models = [], handleSingleMode
             apiKeys: cfg.jevApiKeys,
             mode: cfg.jevMode,
             comboName,
+            // Classifier egress honours the operator's proxy config, resolved by
+            // the application layer (src/sse/services/jevProxy.js) and attached
+            // to the target as proxyOptions for proxyAwareFetch.
+            ...(resolveProxy ? { resolveProxy } : {}),
           },
           log
         )
@@ -957,15 +963,30 @@ export async function handleDifficultyChat({ body, models = [], handleSingleMode
       policy,
       log,
       comboName,
+      recordUsage,
+      isTestRequest,
     });
-    if (!jevRes) {
+    if (!jevRes || jevRes.cooldownActive) {
       bumpRoutingMetric("jevFallback");
-      log.warn("DIFFICULTY", `Jev classifier failed (jev-only mode) — defaulting to fallback`, { comboName });
-      tier = cachedTier || (policy === "capability_heavy" ? "hard" : "easy");
-      source = "jev-fallback";
-      domain = detectDomain(body);
-      ambiguity = "high";
-      confidence = 0.0;
+      // A parked upstream (Retry-After honoured) or a failed call must not silently
+      // degrade every request to the regex heuristic with confidence 0 — escalate to
+      // the LLM judge when one is configured, even in jev-only mode.
+      if (judgeModel) {
+        log.warn("DIFFICULTY", `Jev ${jevRes?.cooldownActive ? "in cooldown" : "classifier failed"} (jev-only mode) — escalating to LLM judge`, { comboName });
+        const jr = await classifyWithJudge(body, judgeModel, handleSingleModel, cfg.judgeTimeoutMs, log, comboName, policy, cachedTier);
+        tier = jr?.tier || cachedTier || (policy === "capability_heavy" ? "hard" : "easy");
+        source = jr?.source || "judge";
+        domain = jr?.domain || detectDomain(body);
+        ambiguity = jr?.ambiguity || "low";
+        confidence = jr?.confidence ?? 0.8;
+      } else {
+        log.warn("DIFFICULTY", `Jev classifier failed (jev-only mode) — defaulting to fallback`, { comboName });
+        tier = cachedTier || (policy === "capability_heavy" ? "hard" : "easy");
+        source = "jev-fallback";
+        domain = detectDomain(body);
+        ambiguity = "high";
+        confidence = 0.0;
+      }
     } else if (jevRes.confidence >= (cfg.jevConfidenceThreshold ?? 0.7)) {
       bumpRoutingMetric("jevUsed");
       tier = jevRes.tier;
@@ -990,8 +1011,10 @@ export async function handleDifficultyChat({ body, models = [], handleSingleMode
       policy,
       log,
       comboName,
+      recordUsage,
+      isTestRequest,
     });
-    if (!jevRes) {
+    if (!jevRes || jevRes.cooldownActive) {
       bumpRoutingMetric("jevFallback");
       log.warn("DIFFICULTY", `Jev classifier failed — falling back to LLM judge`, { comboName });
       if (judgeModel) {
@@ -1259,8 +1282,12 @@ async function classifyWithJudge(body, judgeModel, handleSingleModel, timeoutMs,
     max_tokens: 512,
   };
   try {
+    // Pass the discriminator out-of-band via the third (opts) argument, never in
+    // the body: the judge call IS a chat-completion call, but its usage row must
+    // carry meta.callKind = "judge" so the operator can filter it from ordinary
+    // traffic, and stray body keys must not reach the upstream provider.
     const res = await withTimeout(
-      Promise.resolve().then(() => handleSingleModel(judgeBody, judgeModel)),
+      Promise.resolve().then(() => handleSingleModel(judgeBody, judgeModel, { callKind: "judge" })),
       timeoutMs,
     );
     if (!res || ((res.__error || res.__timeout)) || !res.ok) {
@@ -1368,6 +1395,32 @@ function extractJudgeInput(body) {
  * callers resolve it here.
  * Returns { tier, difficulty, ambiguity, domain, confidence, source: "jev", raw } or null.
  */
+// Classifier upstream cooldowns: a 429/503 with Retry-After parks the upstream so
+// subsequent classifications skip the call instead of hammering it. In-memory TTL
+// store (hot path stays DB-free); the classifier is low-latency advisory, so a
+// parked upstream degrades to the LLM judge instead of blocking the request.
+const jevCooldowns = new Map(); // key -> untilMs
+const JEV_COOLDOWN_DEFAULT_MS = 60_000;
+const JEV_COOLDOWN_MAX_MS = 10 * 60_000;
+
+export function jevClassifierCooldownKey({ endpoint, model } = {}) {
+  return `jev:${String(endpoint || "").trim()}|${String(model || "").trim()}`;
+}
+
+export function getJevCooldownUntilMs(key) {
+  const until = jevCooldowns.get(key);
+  if (!until) return 0;
+  if (until <= Date.now()) {
+    jevCooldowns.delete(key);
+    return 0;
+  }
+  return until;
+}
+
+export function clearJevCooldowns() {
+  jevCooldowns.clear();
+}
+
 export async function classifyWithJev(body, optionsOrKey = {}, maybeOptions = {}) {
   const options = typeof optionsOrKey === "string" ? { apiKey: optionsOrKey, ...maybeOptions } : (optionsOrKey || {});
   const timeoutMs = options.timeoutMs || 2500;
@@ -1404,6 +1457,7 @@ export async function classifyWithJev(body, optionsOrKey = {}, maybeOptions = {}
           apiKeys: options.apiKeys,
           comboName,
         },
+        options.resolveProxy ? { resolveProxy: options.resolveProxy } : {},
         log
       );
   if (!target?.available) {
@@ -1416,6 +1470,79 @@ export async function classifyWithJev(body, optionsOrKey = {}, maybeOptions = {}
   }
   const endpoint = target.endpoint;
   const apiKey = target.apiKey;
+
+  // Ledger endpoint is the upstream path ("/v1/systemone"), never the client's
+  // chat endpoint and never the full URL (query strings carry no business value
+  // and would fragment the group-by). Falls back to the raw value when it is not
+  // a parseable URL.
+  let classifierEndpoint = endpoint;
+  try {
+    const parsed = new URL(String(endpoint));
+    if (parsed.pathname && parsed.pathname !== "/") classifierEndpoint = parsed.pathname;
+  } catch { /* keep raw */ }
+
+  // usage_history writer for the classifier family. Jev answers usually carry no
+  // usage block, and failures never do — but every upstream call must still land
+  // one ledger row, so recording is unconditional (allowZeroTokens) with
+  // meta.callKind = "classifier" to keep it filterable from chat rows. The
+  // recorded endpoint is the upstream path ("/v1/systemone"), never the client's.
+  const classifierStartedAt = Date.now();
+  const recordClassifierUsage = async ({ tokens = null, status = "ok", error = null }) => {
+    if (options.recordUsage === false) return;
+    try {
+      const { saveUsageStats } = await import("../handlers/chatCore/requestDetail.js");
+      saveUsageStats({
+        provider: target.provider,
+        model: target.model,
+        tokens: tokens && typeof tokens === "object" ? tokens : { input_tokens: 0, output_tokens: 0 },
+        connectionId: target.connectionId || undefined,
+        endpoint: classifierEndpoint,
+        label: "JEV USAGE",
+        silent: true,
+        isStream: false,
+        allowZeroTokens: true,
+        callKind: "classifier",
+        status,
+        error,
+        isTestRequest: options.isTestRequest === true,
+        comboName,
+        latency: { total: Date.now() - classifierStartedAt },
+      });
+      if (status === "ok") bumpRoutingMetric("jevUsageRecorded");
+    } catch { /* usage writes never fail the request */ }
+  };
+
+  // Cooldown gate: skip the network call entirely while the upstream is parked
+  // (Retry-After honoured). The marker tells the caller to escalate to the LLM judge.
+  const cooldownKey = jevClassifierCooldownKey(target);
+  const cooldownUntil = getJevCooldownUntilMs(cooldownKey);
+  if (cooldownUntil) {
+    log?.info?.(
+      "DIFFICULTY",
+      `[classifyWithJev] ${target.provider}/${target.model} in cooldown for ${Math.max(1, Math.ceil((cooldownUntil - Date.now()) / 1000))}s — skipping classifier`,
+      { comboName }
+    );
+    bumpRoutingMetric("jevCooldownHits");
+    return { cooldownActive: true, cooldownUntilMs: cooldownUntil, provider: target.provider, model: target.model };
+  }
+
+  // Egress: the classifier is an upstream call like any other, so it goes through
+  // the single proxy choke point with the operator's resolved pool. Keyless
+  // classifier providers are per-IP-quota metered, hence failClosedProxy.
+  const proxyOptions = target.proxyOptions || null;
+  if (proxyOptions?.connectionProxyEnabled && proxyOptions?.connectionProxyUrl) {
+    let maskedProxyUrl = proxyOptions.connectionProxyUrl;
+    try {
+      const parsed = new URL(proxyOptions.connectionProxyUrl);
+      maskedProxyUrl = `${parsed.protocol}//${parsed.hostname}${parsed.port ? `:${parsed.port}` : ""}`;
+    } catch { /* keep raw if it does not parse */ }
+    log?.info?.(
+      "PROXY",
+      `JEV | ${target.provider}/${target.model} | conn=${target.connectionName || target.connectionId || "none"} | pool=${proxyOptions.proxyPoolId || "none"} | url=${maskedProxyUrl}`
+    );
+  } else {
+    log?.debug?.("PROXY", `JEV | ${target.provider}/${target.model} | no proxy configured — direct egress`);
+  }
 
   const payload = {
     model: target.model,
@@ -1467,12 +1594,12 @@ export async function classifyWithJev(body, optionsOrKey = {}, maybeOptions = {}
     if (timer.unref) timer.unref();
 
     const fetchPromise = Promise.resolve().then(() =>
-      fetch(endpoint, {
+      proxyAwareFetch(endpoint, {
         method: "POST",
         headers,
         body: JSON.stringify(payload),
         signal: controller.signal,
-      })
+      }, proxyOptions)
     );
 
     const res = await withTimeout(fetchPromise, timeoutMs + 200);
@@ -1480,7 +1607,34 @@ export async function classifyWithJev(body, optionsOrKey = {}, maybeOptions = {}
 
     if (!res || res.__error || res.__timeout || !res.ok) {
       const errText = res && typeof res.text === "function" ? await res.text().catch(() => "") : (res?.__error?.message || "timeout/failed");
+      const status = Number(res?.status || 0);
       log?.warn?.("DIFFICULTY", `Jev HTTP ${res?.status || "error"}: ${String(errText).slice(0, 150)}`, { comboName });
+      // Failed classifier calls still burn upstream quota (and are what the
+      // operator most needs to see), so they are recorded too.
+      await recordClassifierUsage({
+        status: status > 0 ? `error_${status}` : (res?.__timeout ? "error_timeout" : "error_network"),
+        error: String(errText || res?.__error?.message || "timeout").slice(0, 300),
+      });
+      if (status === 429 || status === 503) {
+        // Honour Retry-After (seconds or HTTP-date) so a rate-limited / free-quota
+        // upstream is parked instead of retried on every single request. A pool
+        // that hit a per-IP quota is also marked unfit for the classifier scope so
+        // the next call rotates to a fresh egress.
+        const resetsAtMs = extractQuotaResetMs(String(errText || ""), res);
+        const cooldownMs = Math.min(
+          JEV_COOLDOWN_MAX_MS,
+          Math.max(1_000, resetsAtMs ? resetsAtMs - Date.now() : JEV_COOLDOWN_DEFAULT_MS)
+        );
+        jevCooldowns.set(cooldownKey, Date.now() + cooldownMs);
+        if (proxyOptions?.proxyPoolId) {
+          markPoolUnfit(proxyOptions.proxyPoolId, `${target.provider}::jev`, undefined, `http ${status}`);
+        }
+        log?.warn?.(
+          "DIFFICULTY",
+          `Jev ${status} — classifier parked ${Math.ceil(cooldownMs / 1000)}s (retry-after honoured), escalating to judge`,
+          { comboName }
+        );
+      }
       return null;
     }
 
@@ -1528,6 +1682,11 @@ export async function classifyWithJev(body, optionsOrKey = {}, maybeOptions = {}
 
     const tier = resolveTierMatrix(diffRaw, ambRaw, domRaw, policy);
 
+    // Record every classifier call in usage_history like any other upstream call.
+    // Extracted *after* the difficulty choice is validated so malformed answers
+    // still produce a row (the upstream call happened either way).
+    await recordClassifierUsage({ tokens: data?.usage });
+
     return {
       tier,
       difficulty: diffRaw,
@@ -1539,6 +1698,7 @@ export async function classifyWithJev(body, optionsOrKey = {}, maybeOptions = {}
     };
   } catch (e) {
     log?.warn?.("DIFFICULTY", `Jev request failed: ${e.message}`, { comboName });
+    await recordClassifierUsage({ status: "error_network", error: e?.message || String(e) });
     return null;
   }
 }

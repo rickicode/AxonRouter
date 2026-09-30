@@ -4,6 +4,7 @@
  * minimax, perplexity.
  */
 import { PROVIDER_MEDIA } from "../../providers/index.js";
+import { proxyAwareFetch } from "../../utils/proxyFetch.js";
 import { ANTIGRAVITY_IDE_USER_AGENT } from "../../providers/shared.js";
 
 // Default search model + endpoint derive from registry searchViaChat (single source)
@@ -502,7 +503,8 @@ export async function handleChatSearch({
   maxResults,
   model,
   credentials,
-  log
+  log,
+  proxyOptions = null
 }) {
   const startTime = Date.now();
   const cfg = CHAT_SEARCH_CONFIG[provider];
@@ -548,12 +550,12 @@ export async function handleChatSearch({
   let upstreamStart = Date.now();
   let resp;
   try {
-    resp = await fetch(url, {
+    resp = await proxyAwareFetch(url, {
       method: "POST",
       headers,
       body: JSON.stringify(body),
       signal: controller.signal
-    });
+    }, proxyOptions);
   } catch (err) {
     clearTimeout(timer);
     if (err?.name === "AbortError") {

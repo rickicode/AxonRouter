@@ -269,6 +269,27 @@ describe("peekStreamHasPayload — usage frames are proof of output", () => {
     );
     expect(r.empty).toBe(true);
   });
+
+  // Observed live: an upstream that dies mid-stream emits a terminal error frame
+  // and [DONE] with no content. That IS payload-free, so the probe correctly
+  // says empty — but the caller must be able to tell it apart from a genuinely
+  // blank answer, because the right response is a connection retry.
+  it("exposes the raw sample so the caller can distinguish a lost connection", async () => {
+    const r = await peekStreamHasPayload(
+      sseStream([
+        'data: {"error":{"message":"upstream connection lost","type":"server_error","code":"gateway_timeout"}}\n\n',
+        "data: [DONE]\n\n",
+      ])
+    );
+    expect(r.empty).toBe(true);
+    expect(r.sample).toMatch(/upstream connection lost/);
+    expect(r.sample).toMatch(/ECONNRESET|connection lost|gateway_timeout/);
+  });
+
+  it("reports a zero-length sample when nothing at all was read", async () => {
+    const r = await peekStreamHasPayload(sseStream(["data: [DONE]\n\n"]));
+    expect(typeof r.sample).toBe("string");
+  });
 });
 
 describe("peekStreamHasPayload — fail-open on inconclusive input", () => {

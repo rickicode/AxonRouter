@@ -331,7 +331,51 @@ describe("TypeSafe Jev classifier and judgeMode cascade", () => {
       expect(afterMetrics.jevEscalated).toBe(beforeMetrics.jevEscalated + 1);
     });
 
-    it("runs Jev only; on Jev failure falls back to default tier without LLM judge", async () => {
+    it("runs Jev only; on Jev failure escalates to LLM judge when one is configured", async () => {
+      const beforeMetrics = getRoutingMetrics();
+      const calls = [];
+
+      vi.spyOn(globalThis, "fetch").mockRejectedValue(new Error("Jev offline"));
+
+      const handleSingleModel = vi.fn(async (b, m) => {
+        calls.push(m);
+        if (m === "judge-model") {
+          return judgeRes(JSON.stringify({ difficulty: "easy", ambiguity: "low", domain: "general", confidence: 0.9 }));
+        }
+        return okRes("pong");
+      });
+
+      const body = {
+        messages: [{ role: "user", content: "General question about history." }],
+        stream: false,
+      };
+
+      const decisions = [];
+      const res = await handleDifficultyChat({
+        body,
+        models: ["easy-a", "hard-a"],
+        handleSingleModel,
+        log: quietLog,
+        comboName: "jev-only-combo",
+        judgeModel: "judge-model",
+        tuning: {
+          judgeMode: "jev-only",
+          policy: "cost_efficient", // defaults to easy on fallback
+          easyModels: ["easy-a"],
+          hardModels: ["hard-a"],
+        },
+        onDecision: (d) => decisions.push(d),
+      });
+
+      expect(res.ok).toBe(true);
+      // A Jev outage must not silently degrade to the heuristic: escalate to the judge.
+      expect(calls).toEqual(["judge-model", "easy-a"]);
+      expect(decisions[0].source).toBe("judge");
+      const afterMetrics = getRoutingMetrics();
+      expect(afterMetrics.jevFallback).toBe(beforeMetrics.jevFallback + 1);
+    });
+
+    it("runs Jev only; on Jev failure falls back to policy tier when no judge is configured", async () => {
       const beforeMetrics = getRoutingMetrics();
       const calls = [];
 
@@ -352,8 +396,8 @@ describe("TypeSafe Jev classifier and judgeMode cascade", () => {
         models: ["easy-a", "hard-a"],
         handleSingleModel,
         log: quietLog,
-        comboName: "jev-only-combo",
-        judgeModel: "judge-model",
+        comboName: "jev-only-nojudge-combo",
+        judgeModel: null,
         tuning: {
           judgeMode: "jev-only",
           policy: "cost_efficient", // defaults to easy on fallback
@@ -363,7 +407,7 @@ describe("TypeSafe Jev classifier and judgeMode cascade", () => {
       });
 
       expect(res.ok).toBe(true);
-      expect(calls).toEqual(["easy-a"]); // no judge-model call, fell back to policy default
+      expect(calls).toEqual(["easy-a"]); // no judge available, fell back to policy default
       const afterMetrics = getRoutingMetrics();
       expect(afterMetrics.jevFallback).toBe(beforeMetrics.jevFallback + 1);
     });

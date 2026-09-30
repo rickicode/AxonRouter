@@ -71,6 +71,24 @@ function getLocalDateKey(timestamp) {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 }
 
+/**
+ * Coerce a meta value into a plain object for jsonb storage.
+ * Accepts objects (returned as-is), JSON strings (parsed when they decode to
+ * an object), and everything else — scalars, arrays, null — mapping to {}.
+ * Guarantees usage_history.meta never contains a scalar, so dashboard queries
+ * using jsonb_object_keys(meta) cannot fail with "cannot call
+ * jsonb_object_keys on a scalar".
+ */
+function normalizeMetaObject(meta) {
+  if (!meta) return {};
+  if (typeof meta === "object" && !Array.isArray(meta)) return meta;
+  if (typeof meta === "string") {
+    const parsed = parseJson(meta, null);
+    if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) return parsed;
+  }
+  return {};
+}
+
 function addToCounter(target, key, values) {
   if (!target[key]) target[key] = { requests: 0, promptTokens: 0, completionTokens: 0, cachedTokens: 0, cost: 0 };
   target[key].requests += values.requests || 1;
@@ -668,7 +686,7 @@ export async function getActiveRequests() {
   return { activeRequests, recentRequests, errorProvider };
 }
 
-export async function saveFailedRequest({ provider, model, connectionId, apiKey, endpoint, errorStatus, isStream, error, account, comboName, requestId }) {
+export async function saveFailedRequest({ provider, model, connectionId, apiKey, endpoint, errorStatus, isStream, error, account, comboName, requestId, callKind = null }) {
   try {
     const ts = new Date().toISOString();
     const status = `error_${errorStatus || 502}`;
@@ -693,7 +711,7 @@ export async function saveFailedRequest({ provider, model, connectionId, apiKey,
       cost: 0,
       status,
       tokens: {},
-      meta: { isStream: isStreamBool, failed: true, error: errorMsg, account: account || undefined, ...(comboName ? { comboName } : {}) },
+      meta: { isStream: isStreamBool, failed: true, ...(callKind ? { callKind } : {}), error: errorMsg, account: account || undefined, ...(comboName ? { comboName } : {}) },
       requestId: requestId || null,
     }).catch(() => {}); // fire-and-forget: flush errors are logged in flushUsageQueue
 
@@ -710,7 +728,7 @@ export async function saveFailedRequest({ provider, model, connectionId, apiKey,
       cost: 0,
       status,
       tokens: {},
-      meta: { isStream: isStreamBool, failed: true, error: errorMsg, account: account || undefined },
+      meta: { isStream: isStreamBool, failed: true, ...(callKind ? { callKind } : {}), error: errorMsg, account: account || undefined },
       isStream: isStreamBool,
       error: errorMsg,
       requestId: requestId || null,
@@ -744,17 +762,23 @@ export async function saveRequestUsage(entry) {
     const costPromise = entry.cost == null
       ? calculateCost(entry.provider, entry.model, tokens)
       : Promise.resolve(entry.cost);
-    const entryMeta = JSON.stringify(
-      typeof entry.meta === "string"
-        ? (parseJson(entry.meta, {}) || {})
-        : (entry.meta || {})
-    ) || "{}";
+    // meta must always land as a jsonb OBJECT: legacy rows contain scalars and
+    // arrays, which break dashboard queries that call jsonb_object_keys(meta).
+    // Coerce anything that is not a plain object to {}.
+    const entryMeta = JSON.stringify(normalizeMetaObject(entry.meta)) || "{}";
+    // A non-ok status marks the row as failed for the daily rollup, while the
+    // usage_history row keeps whatever token counts the upstream reported.
+    // Without this a 429/timeout row counted as a SUCCESS in usage_daily even
+    // though its status said error_429 — the operator could see the failure in
+    // the log but not in the aggregate failure count.
+    const resolvedStatus = entry.status || "ok";
+    const failed = entry.failed === true || (resolvedStatus !== "ok" && resolvedStatus !== "success");
 
     // Fire-and-forget: never await enqueueUsageWrite in the request hot path.
     enqueueUsageWrite({
       dateKey: getLocalDateKey(entry.timestamp),
       timestamp: entry.timestamp,
-      failed: false,
+      failed,
       provider: entry.provider || null,
       model: entry.model || null,
       connectionId: entry.connectionId || null,
@@ -763,7 +787,7 @@ export async function saveRequestUsage(entry) {
       promptTokens,
       completionTokens,
       cost: costPromise.then((c) => c || 0),
-      status: entry.status || "ok",
+      status: resolvedStatus,
       tokens,
       meta: entryMeta,
       requestId: entry.requestId || null,

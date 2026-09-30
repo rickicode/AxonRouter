@@ -299,8 +299,37 @@ async function createBypassRequest(parsedUrl, realIP, options) {
   });
 }
 
+/**
+ * Build proxyAwareFetch options from a connection's providerSpecificData.
+ * Same contract as the chat path (open-sse/handlers/chatCore.js): a configured
+ * proxy is used when available, direct egress remains valid unless the caller
+ * opts into strict/fail-closed semantics.
+ */
+export function buildProxyOptions(psd = {}) {
+  return {
+    connectionProxyEnabled: psd?.connectionProxyEnabled === true,
+    connectionProxyUrl: psd?.connectionProxyUrl || "",
+    connectionNoProxy: psd?.connectionNoProxy || "",
+    vercelRelayUrl: psd?.vercelRelayUrl || "",
+    strictProxy: psd?.strictProxy === true,
+    failClosedProxy: psd?.failClosedProxy === true && Boolean(psd?.connectionProxyUrl || psd?.proxyPoolId),
+    proxyPoolId: psd?.proxyPoolId || psd?.connectionProxyPoolId || null,
+    noFitPool: psd?.noFitPool === true,
+  };
+}
+
 export async function proxyAwareFetch(url, options = {}, proxyOptions = null) {
   const targetUrl = typeof url === "string" ? url : url.toString();
+
+  // Direct egress uses the live global fetch when something replaced it after
+  // this module loaded (test spies, instrumentation wrappers) so callers can
+  // still intercept outbound calls. Falls back to the captured native fetch
+  // while globalThis.fetch is our own patchedFetch — that is the production
+  // path and the only one where calling the global would recurse.
+  const directFetch = (...args) => {
+    const live = globalThis.fetch;
+    return (typeof live === "function" && live !== patchedFetch ? live : originalFetch)(...args);
+  };
 
   // Vercel relay: forward request via relay headers
   const vercelRelayUrl = normalizeString(proxyOptions?.vercelRelayUrl);
@@ -314,7 +343,7 @@ export async function proxyAwareFetch(url, options = {}, proxyOptions = null) {
       "x-relay-target": `${parsed.protocol}//${parsed.host}`,
       "x-relay-path": `${parsed.pathname}${parsed.search}`,
     };
-    return originalFetch(vercelRelayUrl, { ...options, headers: relayHeaders });
+    return directFetch(vercelRelayUrl, { ...options, headers: relayHeaders });
   }
 
   const connectionProxyUrl = resolveConnectionProxyUrl(targetUrl, proxyOptions);
@@ -345,7 +374,7 @@ export async function proxyAwareFetch(url, options = {}, proxyOptions = null) {
       // Proxy resolves DNS externally (not affected by /etc/hosts) — use proxy directly
       try {
         const dispatcher = await getDispatcher(proxyUrl);
-        return await originalFetch(url, { ...options, dispatcher });
+        return await directFetch(url, { ...options, dispatcher });
       } catch (proxyError) {
         if (options?.signal?.aborted) throw proxyError;
         proxyFailed(proxyError, " bypass");
@@ -364,20 +393,20 @@ export async function proxyAwareFetch(url, options = {}, proxyOptions = null) {
   if (proxyUrl) {
     try {
       const dispatcher = await getDispatcher(proxyUrl);
-      return await originalFetch(url, { ...options, dispatcher });
+      return await directFetch(url, { ...options, dispatcher });
     } catch (proxyError) {
       if (options?.signal?.aborted) throw proxyError;
       // Fail-closed (keyless providers): proxyFailed throws above so chatCore
       // rotates pools instead of silently burning the shared direct egress.
       // Otherwise preserve the legacy direct fallback.
       proxyFailed(proxyError, "");
-      return originalFetch(url, options);
+      return directFetch(url, options);
     }
   }
 
   // got-scraping disabled — use native fetch directly
   // (Re-enable per-host by wrapping with tryGotScrapingFetch when needed)
-  return originalFetch(url, options);
+  return directFetch(url, options);
 }
 
 /**

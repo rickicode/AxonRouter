@@ -35,7 +35,7 @@ function getDimensions(body) {
   };
 }
 
-async function resolveImageInput(value) {
+async function resolveImageInput(value, proxyOptions = null) {
   if (Array.isArray(value)) {
     return { bytes: value, b64: Buffer.from(value).toString("base64") };
   }
@@ -43,7 +43,7 @@ async function resolveImageInput(value) {
   const trimmed = value.trim();
   if (!trimmed) return null;
   if (/^https?:\/\//i.test(trimmed)) {
-    const b64 = await urlToBase64(trimmed);
+    const b64 = await urlToBase64(trimmed, proxyOptions);
     return { bytes: base64ToBytes(b64), b64 };
   }
   const match = /^data:image\/[^;]+;base64,(.+)$/i.exec(trimmed);
@@ -67,20 +67,20 @@ function addOptionalFields(target, body, append) {
   }
 }
 
-async function buildJsonBody(body) {
+async function buildJsonBody(body, proxyOptions = null) {
   const req = { prompt: body.prompt, ...getDimensions(body) };
 
   addOptionalFields(req, body, (target, key, value) => {
     target[key] = value;
   });
 
-  const imageData = await resolveImageInput(body.image);
+  const imageData = await resolveImageInput(body.image, proxyOptions);
   if (imageData) {
     req.image_b64 = imageData.b64;
     req.image = imageData.bytes;
   }
 
-  const maskData = await resolveImageInput(body.mask_image || body.maskImage || body.mask);
+  const maskData = await resolveImageInput(body.mask_image || body.maskImage || body.mask, proxyOptions);
   if (maskData) {
     req.mask_b64 = maskData.b64;
     req.mask = maskData.bytes;
@@ -90,7 +90,7 @@ async function buildJsonBody(body) {
   return req;
 }
 
-async function buildMultipartBody(body) {
+async function buildMultipartBody(body, proxyOptions = null) {
   const form = new FormData();
   form.append("prompt", body.prompt);
 
@@ -105,9 +105,9 @@ async function buildMultipartBody(body) {
 
   // flux-2-dev/klein take the optional input image + mask as multipart parts so
   // img2img/edit works. Text-to-image sends neither part and still succeeds.
-  const imageData = await resolveImageInput(body.image);
+  const imageData = await resolveImageInput(body.image, proxyOptions);
   if (imageData?.bytes) form.append("image", Buffer.from(imageData.bytes));
-  const maskData = await resolveImageInput(body.mask_image || body.maskImage || body.mask);
+  const maskData = await resolveImageInput(body.mask_image || body.maskImage || body.mask, proxyOptions);
   if (maskData?.bytes) form.append("mask", Buffer.from(maskData.bytes));
 
   return form;
@@ -162,10 +162,10 @@ export default {
     return headers;
   },
 
-  buildBody: async (model, body) => (
+  buildBody: async (model, body, proxyOptions = null) => (
     MULTIPART_MODELS.has(model)
-      ? await buildMultipartBody(body)
-      : await buildJsonBody(body)
+      ? await buildMultipartBody(body, proxyOptions)
+      : await buildJsonBody(body, proxyOptions)
   ),
 
   async parseResponse(response) {

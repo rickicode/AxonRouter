@@ -21,6 +21,7 @@ import { handleComboChat, handleFusionChat, handleDifficultyChat, detectRequired
 import { augmentModelsWithCapacityAdapter, withCapacityAdapterStripping, getActiveAdapterStrategy } from "open-sse/services/capacityAdapter.js";
 import { handleBypassRequest } from "open-sse/utils/bypassHandler.js";
 import { resolveConnectionProxyConfig } from "@/lib/network/connectionProxy";
+import { resolveJevProxy } from "../services/jevProxy.js";
 import { HTTP_STATUS } from "open-sse/config/runtimeConfig.js";
 import { MAX_FALLBACK_ATTEMPTS, MAX_TOTAL_ROTATION_ATTEMPTS, MODEL_FAILOVER_THRESHOLD, MODEL_FAILOVER_WINDOW_S, LKG_TTL_S, clampModelCooldownSeconds } from "open-sse/config/errorConfig.js";
 import {
@@ -304,9 +305,13 @@ export async function handleChat(request, clientRawRequest = null) {
             policy: diffCtx.policy || null,
             jevUsed: !!diffCtx.jevUsed,
           };
+          // Judge classification calls reuse the chat path; carry the caller's
+          // opts.callKind into the request context so the usage row is recorded
+          // with meta.callKind = "judge" instead of "chat".
+          const judgeCallKind = opts?.callKind || null;
           const crr = clientRawRequest
-            ? { ...clientRawRequest, difficulty: diffPayload, comboName: clientRawRequest.comboName || modelStr }
-            : { difficulty: diffPayload, comboName: modelStr };
+            ? { ...clientRawRequest, difficulty: diffPayload, comboName: clientRawRequest.comboName || modelStr, ...(judgeCallKind ? { callKind: judgeCallKind } : {}) }
+            : { difficulty: diffPayload, comboName: modelStr, ...(judgeCallKind ? { callKind: judgeCallKind } : {}) };
           return handleSingleModelChat(b, m, crr, request, apiKey, clientRawRequest?.comboName || modelStr, isTestRequest, rotationBudget, opts?.signal ?? null);
         },
         log,
@@ -330,6 +335,10 @@ export async function handleChat(request, clientRawRequest = null) {
         rotationBudget,
         externalSignal,
         memberHealth: comboMemberHealth,
+        // Classifier egress honours the operator's proxy config (jevProxy.js).
+        resolveProxy: resolveJevProxy,
+        recordUsage: !isTestRequest,
+        isTestRequest,
       });
     }
 
@@ -507,6 +516,10 @@ export async function handleSingleModelChat(body, modelStr, clientRawRequest = n
           rotationBudget,
           externalSignal,
           memberHealth: comboMemberHealth,
+          // Classifier egress honours the operator's proxy config (jevProxy.js).
+          resolveProxy: resolveJevProxy,
+          recordUsage: !isTestRequest,
+          isTestRequest,
         });
       }
 

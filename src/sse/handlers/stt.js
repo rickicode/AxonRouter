@@ -5,6 +5,8 @@ import {
 import { getSettings } from "@/lib/localDb";
 import { getModelInfo } from "../services/model.js";
 import { handleSttCore } from "open-sse/handlers/sttCore.js";
+import { resolveCapabilityProxy } from "../services/capabilityProxy.js";
+import { saveCapabilityUsage } from "../services/capabilityUsage.js";
 import { errorResponse, unavailableResponse } from "open-sse/utils/error.js";
 import { HTTP_STATUS } from "open-sse/config/runtimeConfig.js";
 import { MAX_FALLBACK_ATTEMPTS } from "open-sse/config/errorConfig.js";
@@ -50,7 +52,16 @@ export async function handleStt(request) {
 
   // noAuth providers
   if (!CREDENTIALED_PROVIDERS.has(provider)) {
-    const result = await handleSttCore({ provider, model, formData, sttConfig: AI_PROVIDERS[provider]?.sttConfig });
+    const proxyOptions = await resolveCapabilityProxy({ provider, model, keyless: true });
+    const startedAt = Date.now();
+    const result = await handleSttCore({ provider, model, formData, sttConfig: AI_PROVIDERS[provider]?.sttConfig, proxyOptions });
+    saveCapabilityUsage({
+      provider, model, endpoint: "/v1/audio/transcriptions",
+      connectionId: null, callKind: "stt",
+      status: result.success ? "ok" : `error_${result.status || 502}`,
+      error: result.error || null,
+      isTestRequest, latencyMs: Date.now() - startedAt,
+    });
     if (result.success) return result.response;
     return errorResponse(result.status || HTTP_STATUS.BAD_GATEWAY, result.error || "STT failed");
   }
@@ -80,7 +91,16 @@ export async function handleStt(request) {
 
     log.info("AUTH", `\x1b[32mUsing ${provider} account: ${credentials.connectionName}\x1b[0m`);
 
-    const result = await handleSttCore({ provider, model, formData, credentials, sttConfig: AI_PROVIDERS[provider]?.sttConfig });
+    const proxyOptions = await resolveCapabilityProxy({ provider, model, credentials });
+    const startedAt = Date.now();
+    const result = await handleSttCore({ provider, model, formData, credentials, sttConfig: AI_PROVIDERS[provider]?.sttConfig, proxyOptions });
+    saveCapabilityUsage({
+      provider, model, endpoint: "/v1/audio/transcriptions",
+      connectionId: credentials.connectionId, callKind: "stt",
+      status: result.success ? "ok" : `error_${result.status || 502}`,
+      error: result.error || null,
+      isTestRequest, latencyMs: Date.now() - startedAt,
+    });
 
     if (result.success) return result.response;
 

@@ -8,12 +8,14 @@ import {
 import { getSettings } from "@/lib/localDb";
 import { getModelInfo } from "../services/model.js";
 import { handleEmbeddingsCore } from "open-sse/handlers/embeddingsCore.js";
+import { resolveCapabilityProxy } from "../services/capabilityProxy.js";
 import { errorResponse, unavailableResponse } from "open-sse/utils/error.js";
 import { HTTP_STATUS } from "open-sse/config/runtimeConfig.js";
 import { MAX_FALLBACK_ATTEMPTS } from "open-sse/config/errorConfig.js";
 import * as log from "../utils/logger.js";
 import { updateProviderCredentials, checkAndRefreshToken } from "../services/tokenRefresh.js";
 import { saveRequestUsage } from "@/lib/usageDb.js";
+import { saveCapabilityUsage } from "../services/capabilityUsage.js";
 
 function resolveEmbeddingUsage(raw, input) {
   if (raw && typeof raw === "object" && !Array.isArray(raw)) {
@@ -150,10 +152,15 @@ export async function handleEmbeddings(request) {
 
     const refreshedCredentials = await checkAndRefreshToken(provider, credentials);
 
+    // Proxied egress for the embedding call. The chat path resolves this inside
+    // chatCore; capability cores receive it from here. Null keeps direct egress.
+    const proxyOptions = await resolveCapabilityProxy({ provider, model, credentials: refreshedCredentials });
+
     const result = await handleEmbeddingsCore({
       body: { ...body, model: `${provider}/${model}` },
       modelInfo: { provider, model },
       credentials: refreshedCredentials,
+      proxyOptions,
       log,
       onCredentialsRefreshed: async (newCreds) => {
         await updateProviderCredentials(credentials.connectionId, {
@@ -172,15 +179,17 @@ export async function handleEmbeddings(request) {
       const usage = resolveEmbeddingUsage(result.usage, body.input);
       // Probes must not pollute production usage history.
       if (usage && !isTestRequest) {
-        saveRequestUsage({
+        // Recorded through the shared ledger writer so embeddings sit in the
+        // same table/shape as the classifier and the audio/image capabilities.
+        saveCapabilityUsage({
           provider,
           model,
           connectionId: credentials.connectionId,
           apiKey,
           endpoint: url.pathname,
           tokens: usage,
-          status: "success",
-        }).catch(() => {});
+          callKind: "embedding",
+        });
       }
       return result.response;
     }

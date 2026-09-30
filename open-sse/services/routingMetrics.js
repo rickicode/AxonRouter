@@ -30,6 +30,9 @@ const counters = {
   jevUsed: 0,
   jevEscalated: 0,
   jevFallback: 0,
+  jevProxyResolveFailed: 0,
+  jevCooldownHits: 0,
+  jevUsageRecorded: 0,
 };
 
 export function bumpRoutingMetric(name, by = 1) {
