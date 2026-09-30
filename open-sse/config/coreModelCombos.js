@@ -65,8 +65,12 @@ export const GENERAL_LATEST_COMBOS = {
   "gemini-pro-latest": [
     "ag/gemini-3.1-pro-low",
   ],
+  // Sonnet is the fallback, not decoration: opus alone means one exhausted
+  // upstream turns `claude-latest` into a hard failure ("All models failed")
+  // instead of a degraded answer. Verified live against the gateway.
   "claude-latest": [
     "ag/claude-opus-4-6-thinking",
+    "ag/claude-sonnet-4-6",
   ],
   "glm-latest": [
     "cloudflare-ai/@cf/zai-org/glm-4.7-flash",
