@@ -116,8 +116,18 @@ describe("TokenHarbor executor source invariants", () => {
     for (const c of call) {
       // (poolId, scope, until, reason) -> 4 args, and the 3rd must be `undefined`
       // so the default `until` applies instead of a string.
-      expect(c.startsWith("markPoolUnfit(pOptions.proxyPoolId, `tokenharbor::${model}`, undefined,")).toBe(true);
+      expect(c).toMatch(/^markPoolUnfit\(pOptions\.proxyPoolId,\s*"tokenharbor::\*",\s*undefined,/);
     }
+  });
+
+  it("marks the region-blocked pool unfit provider-wide, not per model", () => {
+    // A region block / refusal is a property of the exit IP, not of the model that
+    // happened to trip over it. The old `tokenharbor::${model}` scope only excluded
+    // that one model, so the account's other models kept being routed straight back
+    // through the blocked pool. `tokenharbor::*` is what the picker's wildcard check
+    // matches (see proxyPoolFitness.providerWildcardScope).
+    expect(src).toContain('markPoolUnfit(pOptions.proxyPoolId, "tokenharbor::*", undefined, errReason)');
+    expect(src).not.toMatch(/markPoolUnfit\(\s*pOptions\.proxyPoolId,\s*`tokenharbor::\$\{model\}`/);
   });
 
   it("gates the provider-wide cooldown on pool exhaustion, not a fixed attempt count", () => {
