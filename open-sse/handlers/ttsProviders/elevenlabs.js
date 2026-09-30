@@ -1,6 +1,5 @@
 // ElevenLabs TTS — voice id with optional model_id prefix
 import { Buffer } from "node:buffer";
-import { proxyAwareFetch } from "../../utils/proxyFetch.js";
 import { proxyAwareFetch, buildProxyOptions } from "../../utils/proxyFetch.js";
 
 const VOICES_TTL = 24 * 60 * 60 * 1000;
