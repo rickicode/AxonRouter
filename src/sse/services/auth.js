@@ -1303,7 +1303,7 @@ export async function markAccountUnavailable(connectionId, status, errorText, pr
   const isPooledQuotaProvider = POOLED_QUOTA_PROVIDERS.has(providerId);
 
   // Provider-specific precise cooldown (e.g. codex usage_limit_reached resets_at, antigravity quotaResetTimeStamp) overrides backoff
-  let shouldFallback, cooldownMs, newBackoffLevel, lockAll = false, disableAccount = false, isExhausted = false, frequencyLimitReset = false, isToolIncompatibility = false;
+  let shouldFallback, cooldownMs, newBackoffLevel, lockAll = false, disableAccount = false, isExhausted = false, frequencyLimitReset = false, isToolIncompatibility = false, isModelCapacity = false;
   const cfResetAtMs = cloudflareDailyResetMs(status, errorText, provider);
   if (cfResetAtMs) {
     shouldFallback = true;
@@ -1333,7 +1333,7 @@ export async function markAccountUnavailable(connectionId, status, errorText, pr
     frequencyLimitReset = isFrequencyLimitReset;
     if (isPooledQuotaProvider && !isFrequencyLimitReset) lockAll = true;
   } else {
-    ({ shouldFallback, cooldownMs, newBackoffLevel, lockAll, disableAccount, isExhausted, isToolIncompatibility } = checkFallbackError(status, errorText, backoffLevel));
+    ({ shouldFallback, cooldownMs, newBackoffLevel, lockAll, disableAccount, isExhausted, isToolIncompatibility, isModelCapacity } = checkFallbackError(status, errorText, backoffLevel));
     if (isPooledQuotaProvider && providerId !== "cline-free" && (status === 429 || (status === 402 && providerId !== "github"))) lockAll = true;
     // UniKey 预扣费额度失败: saldo di pesan. <100 → lock 30d, >=100 → cooldown 1d (bisa top-up / pakai model murah)
     if (providerId === "unikey" && /预扣费额度失败|insufficient_user_quota/i.test(String(errorText || ""))) {
@@ -1859,6 +1859,15 @@ export async function markAccountUnavailable(connectionId, status, errorText, pr
       cacheSetAccountCooldown(connectionId, cooldownSecs).catch(() => {});
     } else if (model) {
       cacheSetModelCooldown(connectionId, model, cooldownSecs).catch(() => {});
+      // "No capacity available for model X" is a statement about the MODEL on
+      // the upstream server, not about this account. A per-connection lock only
+      // retires the account that happened to receive the error, so the rest of
+      // the fleet keeps re-probing the same dead model one connection at a time
+      // (observed: 26 antigravity connections, each burning a 503 in turn).
+      // Retire the model provider-wide so every connection skips it at once.
+      if (isModelCapacity && providerId) {
+        setProviderModelCooldown(providerId, model, cooldownSecs).catch(() => {});
+      }
     }
   }
 

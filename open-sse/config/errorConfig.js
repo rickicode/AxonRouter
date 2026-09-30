@@ -688,15 +688,20 @@ export const ERROR_RULES = [
   // MODEL_CAPACITY_EXHAUSTED (antigravity 503): no upstream reset time exists,
   // lock just the affected model long enough to stop retry-storming (15m),
   // account stays usable for other models.
+  // modelWide: the message says the MODEL is out of capacity on the server, not
+  // that this account is at fault — so blocking one connection still leaves the
+  // fleet to re-probe it one account at a time. Lock the model provider-wide.
   {
     text: "model_capacity_exhausted",
     cooldownMs: 15 * 60 * 1000,
     lockAll: false,
+    modelWide: true,
   },
   {
     text: "no capacity available for model",
     cooldownMs: 15 * 60 * 1000,
     lockAll: false,
+    modelWide: true,
   },
   { text: "capacity", backoff: true },
   { text: "overloaded", backoff: true },

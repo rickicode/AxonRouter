@@ -18,7 +18,7 @@ export function getQuotaCooldown(backoffLevel = 0) {
  * @param {number} status - HTTP status code
  * @param {string} errorText - Error message text
  * @param {number} backoffLevel - Current backoff level
- * @returns {{ shouldFallback: boolean, cooldownMs: number, newBackoffLevel?: number, lockAll?: boolean }}
+ * @returns {{ shouldFallback: boolean, cooldownMs: number, newBackoffLevel?: number, lockAll?: boolean, isModelCapacity?: boolean }}
  */
 export function checkFallbackError(status, errorText, backoffLevel = 0) {
   const lowerError = errorText
@@ -48,19 +48,19 @@ export function checkFallbackError(status, errorText, backoffLevel = 0) {
       }
       if (rule.backoff) {
         const newLevel = Math.min(backoffLevel + 1, BACKOFF_CONFIG.maxLevel);
-        return { shouldFallback: true, cooldownMs: getQuotaCooldown(newLevel), newBackoffLevel: newLevel, lockAll: !!rule.lockAll, disableAccount: !!rule.disableAccount, isExhausted: !!rule.isExhausted };
+        return { shouldFallback: true, cooldownMs: getQuotaCooldown(newLevel), newBackoffLevel: newLevel, lockAll: !!rule.lockAll, disableAccount: !!rule.disableAccount, isExhausted: !!rule.isExhausted, isModelCapacity: !!rule.modelWide };
       }
       const canFallback = rule.shouldFallback !== false;
-      return { shouldFallback: canFallback, cooldownMs: rule.cooldownMs || 0, lockAll: !!rule.lockAll, disableAccount: !!rule.disableAccount, isExhausted: !!rule.isExhausted, isToolIncompatibility: !!rule.isToolIncompatibility };
+      return { shouldFallback: canFallback, cooldownMs: rule.cooldownMs || 0, lockAll: !!rule.lockAll, disableAccount: !!rule.disableAccount, isExhausted: !!rule.isExhausted, isToolIncompatibility: !!rule.isToolIncompatibility, isModelCapacity: !!rule.modelWide };
     }
     // Status-based rule: match HTTP status code
     if (rule.status && rule.status === status) {
       if (rule.backoff) {
         const newLevel = Math.min(backoffLevel + 1, BACKOFF_CONFIG.maxLevel);
-        return { shouldFallback: true, cooldownMs: getQuotaCooldown(newLevel), newBackoffLevel: newLevel, lockAll: !!rule.lockAll, disableAccount: !!rule.disableAccount, isExhausted: !!rule.isExhausted };
+        return { shouldFallback: true, cooldownMs: getQuotaCooldown(newLevel), newBackoffLevel: newLevel, lockAll: !!rule.lockAll, disableAccount: !!rule.disableAccount, isExhausted: !!rule.isExhausted, isModelCapacity: !!rule.modelWide };
       }
       const canFallback = rule.shouldFallback !== false;
-      return { shouldFallback: canFallback, cooldownMs: rule.cooldownMs || 0, lockAll: !!rule.lockAll, disableAccount: !!rule.disableAccount, isExhausted: !!rule.isExhausted, isToolIncompatibility: !!rule.isToolIncompatibility };
+      return { shouldFallback: canFallback, cooldownMs: rule.cooldownMs || 0, lockAll: !!rule.lockAll, disableAccount: !!rule.disableAccount, isExhausted: !!rule.isExhausted, isToolIncompatibility: !!rule.isToolIncompatibility, isModelCapacity: !!rule.modelWide };
     }
   }
 
