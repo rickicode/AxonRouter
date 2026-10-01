@@ -38,10 +38,19 @@ function sanitize(headers) {
       out[k] = "<VER>";
       continue;
     }
+    // The grok-cli client version is a UPSTREAM GATE, not a translation concern
+    // (cli-chat-proxy rejects anything older than 1.0.13 with HTTP 426), so a bump
+    // here is exactly the same category as X-Msh-Version: it must not fail a
+    // translation suite. Normalise the header and the User-Agent that embeds it.
+    if (k === "x-grok-client-version") {
+      out[k] = "<VER>";
+      continue;
+    }
     out[k] = typeof v === "string"
       ? v.replace(/Bearer .+/, "Bearer <TOK>")
           .replace(/sk-test-APIKEY|tok-test-ACCESS/g, "<CRED>")
           .replace(/kimi-\d{10,}/g, "kimi-<TS>")
+          .replace(/(grok-shell\/)\d+\.\d+\.\d+/, "$1<VER>")
       : v;
   }
   return out;
