@@ -70,34 +70,90 @@ async function canAccessPublicLlmApi(c) {
   const { validateApiKey } = await import("@/lib/db/repos/apiKeysRepo.js");
   return Boolean(await validateApiKey(apiKey));
 }
-// High-performance in-memory rate limiter per remote IP (300 requests/minute window)
-const RATE_LIMIT_WINDOW_MS = 60 * 1000;
-const MAX_REQUESTS_PER_WINDOW = 300;
-const ipRequestBuckets = new Map();
+// Rate limiting lives in gateway/rateLimit.js so the counter semantics can be tested;
+// see that file for why the shared store is required. What remains here is the wiring:
+// one shared counter for every worker, failing open, and a loud log the first time the
+// shared store is unavailable, because the fallback inside incrSharedCounter restores
+// the per-process counting this replaced without the request path being able to tell.
+const { isRateLimited: checkRateLimit } = await import("./rateLimit.js");
+let warnedSharedRateLimiter = false;
 
-setInterval(() => {
-  const cutoff = Date.now() - RATE_LIMIT_WINDOW_MS;
-  for (const [ip, bucket] of ipRequestBuckets.entries()) {
-    if (bucket.resetAt < cutoff) ipRequestBuckets.delete(ip);
-  }
-}, 30 * 1000).unref?.();
+async function isRateLimited(ip) {
+  const cache = await import("@/lib/cache/client.js");
+  return checkRateLimit(ip, {
+    incr: cache.incrSharedCounter,
+    sharedAvailable: cache.isCacheAvailable,
+    onDegrade: () => {
+      if (warnedSharedRateLimiter) return;
+      warnedSharedRateLimiter = true;
+      console.error(
+        "[rateLimit] shared store unavailable: counting per worker, so the effective limit is " +
+          `${300 * WORKERS}/min not 300/min`
+      );
+    },
+  });
+}
 
-setInterval(async () => {
+// The auto-fetcher replaces each proxy group's whole pool set. This poll ran in every
+// worker, so the "is anything due?" query went out WORKERS times per tick — 24 a
+// minute on this deployment — to serve work that actually happens 6 times per 10
+// minutes. The lock is what fixes that: one worker polls, the other eleven return
+// immediately.
+//
+// The 60s cadence itself is deliberate and unchanged. The fastest group interval is
+// 300s, and polling at 300s would let a group that becomes due wait up to another
+// 300s, making the effective interval twice what the group asked for. 60s bounds that
+// slip to a fifth of the interval, which is a good trade for one cheap query a minute.
+//
+// The lock is belt-and-braces rather than the primary guard: runProxyAutoFetcher
+// already claims work in the database (last_fetched_at + fetch_interval_ms < NOW()),
+// and measurement confirmed that prevents duplicate fetches. But that claim only holds
+// if no two workers read the same due group before either writes, and nothing
+// enforced that. proxyHealthSweep below uses acquireLock for exactly this reason.
+//
+// The lock TTL has to outlast a fetcher pass, which fetches a thousand pools per group
+// and has been observed taking well over 30s. If it expires mid-pass the next worker
+// starts a second one.
+const AUTO_FETCH_POLL_MS = 60 * 1000;
+const AUTO_FETCH_LOCK_KEY = "proxy:autoFetch:tick";
+const AUTO_FETCH_LOCK_TTL_S = 180;
+
+async function tickProxyAutoFetcher() {
+  let token = null;
+  // Captured outside the try so the finally can always release. Re-importing it there
+  // would leave releaseLock undefined if that import failed, and the optional call
+  // would swallow the miss — leaking the lock for its full TTL with nothing logged.
+  let releaseLock = null;
   try {
+    ({ acquireLock, releaseLock } = await import("@/lib/cache/client.js"));
+    token = await acquireLock(AUTO_FETCH_LOCK_KEY, AUTO_FETCH_LOCK_TTL_S).catch(() => null);
+    if (!token) return; // another worker is on it
     const { runProxyAutoFetcher } = await import("../open-sse/services/proxyAutoFetcher.js");
     await runProxyAutoFetcher();
   } catch (err) {
     console.error("[proxyAutoFetcher] error:", err);
+  } finally {
+    if (token && releaseLock) {
+      try {
+        await releaseLock(AUTO_FETCH_LOCK_KEY, token);
+      } catch (err) {
+        // The lock expires on its own after AUTO_FETCH_LOCK_TTL_S, so this costs a
+        // few skipped polls rather than a stuck fetcher.
+        console.error("[proxyAutoFetcher] lock release failed:", err);
+      }
+    }
   }
-}, 60 * 1000).unref?.();
+}
 
-// Proxy health sweep, next to the fetcher that makes it necessary. The fetcher
-// above replaces each proxy group's whole pool set every five minutes and roughly a
-// quarter of what those Bright Data feeds return is unusable (isp_proxy1,
-// isp_shared1 and unblocker1 measured 0/24 answering). The pool picker cannot react
-// to that on its own: it round-robins, and the existing runtime counters in
-// lib/network/proxyHealth.js need three consecutive failures on the same pool, which
-// a set of ~2700 pools rotating every few minutes can never produce.
+setInterval(tickProxyAutoFetcher, AUTO_FETCH_POLL_MS).unref?.();
+
+// Proxy health sweep, next to the fetcher that makes it necessary. The fetcher above
+// replaces each proxy group's whole pool set (every 15 minutes as configured on the
+// live groups) and roughly a quarter of what those Bright Data feeds return is
+// unusable (isp_proxy1, isp_shared1 and unblocker1 measured 0/24 answering). The pool
+// picker cannot react to that on its own: it round-robins, and the existing runtime
+// counters in lib/network/proxyHealth.js need three consecutive failures on the same
+// pool, which a set of ~2700 pools rotating can never produce.
 //
 // This probes a bounded slice per pass and records the verdict in
 // proxy_pools.test_status, which the picker prefers. It never deactivates a pool —
@@ -139,7 +195,7 @@ async function requireLlmAccess(c, next) {
   const peer = c.env?.incoming?.socket?.remoteAddress || "";
   if (peer === "127.0.0.1" || peer === "::1" || peer === "::ffff:127.0.0.1") return next();
 
-  if (isRateLimited(peer)) {
+  if (await isRateLimited(peer)) {
     return c.json({ error: "Too many requests. Please slow down." }, 429);
   }
   if (c.req.header("x-axonrouter-cli-token")) {
@@ -155,12 +211,12 @@ let pipelineInitialized = false;
 /**
  * Point this process's log files at a per-worker directory and start capturing.
  *
- * The gateway runs as a cluster (GATEWAY_WORKERS, 4 on this deployment). Every
- * worker handles requests, so every worker emits request-lifecycle lines and
- * background refresh lines — but they are separate processes with separate
- * buffers. Sharing one file would interleave flushes and hand a single rotation
- * to four writers. Tagging the directory per worker keeps each process the sole
- * writer of its own console.log / request.log / background.log.
+ * The gateway runs as a cluster (GATEWAY_WORKERS, set in .env; the compose default
+ * is CPU cores). Every worker handles requests, so every worker emits
+ * request-lifecycle lines and background refresh lines — but they are separate
+ * processes with separate buffers. Sharing one file would interleave flushes and hand
+ * a single rotation to every writer. Tagging the directory per worker keeps each
+ * process the sole writer of its own console.log / request.log / background.log.
  *
  * Set CONSOLE_LOG_CAPTURE=false to keep gateway output on stdout only.
  */
