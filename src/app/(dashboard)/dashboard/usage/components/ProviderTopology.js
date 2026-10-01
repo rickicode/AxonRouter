@@ -3,6 +3,7 @@
 import { useMemo, useState, useEffect, useCallback, useRef, memo } from "react";
 import PropTypes from "prop-types";
 import Image from "@/lib/ui/image.jsx";
+import { RETENTION_MS as PROVIDER_RETENTION_MS, advanceRetention, selectVisibleProviders } from "./providerTopologyVisibility.js";
 import {
  ReactFlow,
  Handle,
@@ -31,7 +32,6 @@ function usePrefersReducedMotion() {
 }
 
 // Force-stop FE animation if a provider stays active longer than this
-const PROVIDER_RETENTION_MS = 5 * 60 * 1000;
 const FE_ACTIVE_TICK_MS = 3000; // Throttled from 1000ms to reduce unneeded layout/render cycles
 const RESIZE_DEBOUNCE_MS = 160;
 
@@ -439,29 +439,29 @@ export default function ProviderTopology({ providers = [], activeRequests = [], 
   return used;
   }, [rawActiveSet, usedSnapshot]);
   const visibleProviders = useMemo(() => {
-    // Hide all provider icons when there are no active requests.
-    // Only display providers that are actively handling requests.
-    if (!rawActiveSet || rawActiveSet.size === 0) {
-      return [];
-    }
-    const matched = providers.filter((p) => rawActiveSet.has(String(p.provider || "").toLowerCase()));
-    if (matched.length > 0) return matched;
-    return Array.from(rawActiveSet).map((p) => ({ provider: p }));
-  }, [providers, rawActiveSet]);
+    // A provider stays on the graph while it is active AND for
+    // PROVIDER_RETENTION_MS (5 min) after its last request, so finishing a
+    // request drops the provider to a standby node instead of making its icon
+    // vanish mid-glance.
+    //
+    // This used to filter on rawActiveSet alone and returned [] outright when
+    // nothing was active, so every provider disappeared the instant its request
+    // completed. The retention machinery below (lastUsedRef / usedSnapshot, with
+    // its own pruning interval) was maintained correctly but never read here, so
+    // the window existed and did nothing. The rule now lives in
+    // providerTopologyVisibility.js so it is unit-testable — the component is JSX
+    // and this repo has no DOM harness, which is why the break went unnoticed.
+    return selectVisibleProviders(providers, usedProviderSet);
+  }, [providers, usedProviderSet]);
 
  useEffect(() => {
-  const now = Date.now();
-  for (const p of rawActiveSet) lastUsedRef.current[p] = now;
-  setUsedSnapshot((prev) => {
-  const next = new Set(prev);
-  for (const p of rawActiveSet) next.add(p);
-  for (const provider of providers) {
-  const key = String(provider.provider || "").toLowerCase();
-  if (lastUsedRef.current[key] && now - lastUsedRef.current[key] < PROVIDER_RETENTION_MS) next.add(key);
-  }
-  return next;
-  });
-  }, [rawActiveSet, providers]);
+  // Stamp every currently-active provider, then let advanceRetention decide what
+  // survives the window. Both the stamp and the prune live in the pure helper so
+  // the shown set and the retained set can never disagree.
+  const { lastUsedAt, visible } = advanceRetention(lastUsedRef.current, rawActiveSet, Date.now(), PROVIDER_RETENTION_MS);
+  lastUsedRef.current = lastUsedAt;
+  setUsedSnapshot(visible);
+  }, [rawActiveSet]);
 
  useEffect(() => {
   const id = setInterval(() => setClock(Date.now()), FE_ACTIVE_TICK_MS);
@@ -470,22 +470,12 @@ export default function ProviderTopology({ providers = [], activeRequests = [], 
 
  useEffect(() => {
   const id = setInterval(() => {
-  const now = Date.now();
-  const keys = Object.keys(lastUsedRef.current);
-  if (keys.length === 0) return; // idle: skip setState, zero render
-  for (const k of keys) {
-  if (now - lastUsedRef.current[k] >= PROVIDER_RETENTION_MS) {
-  delete lastUsedRef.current[k]; // prune expired, cegah ref bengkak
-  }
-  }
-  setUsedSnapshot(() => {
-  const next = new Set();
-  for (const k of Object.keys(lastUsedRef.current)) {
-  if (now - lastUsedRef.current[k] < PROVIDER_RETENTION_MS) next.add(k);
-  }
-  for (const p of rawActiveSet) next.add(p);
-  return next;
-  });
+  const { lastUsedAt, visible } = advanceRetention(lastUsedRef.current, rawActiveSet, Date.now(), PROVIDER_RETENTION_MS);
+  // Nothing retained and nothing active: skip setState so an idle dashboard costs
+  // zero renders, and leave the ref alone rather than churning it every tick.
+  if (visible.size === 0 && Object.keys(lastUsedRef.current).length === 0) return;
+  lastUsedRef.current = lastUsedAt;
+  setUsedSnapshot(visible);
   }, FE_ACTIVE_TICK_MS);
   return () => clearInterval(id);
   }, [rawActiveSet]);
