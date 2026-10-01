@@ -898,10 +898,10 @@ function resolveTierMatrix(difficulty, ambiguity, domain, policy = "balanced") {
   const amb = String(ambiguity || "").toLowerCase();
   const pol = String(policy || "balanced").toLowerCase();
 
-  // High ambiguity always escalates to hard tier (unless cost_efficient with easy diff)
-  if (amb === "high") {
-    return (pol === "cost_efficient" && diff === "easy") ? "easy" : "hard";
-  }
+  // High ambiguity always escalates to hard tier — vague prompts need the
+  // stronger tier under every policy (cost_efficient only cheapens tie-breaks,
+  // it must not hand an underspecified task to the weakest model).
+  if (amb === "high") return "hard";
 
   if (pol === "cost_efficient") {
     // Prefer cheaper tier whenever reasonable
