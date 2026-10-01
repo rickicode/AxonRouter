@@ -1,5 +1,24 @@
 // Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
 
+exports[`GOLDEN buildHeaders (default executor providers) > agnes → headers (apiKey / oauth) 1`] = `
+{
+  "apiKey": {
+    "Accept": "text/event-stream",
+    "Authorization": "Bearer <TOK>",
+    "Content-Type": "application/json",
+  },
+  "nonStream": {
+    "Authorization": "Bearer <TOK>",
+    "Content-Type": "application/json",
+  },
+  "oauth": {
+    "Accept": "text/event-stream",
+    "Authorization": "Bearer <TOK>",
+    "Content-Type": "application/json",
+  },
+}
+`;
+
 exports[`GOLDEN buildHeaders (default executor providers) > alicode → headers (apiKey / oauth) 1`] = `
 {
   "apiKey": {
@@ -646,6 +665,25 @@ exports[`GOLDEN buildHeaders (default executor providers) > cohere → headers (
 }
 `;
 
+exports[`GOLDEN buildHeaders (default executor providers) > dahl → headers (apiKey / oauth) 1`] = `
+{
+  "apiKey": {
+    "Accept": "text/event-stream",
+    "Authorization": "Bearer <TOK>",
+    "Content-Type": "application/json",
+  },
+  "nonStream": {
+    "Authorization": "Bearer <TOK>",
+    "Content-Type": "application/json",
+  },
+  "oauth": {
+    "Accept": "text/event-stream",
+    "Authorization": "Bearer <TOK>",
+    "Content-Type": "application/json",
+  },
+}
+`;
+
 exports[`GOLDEN buildHeaders (default executor providers) > deepgram → headers (apiKey / oauth) 1`] = `
 {
   "apiKey": {
@@ -1130,6 +1168,26 @@ exports[`GOLDEN buildHeaders (default executor providers) > morphllm → headers
     "Accept": "text/event-stream",
     "Authorization": "Bearer <TOK>",
     "Content-Type": "application/json",
+  },
+}
+`;
+
+exports[`GOLDEN buildHeaders (default executor providers) > muse → headers (apiKey / oauth) 1`] = `
+{
+  "apiKey": {
+    "Accept": "text/event-stream",
+    "Authorization": "Bearer <TOK>",
+    "Content-Type": "application/json",
+  },
+  "nonStream": {
+    "Authorization": "Bearer <TOK>",
+    "Content-Type": "application/json",
+  },
+  "oauth": {
+    "Accept": "text/event-stream",
+    "Authorization": "Bearer <TOK>",
+    "Content-Type": "application/json",
+    "x-api-version": "1.0.0",
   },
 }
 `;
@@ -1744,6 +1802,13 @@ exports[`GOLDEN buildHeaders (default executor providers) > zed → headers (api
 }
 `;
 
+exports[`GOLDEN buildUrl (default executor providers) > agnes → url (stream + non-stream) 1`] = `
+{
+  "nonStream": "https://apihub.agnes-ai.com/v1/chat/completions",
+  "stream": "https://apihub.agnes-ai.com/v1/chat/completions",
+}
+`;
+
 exports[`GOLDEN buildUrl (default executor providers) > alicode → url (stream + non-stream) 1`] = `
 {
   "nonStream": "https://coding.dashscope.aliyuncs.com/v1/chat/completions",
@@ -1919,6 +1984,13 @@ exports[`GOLDEN buildUrl (default executor providers) > cohere → url (stream +
 }
 `;
 
+exports[`GOLDEN buildUrl (default executor providers) > dahl → url (stream + non-stream) 1`] = `
+{
+  "nonStream": "https://inference.dahl.global/v1/chat/completions",
+  "stream": "https://inference.dahl.global/v1/chat/completions",
+}
+`;
+
 exports[`GOLDEN buildUrl (default executor providers) > deepgram → url (stream + non-stream) 1`] = `
 {
   "nonStream": "https://api.deepgram.com/v1/listen",
@@ -2077,6 +2149,13 @@ exports[`GOLDEN buildUrl (default executor providers) > morphllm → url (stream
 {
   "nonStream": "https://api.morphllm.com/v1/chat/completions",
   "stream": "https://api.morphllm.com/v1/chat/completions",
+}
+`;
+
+exports[`GOLDEN buildUrl (default executor providers) > muse → url (stream + non-stream) 1`] = `
+{
+  "nonStream": "https://api.meta.ai/v1/chat/completions",
+  "stream": "https://api.meta.ai/v1/chat/completions",
 }
 `;
 
