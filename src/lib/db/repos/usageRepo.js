@@ -1,4 +1,5 @@
 import { EventEmitter } from "events";
+import crypto from "node:crypto";
 import { getAdapter } from "../driver.js";
 import { parseJson } from "../helpers/jsonCol.js";
 import { incrementInFlight, decrementInFlight, registerActiveRequest, unregisterActiveRequest, getActiveRequestsDistributed } from "@/lib/cache/client.js";
@@ -6,8 +7,33 @@ import { getValkey, publishValkey, subscribeValkey, initValkey } from "@/lib/cac
 
 function maskApiKey(key) {
   if (!key || typeof key !== "string") return null;
-  if (key.length <= 8) return key.charAt(0) + "***";
-  return key.slice(0, 8) + "***";
+  if (key.length <= 12) return key.charAt(0) + "***";
+  // Keep the tail: keys minted on one machine share the sk-{machineId} prefix,
+  // so a head-only mask rendered every key of an instance identically in the UI.
+  return key.slice(0, 8) + "***" + key.slice(-4);
+}
+
+// Stable, non-invertible bucket identity for one API key.
+//
+// The byApiKey buckets used to be keyed by `maskApiKey` (first 8 chars). All
+// keys minted on one install share the sk-{machineId} prefix, so they collapsed
+// into ONE bucket per model/provider and the dashboard attributed one holder's
+// usage to another. The fix is to key by something unique per key — but the raw
+// key must NOT be persisted: usage_daily's day JSON (bucket keys included) is
+// written to the database and shipped verbatim as object keys in the
+// /api/usage/stats response (and the SSE frames), so a cleartext key there would
+// be a new at-rest + over-the-wire secret. A digest is unique per key (so the
+// collision is gone), and non-invertible (so nothing leaks).
+function apiKeyBucketId(key) {
+  if (!key || typeof key !== "string") return "local-no-key";
+  return "k" + crypto.createHash("sha256").update(key).digest("hex").slice(0, 32);
+}
+
+// Distinguish a digest bucket id ("k" + 32 hex chars) from a legacy bucket id,
+// which was the masked key itself. Reads of day JSON written before digest
+// keying still need the legacy shape handled.
+function isApiKeyBucketId(id) {
+  return typeof id === "string" && id.startsWith("k") && id.length === 33;
 }
 
 const PENDING_TIMEOUT_MS = 60 * 1000;
@@ -127,8 +153,11 @@ function aggregateEntryToDay(day, entry) {
     addToCounter(day.byAccount, entry.connectionId, { ...vals, meta: { rawModel: entry.model, provider: entry.provider } });
   }
 
+  // Bucket by a digest of the full api key, never the mask (prefix collision)
+  // and never the raw key (it would be persisted in usage_daily and echoed as an
+  // object key by /api/usage/stats). apiKeyMasked is what the dashboard shows.
   const apiKeyMasked = maskApiKey(entry.apiKey) || "local-no-key";
-  const akModelKey = `${apiKeyMasked}|${entry.model}|${entry.provider || "unknown"}`;
+  const akModelKey = `${apiKeyBucketId(entry.apiKey)}|${entry.model}|${entry.provider || "unknown"}`;
   addToCounter(day.byApiKey, akModelKey, { ...vals, meta: { rawModel: entry.model, provider: entry.provider, apiKeyMasked } });
 
   const endpoint = entry.endpoint || "Unknown";
@@ -1086,20 +1115,37 @@ function buildAggregatesFromDays(dayRows, connectionMap = {}, providerNodeNameMa
   }
   stats.byAccount = normalizedByAccount;
 
+  const byApiKeyKeyInfo = {};
+  for (const [apiKey, info] of Object.entries(apiKeyMap)) {
+    byApiKeyKeyInfo[apiKeyBucketId(apiKey)] = info;
+  }
+
   const normalizedByApiKey = {};
   for (const [key, value] of Object.entries(stats.byApiKey)) {
-    const [rawApiKey, rawModel, ...providerParts] = key.split("|");
+    const [bucketId, rawModel, ...providerParts] = key.split("|");
     const provider = value.provider || providerParts.join("|") || "unknown";
-    const apiKeyInfo = apiKeyMap[rawApiKey];
+    const isAnonymous = bucketId === "local-no-key";
+    // A digest bucket is named through the digest→key info map (built above from
+    // the key rows, so the plaintext is never embedded in the day JSON). Legacy
+    // day JSON written before digest keying holds the masked/raw key itself in
+    // the bucket id; those still resolve the old way.
+    const isLegacy = !isAnonymous && !isApiKeyBucketId(bucketId);
+    const apiKeyInfo = byApiKeyKeyInfo[bucketId];
+    // A legacy bucket id is already a mask ("sk-machi***"); a digest bucket has
+    // no plaintext to mask, so it shows the recorded apiKeyMasked or "API Key".
+    const maskedFallback = isAnonymous
+      ? null
+      : (value.apiKeyMasked || (isLegacy ? bucketId : null));
     normalizedByApiKey[key] = {
       ...value,
       rawModel: value.rawModel || rawModel,
       provider,
       providerId: provider,
       providerName: providerNodeNameMap[provider] || provider,
-      apiKeyMasked: value.apiKeyMasked || (rawApiKey === "local-no-key" ? null : maskApiKey(rawApiKey)),
-      keyName: value.keyName || apiKeyInfo?.name || (rawApiKey === "local-no-key" ? "Local (No API Key)" : `${rawApiKey.slice(0, 8)}...`),
-      apiKeyKey: value.apiKeyKey || (rawApiKey === "local-no-key" ? rawApiKey : maskApiKey(rawApiKey)),
+      apiKeyMasked: maskedFallback,
+      keyName: value.keyName || apiKeyInfo?.name
+        || (isAnonymous ? "Local (No API Key)" : (maskedFallback || "API Key")),
+      apiKeyKey: value.apiKeyKey || (isAnonymous ? bucketId : (maskedFallback || bucketId)),
     };
   }
   stats.byApiKey = normalizedByApiKey;
@@ -1381,7 +1427,12 @@ export async function getUsageStats(period = "all") {
         const keyInfo = apiKeyMap[r.api_key];
         const keyName = keyInfo?.name || r.api_key.slice(0, 8) + "...";
         const apiKeyMasked = maskApiKey(r.api_key);
-        const akKey = `${apiKeyMasked}|${r.model}|${r.provider || "unknown"}`;
+        // Key by a digest of the full api key, matching the daily rollup and
+        // the lastUsed overlay — masking here collapsed every key sharing a
+        // prefix into one bucket and attributed one key's usage to another.
+        const akKey = `${apiKeyBucketId(r.api_key)}|${r.model}|${r.provider || "unknown"}`;
+        // NOTE: unreachable while `useDailySummary` above is the literal `true`.
+        // Kept in sync anyway so flipping that flag cannot resurrect the bug.
         if (!stats.byApiKey[akKey]) {
           stats.byApiKey[akKey] = { requests: 0, promptTokens: 0, completionTokens: 0, cachedTokens: 0, cost: 0, rawModel: r.model, provider: providerDisplayName, apiKeyMasked, keyName, apiKeyKey: apiKeyMasked, lastUsed: r.timestamp };
         }

@@ -29,6 +29,30 @@ describe("buildUsageProviderList", () => {
      expect(ids).not.toContain("mimo-free");
   });
 
+  it("does not leak hidden providers that have an active connection", () => {
+    const list = buildUsageProviderList({
+      connections: [
+        { provider: "sambanova", isActive: true },
+        { provider: "opencode", isActive: true },
+      ],
+      freeProviders: {},
+      isLLMProvider: isLLM,
+      isHidden: (id) => id === "sambanova",
+    });
+
+    expect(list.map((p) => p.provider)).toEqual(["opencode"]);
+  });
+
+  it("includes a hidden provider's connection when the caller does not flag it hidden", () => {
+    const list = buildUsageProviderList({
+      connections: [{ provider: "sambanova", isActive: true }],
+      freeProviders: {},
+      isLLMProvider: isLLM,
+    });
+
+    expect(list.map((p) => p.provider)).toEqual(["sambanova"]);
+  });
+
   it("includes active LLM connections, deduped by provider", () => {
     const list = buildUsageProviderList({
       connections: [

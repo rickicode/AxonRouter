@@ -7,19 +7,21 @@
 //   2. noAuth free providers that need no connection (e.g. opencode).
 //
 // Hidden providers are excluded — the Providers page filters `hidden`, so a
-// hidden noAuth provider (mimo-free) must not leak into Usage with
-// zero connections and zero traffic.
+// hidden provider (sambanova, gitlab, mimo-free) must not leak into Usage,
+// neither as an auto-added free provider nor as an active connection.
 // Covered by tests/unit/usage-provider-list.test.js.
 export function buildUsageProviderList({
   connections = [],
   freeProviders = {},
   nodeNameMap = {},
   isLLMProvider = () => true,
+  isHidden = () => false,
 } = {}) {
   const seen = new Set();
   const unique = connections
     .filter((c) => {
       if (c.isActive === false) return false;
+      if (isHidden(c.provider)) return false;
       if (!isLLMProvider(c.provider)) return false;
       if (seen.has(c.provider)) return false;
       seen.add(c.provider);

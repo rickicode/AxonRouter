@@ -49,15 +49,24 @@ describe("AUDIT-002: API key masking", () => {
     expect(livePath.length).toBeGreaterThanOrEqual(1);
   });
 
-  it("byApiKey object keys should use masked key, not raw key", () => {
+  it("keys byApiKey buckets by a digest of the full api key, never the mask", () => {
     const source = fs.readFileSync(
       rootPath("src/lib/db/repos/usageRepo.js"),
       "utf-8"
     );
-    // The 24h path should use apiKeyMasked in the akKey template
-    expect(source).toContain("${apiKeyMasked}|${r.model}|${r.provider");
-    // Should NOT use raw r.apiKey in the key
-    expect(source).not.toContain("${r.apiKey}|${r.model}|${r.provider");
+    // Bucket identity is a digest of the FULL api key. Masking it collapsed every
+    // key sharing the sk-{machineId} prefix into one bucket, attributing one
+    // holder's usage to another; embedding the raw key instead would persist it
+    // in usage_daily and echo it as an object key in the stats response.
+    expect(source).toContain("function apiKeyBucketId");
+    expect(source).toContain("${apiKeyBucketId(r.api_key)}|${r.model}|${r.provider");
+    expect(source).toContain("${apiKeyBucketId(entry.apiKey)}|${entry.model}|${entry.provider");
+    // The mask must never be the bucket identity again.
+    expect(source).not.toContain("`${apiKeyMasked}|${r.model}|${r.provider");
+    expect(source).not.toContain("`${apiKeyMasked}|${entry.model}|${entry.provider");
+    // Nor the raw key.
+    expect(source).not.toContain("`${r.api_key}|${r.model}|${r.provider");
+    expect(source).not.toContain('`${entry.apiKey || "local-no-key"}|${entry.model}');
   });
 });
 

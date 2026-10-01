@@ -443,6 +443,7 @@ export default function UsageStats({
  freeProviders: FREE_PROVIDERS,
  nodeNameMap,
  isLLMProvider,
+ isHidden: (id) => Boolean(AI_PROVIDERS[id]?.hidden),
  }));
  })
  .catch((err) => {
