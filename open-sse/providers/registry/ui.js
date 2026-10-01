@@ -2389,7 +2389,7 @@ export const REGISTRY_UI = [
       website: "https://freebuff.com",
       notice: {
         signupUrl: "https://freebuff.com",
-        text: "Free ad-supported coding agent by Codebuff. Sign in with your Freebuff/Codebuff account via browser login. Each model is priced in Freebucks per hour of session, charged once when the session starts. Your daily Freebucks refill at midnight Pacific; the wallet keeps what you buy or earn. Free tier is ad-supported and limited in some regions (limited mode: 6 x 1-hour sessions/day); full mode runs in select countries. ⚠️ One account has ONE active session locked to ONE model — requesting a different model while a session is active returns 'model_locked' (409); use a separate account per model, or wait for the session to expire."
+        text: "Free ad-supported coding agent by Codebuff. Sign in with your Freebuff/Codebuff account via browser login. Each model is priced in Freebucks per hour of session, charged once when the session starts. Your daily Freebucks refill at midnight Pacific; the wallet keeps what you buy or earn. Free tier is ad-supported and limited in some regions (limited mode: 6 x 1-hour sessions/day); full mode runs in select countries. ⚠️ One account has ONE active session locked to ONE model — requesting a different model while a session is active returns 'model_locked' (409); wait for the session to expire (~1h) instead of forcing re-claims (ToS: one account per person, human-initiated sessions only). DeepSeek V4.1 Flash closes daily ~00:00–10:00 UTC (peak window) — MiMo is the fallback then."
       }
     },
     authType: "oauth",
@@ -2411,24 +2411,32 @@ export const REGISTRY_UI = [
         name: "DeepSeek V4.1 Flash"
       },
       {
-        id: "openai/gpt-5.6-luna",
-        name: "GPT-5.6 Luna"
+        id: "openai/gpt-6-luna",
+        name: "GPT-6 Luna"
       },
       {
         id: "mimo/mimo-v2.5",
-        name: "MiMo 2.5"
+        name: "MiMo 2.6 Flash"
       },
       {
         id: "upstage/solar-pro4",
         name: "Solar Pro 4"
       },
       {
+        id: "upstage/solar-mini4",
+        name: "Solar Mini 4"
+      },
+      {
+        id: "stealth/space-bunny-alpha",
+        name: "Space Bunny Alpha"
+      },
+      {
         id: "meta/muse-spark-1.2-contributor",
         name: "Muse Spark 1.2"
       },
       {
-        id: "anthropic/claude-fable-5",
-        name: "Claude Fable 5 (limited offer)"
+        id: "anthropic/claude-fable-5.1",
+        name: "Claude Fable 5.1 (limited offer)"
       }
     ]
   },

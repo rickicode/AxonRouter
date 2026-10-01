@@ -8,6 +8,7 @@ vi.mock("../../open-sse/utils/proxyFetch.js", () => ({
 }));
 
 import { FreebuffExecutor, __test__ } from "../../open-sse/executors/freebuff.js";
+import freebuffRegistry from "../../open-sse/providers/registry/freebuff.js";
 import { checkFallbackError } from "../../open-sse/services/accountFallback.js";
 
 const {
@@ -514,15 +515,41 @@ describe("freebuff run registration", () => {
     expect(rootAgentIdForModel("z-ai/glm-5.3-flash")).toBe("base3-free-glm-5-3-flash");
     expect(rootAgentIdForModel("deepseek/deepseek-v4-flash")).toBe("base3-free-deepseek-flash");
     expect(rootAgentIdForModel("mimo/mimo-v2.5")).toBe("base3-free-mimo");
+    // gpt-5.6-luna was withdrawn 2026-09-22; gpt-6-luna took its slot with a
+    // distinct root id (released clients still on 5.6 must keep resolving).
     expect(rootAgentIdForModel("openai/gpt-5.6-luna")).toBe("base3-free-luna");
+    expect(rootAgentIdForModel("openai/gpt-6-luna")).toBe("base3-free-luna-6");
     expect(rootAgentIdForModel("upstage/solar-pro4")).toBe("base3-free-solar-pro4");
+    expect(rootAgentIdForModel("upstage/solar-mini4")).toBe("base3-free-solar-mini4");
+    expect(rootAgentIdForModel("stealth/space-bunny-alpha")).toBe("base3-free-space-bunny-alpha");
     expect(rootAgentIdForModel("meta/muse-spark-1.2-contributor")).toBe("base3-free-muse-spark");
+    expect(rootAgentIdForModel("anthropic/claude-fable-5.1")).toBe("base3-free-fable");
+    // The retired Fable 5 wire id is unmapped — the offer gate now names 5.1, so
+    // a stale picker row would fall back rather than claim.
+    expect(rootAgentIdForModel("anthropic/claude-fable-5")).toBe("base2-free");
   });
 
   it("keeps roots for released clients using paused models", () => {
     expect(rootAgentIdForModel("deepseek/deepseek-v4-pro")).toBe("base3-free-deepseek");
     expect(rootAgentIdForModel("minimax/minimax-m3")).toBe("base3-free-minimax-m3");
     expect(rootAgentIdForModel("some/unknown-model")).toBe("base2-free");
+  });
+
+  it("resolves every registry picker row to a base3 root agent", () => {
+    // A listed row with no root agent silently falls back to base2-free, which
+    // the backend 404s during the base2→base3 transition — so every shipped id
+    // must be mapped.
+    for (const { id } of freebuffRegistry.models) {
+      expect(rootAgentIdForModel(id), `no base3 root for ${id}`).toMatch(/^base3-free-/);
+    }
+  });
+
+  it("does not ship the withdrawn luna/fable wire ids", () => {
+    const ids = freebuffRegistry.models.map((m) => m.id);
+    expect(ids).not.toContain("openai/gpt-5.6-luna");
+    expect(ids).not.toContain("anthropic/claude-fable-5");
+    expect(ids).toContain("openai/gpt-6-luna");
+    expect(ids).toContain("anthropic/claude-fable-5.1");
   });
 
   it("registers a run via POST /agent-runs and returns the runId", async () => {

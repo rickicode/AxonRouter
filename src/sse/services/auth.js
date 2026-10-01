@@ -1024,7 +1024,7 @@ export async function getProviderCredentials(provider, excludeConnectionIds = nu
         }
       }
 
-      // Scope the region-aware picker to this provider/model (e.g. freebuff::gpt-5.6-luna)
+      // Scope the region-aware picker to this provider/model (e.g. freebuff::gpt-6-luna)
       const hasPoolConfig = psd?.proxyPoolIds?.length || psd?.proxyGroup;
       const psdForProxy = hasPoolConfig
         ? { ...psd, proxyPoolScope: `${providerId}::${model || ""}` }

@@ -48,15 +48,15 @@ const BANNED_ACCOUNT_COOLDOWN_MS = 24 * 60 * 60 * 1000;
 const SESSION_STALE_CODES = new Set([428, 409, 410]);
 
 // Models the backend runs as a CAPACITY-LIMITED OFFER rather than a standing
-// picker row. Claude Fable 5 is not in the client catalog at all: the server
+// picker row. Claude Fable 5.1 is not in the client catalog at all: the server
 // advertises it per-session-response (`limitedModelOffers`) only while its
 // shared wave pool has sessions left, and a request without a live offer is
 // refused. A claim must therefore peek at the current offers first instead of
-// POSTing blind (mirrors the CLI: the "Claude Fable 5 · N of M left" row only
+// POSTing blind (mirrors the CLI: the "Claude Fable 5.1 · N of M left" row only
 // renders from that payload). Offer state is per-account and cached briefly —
 // the pool can reopen at any time, so a closed offer must NOT set a long
 // cooldown.
-const OFFER_GATED_MODELS = new Set(["anthropic/claude-fable-5"]);
+const OFFER_GATED_MODELS = new Set(["anthropic/claude-fable-5.1"]);
 const OFFER_CACHE_TTL_MS = 45_000;
 
 // The free tier rejects requests whose first system message doesn't open with
@@ -128,9 +128,14 @@ const FREE_ROOT_AGENT_BY_MODEL = {
   "deepseek/deepseek-v4-flash": "base3-free-deepseek-flash",
   "mimo/mimo-v2.5": "base3-free-mimo",
   "openai/gpt-5.6-luna": "base3-free-luna",
+  // openai/gpt-6-luna replaced the withdrawn gpt-5.6-luna on the same picker
+  // slot (flex lane) 2026-09-22 — distinct root id, not an alias.
+  "openai/gpt-6-luna": "base3-free-luna-6",
   "upstage/solar-pro4": "base3-free-solar-pro4",
+  "upstage/solar-mini4": "base3-free-solar-mini4",
+  "stealth/space-bunny-alpha": "base3-free-space-bunny-alpha",
   "meta/muse-spark-1.2-contributor": "base3-free-muse-spark",
-  "anthropic/claude-fable-5": "base3-free-fable",
+  "anthropic/claude-fable-5.1": "base3-free-fable",
   // Retain roots for sessions from released clients while paused/retired models drain.
   "deepseek/deepseek-v4-pro": "base3-free-deepseek",
   "minimax/minimax-m3": "base3-free-minimax-m3",

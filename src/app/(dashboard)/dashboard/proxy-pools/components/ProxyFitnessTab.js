@@ -12,7 +12,7 @@ function fmtTime(value) {
   return Number.isNaN(d.getTime()) ? "-" : d.toLocaleTimeString();
 }
 
-// "freebuff::openai/gpt-5.6-luna" -> { provider: "freebuff", model: "openai/gpt-5.6-luna" }
+// "freebuff::openai/gpt-6-luna" -> { provider: "freebuff", model: "openai/gpt-6-luna" }
 // "freebuff::*" -> { provider: "freebuff", model: null }
 function parseScope(scope) {
   const sep = String(scope || "").indexOf("::");
