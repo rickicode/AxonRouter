@@ -135,6 +135,11 @@ import p137 from "./llm7-free.js";
 import p138 from "./atria-asi.js";
 import p139 from "./typesafe.js";
 import p140 from "./beatapi.js";
+import p141 from "./dahl.js";
+import p142 from "./agnes.js";
+import p143 from "./v1m.js";
+import p144 from "./tinyfish.js";
+import p145 from "./muse.js";
 export default [
   p0,
   p1,
@@ -272,4 +277,9 @@ export default [
   p138,
   p139,
   p140,
+  p141,
+  p142,
+  p143,
+  p144,
+  p145,
 ];

@@ -129,6 +129,16 @@ const buildOAuthResolver = ({ refreshFn, fetchFn, parseFn, errorLabel }) => asyn
 
 // Provider models endpoints configuration
 const PROVIDER_MODELS_CONFIG = {
+  // Muse Code subscription keys are minted with x-api-version; the /v1/models
+  // probe must carry it or the key is rejected.
+  muse: {
+    url: "https://api.meta.ai/v1/models",
+    method: "GET",
+    headers: { "Content-Type": "application/json", "x-api-version": "1.0.0" },
+    authHeader: "Authorization",
+    authPrefix: "Bearer ",
+    parseResponse: (data) => data.data || [],
+  },
   claude: {
     url: "https://api.anthropic.com/v1/models",
     method: "GET",
@@ -264,6 +274,8 @@ const PROVIDER_MODELS_CONFIG = {
   tokenharbor: createOpenAIModelsConfig("https://tokenharbor.ai/v1/models"),
   th: createOpenAIModelsConfig("https://tokenharbor.ai/v1/models"),
   tharbor: createOpenAIModelsConfig("https://tokenharbor.ai/v1/models"),
+  dahl: createOpenAIModelsConfig("https://inference.dahl.global/v1/models"),
+  agnes: createOpenAIModelsConfig("https://apihub.agnes-ai.com/v1/models"),
   unikey: {
     customResolver: async (connection) => {
       const result = await resolveUnikeyModels({

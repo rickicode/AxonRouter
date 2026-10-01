@@ -774,6 +774,22 @@ async function testApiKeyConnection(connection, effectiveProxy = null) {
         }
         return { valid: res.ok, error: res.ok ? null : "Invalid API key" };
       }
+      case "dahl":
+      case "agnes": {
+        // Each entry carries its own validateUrl; dahl's catalogue is public, so
+        // the probe succeeds with or without a key.
+        const url = PROVIDERS[connection.provider]?.validateUrl;
+        if (!url) return { valid: false, error: "Provider test not supported" };
+        const res = await fetchWithConnectionProxy(url, { headers: { Authorization: `Bearer ${connection.apiKey}` } }, effectiveProxy);
+        return { valid: res.ok, error: res.ok ? null : "Invalid API key" };
+      }
+      case "muse": {
+        // Muse Code subscription keys are minted for /v1/models with x-api-version.
+        const res = await fetchWithConnectionProxy("https://api.meta.ai/v1/models", {
+          headers: { Authorization: `Bearer ${connection.apiKey}`, "x-api-version": "1.0.0" },
+        }, effectiveProxy);
+        return { valid: res.ok, error: res.ok ? null : "Invalid API key" };
+      }
       case "ollama-local": {
         const host = resolveOllamaLocalHost(connection);
         const res = await fetch(`${host}/api/tags`);

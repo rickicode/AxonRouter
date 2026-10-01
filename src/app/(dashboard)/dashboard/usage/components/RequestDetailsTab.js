@@ -547,7 +547,7 @@ export default function RequestDetailsTab({ initialFilters }) {
   {detail.difficulty && (
     <div className="flex items-center gap-1.5 mt-0.5 flex-wrap text-[10px]">
       <span className={cn(
-        "px-1.5 py-0.2 rounded-sm font-semibold uppercase tracking-wider border",
+        "px-1.5 py-0.5 rounded-sm font-semibold uppercase tracking-wider border",
         detail.difficulty.tier === "hard"
           ? "bg-amber-500/10 text-amber-500 border-amber-500/30"
           : "bg-sky-500/10 text-sky-500 border-sky-500/30"
@@ -560,7 +560,7 @@ export default function RequestDetailsTab({ initialFilters }) {
         </span>
       )}
       {(detail.difficulty.isFallback || detail.difficulty.fallbackFromHard || detail.difficulty.escalatedFromEasy) && (
-        <span className="px-1.5 py-0.2 rounded-sm font-medium bg-purple-500/10 text-purple-400 border border-purple-500/30">
+        <span className="px-1.5 py-0.5 rounded-sm font-medium bg-purple-500/10 text-purple-400 border border-purple-500/30">
           {detail.difficulty.fallbackFromHard ? "fallback → easy" : detail.difficulty.escalatedFromEasy ? "escalated → hard" : "fallback"}
         </span>
       )}

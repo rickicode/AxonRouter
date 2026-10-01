@@ -6,6 +6,7 @@ const ModalSkeleton = () => null;
 const OAuthModal = dynamic(() => import("@/shared/components/OAuthModal"), { ssr: false, loading: ModalSkeleton });
 const KiroOAuthWrapper = dynamic(() => import("@/shared/components/KiroOAuthWrapper"), { ssr: false, loading: ModalSkeleton });
 const CursorAuthModal = dynamic(() => import("@/shared/components/CursorAuthModal"), { ssr: false, loading: ModalSkeleton });
+const ZedAuthModal = dynamic(() => import("@/shared/components/ZedAuthModal"), { ssr: false, loading: ModalSkeleton });
 const XiaomiMimoAuthModal = dynamic(() => import("@/shared/components/XiaomiMimoAuthModal"), { ssr: false, loading: ModalSkeleton });
 const IFlowCookieModal = dynamic(() => import("@/shared/components/IFlowCookieModal"), { ssr: false, loading: ModalSkeleton });
 const GitLabAuthModal = dynamic(() => import("@/shared/components/GitLabAuthModal"), { ssr: false, loading: ModalSkeleton });
@@ -41,6 +42,9 @@ export default function ProviderModals(d) {
  onSuccess={handleOAuthSuccess} onClose={() => setShowOAuthModal(false)} />
  ) : providerId === "cursor" ? (
  <CursorAuthModal isOpen={showOAuthModal}
+ onSuccess={handleOAuthSuccess} onClose={() => setShowOAuthModal(false)} />
+ ) : providerId === "zed" ? (
+ <ZedAuthModal isOpen={showOAuthModal} providerInfo={providerInfo}
  onSuccess={handleOAuthSuccess} onClose={() => setShowOAuthModal(false)} />
  ) : providerId === "gitlab" ? (
  <GitLabAuthModal isOpen={showOAuthModal} providerInfo={providerInfo}
@@ -87,10 +91,12 @@ export default function ProviderModals(d) {
  <AddCustomModelModal
  isOpen={showAddCustomModel} providerAlias={providerStorageAlias}
  providerDisplayAlias={providerDisplayAlias}
- onSave={async (modelId, caps) => {
- await handleAddCustomModel(modelId, "llm", providerStorageAlias, caps);
- setShowAddCustomModel(false);
- }}
+onSave={async (modelId, caps, transport) => {
+            // caps.stt is a UI-only flag; the API accepts transports only on
+            // type "stt" records, so the save derives the type from it.
+            await handleAddCustomModel(modelId, caps?.stt ? "stt" : "llm", providerStorageAlias, caps, transport);
+            setShowAddCustomModel(false);
+          }}
  onClose={() => setShowAddCustomModel(false)}
  />
  )}

@@ -36,7 +36,7 @@ export default function ProvidersPage() {
  const searchQuery = debouncedSearchQuery;
  const matchSearch = (info, key) => {
    const extra = [key, info?.alias, ...(info?.aliases || [])];
-   if (key === "opencode-zen" || key === "typesafe") {
+   if (key === "opencode-zen" || key === "typesafe" || key === "v1m") {
      extra.push("jev", "systemone", "classifier");
    }
    return matchesSearchQuery(info?.name, searchQuery, extra);

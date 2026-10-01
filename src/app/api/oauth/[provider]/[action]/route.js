@@ -266,6 +266,7 @@ export async function GET(request, { params }) {
         "qoder",
         "grok-cli",
         "freebuff",
+        "muse",
       ];
       let deviceData;
       if (noPkceDeviceProviders.includes(provider)) {
@@ -504,7 +505,7 @@ export async function POST(request, { params }) {
       }
 
       // Providers that don't use PKCE for device code
-      const noPkceProviders = ["github", "kimi", "kimi-coding", "kilocode", "codebuddy-cn", "codebuddy-intl", "workbuddy"];
+      const noPkceProviders = ["github", "kimi", "kimi-coding", "kilocode", "codebuddy-cn", "codebuddy-intl", "workbuddy", "muse"];
       let result;
       if (noPkceProviders.includes(provider)) {
         // kimi needs extraData._kimiDeviceId for stable X-Msh-Device-Id (CLIProxyAPI parity)

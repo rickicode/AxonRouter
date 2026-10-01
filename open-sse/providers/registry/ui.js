@@ -2668,6 +2668,19 @@ export const REGISTRY_UI = [
         kind: "stt"
       },
       {
+        id: "gemini-2.5-flash-native-audio-preview-09-17",
+        name: "Gemini Live Transcription (Realtime)",
+        params: [
+          "language",
+          "prompt",
+          "system_instruction",
+          "setup_timeout_ms",
+          "turn_timeout_ms"
+        ],
+        kind: "stt",
+        transport: "gemini-live"
+      },
+      {
         id: "gemini-3.1-flash-tts-preview",
         name: "Gemini 3.1 Flash TTS",
         kind: "tts"
