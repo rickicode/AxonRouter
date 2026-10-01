@@ -13,6 +13,7 @@ import { PROVIDERS, PROVIDER_OAUTH, PROVIDER_MODELS } from "../../open-sse/provi
 import { getModelUpstreamId } from "../../open-sse/config/providerModels.js";
 import { getModelInfoCore, resolveProviderAlias } from "../../open-sse/services/model.js";
 import { OAUTH_PROVIDERS } from "../../src/shared/constants/providers.js";
+import { GROK_CLI_VERSION } from "../../open-sse/config/grokCli.js";
 
 describe("grok-cli registry", () => {
   it("registers transport + oauth + models", () => {
@@ -98,7 +99,7 @@ describe("GrokCliExecutor", () => {
     expect(headers.Accept).toBe("text/event-stream");
     expect(headers["x-xai-token-auth"]).toBe("xai-grok-cli");
     expect(headers["x-grok-client-identifier"]).toBe("grok-shell");
-    expect(headers["x-grok-client-version"]).toBe("0.2.99");
+    expect(headers["x-grok-client-version"]).toBe(GROK_CLI_VERSION);
     expect(headers["x-grok-session-id"]).toBe("sess-abc");
     expect(headers["x-grok-conv-id"]).toBe("sess-abc");
     expect(headers["x-grok-req-id"]).toBe("req-xyz");
