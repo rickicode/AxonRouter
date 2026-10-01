@@ -603,6 +603,10 @@ export function createSSEStream(options = {}) {
 
         if (flushed?.length > 0) {
           for (const item of flushed) {
+            // A translator signals "nothing to emit" with null/undefined (the
+            // terminal flush of a Responses pivot is one). Formatting it produced
+            // a bogus terminal event instead of skipping it.
+            if (item === null || item === undefined) continue;
             if (item.choices?.[0]?.finish_reason) {
               emittedFinish = true;
             }
