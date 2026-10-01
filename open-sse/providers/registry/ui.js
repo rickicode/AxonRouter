@@ -11287,6 +11287,256 @@ export const REGISTRY_UI = [
         hidden: true
       }
     ]
+  },
+  {
+    id: "dahl",
+    priority: 120,
+    alias: "dahl",
+    aliases: [
+      "dahl-inference"
+    ],
+    uiAlias: "dahl",
+    category: "apikey",
+    display: {
+      name: "Dahl Inference",
+      icon: "hub",
+      color: "#1E40AF",
+      textIcon: "DH",
+      website: "https://dahl.global",
+      notice: {
+        text: "OpenAI-compatible Gonka inference node. Small, fixed catalogue (GLM-5.3-Flash, DeepSeek-V4-Flash, MiniMax-M2.7) at a flat per-token rate.",
+        apiKeyUrl: "https://dahl.global/dashboard"
+      }
+    },
+    authType: "apikey",
+    passthroughModels: true,
+    modelsFetcher: {
+      url: "https://inference.dahl.global/v1/models",
+      type: "openai"
+    },
+    models: [
+      {
+        id: "zai-org/GLM-5.3-Flash",
+        name: "GLM-5.3 Flash"
+      },
+      {
+        id: "deepseek-ai/DeepSeek-V4-Flash-0731",
+        name: "DeepSeek V4 Flash 0731"
+      },
+      {
+        id: "MiniMaxAI/MiniMax-M2.7",
+        name: "MiniMax M2.7"
+      }
+    ]
+  },
+  {
+    id: "agnes",
+    priority: 120,
+    alias: "agnes",
+    aliases: [
+      "agnes-ai"
+    ],
+    uiAlias: "agnes",
+    category: "freeTier",
+    display: {
+      name: "Agnes AI",
+      icon: "auto_awesome",
+      color: "#7C3AED",
+      textIcon: "AG",
+      website: "https://agnes-ai.com",
+      notice: {
+        text: "OpenAI-compatible gateway from Agnes AI, offering free API credits on sign-up. Accepts a bearer token or an x-api-key header.",
+        apiKeyUrl: "https://platform.agnes-ai.com"
+      }
+    },
+    authType: "apikey",
+    passthroughModels: true,
+    models: [
+      {
+        id: "agnes-2.5-flash",
+        name: "Agnes 2.5 Flash"
+      },
+      {
+        id: "agnes-2.5-pro",
+        name: "Agnes 2.5 Pro"
+      },
+      {
+        id: "agnes-2.5-pro-beta",
+        name: "Agnes 2.5 Pro Beta"
+      },
+      {
+        id: "agnes-3.0-flash",
+        name: "Agnes 3.0 Flash"
+      }
+    ]
+  },
+  {
+    id: "v1m",
+    priority: 45,
+    alias: "v1m",
+    aliases: [
+      "systemone",
+      "jev"
+    ],
+    uiAlias: "v1m",
+    serviceKinds: ["jev"],
+    jevConfig: {
+      endpoint: "https://v1m.ir/v1/systemone",
+      models: [
+        {
+          id: "rev-latest",
+          name: "v1m Rev Latest (Calibrated)",
+          default: true,
+          requiresKey: true
+        },
+        {
+          id: "v1m-decision-engine",
+          name: "v1m Decision Engine",
+          requiresKey: true
+        }
+      ],
+      keyPool: true
+    },
+    category: "apikey",
+    display: {
+      name: "v1m (System One)",
+      icon: "psychology",
+      color: "#6366F1",
+      textIcon: "V1",
+      website: "https://v1m.ir",
+      notice: {
+        text: "v1m System One calibrated decision engine. Fast probabilistic evaluations over state and questions.",
+        apiKeyUrl: "https://v1m.ir"
+      }
+    },
+    authType: "apikey",
+    hasProviderSpecificData: true,
+    models: [
+      {
+        id: "rev-latest",
+        name: "v1m Rev Latest (Calibrated)",
+        kind: "jev",
+        targetFormat: "systemone",
+        default: true
+      },
+      {
+        id: "v1m-decision-engine",
+        name: "v1m Decision Engine",
+        kind: "jev",
+        targetFormat: "systemone"
+      }
+    ]
+  },
+  {
+    id: "tinyfish",
+    alias: "tinyfish",
+    category: "apikey",
+    display: {
+      name: "TinyFish",
+      color: "#FF6700",
+      textIcon: "TF",
+      website: "https://www.tinyfish.ai/",
+      notice: {
+        apiKeyUrl: "https://agent.tinyfish.ai/api-keys"
+      }
+    },
+    authType: "apikey",
+    serviceKinds: [
+      "webSearch",
+      "webFetch"
+    ],
+    searchConfig: {
+      baseUrl: "https://api.search.tinyfish.ai",
+      validateUrl: "https://api.search.tinyfish.ai/usage?limit=1",
+      method: "GET",
+      authType: "apikey",
+      authHeader: "x-api-key",
+      costPerQuery: 0,
+      searchTypes: [
+        "web",
+        "news",
+        "research_paper"
+      ],
+      defaultMaxResults: 5,
+      maxMaxResults: 10,
+      timeoutMs: 10000
+    },
+    fetchConfig: {
+      baseUrl: "https://api.fetch.tinyfish.ai",
+      method: "POST",
+      authType: "apikey",
+      authHeader: "x-api-key",
+      costPerQuery: 0,
+      formats: [
+        "markdown",
+        "html"
+      ],
+      maxCharacters: 100000,
+      timeoutMs: 150000
+    }
+  },
+  {
+    id: "muse",
+    priority: 120,
+    alias: "muse",
+    aliases: [
+      "muse-ai",
+      "meta-model-api",
+      "muse-code",
+      "muse-subscription"
+    ],
+    uiAlias: "muse",
+    category: "oauth",
+    display: {
+      name: "Muse (Meta Model API)",
+      icon: "auto_awesome",
+      color: "#0866FF",
+      textIcon: "MU",
+      website: "https://muse.ai",
+      notice: {
+        text: "Sign in with your Meta account (Muse Code subscription) or paste a Model API key from dev.meta.ai. Subscription keys are minted per account; Meta may train on contributor-tier data.",
+        apiKeyUrl: "https://dev.meta.ai",
+        signupUrl: "https://muse.ai"
+      }
+    },
+    hasOAuth: true,
+    authModes: [
+      "oauth",
+      "apikey"
+    ],
+    passthroughModels: true,
+    models: [
+      {
+        id: "muse-spark-1.3",
+        name: "Muse Spark 1.3",
+        targetFormat: "openai-responses",
+        supportedFormats: ["openai-responses"]
+      },
+      {
+        id: "muse-spark-1.2",
+        name: "Muse Spark 1.2",
+        targetFormat: "openai-responses",
+        supportedFormats: ["openai-responses"]
+      },
+      {
+        id: "muse-spark-1.1",
+        name: "Muse Spark 1.1",
+        targetFormat: "openai-responses",
+        supportedFormats: ["openai-responses"]
+      },
+      {
+        id: "muse-spark-1.3-contributor",
+        name: "Muse Spark 1.3 Contributor",
+        targetFormat: "openai-responses",
+        supportedFormats: ["openai-responses"]
+      },
+      {
+        id: "muse-spark-1.2-contributor",
+        name: "Muse Spark 1.2 Contributor",
+        targetFormat: "openai-responses",
+        supportedFormats: ["openai-responses"]
+      }
+    ]
   }
 ];
 
