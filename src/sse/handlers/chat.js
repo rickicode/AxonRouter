@@ -294,7 +294,12 @@ export async function handleChat(request, clientRawRequest = null) {
         models: comboModels,
         handleSingleModel: (b, m, opts) => {
           const diffPayload = {
-            tier: diffCtx.tier || null,
+            tier: opts?.tier || diffCtx.activeTier || diffCtx.tier || null,
+            initialTier: opts?.initialTier || diffCtx.initialTier || diffCtx.tier || null,
+            isFallback: Boolean(opts?.isFallback || diffCtx.fallbackFromHard || diffCtx.escalatedFromEasy),
+            fallbackFromHard: Boolean(opts?.fallbackFromHard || diffCtx.fallbackFromHard),
+            escalatedFromEasy: Boolean(opts?.escalatedFromEasy || diffCtx.escalatedFromEasy),
+            targetModel: m,
             winningModel: diffCtx.winningModel || m || null,
             judgeUsed: !!diffCtx.judgeUsed,
             judgeModel: diffCtx.judgeModel || null,
@@ -478,7 +483,12 @@ export async function handleSingleModelChat(body, modelStr, clientRawRequest = n
           models: comboModels,
           handleSingleModel: (b, m, opts) => {
             const diffPayload = {
-              tier: diffCtx.tier || null,
+              tier: opts?.tier || diffCtx.activeTier || diffCtx.tier || null,
+              initialTier: opts?.initialTier || diffCtx.initialTier || diffCtx.tier || null,
+              isFallback: Boolean(opts?.isFallback || diffCtx.fallbackFromHard || diffCtx.escalatedFromEasy),
+              fallbackFromHard: Boolean(opts?.fallbackFromHard || diffCtx.fallbackFromHard),
+              escalatedFromEasy: Boolean(opts?.escalatedFromEasy || diffCtx.escalatedFromEasy),
+              targetModel: m,
               winningModel: diffCtx.winningModel || m || null,
               judgeUsed: !!diffCtx.judgeUsed,
               judgeModel: diffCtx.judgeModel || null,

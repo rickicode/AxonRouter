@@ -2,7 +2,7 @@ import {
   extractApiKey, isValidApiKey,
   getProviderCredentials, markAccountUnavailable,
 } from "../services/auth.js";
-import { getSettings } from "@/lib/localDb";
+import { getSettings, getCustomModels } from "@/lib/localDb";
 import { getModelInfo } from "../services/model.js";
 import { handleSttCore } from "open-sse/handlers/sttCore.js";
 import { resolveCapabilityProxy } from "../services/capabilityProxy.js";
@@ -19,6 +19,23 @@ const CREDENTIALED_PROVIDERS = new Set(
     .filter(([, p]) => p.serviceKinds?.includes("stt") && !p.noAuth && p.sttConfig?.authType !== "none")
     .map(([id]) => id)
 );
+
+// Custom-model transport marker: models registered through
+// /api/models/custom may pin a specialized STT transport (e.g.
+// "gemini-live"). The engine dispatches on the marker itself, so the app
+// layer only resolves it — same getModelInfo-style provider+model pairing,
+// restricted to type "stt" records.
+async function resolveCustomModelTransport(provider, model) {
+  try {
+    const customModels = await getCustomModels();
+    const hit = customModels.find((c) => c && c.type === "stt"
+      && c.providerAlias === provider && c.id === model
+      && typeof c.transport === "string" && c.transport.trim());
+    return hit ? hit.transport.trim() : null;
+  } catch {
+    return null; // DB unreadable → built-in registry marker still applies
+  }
+}
 
 export async function handleStt(request) {
   // Model probes must not mutate production routing state.
@@ -50,11 +67,15 @@ export async function handleStt(request) {
   const { provider, model } = modelInfo;
   log.info("ROUTING", `Provider: ${provider}, Model: ${model}`);
 
+  // Custom models may pin a realtime STT transport (e.g. "gemini-live"); the
+  // engine falls back to the registry marker, then the provider's REST format.
+  const modelTransport = await resolveCustomModelTransport(provider, model);
+
   // noAuth providers
   if (!CREDENTIALED_PROVIDERS.has(provider)) {
     const proxyOptions = await resolveCapabilityProxy({ provider, model, keyless: true });
     const startedAt = Date.now();
-    const result = await handleSttCore({ provider, model, formData, sttConfig: AI_PROVIDERS[provider]?.sttConfig, proxyOptions });
+    const result = await handleSttCore({ provider, model, formData, sttConfig: AI_PROVIDERS[provider]?.sttConfig, transport: modelTransport, proxyOptions });
     saveCapabilityUsage({
       provider, model, endpoint: "/v1/audio/transcriptions",
       connectionId: null, callKind: "stt",
@@ -93,7 +114,7 @@ export async function handleStt(request) {
 
     const proxyOptions = await resolveCapabilityProxy({ provider, model, credentials });
     const startedAt = Date.now();
-    const result = await handleSttCore({ provider, model, formData, credentials, sttConfig: AI_PROVIDERS[provider]?.sttConfig, proxyOptions });
+    const result = await handleSttCore({ provider, model, formData, credentials, sttConfig: AI_PROVIDERS[provider]?.sttConfig, transport: modelTransport, proxyOptions });
     saveCapabilityUsage({
       provider, model, endpoint: "/v1/audio/transcriptions",
       connectionId: credentials.connectionId, callKind: "stt",

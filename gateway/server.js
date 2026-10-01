@@ -123,6 +123,7 @@ async function tickProxyAutoFetcher() {
   // Captured outside the try so the finally can always release. Re-importing it there
   // would leave releaseLock undefined if that import failed, and the optional call
   // would swallow the miss — leaking the lock for its full TTL with nothing logged.
+  let acquireLock = null;
   let releaseLock = null;
   try {
     ({ acquireLock, releaseLock } = await import("@/lib/cache/client.js"));

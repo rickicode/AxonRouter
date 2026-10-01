@@ -1,6 +1,7 @@
 "use server";
 
 import { NextResponse } from "@/lib/http/response.js";
+import { resolveCliApiKey } from "@/shared/constants/routerIdentity.js";
 import { exec } from "child_process";
 import { promisify } from "util";
 import fs from "fs/promises";
@@ -132,7 +133,7 @@ export async function POST(request) {
         const dir = getDeepSeekDir();
         await fs.mkdir(dir, { recursive: true });
 
-        const newConfig = buildAxonRouterConfig(baseUrl, apiKey || "sk_axonrouter", model);
+        const newConfig = buildAxonRouterConfig(baseUrl, await resolveCliApiKey(apiKey), model);
         await fs.writeFile(getDeepSeekConfigPath(), newConfig);
 
         return NextResponse.json({

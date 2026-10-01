@@ -558,13 +558,15 @@ export function useProviderDetail() {
  }
  };
 
- const handleAddCustomModel = async (modelId, type = "llm", providerAliasOverride = providerStorageAlias, caps) => {
- try {
- const res = await fetch("/api/models/custom", {
- method: "POST",
- headers: { "Content-Type": "application/json" },
- body: JSON.stringify({ providerAlias: providerAliasOverride, id: modelId, type, ...(caps ? { caps } : {}) }),
- });
+// `transport` pins a realtime STT dispatch marker (shared whitelist
+  // STT_TRANSPORT_META); the API only honours it on type "stt" records.
+  const handleAddCustomModel = async (modelId, type = "llm", providerAliasOverride = providerStorageAlias, caps, transport) => {
+    try {
+      const res = await fetch("/api/models/custom", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ providerAlias: providerAliasOverride, id: modelId, type, ...(caps ? { caps } : {}), ...(transport ? { transport } : {}) }),
+      });
  if (res.ok) {
  await fetchCustomModels();
  if (typeof window !== "undefined") window.dispatchEvent(new CustomEvent("customModelChanged"));

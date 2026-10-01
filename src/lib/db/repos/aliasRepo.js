@@ -61,7 +61,8 @@ export async function getCustomModels() {
   return Object.values(all);
 }
 
-export async function addCustomModel({ providerAlias, id, type = "llm", name, caps }) {
+// Re-adding an existing model updates caps/name/transport without resetting omitted fields.
+export async function addCustomModel({ providerAlias, id, type = "llm", name, caps, transport }) {
   const key = customKey(providerAlias, id, type);
   const db = await getAdapter();
   let added = false;
@@ -78,6 +79,7 @@ export async function addCustomModel({ providerAlias, id, type = "llm", name, ca
         ...previous,
         ...(name ? { name } : {}),
         ...(caps ? { caps } : {}),
+        ...(transport ? { transport } : {}),
       };
       await tx.run(
         "UPDATE kv SET value = $1 WHERE scope = $2 AND key = $3",
@@ -92,6 +94,7 @@ export async function addCustomModel({ providerAlias, id, type = "llm", name, ca
       type,
       name: name || id,
       ...(caps ? { caps } : {}),
+      ...(transport ? { transport } : {}),
     };
     await tx.run(
       "INSERT INTO kv(scope, key, value) VALUES($1, $2, $3)",

@@ -1,7 +1,7 @@
 import { NextResponse } from "@/lib/http/response.js";
 import { getCustomModels, addCustomModel, deleteCustomModel } from "@/models";
 import { invalidateModelsCache } from "../route.js";
-import { CAPACITY_META } from "@/shared/constants/models";
+import { CAPACITY_META, isSttTransport } from "@/shared/constants/models";
 
 export const dynamic = "force-dynamic";
 
@@ -13,6 +13,16 @@ function sanitizeCaps(caps) {
     if (typeof caps[key] === "boolean") clean[key] = caps[key];
   }
   return Object.keys(clean).length ? clean : null;
+}
+
+// Accepted STT transport markers live in the shared whitelist
+// (src/shared/constants/models STT_TRANSPORT_META) — the dashboard transport
+// select and this validator must agree on one set, so neither owns a copy.
+// Unknown or mistyped values are silently dropped, the same policy
+// sanitizeCaps applies to capability keys.
+function sanitizeTransport(transport, type) {
+  if (type !== "stt") return null;
+  return isSttTransport(transport) ? transport.trim() : null;
 }
 
 // GET /api/models/custom - List all custom models
@@ -29,12 +39,13 @@ export async function GET() {
 // POST /api/models/custom - Add custom model
 export async function POST(request) {
   try {
-    const { providerAlias, id, type, name, caps } = await request.json();
+    const { providerAlias, id, type, name, caps, transport } = await request.json();
     if (!providerAlias || !id) {
       return NextResponse.json({ error: "providerAlias and id required" }, { status: 400 });
     }
     const cleanCaps = sanitizeCaps(caps);
-    const added = await addCustomModel({ providerAlias, id, type: type || "llm", name, ...(cleanCaps ? { caps: cleanCaps } : {}) });
+    const cleanTransport = sanitizeTransport(transport, type || "llm");
+    const added = await addCustomModel({ providerAlias, id, type: type || "llm", name, ...(cleanCaps ? { caps: cleanCaps } : {}), ...(cleanTransport ? { transport: cleanTransport } : {}) });
     invalidateModelsCache();
     return NextResponse.json({ success: true, added });
   } catch (error) {

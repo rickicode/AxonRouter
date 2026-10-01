@@ -383,10 +383,37 @@ export default function RequestDetailsTab({ initialFilters }) {
  </div>
  </div>
 
- {/* Row 2: Model (break-all font-mono) */}
- <div className="font-mono text-xs font-medium text-text-main break-all" title={detail.model}>
- {detail.model}
- </div>
+{/* Row 2: Model & Difficulty Routing Badges */}
+<div className="flex flex-col gap-1">
+  <div className="font-mono text-xs font-medium text-text-main break-all" title={detail.model}>
+    {detail.model}
+  </div>
+  {detail.difficulty && (
+    <div className="flex items-center gap-1.5 flex-wrap text-[10px]">
+      <span className={cn(
+        "px-1.5 py-0.5 rounded-sm font-semibold uppercase tracking-wider border",
+        detail.difficulty.tier === "hard"
+          ? "bg-amber-500/10 text-amber-500 border-amber-500/30"
+          : "bg-sky-500/10 text-sky-500 border-sky-500/30"
+      )}>
+        {detail.difficulty.tier || "EASY"}
+      </span>
+      {detail.difficulty.source && (
+        <span className="text-text-muted font-mono">
+          src: {detail.difficulty.source}
+        </span>
+      )}
+      {(detail.difficulty.isFallback || detail.difficulty.fallbackFromHard || detail.difficulty.escalatedFromEasy) && (
+        <span className="px-1.5 py-0.5 rounded-sm font-medium bg-purple-500/10 text-purple-400 border border-purple-500/30">
+          {detail.difficulty.fallbackFromHard ? "fallback → easy" : detail.difficulty.escalatedFromEasy ? "escalated → hard" : "fallback"}
+        </span>
+      )}
+      {detail.comboName && (
+        <span className="text-text-muted/80">({detail.comboName})</span>
+      )}
+    </div>
+  )}
+</div>
 
  {/* Row 3: Stats Grid (In/Cached, Out, Latency) */}
  <div className="grid grid-cols-3 gap-2 pt-1 border-t border-border text-[11px]">
@@ -515,9 +542,34 @@ export default function RequestDetailsTab({ initialFilters }) {
  {badge.label}
  </span>
  </td>
- <td className="max-w-[220px] truncate px-3 py-3 font-mono text-xs text-text-main h-8 text-sm" title={detail.model}>
- {detail.model}
- </td>
+<td className="max-w-[260px] px-3 py-3 font-mono text-xs text-text-main h-8 text-sm" title={detail.model}>
+  <div className="truncate font-semibold">{detail.model}</div>
+  {detail.difficulty && (
+    <div className="flex items-center gap-1.5 mt-0.5 flex-wrap text-[10px]">
+      <span className={cn(
+        "px-1.5 py-0.2 rounded-sm font-semibold uppercase tracking-wider border",
+        detail.difficulty.tier === "hard"
+          ? "bg-amber-500/10 text-amber-500 border-amber-500/30"
+          : "bg-sky-500/10 text-sky-500 border-sky-500/30"
+      )}>
+        {detail.difficulty.tier || "EASY"}
+      </span>
+      {detail.difficulty.source && (
+        <span className="text-text-muted font-mono">
+          {detail.difficulty.source}
+        </span>
+      )}
+      {(detail.difficulty.isFallback || detail.difficulty.fallbackFromHard || detail.difficulty.escalatedFromEasy) && (
+        <span className="px-1.5 py-0.2 rounded-sm font-medium bg-purple-500/10 text-purple-400 border border-purple-500/30">
+          {detail.difficulty.fallbackFromHard ? "fallback → easy" : detail.difficulty.escalatedFromEasy ? "escalated → hard" : "fallback"}
+        </span>
+      )}
+      {detail.comboName && (
+        <span className="text-text-muted/70 text-[10px]">({detail.comboName})</span>
+      )}
+    </div>
+  )}
+</td>
  <td className="max-w-[140px] truncate px-3 py-3 text-xs text-text-main h-8 text-sm">
  <span className="font-medium">
  {getProviderName(detail.provider, providerNameCache)}
@@ -639,6 +691,78 @@ export default function RequestDetailsTab({ initialFilters }) {
  </span>
  </div>
  </div>
+
+          {/* Difficulty & Jev Routing Section */}
+          {(selectedDetail.difficulty || selectedDetail.comboName) && (
+            <div className="rounded-sm border border-border p-3 space-y-2 bg-surface/50">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Icon className="text-text-muted" name="alt_route" size={18} />
+                  <span className="font-semibold text-sm text-text-main">Difficulty & Routing (Jev)</span>
+                </div>
+                {selectedDetail.difficulty?.tier && (
+                  <span className={cn(
+                    "px-2 py-0.5 rounded-sm text-xs font-bold uppercase tracking-wider border",
+                    selectedDetail.difficulty.tier === "hard"
+                      ? "bg-amber-500/10 text-amber-500 border-amber-500/30"
+                      : "bg-sky-500/10 text-sky-500 border-sky-500/30"
+                  )}>
+                    {selectedDetail.difficulty.tier} TIER
+                  </span>
+                )}
+              </div>
+              <div className="grid grid-cols-2 gap-2 text-xs sm:grid-cols-4 pt-1">
+                {selectedDetail.comboName && (
+                  <div>
+                    <span className="text-text-muted block">Combo</span>
+                    <span className="font-mono text-text-main font-medium">{selectedDetail.comboName}</span>
+                  </div>
+                )}
+                {selectedDetail.difficulty?.source && (
+                  <div>
+                    <span className="text-text-muted block">Classifier Source</span>
+                    <span className="font-mono text-text-main">{selectedDetail.difficulty.source}</span>
+                  </div>
+                )}
+                {selectedDetail.difficulty?.domain && (
+                  <div>
+                    <span className="text-text-muted block">Domain</span>
+                    <span className="text-text-main">{selectedDetail.difficulty.domain}</span>
+                  </div>
+                )}
+                {selectedDetail.difficulty?.policy && (
+                  <div>
+                    <span className="text-text-muted block">Policy</span>
+                    <span className="text-text-main">{selectedDetail.difficulty.policy}</span>
+                  </div>
+                )}
+                {selectedDetail.difficulty?.winningModel && (
+                  <div>
+                    <span className="text-text-muted block">Winning Model</span>
+                    <span className="font-mono text-text-main font-medium text-success">{selectedDetail.difficulty.winningModel}</span>
+                  </div>
+                )}
+                {selectedDetail.difficulty?.confidence !== undefined && selectedDetail.difficulty?.confidence !== null && (
+                  <div>
+                    <span className="text-text-muted block">Confidence</span>
+                    <span className="font-mono text-text-main">{Math.round(selectedDetail.difficulty.confidence * 100)}%</span>
+                  </div>
+                )}
+                {(selectedDetail.difficulty?.isFallback || selectedDetail.difficulty?.fallbackFromHard || selectedDetail.difficulty?.escalatedFromEasy) && (
+                  <div className="col-span-2">
+                    <span className="text-text-muted block">Tier Fallback Status</span>
+                    <span className="inline-flex items-center gap-1 font-medium text-purple-400">
+                      {selectedDetail.difficulty?.fallbackFromHard
+                        ? "Hard tier models failed — successfully fell back to easy tier"
+                        : selectedDetail.difficulty?.escalatedFromEasy
+                          ? "Easy tier models failed — escalated to hard tier"
+                          : "Fell back to alternative tier"}
+                    </span>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
 
  {/* Prominent Error Details Banner */}
  {(selectedDetail.status !== "success" || selectedDetail.error || selectedDetail.response?.error) && (

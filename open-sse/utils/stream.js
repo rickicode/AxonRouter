@@ -490,6 +490,9 @@ export function createSSEStream(options = {}) {
 
             // Inject estimated usage if finish chunk has no valid usage
             const isFinishChunk = item.type === "message_delta" || item.choices?.[0]?.finish_reason;
+            if (item.choices?.[0]?.finish_reason) {
+              emittedFinish = true;
+            }
             if (state.finishReason && isFinishChunk && !hasValidUsage(item.usage) && totalContentLength > 0) {
               const estimated = estimateUsage(body, totalContentLength, sourceFormat);
               item.usage = filterUsageForFormat(estimated, sourceFormat); // Filter + already has buffer
@@ -600,7 +603,9 @@ export function createSSEStream(options = {}) {
 
         if (flushed?.length > 0) {
           for (const item of flushed) {
-            if (item === null || item === undefined) continue;
+            if (item.choices?.[0]?.finish_reason) {
+              emittedFinish = true;
+            }
             const output = formatSSE(item, sourceFormat);
             reqLogger?.appendConvertedChunk?.(output);
             controller.enqueue(sharedEncoder.encode(output));
@@ -622,6 +627,32 @@ export function createSSEStream(options = {}) {
           controller.enqueue(sharedEncoder.encode(doneOutput));
           openAIResponsesDoneSent = true;
           streamDoneSent = true;
+        }
+
+        // For OpenAI client format: ensure a chunk with finish_reason and terminal [DONE] is always emitted
+        if (sourceFormat === FORMATS.OPENAI) {
+          if (!emittedFinish && (totalContentLength > 0 || emittedToolCall || accumulatedThinking.length > 0)) {
+            const terminalChunk = {
+              id: state?.messageId ? `chatcmpl-${state.messageId}` : `chatcmpl-${Date.now()}`,
+              object: "chat.completion.chunk",
+              created: Math.floor(Date.now() / 1000),
+              model: state?.model || model || "unknown",
+              choices: [{ index: 0, delta: {}, finish_reason: state?.finishReason || "stop" }],
+            };
+            if (state?.usage) {
+              terminalChunk.usage = state.usage;
+            }
+            const terminalOutput = formatSSE(terminalChunk, FORMATS.OPENAI);
+            reqLogger?.appendConvertedChunk?.(terminalOutput);
+            controller.enqueue(sharedEncoder.encode(terminalOutput));
+            emittedFinish = true;
+          }
+          if (!streamDoneSent) {
+            const doneOutput = "data: [DONE]\n\n";
+            reqLogger?.appendConvertedChunk?.(doneOutput);
+            controller.enqueue(sharedEncoder.encode(doneOutput));
+            streamDoneSent = true;
+          }
         }
 
         finalizeStream();

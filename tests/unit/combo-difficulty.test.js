@@ -554,4 +554,39 @@ describe("handleDifficultyChat (smart routing)", () => {
     // the capability gate must reorder google/gemini-2.5-flash to the front!
     expect(calls[0]).toBe("google/gemini-2.5-flash");
   });
+
+  it("falls back to standard easy tier when hard tier fails", async () => {
+    const calls = [];
+    const handleSingleModel = vi.fn(async (b, m) => {
+      calls.push(m);
+      if (m === "hard-failing") return errRes(503);
+      return okRes("fallback-success");
+    });
+
+    const body = {
+      messages: [
+        { role: "user", content: "fix error" },
+        { role: "assistant", tool_calls: [{ id: "1", type: "function", function: { name: "x", arguments: "{}" } }] },
+        { role: "tool", tool_call_id: "1", content: "done" },
+        { role: "user", content: "exception in script" },
+      ],
+      stream: false,
+    };
+
+    const decisions = [];
+    const res = await handleDifficultyChat({
+      body,
+      models: ["easy-model", "hard-failing"],
+      handleSingleModel,
+      log: quietLog,
+      comboName: "smart-model",
+      tuning: { easyModels: ["easy-model"], hardModels: ["hard-failing"] },
+      onDecision: (d) => decisions.push(d),
+    });
+
+    expect(res.ok).toBe(true);
+    // Hard tier tried first, failed, then fell back to easy-model
+    expect(calls).toEqual(["hard-failing", "easy-model"]);
+    expect(decisions.some((d) => d.winningModel === "easy-model" && d.tier === "easy")).toBe(true);
+  });
 });

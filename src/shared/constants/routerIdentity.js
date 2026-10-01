@@ -25,6 +25,36 @@ export function resolveLocalApiKey(apiKey) {
   return apiKey || DEFAULT_LOCAL_API_KEY;
 }
 
+/**
+ * Resolve the key to persist into a CLI tool config.
+ *
+ * The dashboard cards send an empty string when no key is explicitly selected
+ * (the default key is often a placeholder or only exists in the DB). A literal
+ * placeholder would be written into the config and then rejected (401) by the
+ * gateway whenever key auth is enforced, so resolve the first active dashboard
+ * key instead.
+ *
+ * Order: the caller's non-placeholder key → first active DB key → "" (the
+ * config then carries no credential and loopback stays unauthenticated).
+ * The placeholder is never returned, and the resolved key is never logged.
+ *
+ * @param {string|null|undefined} callerKey Key sent by the frontend.
+ * @returns {Promise<string>}
+ */
+export async function resolveCliApiKey(callerKey) {
+  const trimmed = typeof callerKey === "string" ? callerKey.trim() : "";
+  if (trimmed && trimmed !== DEFAULT_LOCAL_API_KEY) return trimmed;
+  try {
+    // Imported lazily so pure consumers of this module never pull in the DB layer.
+    const { getApiKeys } = await import("@/lib/db");
+    const keys = await getApiKeys();
+    const active = keys.find((k) => k.isActive);
+    return active?.key || "";
+  } catch {
+    return "";
+  }
+}
+
 const MODEL_PREFIX_RE = new RegExp(`^${PROVIDER_ID}/`);
 
 /** True when a model id is namespaced under axonrouter. */

@@ -1236,12 +1236,26 @@ export async function handleDifficultyChat({ body, models = [], handleSingleMode
 
   const stickyModel = (typeof cached === "object" && cached?.winningModel) ? cached.winningModel : null;
 
-  // Run selected tier sequentially; escalate up on total failure (2-tier).
-  const startIdx = tier === "easy" ? 0 : 1;
+  // Run selected tier sequentially; escalate (easy -> hard) or fallback (hard -> easy) on tier failure.
+  const easyTierObj = tiers[0];
+  const hardTierObj = tiers[1];
+  const executionTiers = tier === "easy"
+    ? [easyTierObj, hardTierObj]
+    : [hardTierObj, easyTierObj];
+
   let lastError = null;
   let lastStatus = null;
-  for (let t = startIdx; t < tiers.length; t++) {
-    const tierCfg = tiers[t];
+  for (let t = 0; t < executionTiers.length; t++) {
+    const tierCfg = executionTiers[t];
+    if (t > 0) {
+      if (tier === "hard") {
+        log.info("DIFFICULTY", `Hard tier exhausted — falling back to standard easy tier [${tierCfg.models.join(", ")}]`);
+        notify({ tier: "easy", activeTier: "easy", fallbackFromHard: true });
+      } else {
+        log.info("DIFFICULTY", `Easy tier exhausted — escalating to hard tier [${tierCfg.models.join(", ")}]`);
+        notify({ tier: "hard", activeTier: "hard", escalatedFromEasy: true });
+      }
+    }
     let candidateModels = [...tierCfg.models];
     const now = Date.now();
 
@@ -1308,7 +1322,14 @@ export async function handleDifficultyChat({ body, models = [], handleSingleMode
       }
       let result;
       try {
-        result = await handleSingleModel(body, m, { signal: externalSignal });
+        result = await handleSingleModel(body, m, {
+          signal: externalSignal,
+          tier: tierCfg.name,
+          initialTier: tier,
+          isFallback: t > 0,
+          fallbackFromHard: tier === "hard" && tierCfg.name === "easy",
+          escalatedFromEasy: tier === "easy" && tierCfg.name === "hard",
+        });
       } catch (e) {
         bumpRoutingMetric("difficultyMemberThrown");
         difficultyModelHealth.set(m, { failedAt: Date.now(), error: e.message });
@@ -1340,7 +1361,16 @@ export async function handleDifficultyChat({ body, models = [], handleSingleMode
       difficultyModelHealth.delete(m);
       memberHealth?.onSuccess?.(m);
       log.info("DIFFICULTY", `Member ${m} succeeded (${tierCfg.name} tier)`);
-      notify({ tier: tierCfg.name, winningModel: m, source: "member-result", domain, policy });
+      notify({
+        tier: tierCfg.name,
+        activeTier: tierCfg.name,
+        winningModel: m,
+        source: "member-result",
+        domain,
+        policy,
+        fallbackFromHard: tier === "hard" && tierCfg.name === "easy",
+        escalatedFromEasy: tier === "easy" && tierCfg.name === "hard",
+      });
       if (sKey) {
         difficultyCacheSet(sKey, {
           tier: tierCfg.name,

@@ -2,9 +2,9 @@
 
 import { useState, useEffect } from "react";
 import PropTypes from "prop-types";
-import { Button, Modal, Toggle } from "@/shared/components";
+import { Button, Modal, Select, Toggle } from "@/shared/components";
 import Icon from "@/shared/components/Icon";
-import { CAPACITY_META } from "@/shared/constants/models";
+import { CAPACITY_META, STT_TRANSPORT_META, STT_TRANSPORTS } from "@/shared/constants/models";
 
 const defaultCaps = () => Object.fromEntries(Object.keys(CAPACITY_META).map((key) => [key, false]));
 
@@ -14,6 +14,8 @@ export default function AddCustomModelModal({ isOpen, providerAlias, providerDis
  const [testStatus, setTestStatus] = useState(null); // null | "testing" | "ok" | "error"
  const [testError, setTestError] = useState("");
  const [saving, setSaving] = useState(false);
+ // Realtime dispatch marker for the transport select; "" = provider default REST.
+ const [transport, setTransport] = useState("");
 
  // Reset state when modal opens
  useEffect(() => {
@@ -21,7 +23,7 @@ export default function AddCustomModelModal({ isOpen, providerAlias, providerDis
  let cancelled = false;
  queueMicrotask(() => {
  if (cancelled) return;
- setModelId(""); setCaps(defaultCaps()); setTestStatus(null); setTestError("");
+ setModelId(""); setCaps(defaultCaps()); setTransport(""); setTestStatus(null); setTestError("");
  });
  return () => { cancelled = true; };
  }, [isOpen]);
@@ -57,7 +59,7 @@ export default function AddCustomModelModal({ isOpen, providerAlias, providerDis
  if (!cleanId || saving) return;
  setSaving(true);
  try {
- await onSave(cleanId, caps);
+ await onSave(cleanId, caps, caps.stt ? transport : null);
  } finally {
  setSaving(false);
  }
@@ -113,7 +115,33 @@ className="flex-1 px-3 h-11 text-sm border border-border rounded-sm bg-surface f
  </div>
  </div>
 
- {/* Test result */}
+ {/* STT is a model TYPE, not a chat capability: the save flow turns this
+            flag into type "stt" (the API honours a transport only on stt
+            records). The select pins the realtime dispatch marker persisted
+            with the model; the whitelist is the shared STT_TRANSPORT_META. */}
+        <div>
+          <Toggle
+            checked={!!caps.stt}
+            onChange={(v) => { setCaps((prev) => ({ ...prev, stt: v })); if (!v) setTransport(""); }}
+            label="Speech to text"
+            description="Transcribes audio via /v1/audio/transcriptions"
+            size="sm"
+          />
+          {caps.stt && (
+            <div className="mt-3">
+              <Select
+                label="Transport"
+                value={transport}
+                onChange={(e) => setTransport(e.target.value)}
+                placeholder="Provider default (REST)"
+                options={STT_TRANSPORTS.map((t) => ({ value: t, label: STT_TRANSPORT_META[t].label }))}
+                hint="Realtime transport marker for the STT dispatcher. Empty keeps the provider's REST format."
+              />
+            </div>
+          )}
+        </div>
+
+        {/* Test result */}
  {testStatus === "ok" && (
  <div className="flex items-center gap-2 text-sm text-success">
  <Icon className="text-sm" name="check_circle" size={18} />
