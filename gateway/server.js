@@ -173,18 +173,6 @@ setTimeout(async () => {
   }
 }, 90 * 1000).unref?.();
 
-function isRateLimited(ip) {
-  if (!ip || ip === "127.0.0.1" || ip === "::1" || ip === "::ffff:127.0.0.1") return false;
-  const now = Date.now();
-  let bucket = ipRequestBuckets.get(ip);
-  if (!bucket || now > bucket.resetAt) {
-    bucket = { count: 1, resetAt: now + RATE_LIMIT_WINDOW_MS };
-    ipRequestBuckets.set(ip, bucket);
-    return false;
-  }
-  bucket.count++;
-  return bucket.count > MAX_REQUESTS_PER_WINDOW;
-}
 async function requireLlmAccess(c, next) {
   const pathname = c.req.path;
   if (!PUBLIC_LLM_PREFIXES.some((p) => pathname === p || pathname.startsWith(p + "/"))) return next();
