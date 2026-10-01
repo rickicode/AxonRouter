@@ -18,7 +18,7 @@
 // request path or the fetcher that shares the process.
 import { getProxyPools, updateProxyPool } from "@/lib/db/repos/proxyPoolsRepo.js";
 import { testProxyPoolEntry } from "@/lib/network/proxyTest.js";
-import { classifyProxyHealth } from "@/lib/network/proxyHealthRank.js";
+import { recordZoneProbe } from "@/lib/network/proxyZoneHealth.js";
 
 // Budget sized against the churn, not against the pool count in isolation: the
 // auto-fetcher replaces roughly 2000 Bright Data pools every five minutes, so a
@@ -97,7 +97,7 @@ export async function sweepProxyPoolHealth(opts = {}) {
     dryRun = false,
   } = opts || {};
 
-  const summary = { scanned: 0, active: 0, failed: 0, written: 0, skipped: false, error: null };
+  const summary = { scanned: 0, active: 0, failed: 0, written: 0, skipped: false, error: null, zonesBadened: new Set() };
   if (running) {
     summary.skipped = true;
     return summary;
@@ -133,6 +133,18 @@ export async function sweepProxyPoolHealth(opts = {}) {
         const verdict = await probeOne(pool, timeoutMs);
         if (verdict.ok) summary.active++;
         else summary.failed++;
+        // Feed the zone-level tally as well. Pool-level status is written below,
+        // but it cannot converge on its own here: the fetcher replaces more pools
+        // every five minutes than a sweep can probe, so a zone condemned by an
+        // overwhelming sample has to be able to take its whole population with it.
+        // The zone verdict is what the picker consults, and it survives re-import
+        // because it is keyed by the zone in the URL.
+        try {
+          const z = await recordZoneProbe(pool.proxyUrl, verdict.ok);
+          if (z?.state === "bad") summary.zonesBadened.add(z.zone);
+        } catch {
+          /* zone health is advisory; never let it fail a sweep */
+        }
         if (dryRun) continue;
         try {
           await updateProxyPool(pool.id, {
@@ -177,6 +189,7 @@ export function startProxyHealthSweep(opts = {}) {
     if (summary.active) parts.push(`${summary.active} active`);
     if (summary.failed) parts.push(`${summary.failed} failed`);
     if (summary.written) parts.push(`${summary.written} written`);
+    if (summary.zonesBadened?.size) parts.push(`zones condemned: ${[...summary.zonesBadened].join(",")}`);
     if (summary.skipped) parts.push("skipped (already running)");
     if (parts.length) {
       console.log(`[ProxyHealthSweep] ${parts.join(", ")}${summary.error ? ` — ${summary.error}` : ""}`);
@@ -197,4 +210,7 @@ export function stopProxyHealthSweep() {
   timer = null;
 }
 
-export { classifyProxyHealth };
+// Re-exported for callers that only want the vocabulary. The runtime verdict for a
+// pool comes from the sweep writing test_status; the per-zone verdicts that make the
+// ranking converge live in proxyZoneHealth.js.
+export { classifyProxyHealth } from "@/lib/network/proxyHealthRank.js";

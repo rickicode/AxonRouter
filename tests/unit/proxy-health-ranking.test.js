@@ -200,16 +200,23 @@ describe("the production path actually supplies health", () => {
   );
 
   it("ranks candidates inside pickProxyPoolId", () => {
-    expect(src).toMatch(/eligible = rankPoolsByHealth\(eligible,\s*health\)/);
+    expect(src).toMatch(/eligible = rankPoolsByHealth\(eligible,\s*health,\s*badZones,\s*zoneOf\)/);
   });
 
-  it("accepts a health map on the opts", () => {
+  it("accepts a health map and zone verdicts on the opts", () => {
     expect(src).toMatch(/health\s*=\s*null/);
+    expect(src).toMatch(/badZones\s*=\s*null/);
+    expect(src).toMatch(/zoneOf\s*=\s*null/);
   });
 
-  it("forwards the pool rows' test_status from the group map at the call site", () => {
+  it("forwards the pool rows' test_status and the zone verdicts at the call site", () => {
     expect(src).toMatch(/new Map\(Array\.from\(groupPoolMap/);
     expect(src).toMatch(/pool\?\.testStatus/);
-    expect(src).toMatch(/pickProxyPoolId\([\s\S]{0,400}?health: poolHealth/);
+    expect(src).toMatch(/getBadZonesCached\(healthRows\)/);
+    expect(src).toMatch(/pickProxyPoolId\([\s\S]{0,600}?health: poolHealth,[\s\S]{0,200}?badZones,[\s\S]{0,120}?zoneOf,/);
+  });
+
+  it("derives a pool's zone from its own proxy url", () => {
+    expect(src).toMatch(/proxyZoneKey\(groupPoolMap\.get\(id\)\?\.proxyUrl\)/);
   });
 });

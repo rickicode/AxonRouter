@@ -68,6 +68,16 @@ export function proxyHealthOf(pool) {
  * is known dead is the part that actually removes the failures; leaving everything
  * else in play keeps the load spread while the sweep keeps learning.
  *
+ * Two independent sources of "known bad", because neither converges alone:
+ *
+ *   per-pool  test_status on the pool row. Precise, but the auto-fetcher replaces
+ *             more pools every five minutes than a sweep can probe, so most rows are
+ *             never reached.
+ *   per-zone  a zone that failed its sample overwhelmingly takes its whole
+ *             population with it (see proxyZoneHealth.js). Coarse, but it is keyed by
+ *             the zone in the proxy URL, so it survives the re-import that keeps
+ *             invalidating per-pool verdicts.
+ *
  * Input order is preserved, because the caller's round-robin index and sticky state
  * are positional — re-sorting would silently reshuffle that state.
  *
@@ -77,33 +87,40 @@ export function proxyHealthOf(pool) {
  *
  * @param {string[]} ids candidate pool ids
  * @param {Map<string, unknown>|Record<string, unknown>|null} health pool id -> row|status
+ * @param {Map<string, string>|null} [badZones] zone key -> "bad"
+ * @param {(id: string) => string} [zoneOf] pool id -> zone key, for badZones
  * @returns {string[]}
  */
-export function rankPoolsByHealth(ids, health) {
+export function rankPoolsByHealth(ids, health, badZones = null, zoneOf = null) {
   if (!Array.isArray(ids) || ids.length <= 1) return Array.isArray(ids) ? ids : [];
-  if (!health) return ids;
+  if (!health && !(badZones && badZones.size)) return ids;
 
-  let read;
-  if (typeof health.get === "function") {
-    read = (id) => health.get(id);
-  } else if (typeof health === "object") {
-    read = (id) => health[id];
-  } else {
-    return ids;
-  }
+  const readHealth = (id) => {
+    if (!health) return undefined;
+    return typeof health.get === "function" ? health.get(id) : health[id];
+  };
+  const inBadZone = (id) => {
+    if (!badZones || !badZones.size || typeof zoneOf !== "function") return false;
+    try {
+      return badZones.get(zoneOf(id)) === "bad";
+    } catch {
+      return false;
+    }
+  };
 
   const usable = [];
   const bad = [];
   let sawAnyStatus = false;
 
   for (const id of ids) {
-    const raw = read(id);
+    const raw = readHealth(id);
     if (raw != null && raw !== "") sawAnyStatus = true;
-    (proxyHealthOf(raw) === "bad" ? bad : usable).push(id);
+    const condemned = proxyHealthOf(raw) === "bad" || inBadZone(id);
+    (condemned ? bad : usable).push(id);
   }
 
   // Nothing known about any of them: behave exactly as before.
-  if (!sawAnyStatus) return ids;
+  if (!sawAnyStatus && usable.length === ids.length) return ids;
   if (usable.length) return usable;
   // Every candidate is known-bad. Returning them keeps a request alive instead of
   // failing for want of a pool; the next sweep re-probes and promotes them back.
