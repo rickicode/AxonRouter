@@ -3,6 +3,7 @@ import { DefaultExecutor } from "./default.js";
 import { resolveSessionId } from "../utils/sessionManager.js";
 import { modelTargetFormat } from "../providers/models/schema.js";
 import { getProviderModels } from "../config/providerModels.js";
+import { isDeepSeekModel } from "../providers/models/helpers.js";
 import {
   normalizeResponsesInput,
   clampResponsesCallId,
@@ -116,6 +117,30 @@ function sanitizeResponsesItems(body) {
   });
 }
 
+// DeepSeek models served behind OpenCode Go's Anthropic /messages transport carry
+// the same thinking pass-back constraint as the official DeepSeek provider: upstream
+// 400s "The content[].thinking in the thinking mode must be passed back to the API"
+// when a prior assistant turn carries tool_use but no thinking block while thinking
+// is enabled. prepareClaudeRequest only lifts this for the official deepseek provider,
+// so the opencode-go DeepSeek /messages shape gets the identical handling here:
+// keep existing thinking blocks verbatim and prepend an UNSIGNED placeholder (no
+// Anthropic signature) on tool_use turns that carry none. Gated on the model id
+// because opencode-go also serves minimax/qwen over /messages, which must stay
+// untouched.
+function injectDeepSeekThinkingPlaceholders(body) {
+  if (!body || typeof body !== "object" || !Array.isArray(body.messages)) return body;
+  if (body.thinking?.type !== "enabled") return body;
+  const last = body.messages[body.messages.length - 1];
+  if (last?.role !== "user") return body;
+  for (const msg of body.messages) {
+    if (msg?.role !== "assistant" || !Array.isArray(msg.content)) continue;
+    if (msg.content.some((b) => b?.type === "thinking" || b?.type === "redacted_thinking")) continue;
+    if (!msg.content.some((b) => b?.type === "tool_use")) continue;
+    msg.content.unshift({ type: "thinking", thinking: "." });
+  }
+  return body;
+}
+
 export class OpenCodeGoExecutor extends DefaultExecutor {
   constructor() {
     super("opencode-go");
@@ -163,6 +188,12 @@ export class OpenCodeGoExecutor extends DefaultExecutor {
 
   transformRequest(model, body, stream, credentials) {
     const out = super.transformRequest(model, body);
+    // Anthropic /messages transport only: DeepSeek models need unsigned thinking
+    // placeholders on prior tool_use turns (see injectDeepSeekThinkingPlaceholders).
+    const rt = credentials?.runtimeTransport;
+    if (rt?.format === "claude" && isDeepSeekModel(model || body?.model)) {
+      injectDeepSeekThinkingPlaceholders(out);
+    }
     if (!isResponsesModel(model || body?.model)) return out;
     const normalized = normalizeResponsesInput(out.input);
     if (normalized) out.input = normalized;
