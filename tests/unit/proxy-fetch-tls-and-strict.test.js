@@ -119,25 +119,32 @@ describe("proxyAwareFetch — self-signed certificate fallback", () => {
   });
 });
 
-describe("proxyAwareFetch — strictProxy when no proxy resolves", () => {
-  it("throws instead of leaking to direct when a proxy was intended but never resolved", async () => {
+describe("proxyAwareFetch — strictProxy when no proxy resolves (#4333)", () => {
+  it("throws when a pool is assigned but no proxy url resolved", async () => {
     await expect(
-      proxyAwareFetch(
-        "https://upstream.example/v1/messages",
-        {},
-        { strictProxy: true, connectionProxyEnabled: true, proxyPoolId: "pool-1" },
-      ),
-    ).rejects.toThrow("[ProxyFetch] Proxy required but none resolved (strictProxy=true)");
+      proxyAwareFetch("https://upstream.example/v1/messages", {}, { proxyPoolId: "pool-1", strictProxy: true }),
+    ).rejects.toThrow(/strictProxy/);
   });
 
-  it("keeps working for strictProxy callers that intend no proxy at all (Qoder)", async () => {
+  it("throws when the pool is enabled but carries an empty url", async () => {
+    await expect(
+      proxyAwareFetch("https://upstream.example/v1/messages", {}, { enabled: true, url: "", strictProxy: true }),
+    ).rejects.toThrow(/strictProxy/);
+  });
+
+  it("does not block a caller that sets strictProxy with no proxy configured (Qoder)", async () => {
     globalThis.fetch = vi.fn().mockResolvedValueOnce({ ok: true, status: 200 });
 
-    const res = await proxyAwareFetch(
-      "https://upstream.example/v1/messages",
-      {},
-      { strictProxy: true, connectionProxyEnabled: false, connectionProxyUrl: "" },
-    );
+    const res = await proxyAwareFetch("https://upstream.example/v1/messages", {}, { strictProxy: true });
+
+    expect(res.ok).toBe(true);
+    expect(globalThis.fetch).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not block a request when strictProxy is off", async () => {
+    globalThis.fetch = vi.fn().mockResolvedValueOnce({ ok: true, status: 200 });
+
+    const res = await proxyAwareFetch("https://upstream.example/v1/messages", {}, { strictProxy: false });
 
     expect(res.ok).toBe(true);
     expect(globalThis.fetch).toHaveBeenCalledTimes(1);
