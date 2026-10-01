@@ -689,7 +689,14 @@ const DIFFICULTY_DEFAULTS = {
   // tier. 0.6 is low enough that a genuinely ambiguous verdict still escalates
   // while an ordinary one is honoured.
   jevConfidenceThreshold: 0.6,
-  jevTimeoutMs: 2500,
+  // 5000, not 2500. Measured over an hour of classifier calls with the dead proxy
+  // zones excluded: successful calls run p50 1347ms / p90 2385ms / p99 4185ms. At a
+  // 2500ms budget the p90 was already against the limit, so 10.1% of calls that would
+  // have answered were being killed — and the failures then cost a fallback instead.
+  // 5000ms captures 98.9% of them; the 10% of requests on that slower path wait up to
+  // 2.5s longer for the verdict, which is the deliberate side of the trade.
+  // Set per-combo via the strategy if a latency-sensitive combo needs it back lower.
+  jevTimeoutMs: 5000,
   // Growth (in estimated body tokens) allowed before a cached per-session tier is
   // re-classified instead of reused. See canReuseSessionTier().
   reuseMaxGrowthTokens: 20000,
@@ -1076,8 +1083,8 @@ export async function handleDifficultyChat({ body, models = [], handleSingleMode
   } else if (cachedTier && (bodyTokens >= cfg.contextLockTokens || canReuseSessionTier(cached, bodyTokens, cfg))) {
     // classifyReuseMs exists so a multi-turn conversation classifies once. It was
     // only honoured for contexts >= contextLockTokens (60k tokens), so an ordinary
-    // session re-ran the classifier on every single turn — a JEV round-trip (~1s,
-    // jevTimeoutMs up to 2.5s) per turn, for a decision that barely moves. The
+    // session re-ran the classifier on every single turn — a JEV round-trip (measured
+    // p50 ~1.3s, up to jevTimeoutMs on the slow path) per turn, for a decision that barely moves. The
     // heuristic above still wins first, so hard signals (vision, tool errors,
     // complex coding) re-classify regardless of what is cached.
     tier = cachedTier;
