@@ -726,7 +726,8 @@ function ComboCard({
     strategy.judgeMode != null ||
     strategy.jevConfidenceThreshold != null ||
     strategy.jevModel != null ||
-    strategy.jevProvider != null;
+    strategy.jevProvider != null ||
+    strategy.jevChain != null;
 
   return (
     <Card padding="none" className="group rounded-lg border border-border bg-surface transition-all hover:border-border/80 overflow-hidden shadow-sm">

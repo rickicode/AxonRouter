@@ -12,13 +12,14 @@ import { MODEL_FAILOVER_THRESHOLD } from "../config/errorConfig.js";
 import { getCapabilitiesForModel } from "../providers/capabilities.js";
 import { extractTextContent } from "../translator/formats/gemini.js";
 import { deriveRequiredCapabilities } from "../translator/concerns/capabilitiesDegradation.js";
-import { resolveJevTarget } from "./jevUpstream.js";
+import { resolveJevTarget, resolveJevChainTargets } from "./jevUpstream.js";
 import {
   TYPESAFE_SYSTEMONE_URL,
   ZEN_SYSTEMONE_URL,
   DEFAULT_JEV_MODEL,
   isKnownJevEndpoint,
 } from "../config/jevModels.js";
+import { jevChainEntryLabel, resolveJevChainConfig } from "../config/jevChain.js";
 
 // Kept as a public export (tests + docs reference it); the value now lives with the
 // other System One constants in config/jevModels.js.
@@ -675,6 +676,13 @@ const DIFFICULTY_DEFAULTS = {
   jevProvider: "",
   jevApiKeys: null,
   jevEndpoint: "",
+  // Ordered classifier ladder, tried left to right until one answers (see
+  // open-sse/config/jevChain.js). Empty means "use the legacy jevModel/jevProvider
+  // pair above" — which is what every pre-chain config resolves to — so the field
+  // is strictly additive and no existing combo changes behaviour by not setting it.
+  // Entry modes: "jev" (registry System One upstream) | "judge" (ANY model on ANY
+  // provider, answered through the normal chat path).
+  jevChain: [],
   // The classifier's confidence is SELF-REPORTED by the Jev model and defaults to
   // 0.85 when the field is absent (classifyWithJev), so a 0.7 threshold rejected
   // most real answers — observed 0.56/0.65 — and pushed every request to the hard
@@ -929,30 +937,66 @@ export async function handleDifficultyChat({ body, models = [], handleSingleMode
   // and key the judge uses (TypeSafe connection pool vs OpenCode Zen). Fail-open —
   // a missing upstream just means "no Jev". llm-only never calls Jev, so it never
   // touches the connection pool either.
+  // Classifier ladder. When the operator configured an explicit chain we resolve
+  // every System One hop up front and walk it on failure; otherwise we keep the
+  // original single-upstream resolve so a config written before chains existed
+  // behaves bit-for-bit as it did.
+  const chainCfg = resolveJevChainConfig(cfg);
+  const usesChain = chainCfg.source === "chain";
+  let jevChainUsable = [];
   const jevTarget =
     requestedMode === "two-layer" || requestedMode === "jev-only"
-      ? await resolveJevTarget(
-          {
-            model: cfg.jevModel,
-            provider: cfg.jevProvider || cfg.jevFamily,
-            endpoint: cfg.jevEndpoint || cfg.typeSafeEndpoint,
-            apiKey: cfg.jevApiKey || cfg.apiKey,
-            apiKeys: cfg.jevApiKeys,
-            mode: cfg.jevMode,
-            comboName,
-            // Classifier egress honours the operator's proxy config, resolved by
-            // the application layer (src/sse/services/jevProxy.js) and attached
-            // to the target as proxyOptions for proxyAwareFetch.
-            ...(resolveProxy ? { resolveProxy } : {}),
-          },
-          log
-        )
+      ? usesChain
+        ? await (async () => {
+            const { usable } = await resolveJevChainTargets(
+              {
+                chain: chainCfg.chain,
+                endpoint: cfg.jevEndpoint || cfg.typeSafeEndpoint,
+                apiKey: cfg.jevApiKey || cfg.apiKey,
+                apiKeys: cfg.jevApiKeys,
+                mode: cfg.jevMode,
+                comboName,
+                ...(resolveProxy ? { resolveProxy } : {}),
+              },
+              log
+            );
+            jevChainUsable = usable;
+            // The first usable hop doubles as "is there any Jev at all", which is
+            // what the two-layer degradation check and the call sites read.
+            return (
+              usable[0]?.target || {
+                available: false,
+                reason: usable.length ? "no usable chain upstream" : "no Jev upstream in chain",
+              }
+            );
+          })()
+        : await resolveJevTarget(
+            {
+              model: cfg.jevModel,
+              provider: cfg.jevProvider || cfg.jevFamily,
+              endpoint: cfg.jevEndpoint || cfg.typeSafeEndpoint,
+              apiKey: cfg.jevApiKey || cfg.apiKey,
+              apiKeys: cfg.jevApiKeys,
+              mode: cfg.jevMode,
+              comboName,
+              // Classifier egress honours the operator's proxy config, resolved by
+              // the application layer (src/sse/services/jevProxy.js) and attached
+              // to the target as proxyOptions for proxyAwareFetch.
+              ...(resolveProxy ? { resolveProxy } : {}),
+            },
+            log
+          )
       : null;
+  // A chain may be all `judge` hops (any model on any provider, no System One at
+  // all), which is a fully valid classifier. Judging "no Jev upstream" from the
+  // resolved targets alone would degrade that to llm-only and drop the operator's
+  // chain, so the check counts hops that need no System One target.
+  const hasChainJudgeHop = usesChain && chainCfg.chain.some((e) => e.mode === "judge");
   // two-layer cannot run without a Jev upstream (Zen connection, TypeSafe connection
   // pool, or a configured key — otherwise every classification would 401/timeout), so
   // degrade to llm-only whether the mode came from settings or was passed explicitly:
   // the outcome is the same LLM-judge path minus the dead roundtrip.
-  const degradedToLlm = requestedMode === "two-layer" && !jevTarget?.available;
+  const degradedToLlm = requestedMode === "two-layer" && !jevTarget?.available && !hasChainJudgeHop;
   if (degradedToLlm && tuning?.judgeMode) {
     log?.info?.(
       "DIFFICULTY",
@@ -977,6 +1021,42 @@ export async function handleDifficultyChat({ body, models = [], handleSingleMode
   const cachedTier = (cached && typeof cached === "object" ? cached.tier : cached) || null;
   const h = heuristicDifficulty(body, policy);
 
+  // One classifier invocation shared by the jev-only and two-layer branches below.
+  // With a configured chain this walks the operator's ladder and returns the first
+  // hop that answers; without one it is the original single resolved upstream, so
+  // pre-chain configs are untouched.
+  let chainWinner = null;
+  const runClassifier = async () => {
+    const res = usesChain
+      ? await classifyWithJevChain(body, {
+          chain: chainCfg.chain,
+          usable: jevChainUsable,
+          handleSingleModel,
+          judgeTimeoutMs: cfg.judgeTimeoutMs,
+          cachedTier,
+          timeoutMs: cfg.jevTimeoutMs,
+          policy,
+          log,
+          comboName,
+          recordUsage,
+          isTestRequest,
+        })
+      : await classifyWithJev(body, {
+          // endpoint + model + API key already resolved once (TypeSafe pool vs Zen)
+          target: jevTarget,
+          timeoutMs: cfg.jevTimeoutMs,
+          policy,
+          log,
+          comboName,
+          recordUsage,
+          isTestRequest,
+        });
+    if (res?.chainSource) {
+      chainWinner = { entry: res.chainSource, attempts: res.chainAttempts || 0 };
+    }
+    return res;
+  };
+
   if (h) {
     tier = h.tier;
     domain = h.domain;
@@ -996,16 +1076,7 @@ export async function handleDifficultyChat({ body, models = [], handleSingleMode
     confidence = typeof cached === "object" ? cached.confidence : 1.0;
     bumpRoutingMetric("sessionTierReuse");
   } else if (mode === "jev-only") {
-    const jevRes = await classifyWithJev(body, {
-      // endpoint + model + API key already resolved once (TypeSafe pool vs Zen)
-      target: jevTarget,
-      timeoutMs: cfg.jevTimeoutMs,
-      policy,
-      log,
-      comboName,
-      recordUsage,
-      isTestRequest,
-    });
+    const jevRes = await runClassifier();
     if (!jevRes || jevRes.cooldownActive) {
       bumpRoutingMetric("jevFallback");
       // A parked upstream (Retry-After honoured) or a failed call must not silently
@@ -1062,16 +1133,7 @@ export async function handleDifficultyChat({ body, models = [], handleSingleMode
       confidence = jevRes.confidence;
     }
   } else if (mode === "two-layer") {
-    const jevRes = await classifyWithJev(body, {
-      // endpoint + model + API key already resolved once (TypeSafe pool vs Zen)
-      target: jevTarget,
-      timeoutMs: cfg.jevTimeoutMs,
-      policy,
-      log,
-      comboName,
-      recordUsage,
-      isTestRequest,
-    });
+    const jevRes = await runClassifier();
     if (!jevRes || jevRes.cooldownActive) {
       bumpRoutingMetric("jevFallback");
       log.warn("DIFFICULTY", `Jev classifier failed — falling back to LLM judge`, { comboName });
@@ -1147,6 +1209,11 @@ export async function handleDifficultyChat({ body, models = [], handleSingleMode
     jevProvider: source === "jev" ? (jevTarget?.provider || null) : null,
     jevEndpoint: source === "jev" ? (jevTarget?.endpoint || null) : null,
     jevModel: source === "jev" ? (jevTarget?.model || null) : null,
+    // Which hop of the operator's classifier ladder answered, and how many were
+    // tried before it. Only set when a chain is configured.
+    jevChain: usesChain ? chainCfg.chain.map((e) => jevChainEntryLabel(e)) : null,
+    jevChainSource: chainWinner?.entry || null,
+    jevChainAttempts: chainWinner?.attempts ?? null,
   });
 
   const stickyModel = (typeof cached === "object" && cached?.winningModel) ? cached.winningModel : null;
@@ -1803,6 +1870,106 @@ export async function classifyWithJev(body, optionsOrKey = {}, maybeOptions = {}
     await recordClassifierUsage({ status: "error_network", error: e?.message || String(e) });
     return null;
   }
+}
+
+/**
+ * Walk the operator's classifier chain until one hop answers.
+ *
+ * Each hop is tried in the configured order and the first real answer wins. What
+ * counts as a failure — and therefore triggers the next hop — is deliberately
+ * narrow:
+ *
+ *   • `null`               the System One call failed (network, 5xx, unparseable)
+ *   • `cooldownActive`     the upstream is parked on a Retry-After cooldown
+ *   • `judge-fallback`     the judge call failed or its answer was unparseable
+ *
+ * A hop that ANSWERED is never retried elsewhere, even at low confidence: a
+ * low-confidence verdict is a valid verdict, and re-asking a second classifier
+ * would silently launder a self-reported 0.56 into a more convenient number. Low
+ * confidence is escalated by the caller, exactly as it is for a single upstream.
+ *
+ * A hop that throws is contained here, so one bad entry cannot take down the
+ * request — that is the entire reason the chain exists.
+ *
+ * @param {object} options
+ *   chain             — normalized chain entries (open-sse/config/jevChain.js)
+ *   usable            — [{ entry, target }] from resolveJevChainTargets()
+ *   handleSingleModel / judgeTimeoutMs / cachedTier — for `judge` hops
+ *   timeoutMs, policy, log, comboName, recordUsage, isTestRequest — for `jev` hops
+ * @returns {Promise<object|null>} the winning hop's result, annotated with
+ *   `chainSource` (label of the hop that answered) and `chainAttempts`.
+ */
+export async function classifyWithJevChain(body, options = {}) {
+  const chain = Array.isArray(options.chain) ? options.chain : [];
+  if (chain.length === 0) return null;
+  const log = options.log || null;
+  const comboName = options.comboName || "default";
+  const timeoutMs = options.timeoutMs || DIFFICULTY_DEFAULTS.jevTimeoutMs;
+  const policy = options.policy || "balanced";
+  const timeout = options.judgeTimeoutMs || DIFFICULTY_DEFAULTS.judgeTimeoutMs;
+  const { handleSingleModel } = options;
+
+  // Label -> resolved System One target. Entries whose upstream was unusable never
+  // reach the map and are reported as skipped rather than called.
+  const targets = new Map();
+  for (const item of Array.isArray(options.usable) ? options.usable : []) {
+    if (item?.entry) targets.set(jevChainEntryLabel(item.entry), item.target);
+  }
+
+  const attempts = [];
+  for (const entry of chain) {
+    const label = jevChainEntryLabel(entry);
+    let result = null;
+    let reason = "";
+    try {
+      if (entry.mode === "judge") {
+        if (typeof handleSingleModel !== "function") {
+          reason = "no chat path available for a judge hop";
+        } else {
+          // Any model on any provider: the hop's model is handed to the normal
+          // chat router untouched, so a provider-qualified id routes as configured.
+          result = await classifyWithJudge(body, entry.model, handleSingleModel, timeout, log, comboName, policy, options.cachedTier || null);
+          if (result?.source === "judge-fallback") reason = result.source;
+        }
+      } else {
+        const target = targets.get(label);
+        if (!target?.available) {
+          reason = "upstream unavailable";
+        } else {
+          result = await classifyWithJev(body, {
+            target,
+            timeoutMs,
+            policy,
+            log,
+            comboName,
+            recordUsage: options.recordUsage,
+            isTestRequest: options.isTestRequest,
+          });
+          if (!result) reason = "call failed";
+          else if (result.cooldownActive) reason = "cooldown";
+        }
+      }
+    } catch (e) {
+      // Contain the blast radius: a throwing hop is a failed hop.
+      reason = `threw: ${e?.message || e}`;
+      log?.warn?.("DIFFICULTY", `Jev chain hop "${label}" threw — trying the next one`, { comboName, error: e?.message });
+    }
+
+    if (result && !result.cooldownActive && result.source !== "judge-fallback") {
+      if (attempts.length) {
+        log?.info?.("DIFFICULTY", `Jev chain answered via "${label}" after ${attempts.length} failed hop(s)`, { comboName });
+        bumpRoutingMetric("jevChainFallback");
+      }
+      return { ...result, chainSource: label, chainAttempts: attempts.length };
+    }
+    attempts.push({ entry: label, mode: entry.mode, reason: reason || "failed" });
+  }
+
+  log?.warn?.("DIFFICULTY", `Jev chain exhausted (${attempts.length} hop(s) failed) — no classifier answered`, {
+    comboName,
+    attempts: attempts.map((a) => `${a.entry}:${a.reason}`).join(", "),
+  });
+  return null;
 }
 
 // Resolve a Response (or {__error}) within ms; the loser keeps running but is ignored.

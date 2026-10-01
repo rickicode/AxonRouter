@@ -20,6 +20,13 @@ const DEFAULT_SETTINGS = {
   jevModel: DEFAULT_JEV_MODEL,
   jevProvider: "",
   jevApiKeys: {},
+  // Ordered classifier ladder, tried left to right until one answers
+  // (open-sse/config/jevChain.js). Empty = "use the jevModel/jevProvider pair
+  // above", which is what every pre-chain config resolves to, so this field is
+  // strictly additive. Entries are { mode: "jev"|"judge", provider, model }:
+  // "jev" must name a registry-declared System One upstream, "judge" accepts ANY
+  // model on ANY provider and is answered through the normal chat path.
+  jevChain: [],
   jevConfidenceThreshold: 0.7,
   defaultProxyGroupSettings: {},
   capacityAdapter: {

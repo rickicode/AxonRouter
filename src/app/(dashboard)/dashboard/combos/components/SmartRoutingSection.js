@@ -27,6 +27,8 @@ import {
   JEV_PROVIDERS,
   DEFAULT_JEV_MODEL,
 } from "open-sse/config/jevModels.js";
+import { resolveJevChainConfig } from "open-sse/config/jevChain.js";
+import JevChainEditor from "./JevChainEditor";
 
 const TIER_CONFIG = [
   {
@@ -219,6 +221,7 @@ export default function SmartRoutingSection({
 }) {
   const [showJudgeSelect, setShowJudgeSelect] = useState(false);
   const [showJevSelect, setShowJevSelect] = useState(false);
+  const [showJevChain, setShowJevChain] = useState(false);
   const [activeTierPicker, setActiveTierPicker] = useState(null); // "easy" | "hard" | null
 
   const notify = useNotificationStore();
@@ -249,6 +252,38 @@ export default function SmartRoutingSection({
   const selectedProvider = JEV_PROVIDERS.find((p) => p.provider === selectedProviderId) || null;
   const jevEndpoint = activeJevChoice?.endpoint || selectedProvider?.endpoint || "";
 
+  // A per-combo judge override exists as soon as the combo carries ANY judge key
+  // explicitly, which is what the reset buttons branch on. Previously this was
+  // referenced but never defined, so the "reset Jev" button threw a ReferenceError
+  // on any combo that had a non-default classifier model.
+  const comboOverrideActive =
+    strategy.judgeMode != null ||
+    strategy.jevConfidenceThreshold != null ||
+    strategy.jevModel != null ||
+    strategy.jevProvider != null ||
+    strategy.jevChain != null;
+
+  // Classifier chain: combo override first, then the global default, then the
+  // legacy single pair. resolveJevChainConfig is the one definition of what an
+  // empty chain means and is shared with the resolver and the settings API, so
+  // this view can never disagree with what will actually run.
+  const comboChain = Array.isArray(strategy.jevChain) ? strategy.jevChain : null;
+  const globalChain = Array.isArray(globalJudge?.jevChain) ? globalJudge.jevChain : null;
+  const jevChain = comboChain && comboChain.length
+    ? comboChain
+    : (globalChain && globalChain.length
+        ? globalChain
+        : resolveJevChainConfig({ jevModel, jevProvider }).chain);
+  const chainScope = comboChain && comboChain.length ? "combo" : (globalChain && globalChain.length ? "global" : "none");
+
+  const saveJevChain = async (next) => {
+    if (chainScope === "combo") {
+      onSetStrategy({ jevChain: next });
+      return;
+    }
+    await saveGlobalJudge({ jevChain: next });
+  };
+
 
 
   const activeJudgeMode = JUDGE_MODES.find((m) => m.value === judgeMode) || JUDGE_MODES[0];
@@ -266,6 +301,7 @@ export default function SmartRoutingSection({
           typeof data.jevConfidenceThreshold === "number" ? data.jevConfidenceThreshold : 0.7,
         jevModel: data.jevModel || DEFAULT_JEV_MODEL,
         jevProvider: data.jevProvider || "",
+        jevChain: Array.isArray(data.jevChain) ? data.jevChain : [],
       });
       setGlobalJudgeError("");
     } catch (error) {
@@ -537,6 +573,29 @@ export default function SmartRoutingSection({
                     <Icon name="restart_alt" size={15} />
                   </button>
                 ) : null}
+                {/* Classifier chain: the fallback ladder. Kept separate from the single
+                    model above because it is a list, not a value — and because it is
+                    what keeps a dead or rate-limited classifier from taking the whole
+                    request down with it. */}
+                <button
+                  type="button"
+                  onClick={() => setShowJevChain(true)}
+                  className="inline-flex items-center gap-1.5 rounded-sm border border-cyan-500/30 bg-cyan-500/10 px-2.5 h-7 font-mono text-xs font-medium text-cyan-400 hover:border-cyan-400 hover:bg-cyan-500/15 transition-all"
+                  title="Classifier fallback chain: order the upstreams to try, any model on any provider"
+                >
+                  <Icon name="low_priority" size={15} />
+                  <span>
+                    Chain:
+                    {jevChain.length
+                      ? ` ${jevChain.length} hop${jevChain.length === 1 ? "" : "s"}`
+                      : " off"}
+                  </span>
+                  {chainScope !== "none" ? (
+                    <span className="rounded-sm bg-cyan-400/20 px-1 text-[10px] text-cyan-200">
+                      {chainScope}
+                    </span>
+                  ) : null}
+                </button>
               </div>
             )}
 
@@ -807,6 +866,17 @@ export default function SmartRoutingSection({
           kindFilter="jev"
           addedModelValues={jevModel ? [jevModel, `${selectedProvider?.alias}/${jevModel}`] : []}
           closeOnSelect={true}
+        />
+      )}
+      {/* Classifier Chain Editor Modal */}
+      {showJevChain && (
+        <JevChainEditor
+          isOpen={showJevChain}
+          onClose={() => setShowJevChain(false)}
+          chain={jevChain}
+          onSave={saveJevChain}
+          activeProviders={activeProviders}
+          comboOverrideActive={chainScope === "combo"}
         />
       )}
     </div>

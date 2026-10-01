@@ -4,6 +4,7 @@ import { applyOutboundProxyEnv } from "@/lib/network/outboundProxy";
 import { resetComboRotation } from "open-sse/services/combo.js";
 import { resolveProviderId } from "@/shared/constants/providers.js";
 import { JEV_ALL_MODELS, JEV_PROVIDERS, isKnownJevEndpoint, jevProviderById } from "open-sse/config/jevModels.js";
+import { JEV_CHAIN_MAX_ENTRIES, normalizeJevChain } from "open-sse/config/jevChain.js";
 import bcrypt from "bcryptjs";
 
 export const dynamic = "force-dynamic";
@@ -49,6 +50,12 @@ function mergeComboStrategies(stored = {}, incoming = {}) {
     if (next.jevModel !== undefined && !JEV_ALL_MODELS.includes(next.jevModel)) delete next.jevModel;
     if (next.jevProvider !== undefined && !jevProviderById(next.jevProvider)) delete next.jevProvider;
     if (next.jevEndpoint !== undefined && !isKnownJevEndpoint(next.jevEndpoint)) delete next.jevEndpoint;
+    // Classifier chain: unusable entries are dropped rather than 400-ing the whole
+    // combo save, because the chain and the legacy pair live in the same payload
+    // and a stale entry must never make the combo unsavable.
+    if (next.jevChain !== undefined) {
+      next.jevChain = normalizeJevChain(next.jevChain);
+    }
     delete next.jevApiKeysConfigured;
     next.jevApiKeys = mergeJevApiKeys(prev.jevApiKeys, next.jevApiKeys);
     if (Object.keys(next.jevApiKeys).length === 0) delete next.jevApiKeys;
@@ -210,6 +217,40 @@ export async function PATCH(request) {
           { error: `Invalid jevProvider: expected one of ${JEV_PROVIDERS.map((p) => p.provider).join(", ")}` },
           { status: 400 }
         );
+      }
+    }
+    if (Object.prototype.hasOwnProperty.call(body, "jevChain")) {
+      // [] clears the ladder and hands control back to jevModel/jevProvider. Any
+      // other value must be an array of chain entries, otherwise a typo would
+      // silently store "no chain" and look like the operator's chain was ignored.
+      if (body.jevChain == null) {
+        body.jevChain = [];
+      } else if (!Array.isArray(body.jevChain)) {
+        return NextResponse.json(
+          { error: "Invalid jevChain: expected an array of { mode, provider, model } entries" },
+          { status: 400 }
+        );
+      } else if (body.jevChain.length > JEV_CHAIN_MAX_ENTRIES) {
+        return NextResponse.json(
+          { error: `Invalid jevChain: at most ${JEV_CHAIN_MAX_ENTRIES} entries` },
+          { status: 400 }
+        );
+      } else {
+        const normalized = normalizeJevChain(body.jevChain);
+        // Report which entries were dropped instead of quietly shortening the
+        // ladder — a silently ignored entry is indistinguishable from a fallback
+        // that never fired.
+        const dropped = body.jevChain.length - normalized.length;
+        body.jevChain = normalized;
+        if (dropped > 0) {
+          return NextResponse.json(
+            {
+              error: `jevChain: dropped ${dropped} unusable entr${dropped === 1 ? "y" : "ies"}`,
+              jevChain: normalized,
+            },
+            { status: 400 }
+          );
+        }
       }
     }
     if (Object.prototype.hasOwnProperty.call(body, "jevConfidenceThreshold")) {

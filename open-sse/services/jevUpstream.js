@@ -19,6 +19,7 @@
 // pool available", so the caller falls back to settings/env credentials and, if
 // there are none either, to the LLM judge path.
 import { JEV_PROVIDERS, jevModelMeta, jevProviderById } from "../config/jevModels.js";
+import { jevChainEntryLabel, normalizeJevChain } from "../config/jevChain.js";
 
 const POOL_TTL_MS = 15_000;
 const POOL_ERROR_TTL_MS = 15_000;
@@ -281,6 +282,68 @@ export async function resolveJevTarget(options = {}, log = null) {
     { comboName, model: requested, provider: requestedProvider || failed.provider }
   );
   return failed;
+}
+
+/**
+ * Resolve an operator-configured classifier chain into the ordered list of System
+ * One upstreams that can actually answer right now.
+ *
+ * Each entry is pinned to its own (provider, model) so the chain is a real
+ * fallback ladder: entry 2 is only consulted after entry 1 failed, so it must not
+ * inherit entry 1's resolution. Entries whose provider has no key / no reachable
+ * connection are dropped here rather than at call time, so the classifier does not
+ * pay a doomed round-trip to discover a misconfigured upstream on the hot path.
+ *
+ * `judge` entries are passed through as-is: they are answered by the normal chat
+ * path, not by a System One endpoint, so there is nothing to resolve for them. The
+ * returned `usable` list therefore only holds `jev` entries; callers interleave the
+ * judge entries themselves, preserving the operator's order.
+ *
+ * Fail-open like resolveJevTarget: never throws, an empty/blank chain yields empty
+ * lists and the caller keeps whatever behaviour it had before.
+ *
+ * @param {object} options
+ *   chain    — raw chain array (normalized here)
+ *   endpoint — legacy explicit endpoint hint, applied only to unpinned entries
+ *   plus every key/proxy/log option resolveJevTarget accepts
+ * @returns {Promise<{usable: Array<{entry, target}>, skipped: Array<object>}>}
+ */
+export async function resolveJevChainTargets(options = {}, log = null) {
+  const chain = normalizeJevChain(options.chain);
+  const usable = [];
+  const skipped = [];
+  for (const entry of chain) {
+    if (entry.mode !== "jev") {
+      skipped.push({ ...entry, reason: "judge-entry" });
+      continue;
+    }
+    // An unpinned entry may still be steered by the caller's endpoint hint; a
+    // pinned one must not be, or the pin would resolve to someone else.
+    const target = await resolveJevTarget(
+      {
+        ...options,
+        model: entry.model,
+        provider: entry.provider,
+        endpoint: entry.provider ? "" : options.endpoint || "",
+      },
+      log
+    );
+    if (target?.available) {
+      usable.push({ entry, target });
+    } else {
+      skipped.push({ ...entry, reason: target?.reason || "unavailable" });
+    }
+  }
+  if (skipped.length) {
+    log?.info?.(
+      "DIFFICULTY",
+      `[jev] chain: ${usable.length} of ${chain.length} upstream(s) usable — skipped ${skipped
+        .map((s) => `${jevChainEntryLabel(s)} (${s.reason})`)
+        .join(", ")}`,
+      { comboName: options.comboName || "default" }
+    );
+  }
+  return { usable, skipped };
 }
 
 /**
