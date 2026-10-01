@@ -47,6 +47,7 @@ const MOBILE_ROW_CAP = 10;
 
 export default function RealtimeRequestsCard({
  activeRequests = [],
+ activeFeedStale = false,
  recentRequests = [],
  className,
 }) {
@@ -217,6 +218,7 @@ export default function RealtimeRequestsCard({
  isOpen={showActiveModal}
  onClose={() => setShowActiveModal(false)}
  activeRequests={activeRequests}
+ activeFeedStale={activeFeedStale}
  />
 
  {/* Control Bar: Filter Pills & Search */}

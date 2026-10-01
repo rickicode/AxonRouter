@@ -374,6 +374,12 @@ export default function UsageStats({
 
  const [stats, setStats] = useState(null);
  const [loading, setLoading] = useState(true);
+ // Tracks whether the in-flight feed is actually refreshing. `activeRequests` keeps its
+ // last value on failure, so without this the UI would present stale rows as live.
+ // Raised once four consecutive polls (10s) have failed to land, which tolerates a
+ // slow response but not a dead feed.
+ const [activeFeedStale, setActiveFeedStale] = useState(false);
+ const lastActiveSyncRef = useRef(0);
  const [fetching, setFetching] = useState(false);
  const [statsError, setStatsError] = useState(null);
  const [tableView, setTableView] = useState("model");
@@ -619,6 +625,13 @@ export default function UsageStats({
           .then((r) => (r.ok ? r.json() : null))
           .then((data) => {
             if (!data) return;
+            // Stamp only a fetch that actually succeeded. The catch below swallows
+            // the failure so a transient blip does not break the dashboard, which used
+            // to mean a dead feed left the last known list on screen while the UI still
+            // claimed "Live, auto-refresh". Stale rows presented as live are worse than
+            // no rows: an operator reading them cannot tell the feed died.
+            lastActiveSyncRef.current = Date.now();
+            setActiveFeedStale(false);
             setStats((prev) => {
               const base = prev || { summary: {}, models: [], providers: [], hourly: [] };
               return {
@@ -639,6 +652,15 @@ export default function UsageStats({
       const heartbeat = setInterval(() => {
         syncActiveRequests();
       }, 2500);
+      // The poll above swallows its own errors, so nothing else would notice the feed
+      // dying. Watch the success stamp instead. 10s is four missed polls at the 2.5s
+      // heartbeat: long enough to ride out one slow request, short enough that an
+      // operator is not reading dead rows for a minute before finding out.
+      const stalenessWatch = setInterval(() => {
+        const last = lastActiveSyncRef.current;
+        if (!last) return; // never connected yet; loading state already covers that
+        setActiveFeedStale(Date.now() - last > 10_000);
+      }, 3000);
       const onVisibility = () => {
         if (!document.hidden) {
           syncActiveRequests();
@@ -652,6 +674,7 @@ export default function UsageStats({
 
       return () => {
         clearInterval(heartbeat);
+        clearInterval(stalenessWatch);
         clearTimeout(retryTimer);
         document.removeEventListener("visibilitychange", onVisibility);
         es?.close();
@@ -976,6 +999,7 @@ export default function UsageStats({
         {/* Realtime Request Stream & Live Activity */}
         <RealtimeRequestsCard
           activeRequests={stats?.activeRequests || []}
+          activeFeedStale={activeFeedStale}
           recentRequests={stats?.recentRequests || []}
         />
  </div>

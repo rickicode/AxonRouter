@@ -76,7 +76,7 @@ const ProviderNode = memo(function ProviderNode({ data }) {
  style={rootStyle}
  tabIndex={0}
  role="group"
- aria-label={`${label}${active ? " — active" : ""}`}
+ aria-label={`${label}${active ? ", active" : ""}`}
  >
  <Handle type="target" position={Position.Top} id="top" className="!bg-transparent !border-0 !w-0 !h-0" />
  <Handle type="target" position={Position.Bottom} id="bottom" className="!bg-transparent !border-0 !w-0 !h-0" />

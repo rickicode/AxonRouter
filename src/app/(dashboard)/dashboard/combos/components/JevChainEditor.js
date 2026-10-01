@@ -134,8 +134,8 @@ export default function JevChainEditor({
         <div className="flex flex-col gap-3">
           <p className="text-xs text-text-muted leading-relaxed">
             Tried top to bottom; the first hop that answers wins. A hop hands over to the next one
-            only on a real failure — a dead call, a rate-limited upstream in cooldown, or a missing
-            key. A hop that answered is never re-asked elsewhere, even at low confidence.
+            only on a real failure, such as a dead call, a rate-limited upstream in cooldown, or a
+            missing key. A hop that answered is never re-asked elsewhere, even at low confidence.
             {comboOverrideActive ? " Saved to this combo." : " Saved as the global default."}
           </p>
 
@@ -170,7 +170,8 @@ export default function JevChainEditor({
                       type="button"
                       onClick={() => move(index, -1)}
                       disabled={index === 0}
-                      className="rounded-sm p-1 text-text-muted hover:text-text-primary hover:bg-hover disabled:opacity-30 disabled:hover:bg-transparent"
+                      className="flex min-h-11 min-w-11 items-center justify-center rounded-sm text-text-muted hover:text-text-primary hover:bg-hover disabled:opacity-30 disabled:hover:bg-transparent sm:min-h-9 sm:min-w-9"
+                      aria-label={`Move hop ${index + 1} up, so it is tried earlier`}
                       title="Move up (tried earlier)"
                     >
                       <Icon name="keyboard_arrow_up" size={16} />
@@ -179,7 +180,8 @@ export default function JevChainEditor({
                       type="button"
                       onClick={() => move(index, 1)}
                       disabled={index === hopRows.length - 1}
-                      className="rounded-sm p-1 text-text-muted hover:text-text-primary hover:bg-hover disabled:opacity-30 disabled:hover:bg-transparent"
+                      className="flex min-h-11 min-w-11 items-center justify-center rounded-sm text-text-muted hover:text-text-primary hover:bg-hover disabled:opacity-30 disabled:hover:bg-transparent sm:min-h-9 sm:min-w-9"
+                      aria-label={`Move hop ${index + 1} down, so it is tried later`}
                       title="Move down (tried later)"
                     >
                       <Icon name="keyboard_arrow_down" size={16} />
@@ -187,7 +189,8 @@ export default function JevChainEditor({
                     <button
                       type="button"
                       onClick={() => removeAt(index)}
-                      className="rounded-sm p-1 text-text-muted hover:text-danger hover:bg-danger/10"
+                      className="flex min-h-11 min-w-11 items-center justify-center rounded-sm text-text-muted hover:text-danger hover:bg-danger/10 sm:min-h-9 sm:min-w-9"
+                      aria-label={`Remove hop ${index + 1}`}
                       title="Remove this hop"
                     >
                       <Icon name="close" size={16} />
@@ -206,8 +209,9 @@ export default function JevChainEditor({
               value={addJev}
               onChange={(e) => addJevHop(e.target.value)}
               disabled={full}
-              className="h-7 min-w-0 max-w-[260px] rounded-sm border border-cyan-500/30 bg-cyan-500/10 px-2 font-mono text-xs text-cyan-400 disabled:opacity-40"
+              className="min-h-11 min-w-0 sm:min-h-9 max-w-[260px] rounded-sm border border-cyan-500/30 bg-cyan-500/10 px-2 font-mono text-xs text-cyan-400 disabled:opacity-40"
               title="Add a System One (Jev) upstream from the provider registry"
+              aria-label="Add a System One (Jev) upstream from the provider registry"
             >
               <option value="">Jev upstream…</option>
               {JEV_HOP_OPTIONS.map((o) => (

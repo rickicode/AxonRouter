@@ -10,6 +10,7 @@
 //   • with no chain configured, the legacy single (model, provider) pair still
 //     resolves, so nothing that worked before changes behaviour.
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { readFileSync } from "node:fs";
 import { classifyWithJevChain } from "../../open-sse/services/combo.js";
 import { resolveJevChainTargets, setJevConnectionLoader } from "../../open-sse/services/jevUpstream.js";
 import {
@@ -343,5 +344,68 @@ describe("classifyWithJevChain fallback", () => {
     const fetchSpy = vi.spyOn(globalThis, "fetch");
     await expect(classifyWithJevChain("x", { chain: [], usable: [], log: quietLog })).resolves.toBeNull();
     expect(fetchSpy).not.toHaveBeenCalled();
+  });
+});
+
+// Anti-slop gates on the chain editor UI. The chain is the most safety-relevant
+// control in the combos page (it decides which classifier gets asked first), so its
+// controls have to be reachable on a phone and nameable by a screen reader.
+describe("JevChainEditor control gates", () => {
+  const editorSrc = readFileSync(
+    new URL(
+      "../../src/app/(dashboard)/dashboard/combos/components/JevChainEditor.js",
+      import.meta.url
+    ),
+    "utf8"
+  );
+
+  it("R-03: every icon button meets the 44px target on touch", () => {
+    // These were p-1 around a 16px icon, about 24px total. The repo convention is
+    // min-h-11 sm:min-h-9, so match it rather than inventing a size.
+    //
+    // Walk the attribute list of each raw <button> by reading its className literal
+    // directly. Regexing the tag does not work: a non-greedy match to ">" stops at
+    // the first ">" inside `onClick={() => ...}`, and a greedy one runs past into the
+    // next element, so both quietly pass a button that has no className at all.
+    const chunks = editorSrc.split("<button").slice(1);
+    expect(chunks.length).toBe(3);
+    for (const chunk of chunks) {
+      const cls = chunk.match(/className="([^"]*)"/);
+      expect(cls, "button has no className literal").not.toBeNull();
+      expect(cls[1]).toMatch(/min-h-11/);
+      // R-32: an icon-only button needs a real accessible name. A title attribute is
+      // skipped by some screen readers and never surfaces on touch. Bound the scan to
+      // this tag rather than a fixed character count, since the class list is long
+      // enough that any constant picks an arbitrary cut-off.
+      expect(chunk.split("</button>")[0]).toMatch(/aria-label=/);
+    }
+  });
+
+  it("R-03: the upstream picker is tall enough to hit", () => {
+    expect(editorSrc).toMatch(/min-h-11 min-w-0 sm:min-h-9/);
+    // min-w-0 has to stay. The select sits in a flex-wrap row, and without it the
+    // new min-w would stop it shrinking and push the row wide on a narrow screen.
+    expect(editorSrc).not.toMatch(/min-h-11 sm:min-h-9 max-w-\[260px\]/);
+  });
+
+  it("R-32: icon-only buttons carry an explicit accessible name", () => {
+    // A title attribute is skipped by some screen readers and never surfaces on
+    // touch, so it cannot be the only name an icon-only button has.
+    const names = editorSrc.match(/aria-label=\{`[^`]*`\}/g) || [];
+    expect(names.length).toBeGreaterThanOrEqual(3);
+    // Each names its own hop by position; three identical labels would be ambiguous.
+    expect(new Set(names.map((n) => n.replace(/\$\{[^}]*\}/g, "#"))).size).toBeGreaterThanOrEqual(2);
+  });
+
+  it("R-02: no em dash in copy the operator reads", () => {
+    // Strip whole comments first, then look. Two earlier versions of this check were
+    // wrong in instructive ways: filtering on "line starts with //" misses the
+    // continuation lines of a wrapped comment, and grepping for an em dash between
+    // tags misses an em dash inside a multi-line JSX text node, which is exactly
+    // where the real violation in this file was hiding.
+    const rendered = editorSrc
+      .replace(/\/\*[\s\S]*?\*\//g, "")
+      .replace(/^\s*\/\/.*$/gm, "");
+    expect(rendered).not.toMatch(/—/);
   });
 });

@@ -559,6 +559,37 @@ export async function trackPendingRequest(model, provider, connectionId, started
   scheduleStatsEvent("pending");
 }
 
+/**
+ * Decide what the dashboard's Account column shows for one in-flight request.
+ *
+ * Extracted as a pure function so the precedence can actually be tested. It shipped as
+ * an inline `||` chain that read correctly and behaved wrongly: for a keyless request
+ * `connectionId` is the literal "noauth", which is truthy, so the chain picked "noauth"
+ * over the proxy that had already been resolved right beside it. A source-level check
+ * for "the fallback is mentioned somewhere" cannot catch that, so the branches are
+ * explicit here and asserted directly.
+ *
+ * @param {object} item active-request row ({ connectionId, proxyPoolId, provider })
+ * @param {Record<string,string>} connectionMap connection id -> account name
+ * @param {Record<string,string|null>} poolMap pool id -> readable label
+ * @returns {{ account: string, accountIsProxy: boolean, proxyLabel: string|null }}
+ */
+export function resolveActiveRequestAccount(item, connectionMap = {}, poolMap = {}) {
+  const connectionId = item?.connectionId;
+  const synthetic = !connectionId || connectionId === "noauth";
+  const proxyLabel = item?.proxyPoolId ? (poolMap[item.proxyPoolId] || null) : null;
+
+  // No third fallback in the non-synthetic branch: reaching it already required a
+  // truthy connectionId, so it could never win. A dead `|| "Unknown Account"`
+  // suggested the chain was exhaustive when the branch below was the only one that
+  // ever needed a label of its own.
+  const account = synthetic
+    ? (proxyLabel || `Keyless, no proxy recorded (${item?.provider || "unknown"})`)
+    : (connectionMap[connectionId] || connectionId);
+
+  return { account, accountIsProxy: synthetic, proxyLabel: proxyLabel || null };
+}
+
 export async function getActiveRequests() {
   const activeRequests = [];
   const localItems = [...liveActiveRequests.values()];
@@ -613,11 +644,10 @@ export async function getActiveRequests() {
     // A keyless provider's connection id is the literal "noauth", which tells an
     // operator nothing. The egress pool does: it is what makes the request
     // attributable. Prefer it whenever the account name carries no information.
-    const synthetic = !item.connectionId || item.connectionId === "noauth";
-    const proxyLabel = item.proxyPoolId ? (poolMap[item.proxyPoolId] || null) : null;
-    const accountName = (!synthetic && connectionMap[item.connectionId]) || item.connectionId
-      || proxyLabel
-      || `Unknown Account (${item.provider})`;
+    // Branched rather than chained: see resolveActiveRequestAccount for why an inline
+    // `||` chain got this wrong. Branches are explicit so the precedence is testable.
+    const { account: accountName, accountIsProxy: synthetic, proxyLabel } =
+      resolveActiveRequestAccount(item, connectionMap, poolMap);
     const keyName = apiKeyMap[item.apiKey] || (item.apiKey ? maskApiKey(item.apiKey) : "Default Key");
     activeRequests.push({
       model: item.model,
@@ -642,12 +672,22 @@ export async function getActiveRequests() {
     for (const [connectionId, models] of Object.entries(pendingRequests.byAccount)) {
       for (const [modelKey, count] of Object.entries(models)) {
         if (count > 0) {
-          const accountName = connectionMap[connectionId] || connectionId || `Unknown Account`;
           const match = modelKey.match(/^(.*) \((.*)\)$/);
+          const provider = match ? match[2] : "unknown";
+          // Same helper as the live path. This fallback only runs when the tracked
+          // list is empty and carries no pool id, so there is no proxy to name, but a
+          // keyless entry must still not leak the raw "noauth" placeholder here.
+          const { account: accountName, accountIsProxy } = resolveActiveRequestAccount(
+            { connectionId, provider },
+            connectionMap,
+            {}
+          );
           activeRequests.push({
             model: match ? match[1] : modelKey,
-            provider: match ? match[2] : "unknown",
+            provider,
             account: accountName,
+            accountIsProxy,
+            proxyLabel: null,
             connectionId,
             count,
             apiKey: "Default Key",

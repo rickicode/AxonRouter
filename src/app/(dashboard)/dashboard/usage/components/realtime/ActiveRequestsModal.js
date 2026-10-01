@@ -44,8 +44,15 @@ function ModeBadge({ isStream }) {
   );
 }
 
-/** A labelled value. Wraps rather than truncates — a clipped value reads as missing. */
+/**
+ * A labelled value. Wraps rather than truncates — a clipped value reads as missing.
+ *
+ * A missing value is spelled out rather than shown as a dash, because a dash is
+ * indistinguishable from a zero-length value at a glance, and the whole point of
+ * these fields is that an operator can tell "not set" from "set to nothing".
+ */
 function Field({ icon, label, value, title, mono = false, tone = "" }) {
+  const missing = value == null || value === "";
   return (
     <div className="flex min-w-0 flex-col gap-0.5">
       <span className="flex items-center gap-1 text-[10px] uppercase tracking-wide text-text-muted">
@@ -53,16 +60,23 @@ function Field({ icon, label, value, title, mono = false, tone = "" }) {
         {label}
       </span>
       <span
-        className={`min-w-0 break-words text-xs ${mono ? "font-mono" : ""} ${tone || "text-text-main"}`}
+        className={`min-w-0 break-words text-xs ${mono ? "font-mono" : ""} ${tone || "text-text-main"} ${
+          missing ? "italic text-text-muted" : ""
+        }`}
         title={title}
       >
-        {value}
+        {missing ? "not reported" : value}
       </span>
     </div>
   );
 }
 
-export default function ActiveRequestsModal({ isOpen, onClose, activeRequests = [] }) {
+export default function ActiveRequestsModal({
+  isOpen,
+  onClose,
+  activeRequests = [],
+  activeFeedStale = false,
+}) {
   return (
     <Modal
       isOpen={isOpen}
@@ -76,9 +90,17 @@ export default function ActiveRequestsModal({ isOpen, onClose, activeRequests = 
         {/* Header inside modal */}
         <div className="flex items-center justify-between gap-3">
           <div className="flex items-center gap-2">
+            {/* The ping is a claim that data is arriving. A pulsing dot next to a
+                "reconnecting" banner is the UI arguing with itself, so it stops. */}
             <span className="relative flex h-3 w-3">
-              <span className="absolute inline-flex h-full w-full rounded-sm bg-primary animate-ping opacity-60"></span>
-              <span className="relative inline-flex rounded-sm h-3 w-3 bg-primary"></span>
+              {!activeFeedStale && (
+                <span className="absolute inline-flex h-full w-full rounded-sm bg-primary animate-ping opacity-60"></span>
+              )}
+              <span
+                className={`relative inline-flex rounded-sm h-3 w-3 ${
+                  activeFeedStale ? "bg-warning" : "bg-primary"
+                }`}
+              ></span>
             </span>
             <h3 className="text-sm font-semibold text-text-main">
               Active In-Flight Requests
@@ -87,18 +109,44 @@ export default function ActiveRequestsModal({ isOpen, onClose, activeRequests = 
               {activeRequests.length}
             </span>
           </div>
-          <span className="hidden sm:inline-flex text-[11px] text-text-muted items-center gap-1">
-            <Icon name="schedule" size={18} />
-            Live — auto-refresh
+          <span
+            className={`hidden sm:inline-flex text-[11px] items-center gap-1 ${
+              activeFeedStale ? "text-warning" : "text-text-muted"
+            }`}
+          >
+            <Icon name={activeFeedStale ? "cloud_off" : "schedule"} size={12} />
+            {/* The list keeps its last known rows when the feed dies, so saying "Live"
+                unconditionally would present stale data as current. */}
+            {activeFeedStale ? "Reconnecting, list may be out of date" : "Live, auto-refresh"}
           </span>
         </div>
 
-        {/* Empty state */}
+        {activeFeedStale && (
+          <p className="rounded-sm border border-warning/30 bg-warning/10 px-2.5 py-1.5 text-[11px] text-warning">
+            Not refreshing. These are the last rows received, not necessarily what is in flight now.
+          </p>
+        )}
+
         {activeRequests.length === 0 ? (
-          <div className="flex flex-col items-center justify-center p-3 rounded-sm border border-dashed border-border gap-2">
-            <Icon className="text-text-muted/50" name="cloud_done" size={18} />
-            <span className="text-sm text-text-muted">No active in-flight requests</span>
-          </div>
+          /* Two different empty states, because they mean different things. With a live
+             feed, no rows means nothing is in flight. With a dead feed, no rows means we
+             cannot see anything, which is not the same claim at all. */
+          activeFeedStale ? (
+            <div className="flex flex-col items-center justify-center gap-2 p-3 rounded-sm border border-dashed border-warning/40 bg-warning/5">
+              <Icon className="text-warning/70" name="cloud_off" size={18} />
+              <span className="text-sm text-warning">
+                Cannot see in-flight requests while the feed is down
+              </span>
+              <span className="text-[11px] text-text-muted">
+                This is not a report that nothing is running.
+              </span>
+            </div>
+          ) : (
+            <div className="flex flex-col items-center justify-center p-3 rounded-sm border border-dashed border-border gap-2">
+              <Icon className="text-text-muted/50" name="cloud_done" size={18} />
+              <span className="text-sm text-text-muted">No active in-flight requests</span>
+            </div>
+          )
         ) : (
           <ul className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3" aria-label="Active in-flight requests">
             {activeRequests.map((req, idx) => {
@@ -118,7 +166,7 @@ export default function ActiveRequestsModal({ isOpen, onClose, activeRequests = 
                       <Field
                         icon="memory"
                         label="Model"
-                        value={req.model || "—"}
+                        value={req.model}
                         title={req.model}
                         mono
                       />
@@ -132,11 +180,11 @@ export default function ActiveRequestsModal({ isOpen, onClose, activeRequests = 
                   </div>
 
                   <div className="grid grid-cols-2 gap-x-2 gap-y-2 border-t border-border/60 pt-2">
-                    <Field icon="hub" label="Provider" value={req.provider || "—"} />
+                    <Field icon="hub" label="Provider" value={req.provider} />
                     <Field
                       icon={accountIsProxy ? "lan" : "account_circle"}
                       label={accountLabel}
-                      value={req.account || "—"}
+                      value={req.account}
                       title={req.account}
                     />
                     <Field
@@ -147,8 +195,12 @@ export default function ActiveRequestsModal({ isOpen, onClose, activeRequests = 
                       mono
                       tone="text-text-muted"
                     />
-                    {/* Only meaningful once the request is known to be proxied; the
-                        account field above already shows it in that case. */}
+                    {/* Only for a request that has both a real account and a proxy.
+                        Two reasons the cell is not always filled: for a keyless request
+                        the account field above already shows the proxy, and without a
+                        proxy there is nothing to put here. A separate "Mode" field used
+                        to fill this slot, but it only repeated the STREAM/JSON badge that
+                        is already on the card. */}
                     {!accountIsProxy && req.proxyLabel ? (
                       <Field
                         icon="lan"
@@ -158,13 +210,7 @@ export default function ActiveRequestsModal({ isOpen, onClose, activeRequests = 
                         mono
                         tone="text-text-muted"
                       />
-                    ) : (
-                      <Field
-                        icon="bolt"
-                        label="Mode"
-                        value={req.isStream ? "Streaming" : "Non-streaming"}
-                      />
-                    )}
+                    ) : null}
                   </div>
                 </li>
               );
@@ -172,12 +218,7 @@ export default function ActiveRequestsModal({ isOpen, onClose, activeRequests = 
           </ul>
         )}
 
-        {/* Footer hint */}
-        <div className="flex items-center gap-2 text-[11px] text-text-muted pt-1 border-t border-border h-8">
-          <Icon name="info" size={18} />
-          <span>Live updates active. Close modal to pause polling.</span>
         </div>
-      </div>
     </Modal>
   );
 }
