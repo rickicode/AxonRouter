@@ -86,3 +86,23 @@ describe("opencode catalogue has no model upstream dropped", () => {
     expect(line).toContain("big-pickle");
   });
 });
+
+describe("opencode-zen catalogue tracks the free tier", () => {
+  const server = REGISTRY.find((r) => r.id === "opencode-zen");
+  const client = REGISTRY_UI.find((r) => r.id === "opencode-zen");
+
+  it("lists MiMo V2.6 Flash Free alongside the V2.5 row", () => {
+    const ids = server.models.map((m) => m.id);
+    expect(ids).toContain("mimo-v2.6-flash-free");
+    expect(ids).toContain("mimo-v2.5-free");
+  });
+
+  it("keeps the server and client projections identical", () => {
+    expect(client.models.map((m) => m.id)).toEqual(server.models.map((m) => m.id));
+    expect(client.features).toEqual(server.features);
+  });
+
+  it("gates the V2.6 free row the same way as the rest of the tier", () => {
+    expect(isFreeTierGateModel("mimo-v2.6-flash-free")).toBe(true);
+  });
+});

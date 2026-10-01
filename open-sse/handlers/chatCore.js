@@ -36,6 +36,7 @@ import { defaultClaudeToolType, shouldDefaultClaudeToolType } from "../translato
 import { resolveSessionId } from "../utils/sessionManager.js";
 import { markPoolUnfit, clearPoolUnfit } from "../services/proxyPoolFitness.js";
 import { isFreeTierGateModel } from "../config/opencodeAgentTools.js";
+import { takeRenamedToolNames } from "../utils/opencodeFingerprint.js";
 // Pool-scoped failure retry: when an executor tags an error as belonging to a
 // proxy pool (region gate, dead proxy, …), re-resolve the proxy config
 // excluding that pool and retry instead of failing the whole account.
@@ -630,6 +631,13 @@ try {
   providerHeaders = result.headers;
   finalBody = result.transformedBody;
   providerResponseFormat = result.responseFormat || targetFormat;
+  // The OpenCode fingerprint helper renames quartet case variants in place on
+  // translatedBody; fold its map into the Claude-cloak map so responses restore
+  // the caller's own spelling.
+  const renamedToolNames = takeRenamedToolNames(translatedBody);
+  if (renamedToolNames?.size) {
+    toolNameMap = new Map([...(toolNameMap || []), ...renamedToolNames]);
+  }
   reqLogger.logTargetRequest(providerUrl, providerHeaders, finalBody);
 } catch (error) {
    trackPendingRequest(model, provider, connectionId, false, true, { requestId });
@@ -782,7 +790,7 @@ const trackDone = () => { releaseUpstreamSlot(); trackPendingRequest(model, prov
 if (!clientRequestedStreaming && providerRequiresStreaming) {
   let result;
   try {
-    result = await handleForcedSSEToJson({ ...sharedCtx, providerResponse, sourceFormat, targetFormat: providerResponseFormat, customToolNames, trackDone, appendLog });
+    result = await handleForcedSSEToJson({ ...sharedCtx, providerResponse, sourceFormat, targetFormat: providerResponseFormat, customToolNames, toolNameMap, trackDone, appendLog });
   } catch (e) {
     releaseUpstreamSlot();
     throw e;

@@ -9,6 +9,7 @@ import {
   cloakClaudeTools,
   decloakStreamChunk,
 } from "../utils/claudeCloaking.js";
+import { restoreToolNames } from "../utils/opencodeFingerprint.js";
 import { filterToOpenAIFormat } from "./formats/openai.js";
 import { normalizeThinkingConfig } from "../services/provider.js";
 import { applyThinking, captureThinking } from "./concerns/thinkingUnified.js";
@@ -215,7 +216,7 @@ export function translateResponse(targetFormat, sourceFormat, chunk, state) {
   // even when no format conversion is needed, so streamed tool_use blocks must
   // be decloaked here or the client sees an unknown ("_ide"-suffixed) tool.
   if (sourceFormat === targetFormat) {
-    return [decloakStreamChunk(chunk, state?.toolNameMap)];
+    return [restoreToolNames(decloakStreamChunk(chunk, state?.toolNameMap), state?.toolNameMap)];
   }
 
   let results = [chunk];
@@ -228,11 +229,12 @@ export function translateResponse(targetFormat, sourceFormat, chunk, state) {
   const directFn = responseRegistry.get(`${targetFormat}:${sourceFormat}`);
   if (directFn) {
     const converted = directFn(chunk, state);
-    return converted
+    const directResults = converted
       ? Array.isArray(converted)
         ? converted
         : [converted]
       : [];
+    return restoreToolNames(directResults, state?.toolNameMap);
   }
 
   // Step 1: target -> openai (if target is not openai)
@@ -276,7 +278,7 @@ export function translateResponse(targetFormat, sourceFormat, chunk, state) {
     results._openaiIntermediate = openaiResults;
   }
 
-  return results;
+  return restoreToolNames(results, state?.toolNameMap);
 }
 
 // Check if translation needed

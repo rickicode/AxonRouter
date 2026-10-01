@@ -168,7 +168,7 @@ describe("OpenCode Zen executor", () => {
     expect(response.usage.total_tokens).toBe(94);
   });
 
-  it("merges genuine core markers into thin chat payloads (free-tier gate)", () => {
+  it("merge the fingerprint quartet into thin chat payloads (free-tier gate)", () => {
     const executor = getExecutor("opencode-zen");
     const body = {
       model: "mimo-v2.5-free",
@@ -182,17 +182,17 @@ describe("OpenCode Zen executor", () => {
     const names = body.tools.map((t) => t?.function?.name || t?.name);
     expect(body.stream).toBe(true);
     expect(body.tool_choice).toBe("auto");
-    for (const m of ["bash", "read"]) expect(names).toContain(m);
+    for (const m of ["bash", "glob", "grep", "read"]) expect(names).toContain(m);
     expect(names).toContain("A");
   });
 
-  it("merges markers into responses payloads in flat wire shape", () => {
+  it("merges the quartet into responses payloads in flat wire shape", () => {
     const executor = getExecutor("opencode-zen");
     const body = { model: "muse-spark-1.3-contributor-free", input: "hi", tools: [] };
     executor.transformRequest("muse-spark-1.3-contributor-free", body, true, { connectionId: "t", rawHeaders: {} });
     const names = body.tools.map((t) => t?.name);
     expect(body.tool_choice).toBe("auto");
-    for (const m of ["bash", "read"]) expect(names).toContain(m);
+    for (const m of ["bash", "glob", "grep", "read"]) expect(names).toContain(m);
   });
 
   it("forwards genuine downstream CLI UAs, synthesizes otherwise", () => {

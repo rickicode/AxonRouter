@@ -2,7 +2,8 @@ import crypto from "node:crypto";
 import { DefaultExecutor } from "./default.js";
 import { resolveSessionId } from "../utils/sessionManager.js";
 import { isMuseSparkModel } from "../providers/models/helpers.js";
-import { cloakOpencodeTools, OPENCODE_UA, GENUINE_CLI_UA_RE, IP_LIMIT_BODY, FREE_TIER_GATE, generateRequestId, translateSessionId, deriveRequestId } from "./opencode.js";
+import { applyFingerprintTools } from "../utils/opencodeFingerprint.js";
+import { OPENCODE_UA, GENUINE_CLI_UA_RE, IP_LIMIT_BODY, FREE_TIER_GATE, generateRequestId, translateSessionId, deriveRequestId } from "./opencode.js";
 import { isFreeTierGateModel } from "../config/opencodeAgentTools.js";
 import {
   normalizeResponsesInput,
@@ -170,9 +171,9 @@ export class OpenCodeZenExecutor extends DefaultExecutor {
     const isResponses = isResponsesModel(model || body?.model) || Array.isArray(out.input);
     if (!isResponses) {
       // Chat Completions path (e.g. mimo free models): same free-tier gate as
-      // the opencode executor — inject decoy bash/read tools to satisfy upstream.
+      // the opencode executor — canonicalise the file-search quartet.
       out.stream = true;
-      cloakOpencodeTools(out, false);
+      applyFingerprintTools(out, false);
       if (!out.tool_choice || out.tool_choice === "none") {
         out.tool_choice = "auto";
       }
@@ -216,7 +217,9 @@ export class OpenCodeZenExecutor extends DefaultExecutor {
     out.stream = isFreeTierGateModel(model || body?.model) ? true : stream === true;
     out.store = false;
     normalizeResponsesTools(out);
-    cloakOpencodeTools(out, true);
+    // Quadrant canonicalisation must run before sanitizeResponsesItems(), which
+    // rewrites flat {name} tools in place and would otherwise drop the map.
+    applyFingerprintTools(out, true);
     if (!out.tool_choice) {
       out.tool_choice = "auto";
     }

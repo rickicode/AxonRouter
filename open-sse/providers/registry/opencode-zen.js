@@ -31,6 +31,11 @@ export default {
   transport: {
     baseUrl: "https://opencode.ai/zen/v1/chat/completions",
     headers: {},
+    // Doubles as the quota API: GET /zen/v1/usage with the API key returns the
+    // rolling / weekly / monthly windows (see services/usage/opencode-zen.js).
+    usage: {
+      url: "https://opencode.ai/zen/v1/usage",
+    },
   },
   // Multi-endpoint: pick the transport matching the client sourceFormat to skip
   // translation. Guarded per-model by `supportedFormats` (see chatCore).
@@ -126,6 +131,7 @@ export default {
 
     // Free models
     { id: "big-pickle", name: "Big Pickle (Free)", supportedFormats: ["openai"] },
+    { id: "mimo-v2.6-flash-free", name: "MiMo V2.6 Flash (Free)", supportedFormats: ["openai"] },
     { id: "mimo-v2.5-free", name: "MiMo V2.5 (Free)", supportedFormats: ["openai"] },
     { id: "ling-3.0-flash-fin-free", name: "Ling 3.0 Flash Fin (Free)", supportedFormats: ["openai"] },
     { id: "nemotron-3-ultra-free", name: "Nemotron 3 Ultra (Free)", supportedFormats: ["openai"] },
@@ -133,4 +139,8 @@ export default {
   ],
   modelsFetcher: { url: "https://opencode.ai/zen/v1/models", type: "openai" },
   passthroughModels: true,
+  features: {
+    usage: true,
+    usageApikey: true,
+  },
 };

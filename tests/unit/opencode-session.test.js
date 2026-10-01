@@ -277,18 +277,19 @@ describe("OpenCode Stable Session Reuse (429 follow-up)", () => {
     expect(second).toBe(first);
   });
 
-  it("cloaks free-tier requests with bash and read decoy tools", () => {
+  it("applies the free-tier fingerprint before the request ships", () => {
     const executor = getExecutor("opencode");
 
-    // Case 1: no tools sent by client -> injects bash + read with tool_choice none
+    // Case 1: no tools sent by client -> the whole quartet is injected, choice none
     const chatNoTools = executor.transformRequest("nemotron-3-ultra-free", {
       messages: [{ role: "user", content: "hi" }],
     });
     expect(chatNoTools.stream).toBe(true);
     expect(chatNoTools.tool_choice).toBe("none");
-    expect(chatNoTools.tools.map((t) => t.function?.name)).toEqual(["bash", "read"]);
+    expect(chatNoTools.tools.map((t) => t.function?.name)).toEqual(["bash", "glob", "grep", "read"]);
 
-    // Case 2: external CLI tools (e.g. Claude Code Bash) -> preserves Bash, appends read
+    // Case 2: external CLI tools (e.g. Claude Code Bash) -> canonicalised, not
+    // duplicated: "Bash" becomes "bash" and the missing members are appended.
     const chatWithTools = executor.transformRequest("nemotron-3-ultra-free", {
       messages: [{ role: "user", content: "hi" }],
       tools: [{ type: "function", function: { name: "Bash", description: "Claude Code tool" } }],
@@ -296,19 +297,22 @@ describe("OpenCode Stable Session Reuse (429 follow-up)", () => {
     });
     expect(chatWithTools.tool_choice).toBe("auto");
     const names = chatWithTools.tools.map((t) => t.function?.name);
-    expect(names).toContain("Bash");
+    expect(names).not.toContain("Bash");
     expect(names).toContain("bash");
     expect(names).toContain("read");
+    expect(names.filter((n) => n === "bash")).toHaveLength(1);
 
-    // Case 3: already has both bash and read -> do not insert anything
+    // Case 3: already has the whole quartet -> nothing inserted, bodies untouched
     const chatFull = executor.transformRequest("nemotron-3-ultra-free", {
       messages: [{ role: "user", content: "hi" }],
       tools: [
         { type: "function", function: { name: "bash", description: "existing" } },
+        { type: "function", function: { name: "glob", description: "existing" } },
+        { type: "function", function: { name: "grep", description: "existing" } },
         { type: "function", function: { name: "read", description: "existing" } },
       ],
     });
-    expect(chatFull.tools.length).toBe(2);
+    expect(chatFull.tools.length).toBe(4);
     expect(chatFull.tools[0].function.description).toBe("existing");
   });
 });

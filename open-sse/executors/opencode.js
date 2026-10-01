@@ -14,7 +14,7 @@ import {
   coerceResponsesOutput,
 } from "../translator/formats/responsesApi.js";
 
-import { OPENCODE_AGENT_TOOLS } from "../config/opencodeAgentTools.js";
+import { applyFingerprintTools } from "../utils/opencodeFingerprint.js";
 import { proxyAwareFetch } from "../utils/proxyFetch.js";
 import { peekStreamHead } from "../utils/streamHandler.js";
 import { STREAM_COMMIT_PEEK_MS } from "../config/runtimeConfig.js";
@@ -22,21 +22,6 @@ import { STREAM_COMMIT_PEEK_MS } from "../config/runtimeConfig.js";
 const HEDGE_DELAY_MS = 1000;
 const MAX_HEDGE_CONCURRENCY = 3;
 const MAX_TOTAL_HEDGE_ATTEMPTS = 4;
-
-export function appendMissingGateTools(existing, toWire) {
-  const list = Array.isArray(existing) ? existing : [];
-  const have = new Set(list.map((t) => toolNameOf(t).toLowerCase()).filter(Boolean));
-  const missing = OPENCODE_AGENT_TOOLS.filter((t) => !have.has(t.name.toLowerCase()));
-  if (missing.length === 0) return list;
-  return list.concat(missing.map(toWire));
-}
-
-export function toolNameOf(t) {
-  if (!t || typeof t !== "object") return "";
-  if (typeof t.name === "string") return t.name;
-  if (t.function && typeof t.function.name === "string") return t.function.name;
-  return "";
-}
 
 const OPENCODE_UA = process.env.OPENCODE_USER_AGENT?.trim() || "opencode/1.18.31";
 export { OPENCODE_UA };
@@ -54,57 +39,13 @@ const SESSION_HEADER = "x-opencode-session";
 const SESSION_FIELD = "_opencodeSession";
 const REQ_FIELD = "_opencodeRequest";
 
-// OpenCode free tier requires both 'bash' and 'read' in tools payload.
-// Injected as cloaked decoy tools so external CLI tools (e.g. Claude Code's
-// Bash/Read) take precedence while satisfying upstream verification.
-// (Validated live 2026-09-18: bare lowercase bash/read + empty schemas pass
-// the gate; the full 12KB genuine schemas are unnecessary and waste ~3K tokens.)
-const OPENCODE_DECOY_CHAT_TOOLS = [
-  {
-    type: "function",
-    function: {
-      name: "bash",
-      description: "This tool is currently unavailable and must not be used.",
-      parameters: { type: "object", properties: {} },
-    },
-  },
-  {
-    type: "function",
-    function: {
-      name: "read",
-      description: "This tool is currently unavailable and must not be used.",
-      parameters: { type: "object", properties: {} },
-    },
-  },
-];
-
-const OPENCODE_DECOY_RESPONSES_TOOLS = [
-  { type: "function", name: "bash", description: "This tool is currently unavailable and must not be used.", parameters: { type: "object", properties: {} } },
-  { type: "function", name: "read", description: "This tool is currently unavailable and must not be used.", parameters: { type: "object", properties: {} } },
-];
-
-export function cloakOpencodeTools(body, isResponses) {
-  if (!body || typeof body !== "object") return;
-  if (isResponses) {
-    if (!Array.isArray(body.tools)) body.tools = [];
-    const names = new Set(body.tools.map((t) => t.name || t.function?.name));
-    for (const tool of OPENCODE_DECOY_RESPONSES_TOOLS) {
-      if (!names.has(tool.name)) body.tools.push({ ...tool });
-    }
-    if (!body.tool_choice) body.tool_choice = "auto";
-  } else {
-    const hasTools = Array.isArray(body.tools) && body.tools.length > 0;
-    if (!hasTools) {
-      body.tools = OPENCODE_DECOY_CHAT_TOOLS.map((t) => ({ ...t, function: { ...t.function } }));
-      if (!body.tool_choice) body.tool_choice = "none";
-    } else {
-      const names = new Set(body.tools.map((t) => t.function?.name || t.name));
-      for (const tool of OPENCODE_DECOY_CHAT_TOOLS) {
-        if (!names.has(tool.function.name)) body.tools.push({ ...tool, function: { ...tool.function } });
-      }
-    }
-  }
-}
+// The free-tier gate requires the canonical lowercase quartet (bash/glob/grep/
+// read). Agent clients such as Claude Code declare those tools capitalised, and
+// a capitalised duplicate beside the canonical name is rejected as a duplicate —
+// so declarations are canonicalised (then restored on the response side) by
+// open-sse/utils/opencodeFingerprint.js rather than appended as decoys.
+// (Validated live 2026-09-18: bare lowercase bash/read + empty schemas pass the
+// gate; the full 12KB genuine schemas are unnecessary and waste ~3K tokens.)
 
 function hasValidOpencodeVersion(ua) {
   const m = String(ua || "").match(/opencode\/(\d+)\.(\d+)(?:\.(\d+))?/i);
@@ -526,12 +467,12 @@ export class OpenCodeExecutor extends BaseExecutor {
       body.store = false;
       normalizeResponsesTools(body);
       sanitizeResponsesItems(body);
-      cloakOpencodeTools(body, true);
+      applyFingerprintTools(body, true);
       if (isAutoOnly) {
         body.tool_choice = "auto";
       }
     } else if (body && typeof body === "object") {
-      cloakOpencodeTools(body, false);
+      applyFingerprintTools(body, false);
     }
     return injectReasoningContent({ provider: this.provider, model, body });
   }

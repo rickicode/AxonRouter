@@ -59,37 +59,46 @@ describe("opencode client identity masquerade", () => {
   });
 });
 
-describe("opencode gate decoy cloaking (upstream v0.5.81)", () => {
+describe("opencode gate fingerprint cloaking", () => {
   const toolNames = (tools) => tools.map((t) => t?.function?.name || t?.name);
   const stubs = (...names) => names.map((n) => ({
     type: "function", function: { name: n, description: n, parameters: { type: "object", properties: {} } },
   }));
 
-  it("appends missing decoy tools (bash, read) to client tools, keeps client tools", () => {
+  it("appends the missing quartet members and keeps client tools", () => {
     const ex = new OpenCodeExecutor();
     const body = { model: "mimo-v2.5-free", messages: [], tool_choice: "none", tools: stubs("A", "B") };
     ex.transformRequest("mimo-v2.5-free", body, true, creds());
     const names = toolNames(body.tools);
-    expect(names).toContain("bash");
-    expect(names).toContain("read");
+    for (const m of ["bash", "glob", "grep", "read"]) expect(names).toContain(m);
     expect(names).toContain("A");
     expect(names).toContain("B");
   });
 
-  it("does not duplicate decoy tools already present", () => {
+  it("does not duplicate quartet tools already present", () => {
     const ex = new OpenCodeExecutor();
-    const body = { model: "mimo-v2.5-free", messages: [], tools: stubs("read", "bash") };
+    const body = { model: "mimo-v2.5-free", messages: [], tools: stubs("read", "bash", "glob", "grep") };
     ex.transformRequest("mimo-v2.5-free", body, true, creds());
     const names = toolNames(body.tools);
     expect(names.filter((n) => n === "read")).toHaveLength(1);
     expect(names.filter((n) => n === "bash")).toHaveLength(1);
   });
 
-  it("injects decoy tools when tools are empty", () => {
+  it("canonicalises a capitalized quartet variant instead of duplicating it", () => {
+    // "Bash" beside "bash" is rejected upstream as a duplicate declaration, so
+    // the client's spelling is renamed (and restored on the response side).
+    const ex = new OpenCodeExecutor();
+    const body = { model: "mimo-v2.5-free", messages: [], tools: stubs("Bash", "Read", "Grep", "Glob") };
+    ex.transformRequest("mimo-v2.5-free", body, true, creds());
+    const names = toolNames(body.tools).sort();
+    expect(names).toEqual(["bash", "glob", "grep", "read"]);
+  });
+
+  it("injects the full fingerprint quartet when tools are empty", () => {
     const ex = new OpenCodeExecutor();
     const body = { model: "mimo-v2.5-free", messages: [] };
     ex.transformRequest("mimo-v2.5-free", body, true, creds());
-    expect(toolNames(body.tools).sort()).toEqual(["bash", "read"]);
+    expect(toolNames(body.tools).sort()).toEqual(["bash", "glob", "grep", "read"]);
     expect(body.tool_choice).toBe("none");
   });
 

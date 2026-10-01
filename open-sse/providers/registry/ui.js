@@ -9990,6 +9990,13 @@ export const REGISTRY_UI = [
         ]
       },
       {
+        id: "mimo-v2.6-flash-free",
+        name: "MiMo V2.6 Flash (Free)",
+        supportedFormats: [
+          "openai"
+        ]
+      },
+      {
         id: "mimo-v2.5-free",
         name: "MiMo V2.5 (Free)",
         supportedFormats: [
@@ -10017,7 +10024,11 @@ export const REGISTRY_UI = [
           "openai"
         ]
       }
-    ]
+    ],
+    features: {
+      usage: true,
+      usageApikey: true
+    }
   },
   {
     id: "workbuddy",
