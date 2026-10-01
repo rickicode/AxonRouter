@@ -705,7 +705,41 @@ export async function getProviderSummaryStats() {
   return cachedSummaryStats;
 }
 
+/**
+ * Connections bound to each proxy pool, keyed by pool id.
+ *
+ * Cached for a minute because it is expensive and effectively static. The query reads
+ * the binding out of a jsonb path in providerSpecificData and, on this deployment,
+ * cost 318ms: a sequential scan over 51663 connections, twice, because the scalar and
+ * array branches are separate statements inside the CTE. The dashboard asks for this
+ * on every proxy-pools page load.
+ *
+ * Neither branch is index-backed in practice. Two partial indexes were added
+ * (idx_pc_proxy_pool_id, idx_pc_proxy_pool_ids) and the planner still chooses a
+ * sequential scan, because it cannot estimate the selectivity of a jsonb extraction
+ * and assumes nearly every row matches. Rewriting the join the other way round, from
+ * proxy_pools to provider_connections, produces a nested loop with the OR in a join
+ * filter: 3.4 million comparisons and a ten-million cost estimate. Neither the index
+ * nor the join rewrite is worth it for a value that is currently always absent.
+ *
+ * Caching sidesteps the query shape entirely. The underlying data changes when an
+ * operator rebinds a connection, which is rare, and the dashboard renders this as a
+ * plain count where a minute of staleness is not meaningful.
+ */
 export async function getProxyPoolBoundCounts() {
+  const now = Date.now();
+  if (boundCountsCache && now < boundCountsCache.expiresAt) return boundCountsCache.value;
+  const value = await loadProxyPoolBoundCounts();
+  // An empty result is a legitimate value, not a failure, so it is cached too —
+  // that is the common case and the expensive one.
+  boundCountsCache = { value, expiresAt: now + POOL_BOUND_COUNTS_TTL_MS };
+  return value;
+}
+
+const POOL_BOUND_COUNTS_TTL_MS = 60 * 1000;
+let boundCountsCache = null;
+
+async function loadProxyPoolBoundCounts() {
   const db = await getAdapter();
   const rows = await db.all(`
     WITH individual_pools AS (
