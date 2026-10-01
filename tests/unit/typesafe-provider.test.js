@@ -154,6 +154,8 @@ describe("Jev model picker data + settings defaults", () => {
       "opencode|jev-1.13-free",
       "opencode|jev-1.13",
       "beatapi|jev-1.13-free",
+      "v1m|rev-latest",
+      "v1m|v1m-decision-engine",
       "opencode-zen|jev-1.13-free",
       "opencode-zen|jev-1.13",
     ]);

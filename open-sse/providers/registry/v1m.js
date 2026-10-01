@@ -12,7 +12,7 @@ export default {
   id: "v1m",
   priority: 45,
   alias: "v1m",
-  aliases: ["systemone", "jev"],
+  aliases: ["systemone"],
   uiAlias: "v1m",
   display: {
     name: "v1m (System One)",
@@ -27,7 +27,6 @@ export default {
   },
   category: "apikey",
   authType: "apikey",
-  hasProviderSpecificData: true,
   serviceKinds: ["jev"],
   jevConfig: {
     endpoint: "https://v1m.ir/v1/systemone",

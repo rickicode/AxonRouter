@@ -11375,8 +11375,7 @@ export const REGISTRY_UI = [
     priority: 45,
     alias: "v1m",
     aliases: [
-      "systemone",
-      "jev"
+      "systemone"
     ],
     uiAlias: "v1m",
     serviceKinds: ["jev"],
@@ -11410,7 +11409,6 @@ export const REGISTRY_UI = [
       }
     },
     authType: "apikey",
-    hasProviderSpecificData: true,
     models: [
       {
         id: "rev-latest",

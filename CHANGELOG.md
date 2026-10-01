@@ -1,3 +1,13 @@
+# v0.1.5 (2026-10-02)
+
+## Features
+- **Five upstream providers ported into the registry**: `muse` (Meta Model API — dual auth: Muse Code subscription via Meta device code mints an `LLM|...` key, or a pay-as-you-go key; Chat Completions + Responses transports with the `museHeaders` hook adding `x-api-version` only on subscription requests), `tinyfish` (webSearch + webFetch on one key, with its own search builder, normalizer, fixed-10-page offset handling and fetch runner), `dahl` (Gonka inference node, public catalogue via `modelsFetcher` + `passthroughModels`), `agnes` (Agnes AI free-tier aggregator, curated seed + passthrough), and `v1m`. Registry order, `REGISTRY_UI` projection, `PROVIDER_MODELS`, pricing (Muse Spark), OAuth provider wiring, per-provider model/key-test routes, and `/public/providers/*.png` icons all move with them.
+- **`v1m` joins the Jev classifier surface**: upstream ships v1m as a native `systemone` provider; this tree generalized that subsystem to `jev`, so the entry declares `serviceKinds: ["jev"]` + `jevConfig` and the alias `systemone` — it appears in the combo classifier picker and the key pool exactly like `typesafe`. (`jev` stays TypeSafe's alias.)
+
+## Tests
+- One focused suite per provider (`dahl-provider`, `agnes-provider`, `v1m-systemone-provider`, `tinyfish-web-provider`, `muse-provider`): registry entry + id/alias resolution, `REGISTRY_UI` projection, the advertised capability for the search/fetch provider, v1m's picker/pool membership, and the Muse header hook.
+- `typesafe-provider` picker-order assertion extended for the two new v1m classifier models.
+
 # v0.1.4 (2026-09-30)
 
 > NOTE: the historical `0.5.x` entries below came from the 9router-X fork lineage
