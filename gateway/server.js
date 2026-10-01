@@ -91,6 +91,32 @@ setInterval(async () => {
   }
 }, 60 * 1000).unref?.();
 
+// Proxy health sweep, next to the fetcher that makes it necessary. The fetcher
+// above replaces each proxy group's whole pool set every five minutes and roughly a
+// quarter of what those Bright Data feeds return is unusable (isp_proxy1,
+// isp_shared1 and unblocker1 measured 0/24 answering). The pool picker cannot react
+// to that on its own: it round-robins, and the existing runtime counters in
+// lib/network/proxyHealth.js need three consecutive failures on the same pool, which
+// a set of ~2700 pools rotating every few minutes can never produce.
+//
+// This probes a bounded slice per pass and records the verdict in
+// proxy_pools.test_status, which the picker prefers. It never deactivates a pool —
+// that would fight the fetcher and could empty a group on a transient blip.
+//
+// Scheduled here rather than in shared/services/initializeApp.js because that file
+// is reached through bootstrap.js, which nothing imports: the auto-fetcher and
+// state sweeper scheduled there have never actually run. The writes are read by the
+// web/api process through the same database (its pool cache TTL is 5s), so one
+// sweeper covers every process.
+setTimeout(async () => {
+  try {
+    const { startProxyHealthSweep } = await import("../src/lib/network/proxyHealthSweep.js");
+    startProxyHealthSweep();
+  } catch (err) {
+    console.error("[proxyHealthSweep] start error:", err);
+  }
+}, 90 * 1000).unref?.();
+
 function isRateLimited(ip) {
   if (!ip || ip === "127.0.0.1" || ip === "::1" || ip === "::ffff:127.0.0.1") return false;
   const now = Date.now();
