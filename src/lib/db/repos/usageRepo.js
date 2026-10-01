@@ -337,13 +337,23 @@ async function getConnectionMapCached() {
 const poolLabelCache = { map: {}, ts: 0 };
 const POOL_LABEL_CACHE_TTL_MS = 30_000;
 
-async function getProxyPoolLabelMap(poolIds) {
+export async function getProxyPoolLabelMap(poolIds) {
   const wanted = [...new Set((poolIds || []).filter(Boolean))];
-  if (wanted.length === 0) return poolLabelCache.map || {};
+  if (wanted.length === 0) return {};
 
   const fresh = Date.now() - poolLabelCache.ts < POOL_LABEL_CACHE_TTL_MS;
-  const map = { ...(poolLabelCache.map || {}) };
-  const missing = fresh ? wanted.filter((id) => map[id] === undefined) : wanted;
+  // Rebuilt from `wanted` on every call rather than seeded from the previous map and
+  // added to. Seeding made the cache grow monotonically: the auto-fetcher replaces
+  // ~2000 pools with fresh uuids every 300s, so every id ever referenced by an
+  // in-flight request stayed resident for the life of the process. Only the current
+  // callers' ids are ever read back, so a stale id is dead weight, not a cache entry.
+  const map = {};
+  const missing = [];
+  for (const id of wanted) {
+    const cached = poolLabelCache.map[id];
+    if (fresh && cached !== undefined) map[id] = cached;
+    else missing.push(id);
+  }
 
   if (missing.length) {
     try {
