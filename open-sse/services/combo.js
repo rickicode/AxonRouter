@@ -1034,6 +1034,9 @@ export async function handleDifficultyChat({ body, models = [], handleSingleMode
           handleSingleModel,
           judgeTimeoutMs: cfg.judgeTimeoutMs,
           cachedTier,
+          // Same reason as the single-upstream path below: the chain's jev hops call
+          // classifyWithJev, whose egress rotation is gated on this being present.
+          resolveProxy,
           timeoutMs: cfg.jevTimeoutMs,
           policy,
           log,
@@ -1044,6 +1047,14 @@ export async function handleDifficultyChat({ body, models = [], handleSingleMode
       : await classifyWithJev(body, {
           // endpoint + model + API key already resolved once (TypeSafe pool vs Zen)
           target: jevTarget,
+          // Must be handed to classifyWithJev, not only to resolveJevTarget. The
+          // egress rotation lives inside classifyWithJev and is gated on
+          // options.resolveProxy, so resolving the target with a proxy resolver and
+          // then not forwarding it left canRotate permanently falsy — every
+          // transport failure escalated on the first dead pool instead of trying a
+          // second one. The unit tests missed it because they call classifyWithJev
+          // directly; production reaches it through here.
+          resolveProxy,
           timeoutMs: cfg.jevTimeoutMs,
           policy,
           log,
@@ -1938,6 +1949,11 @@ export async function classifyWithJevChain(body, options = {}) {
         } else {
           result = await classifyWithJev(body, {
             target,
+            // Forwarded so a hop that dies on a dead egress retries through a
+            // different pool before the chain moves on to the next upstream —
+            // without it a chain would burn a second upstream on what is really a
+            // transport blip.
+            resolveProxy: options.resolveProxy,
             timeoutMs,
             policy,
             log,
