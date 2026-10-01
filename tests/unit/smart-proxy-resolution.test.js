@@ -113,16 +113,6 @@ describe("Smart Proxy Resolution & Multi-Pool Candidate Failover", () => {
     expect(res.connectionProxyUrl).toBe("http://3.3.3.3:80");
   });
 
-  it("prevents direct connection leak and throws when strictProxy is true and no proxy URL is available", async () => {
-    await expect(
-      proxyAwareFetch("https://api.openai.com/v1/chat/completions", {}, {
-        strictProxy: true,
-        connectionProxyEnabled: false,
-        connectionProxyUrl: "",
-      }),
-    ).rejects.toThrow(/\[ProxyFetch\] Proxy required but no proxy URL configured or available/);
-  });
-
   it("passes connection proxyOptions into refreshTokenByProvider", async () => {
     const creds = {
       refreshToken: "rt-test-token",

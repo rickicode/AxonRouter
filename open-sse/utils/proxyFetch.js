@@ -398,10 +398,6 @@ export async function proxyAwareFetch(url, options = {}, proxyOptions = null) {
   const envProxyUrl = connectionProxyUrl ? null : normalizeProxyUrl(getEnvProxyUrl(targetUrl));
   const proxyUrl = connectionProxyUrl || envProxyUrl;
 
-  if (proxyOptions?.strictProxy === true && !proxyUrl) {
-    throw new Error("[ProxyFetch] Proxy required but no proxy URL configured or available (strictProxy=true)");
-  }
-
   // Fail-closed proxy: for keyless/noAuth providers the egress IP *is* the
   // identity (per-IP quota). A silent fallback to direct would burn the shared
   // server IP, so throw instead and let chatCore rotate to the next pool.
@@ -456,10 +452,10 @@ export async function proxyAwareFetch(url, options = {}, proxyOptions = null) {
   // exposing the real address. The catch blocks above only cover a proxy that
   // was actually tried.
   //
-  // Gate on a proxy being *intended*: callers like the Qoder executor set
-  // strictProxy to mean "do not replay this request directly if the proxy
-  // fails" (a replayed COSY signature returns 403), not "a proxy is required".
-  // With nothing configured they must keep working.
+  // Gate on a proxy being *intended*: strictProxy also means "do not replay
+  // this request directly if the proxy fails" (a replayed signed request is
+  // rejected upstream), not necessarily "a proxy is required". With nothing
+  // configured those callers must keep working.
   const proxyIntended = proxyOptions?.proxyPoolId
     || proxyOptions?.enabled === true
     || proxyOptions?.connectionProxyEnabled === true

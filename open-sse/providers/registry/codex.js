@@ -94,7 +94,10 @@ export default {
       codex_cli_simplified_flow: "true",
       originator: "codex_cli_rs",
     },
-    refreshLeadMs: 432000000,
+    // Access tokens live ~1h; a 5d lead rotated the refresh token on EVERY call.
+    // OpenAI rotates the refresh token on each refresh and revokes the whole
+    // session on reuse, so the over-eager lead logged accounts out.
+    refreshLeadMs: 600000,
     refresh: {
       encoding: "form",
       scope: "openid profile email offline_access",
