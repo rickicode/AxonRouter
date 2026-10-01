@@ -6,6 +6,7 @@ import {
   getSettings,
 } from "@/models";
 import { ensurePoolFitnessHydrated, fitPoolIds } from "open-sse/services/proxyPoolFitness.js";
+import { rankPoolsByHealth } from "./proxyHealthRank.js";
 
 // Safely normalize any value into a trimmed string.
 function normalizeString(value) {
@@ -73,13 +74,14 @@ export function evictProxyPoolFromRotateState(poolId) {
  * @param {string[]} poolIds
  * @param {string} strategy
  * @param {string} providerId
- * @param {{ scope?: string, excludeIds?: string[] }} [opts]
+ * @param {{ scope?: string, excludeIds?: string[], health?: Map<string, unknown>|Record<string, unknown> }} [opts]
  */
 export function pickProxyPoolId(poolIds, strategy, providerId, opts = {}) {
   if (!poolIds || poolIds.length === 0) return null;
   const {
     scope = null,
     excludeIds = [],
+    health = null,
     isSticky = false,
     stickyLimit = 3,
     groupId = null,
@@ -105,6 +107,18 @@ export function pickProxyPoolId(poolIds, strategy, providerId, opts = {}) {
   if (scope) {
     eligible = fitPoolIds(eligible, scope);
   }
+
+  // Health ranking: prefer pools that answered a real probe. Applied to EVERY
+  // strategy, not just "smart", because the pools that arrive from the Bright Data
+  // feeds are a mix of working and dead regardless of how rotation is configured —
+  // round-robining evenly across a list that is ~27% dead means roughly one request
+  // in four goes out through an egress that cannot connect. Fail-open: with no
+  // health data this is a no-op.
+  //
+  // Runs BEFORE the empty-list fallback so that "every pool marked unfit" still
+  // falls back rather than failing, and so the release of a sticky pool that has
+  // since been marked bad falls out of the existing eligibility check below.
+  eligible = rankPoolsByHealth(eligible, health);
 
   if (eligible.length === 0) {
     // If every pool is marked unfit, Freebuff, OpenCode & Kilocode-Free fail fast so caller
@@ -310,10 +324,18 @@ export async function resolveConnectionProxyConfig(
      */
     if (proxyPoolIds.length > 0) {
       let candidateIds = proxyPoolIds.filter((id) => !(excludePoolIds || []).includes(id));
+      // Health map for the ranker. groupPoolMap already holds the full pool rows
+      // that were loaded to resolve this group, so the probe results come for free
+      // — no extra query. Pools that were not in the map simply read as unknown and
+      // the ranker leaves them alone.
+      const poolHealth = groupPoolMap
+        ? new Map(Array.from(groupPoolMap, ([id, pool]) => [id, pool?.testStatus]))
+        : null;
       while (candidateIds.length > 0) {
         selectedPoolId = pickProxyPoolId(candidateIds, proxyRotationStrategy, connectionId, {
           scope: multiPoolScope,
           excludeIds: excludePoolIds,
+          health: poolHealth,
           isSticky,
           stickyLimit,
           groupId: resolvedGroupId,
