@@ -10924,6 +10924,345 @@ export const REGISTRY_UI = [
         default: true
       }
     ]
+  },
+{
+    id: "beatapi",
+    priority: 41,
+    alias: "beatapi",
+    aliases: ["beat", "bt", "beat-ai"],
+    uiAlias: "bt",
+    category: "apikey",
+    display: {
+      name: "BeatAPI",
+      icon: "music_note",
+      color: "#F43F5E",
+      textIcon: "BT",
+      website: "https://beatapi.io",
+      notice: {
+        text: "One key for text, image, video and the System One (Jev) classifier. Text answers synchronously (OpenAI, Anthropic and Gemini request shapes); image and video are asynchronous tasks — submit, then poll the returned task id. Free credit covers space-bunny-alpha, the Jev endpoint and part of the image catalogue; video and most text models need a top-up.",
+        apiKeyUrl: "https://beatapi.io/dashboard/apikeys"
+      }
+    },
+    authType: "apikey",
+    authModes: ["apikey"],
+    serviceKinds: ["llm", "image", "video", "jev"],
+    jevConfig: {
+      endpoint: "https://api.beatapi.io/v1/systemone",
+      models: [
+        {
+          id: "jev-1.13-free",
+          name: "Jev 1.13 Free (System One)",
+          default: true,
+          requiresKey: true
+        }
+      ],
+      keyPool: true
+    },
+    imageConfig: {
+      baseUrl: "https://api.beatapi.io/v1/images/tasks"
+    },
+    videoConfig: {
+      baseUrl: "https://api.beatapi.io/v1/videos/tasks"
+    },
+    hiddenKinds: ["video"],
+    models: [
+      {
+        id: "jev-1.13-free",
+        name: "Jev 1.13 Free (System One)",
+        kind: "jev",
+        targetFormat: "systemone",
+        default: true
+      },
+      {
+        id: "space-bunny-alpha",
+        name: "Space Bunny Alpha",
+        capabilities: ["vision", "videoInput", "tools"]
+      },
+      {
+        id: "gpt-6-astra",
+        name: "GPT 6 Astra"
+      },
+      {
+        id: "gpt-5.6-terra",
+        name: "GPT 5.6 Terra"
+      },
+      {
+        id: "gpt-5.6-luna",
+        name: "GPT 5.6 Luna"
+      },
+      {
+        id: "gpt-5.6-sol",
+        name: "GPT 5.6 Sol"
+      },
+      {
+        id: "claude-fable-5-1",
+        name: "Claude Fable 5.1"
+      },
+      {
+        id: "claude-opus-5",
+        name: "Claude Opus 5"
+      },
+      {
+        id: "claude-opus-5-5",
+        name: "Claude Opus 5.5"
+      },
+      {
+        id: "claude-sonnet-5",
+        name: "Claude Sonnet 5"
+      },
+      {
+        id: "claude-haiku-4-5-20251001",
+        name: "Claude Haiku 4.5"
+      },
+      {
+        id: "gemini-3.8-flash",
+        name: "Gemini 3.8 Flash"
+      },
+      {
+        id: "gemini-3.7-flash",
+        name: "Gemini 3.7 Flash"
+      },
+      {
+        id: "gemini-3.6-flash",
+        name: "Gemini 3.6 Flash"
+      },
+      {
+        id: "gemini-3.1-pro-preview",
+        name: "Gemini 3.1 Pro Preview"
+      },
+      {
+        id: "grok-4.5",
+        name: "Grok 4.5"
+      },
+      {
+        id: "grok-4.6",
+        name: "Grok 4.6"
+      },
+      {
+        id: "grok-4.7",
+        name: "Grok 4.7"
+      },
+      {
+        id: "deepseek-v4.1-flash",
+        name: "DeepSeek V4.1 Flash"
+      },
+      {
+        id: "deepseek-v4-pro-0813",
+        name: "DeepSeek V4 Pro 0813"
+      },
+      {
+        id: "deepseek-v4-flash-0731",
+        name: "DeepSeek V4 Flash 0731"
+      },
+      {
+        id: "kimi-k2.6",
+        name: "Kimi K2.6"
+      },
+      {
+        id: "kimi-k2.7-code",
+        name: "Kimi K2.7 Code"
+      },
+      {
+        id: "kimi-k3",
+        name: "Kimi K3"
+      },
+      {
+        id: "glm-5.3",
+        name: "GLM 5.3"
+      },
+      {
+        id: "glm-5.3-flash",
+        name: "GLM 5.3 Flash"
+      },
+      {
+        id: "MiniMax-M3",
+        name: "MiniMax M3",
+        model: "MiniMax-M3"
+      },
+      {
+        id: "qwen3.7-max",
+        name: "Qwen 3.7 Max"
+      },
+      {
+        id: "qwen3.8-flash",
+        name: "Qwen 3.8 Flash"
+      },
+      {
+        id: "qwen3.8-max",
+        name: "Qwen 3.8 Max"
+      },
+      {
+        id: "hy3",
+        name: "Hunyuan 3"
+      },
+      {
+        id: "hy4-preview",
+        name: "Hunyuan 4 Preview"
+      },
+      {
+        id: "nano-banana",
+        name: "Nano Banana",
+        kind: "image",
+        params: ["aspect_ratio", "resolution", "output_format"],
+        beatFree: true
+      },
+      {
+        id: "nano-banana-2-lite",
+        name: "Nano Banana 2 Lite",
+        kind: "image",
+        params: ["aspect_ratio", "resolution", "output_format"],
+        beatFree: true
+      },
+      {
+        id: "nano-banana-pro",
+        name: "Nano Banana Pro",
+        kind: "image",
+        params: ["aspect_ratio", "resolution", "output_format"],
+        beatFree: true
+      },
+      {
+        id: "gpt-image-2",
+        name: "GPT Image 2",
+        kind: "image",
+        params: ["aspect_ratio", "resolution", "size", "background"],
+        beatFree: true
+      },
+      {
+        id: "gpt-image-2.5-flare",
+        name: "GPT Image 2.5 Flare",
+        kind: "image",
+        params: ["aspect_ratio", "resolution", "size", "background"],
+        beatFree: true
+      },
+      {
+        id: "gpt-image-2.5-sunburst",
+        name: "GPT Image 2.5 Sunburst",
+        kind: "image",
+        params: ["aspect_ratio", "resolution", "size", "background"],
+        beatFree: true
+      },
+      {
+        id: "grok-imagine-image-2.0",
+        name: "Grok Imagine Image 2.0",
+        kind: "image",
+        params: ["aspect_ratio"],
+        beatFree: true
+      },
+      {
+        id: "qwen-image-2.1",
+        name: "Qwen Image 2.1",
+        kind: "image",
+        params: ["aspect_ratio", "resolution", "output_format", "seed", "enhance_prompt"],
+        beatFree: false
+      },
+      {
+        id: "seedream-5-pro",
+        name: "Seedream 5.0 Pro",
+        kind: "image",
+        params: ["aspect_ratio", "resolution", "output_format"],
+        beatFree: false
+      },
+      {
+        id: "nano-banana-2",
+        name: "Nano Banana 2 (listed, not yet served)",
+        kind: "image",
+        params: ["aspect_ratio", "resolution", "output_format"],
+        beatFree: false,
+        hidden: true
+      },
+      {
+        id: "minimax-h3",
+        name: "MiniMax H3",
+        kind: "video",
+        params: ["duration", "aspect_ratio", "resolution"]
+      },
+      {
+        id: "minimax-h3-fast",
+        name: "MiniMax H3 Fast",
+        kind: "video",
+        params: ["duration", "aspect_ratio", "resolution"]
+      },
+      {
+        id: "minimax-h3-normal",
+        name: "MiniMax H3 Normal",
+        kind: "video",
+        params: ["duration", "aspect_ratio", "resolution", "seed"]
+      },
+      {
+        id: "minimax-h3-max",
+        name: "MiniMax H3 Max",
+        kind: "video",
+        params: ["duration", "resolution", "seed"]
+      },
+      {
+        id: "minimax-h3-max-turbo",
+        name: "MiniMax H3 Max Turbo",
+        kind: "video",
+        params: ["duration", "resolution", "seed"]
+      },
+      {
+        id: "seedance-2",
+        name: "Seedance 2.0",
+        kind: "video",
+        params: ["duration", "aspect_ratio", "resolution", "generate_audio"]
+      },
+      {
+        id: "seedance-2-fast",
+        name: "Seedance 2.0 Fast",
+        kind: "video",
+        params: ["duration", "aspect_ratio", "resolution", "generate_audio"]
+      },
+      {
+        id: "seedance-2-mini",
+        name: "Seedance 2.0 Mini",
+        kind: "video",
+        params: ["duration", "aspect_ratio", "resolution"]
+      },
+      {
+        id: "seedance-2.5",
+        name: "Seedance 2.5",
+        kind: "video",
+        params: ["duration", "aspect_ratio", "resolution", "generate_audio", "seed"]
+      },
+      {
+        id: "veo-3.1",
+        name: "Veo 3.1",
+        kind: "video",
+        params: ["duration", "aspect_ratio", "resolution", "quality", "watermark", "enable_translation"]
+      },
+      {
+        id: "kling-v3",
+        name: "Kling V3",
+        kind: "video",
+        params: ["duration", "aspect_ratio", "resolution", "sound", "multi_shots"]
+      },
+      {
+        id: "wan-3.0",
+        name: "Wan 3.0",
+        kind: "video",
+        params: ["duration", "aspect_ratio", "resolution"]
+      },
+      {
+        id: "wan-3.0-prime",
+        name: "Wan 3.0 Prime",
+        kind: "video",
+        params: ["duration", "aspect_ratio", "resolution"]
+      },
+      {
+        id: "grok-imagine-video-1.5",
+        name: "Grok Imagine Video 1.5",
+        kind: "video",
+        params: ["duration", "aspect_ratio", "resolution"],
+        hidden: true
+      },
+      {
+        id: "happyhorse-1.1",
+        name: "HappyHorse 1.1",
+        kind: "video",
+        params: ["duration", "aspect_ratio", "resolution"],
+        hidden: true
+      }
+    ]
   }
 ];
 

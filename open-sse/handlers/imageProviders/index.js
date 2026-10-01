@@ -12,6 +12,7 @@ import blackForestLabs from "./blackForestLabs.js";
 import runwayml from "./runwayml.js";
 import cloudflareAi from "./cloudflareAi.js";
 import antigravity from "./antigravity.js";
+import beatapi from "./beatapi.js";
 
 const ADAPTERS = {
   openai: createOpenAIAdapter("openai"),
@@ -33,6 +34,7 @@ const ADAPTERS = {
   "black-forest-labs": blackForestLabs,
   runwayml,
   "cloudflare-ai": cloudflareAi,
+  beatapi,
 };
 
 export function getImageAdapter(provider) {

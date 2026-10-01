@@ -134,6 +134,7 @@ import p136 from "./llmtech.js";
 import p137 from "./llm7-free.js";
 import p138 from "./atria-asi.js";
 import p139 from "./typesafe.js";
+import p140 from "./beatapi.js";
 export default [
   p0,
   p1,
@@ -270,4 +271,5 @@ export default [
   p137,
   p138,
   p139,
+  p140,
 ];
