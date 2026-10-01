@@ -169,10 +169,18 @@ CREATE TABLE IF NOT EXISTS active_requests (
   connection_id VARCHAR(64),
   api_key VARCHAR(128),
   is_stream BOOLEAN DEFAULT true,
+  proxy_pool_id TEXT,
   started_at TIMESTAMPTZ DEFAULT NOW(),
   expires_at TIMESTAMPTZ DEFAULT (NOW() + INTERVAL '120 seconds')
 );
 CREATE INDEX IF NOT EXISTS idx_active_requests_lookup ON active_requests (expires_at, started_at DESC);
+
+-- Egress actually used, for requests whose account is a synthetic keyless one.
+-- Providers with noAuth (opencode, beatapi, …) are served by a connection whose id
+-- is the literal "noauth", so the dashboard had nothing meaningful to show in the
+-- Account column — the proxy pool is what actually identifies that request's egress.
+-- Nullable: authenticated requests have a real account name and do not need it.
+ALTER TABLE active_requests ADD COLUMN IF NOT EXISTS proxy_pool_id TEXT;
 
 
 -- Auto-seed default settings & master password (12345677) on initial install

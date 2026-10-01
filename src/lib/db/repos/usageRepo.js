@@ -330,8 +330,51 @@ async function getConnectionMapCached() {
   return connCache.map;
 }
 
-async function getApiKeyNameMap() {
-  return readJsonCache("axon:apikey_names", 60, async () => {
+// Pool id -> "name (group)". Built from the shared cache like the other label maps,
+// so the dashboard can show a readable egress instead of a UUID. Only the pool ids
+// the current in-flight requests reference are looked up — with ~3000 pools alive
+// there is no reason to read them all on a 3s poll.
+const poolLabelCache = { map: {}, ts: 0 };
+const POOL_LABEL_CACHE_TTL_MS = 30_000;
+
+async function getProxyPoolLabelMap(poolIds) {
+  const wanted = [...new Set((poolIds || []).filter(Boolean))];
+  if (wanted.length === 0) return poolLabelCache.map || {};
+
+  const fresh = Date.now() - poolLabelCache.ts < POOL_LABEL_CACHE_TTL_MS;
+  const map = { ...(poolLabelCache.map || {}) };
+  const missing = fresh ? wanted.filter((id) => map[id] === undefined) : wanted;
+
+  if (missing.length) {
+    try {
+      const db = await getAdapter();
+      const rows = await db.all(
+        `SELECT p.id, p.name, p.proxy_url, g.name AS group_name
+           FROM proxy_pools p
+           LEFT JOIN proxy_groups g ON g.id = p."group"
+          WHERE p.id = ANY($1::text[])`,
+        [missing]
+      );
+      for (const r of rows || []) {
+        // A pool with no name still deserves a label: fall back to the host, which
+        // is the part an operator can recognise.
+        let host = "";
+        try { host = r.proxy_url ? new URL(r.proxy_url).host : ""; } catch { host = ""; }
+        const name = r.name || host || r.id.slice(0, 8);
+        map[r.id] = r.group_name ? `${name} (${r.group_name})` : name;
+      }
+      // Remember "looked up, has no row" so a stale id is not re-queried every poll.
+      for (const id of missing) if (map[id] === undefined) map[id] = null;
+    } catch {
+      /* fail-open: the UI falls back to the raw id */
+    }
+    poolLabelCache.map = map;
+    poolLabelCache.ts = Date.now();
+  }
+  return map;
+}
+
+async function getApiKeyNameMap() {  return readJsonCache("axon:apikey_names", 60, async () => {
     const { getApiKeys } = await import("./apiKeysRepo.js");
     const keys = await getApiKeys();
     const map = {};
@@ -420,6 +463,10 @@ export async function trackPendingRequest(model, provider, connectionId, started
       provider,
       connectionId,
       apiKey: options.apiKey || null,
+      // Egress actually in use. For keyless providers the connection id is the
+      // literal "noauth", so this is the only thing that identifies where the
+      // request went; the dashboard prefers it over "noauth" in the Account column.
+      proxyPoolId: options.proxyPoolId || null,
       isStream: options.isStream !== undefined ? Boolean(options.isStream) : true,
       startedAt: new Date().toISOString(),
     };
@@ -428,10 +475,18 @@ export async function trackPendingRequest(model, provider, connectionId, started
     queueActiveRequestWrite(timerKey, async () => {
       const db = await getAdapter();
       await db.run(
-        `INSERT INTO active_requests (request_id, model, provider, connection_id, api_key, is_stream, started_at, expires_at)
-         VALUES ($1, $2, $3, $4, $5, $6, NOW(), NOW() + INTERVAL '120 seconds')
+        `INSERT INTO active_requests (request_id, model, provider, connection_id, api_key, is_stream, proxy_pool_id, started_at, expires_at)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, NOW(), NOW() + INTERVAL '120 seconds')
          ON CONFLICT (request_id) DO UPDATE SET expires_at = NOW() + INTERVAL '120 seconds'`,
-        [timerKey, model, provider, connectionId || null, options.apiKey || null, options.isStream !== undefined ? Boolean(options.isStream) : true]
+        [
+          timerKey,
+          model,
+          provider,
+          connectionId || null,
+          options.apiKey || null,
+          options.isStream !== undefined ? Boolean(options.isStream) : true,
+          options.proxyPoolId || null,
+        ]
       );
     }).catch(() => {});
   } else {
@@ -523,7 +578,7 @@ export async function getActiveRequests() {
         db.run("DELETE FROM active_requests WHERE expires_at <= NOW()").catch(() => {});
       }
       const rows = await db.all(
-        `SELECT request_id, model, provider, connection_id, api_key, is_stream, started_at
+        `SELECT request_id, model, provider, connection_id, api_key, is_stream, proxy_pool_id, started_at
          FROM active_requests
          WHERE expires_at > NOW()
          ORDER BY started_at DESC LIMIT 100`
@@ -534,6 +589,7 @@ export async function getActiveRequests() {
         provider: r.provider,
         connectionId: r.connection_id,
         apiKey: r.api_key,
+        proxyPoolId: r.proxy_pool_id || null,
         isStream: r.is_stream,
         startedAt: r.started_at instanceof Date ? r.started_at.toISOString() : String(r.started_at),
       }));
@@ -548,14 +604,30 @@ export async function getActiveRequests() {
 
   const connectionMap = await getConnectionMapCached();
   const apiKeyMap = await getApiKeyNameMap();
+  // Pool id -> "name (group)", so the dashboard can show a human label for the
+  // egress instead of a UUID. Only the pools the current in-flight requests are
+  // actually using are looked up, and the result is cached like the other maps.
+  const poolMap = await getProxyPoolLabelMap(items.map((i) => i.proxyPoolId).filter(Boolean));
 
   for (const item of items) {
-    const accountName = connectionMap[item.connectionId] || item.connectionId || `Unknown Account (${item.provider})`;
+    // A keyless provider's connection id is the literal "noauth", which tells an
+    // operator nothing. The egress pool does: it is what makes the request
+    // attributable. Prefer it whenever the account name carries no information.
+    const synthetic = !item.connectionId || item.connectionId === "noauth";
+    const proxyLabel = item.proxyPoolId ? (poolMap[item.proxyPoolId] || null) : null;
+    const accountName = (!synthetic && connectionMap[item.connectionId]) || item.connectionId
+      || proxyLabel
+      || `Unknown Account (${item.provider})`;
     const keyName = apiKeyMap[item.apiKey] || (item.apiKey ? maskApiKey(item.apiKey) : "Default Key");
     activeRequests.push({
       model: item.model,
       provider: item.provider,
       account: accountName,
+      // True when the account column is standing in for the egress rather than
+      // naming a real account; the UI labels it accordingly.
+      accountIsProxy: synthetic,
+      proxyPoolId: item.proxyPoolId || null,
+      proxyLabel,
       connectionId: item.connectionId || null,
       apiKey: keyName,
       clientApiKey: keyName,

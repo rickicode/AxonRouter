@@ -346,7 +346,14 @@ const releaseUpstreamSlot = () => {
   upstreamSlotHolder.released = true;
   try { upstreamSlotHolder.slot?.release(); } catch { /* never break responses */ }
 };
-trackPendingRequest(model, provider, connectionId, true, false, { isStream: stream, apiKey, requestId });
+// The egress in use, resolved from the credentials rather than from proxyOptions —
+// proxyOptions is built further down and this registration has to happen before it.
+// For a keyless provider the connection id is the literal "noauth", so this pool is
+// the only thing that tells an operator where the request actually went.
+const activeProxyPoolId = credentials?.providerSpecificData?.proxyPoolId
+  || credentials?.providerSpecificData?.connectionProxyPoolId
+  || null;
+trackPendingRequest(model, provider, connectionId, true, false, { isStream: stream, apiKey, requestId, proxyPoolId: activeProxyPoolId });
 appendRequestLog({ model, provider, connectionId, status: "PENDING" }).catch(() => { });
 
 const msgCount = translatedBody.messages?.length || translatedBody.input?.length || translatedBody.contents?.length || translatedBody.request?.contents?.length || 0;
