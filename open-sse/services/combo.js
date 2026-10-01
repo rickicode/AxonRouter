@@ -1652,62 +1652,92 @@ export async function classifyWithJev(body, optionsOrKey = {}, maybeOptions = {}
     headers["Authorization"] = `Bearer ${apiKey}`;
   }
 
+  // Egress rotation: a dead proxy pool is the most common classifier failure, and
+  // giving up on the whole provider for it is wasteful — the next pool usually
+  // works. Try a fresh egress (excluding the one that just failed) before falling
+  // through to the caller, which escalates to the next provider / LLM judge.
+  const MAX_EGRESS_ATTEMPTS = Math.max(1, Number(options.maxEgressAttempts) || 2);
+  const failedPoolIds = new Set();
+  const resolveProxy = typeof options.resolveProxy === "function" ? options.resolveProxy : null;
+  let egressAttempt = 0;
+
   try {
-    const controller = new AbortController();
-    const timer = setTimeout(() => {
-      try { controller.abort(new Error("jev_timeout")); } catch {}
-    }, timeoutMs);
-    if (timer.unref) timer.unref();
+    while (egressAttempt < MAX_EGRESS_ATTEMPTS) {
+      egressAttempt++;
+      const controller = new AbortController();
+      const timer = setTimeout(() => {
+        try { controller.abort(new Error("jev_timeout")); } catch {}
+      }, timeoutMs);
+      if (timer.unref) timer.unref();
 
-    const fetchPromise = Promise.resolve().then(() =>
-      proxyAwareFetch(endpoint, {
-        method: "POST",
-        headers,
-        body: JSON.stringify(payload),
-        signal: controller.signal,
-      }, proxyOptions)
-    );
+      const fetchPromise = Promise.resolve().then(() =>
+        proxyAwareFetch(endpoint, {
+          method: "POST",
+          headers,
+          body: JSON.stringify(payload),
+          signal: controller.signal,
+        }, proxyOptions)
+      );
 
-    const res = await withTimeout(fetchPromise, timeoutMs + 200);
-    clearTimeout(timer);
+      const res = await withTimeout(fetchPromise, timeoutMs + 200);
+      clearTimeout(timer);
 
-    if (!res || res.__error || res.__timeout || !res.ok) {
-      const errText = res && typeof res.text === "function" ? await res.text().catch(() => "") : (res?.__error?.message || "timeout/failed");
-      const status = Number(res?.status || 0);
-      log?.warn?.("DIFFICULTY", `Jev HTTP ${res?.status || "error"}: ${String(errText).slice(0, 150)}`, { comboName });
-      // Failed classifier calls still burn upstream quota (and are what the
-      // operator most needs to see), so they are recorded too.
-      await recordClassifierUsage({
-        status: status > 0 ? `error_${status}` : (res?.__timeout ? "error_timeout" : "error_network"),
-        error: String(errText || res?.__error?.message || "timeout").slice(0, 300),
-      });
-      if (status === 429 || status === 503) {
-        // Honour Retry-After (seconds or HTTP-date) so a rate-limited / free-quota
-        // upstream is parked instead of retried on every single request. A pool
-        // that hit a per-IP quota is also marked unfit for the classifier scope so
-        // the next call rotates to a fresh egress.
-        const resetsAtMs = extractQuotaResetMs(String(errText || ""), res);
-        const cooldownMs = Math.min(
-          JEV_COOLDOWN_MAX_MS,
-          Math.max(1_000, resetsAtMs ? resetsAtMs - Date.now() : JEV_COOLDOWN_DEFAULT_MS)
-        );
-        jevCooldowns.set(cooldownKey, Date.now() + cooldownMs);
-        if (proxyOptions?.proxyPoolId) {
-          // Provider-wide, not `provider::jev`: the failure above is a per-IP quota on the
-          // exit, so every request of that provider — classifier AND chat — must stop
-          // picking this pool. The classifier's own pick scope stays `provider::jev`
-          // so rotation state is still isolated; the wildcard is what makes the mark
-          // visible to both paths.
-          markPoolUnfit(proxyOptions.proxyPoolId, `${target.provider}::*`, undefined, `http ${status}`);
+      if (!res || res.__error || res.__timeout || !res.ok) {
+        const errText = res && typeof res.text === "function" ? await res.text().catch(() => "") : (res?.__error?.message || "timeout/failed");
+        const status = Number(res?.status || 0);
+        log?.warn?.("DIFFICULTY", `Jev HTTP ${res?.status || "error"}: ${String(errText).slice(0, 150)}`, { comboName });
+        // Failed classifier calls still burn upstream quota (and are what the
+        // operator most needs to see), so they are recorded too.
+        await recordClassifierUsage({
+          status: status > 0 ? `error_${status}` : (res?.__timeout ? "error_timeout" : "error_network"),
+          error: String(errText || res?.__error?.message || "timeout").slice(0, 300),
+        });
+        if (status === 429 || status === 503) {
+          // Honour Retry-After (seconds or HTTP-date) so a rate-limited / free-quota
+          // upstream is parked instead of retried on every single request. A pool
+          // that hit a per-IP quota is also marked unfit for the classifier scope so
+          // the next call rotates to a fresh egress.
+          const resetsAtMs = extractQuotaResetMs(String(errText || ""), res);
+          const cooldownMs = Math.min(
+            JEV_COOLDOWN_MAX_MS,
+            Math.max(1_000, resetsAtMs ? resetsAtMs - Date.now() : JEV_COOLDOWN_DEFAULT_MS)
+          );
+          jevCooldowns.set(cooldownKey, Date.now() + cooldownMs);
+          if (proxyOptions?.proxyPoolId) {
+            // Provider-wide, not `provider::jev`: the failure above is a per-IP quota on the
+            // exit, so every request of that provider — classifier AND chat — must stop
+            // picking this pool. The classifier's own pick scope stays `provider::jev`
+            // so rotation state is still isolated; the wildcard is what makes the mark
+            // visible to both paths.
+            markPoolUnfit(proxyOptions.proxyPoolId, `${target.provider}::*`, undefined, `http ${status}`);
+          }
         }
+
+        // Rotate egress before giving up on the provider. A 429/503 here parks the
+        // whole classifier (cooldown above), so retrying on another IP only helps for
+        // transport-level failures; for those, a different pool is exactly the fix.
+        const canRotate = resolveProxy && proxyOptions?.proxyPoolId
+          && egressAttempt < MAX_EGRESS_ATTEMPTS && !(status === 429 || status === 503);
+        if (canRotate) {
+          failedPoolIds.add(proxyOptions.proxyPoolId);
+          const nextProxy = await resolveProxy(target, [...failedPoolIds]).catch(() => null);
+          if (nextProxy?.connectionProxyEnabled && nextProxy?.connectionProxyUrl
+            && !failedPoolIds.has(nextProxy.proxyPoolId)) {
+            Object.assign(proxyOptions, nextProxy);
+            log?.info?.("DIFFICULTY",
+              `Jev egress failed — rotating pool ${[...failedPoolIds].at(-1).slice(0, 8)} → ${String(nextProxy.proxyPoolId || "?").slice(0, 8)} before escalating`,
+              { comboName });
+            continue;
+          }
+        }
+
         log?.warn?.(
           "DIFFICULTY",
-          `Jev ${status} — classifier parked ${Math.ceil(cooldownMs / 1000)}s (retry-after honoured), escalating to judge`,
+          `Jev failed after ${egressAttempt} egress attempt(s) — escalating to judge`,
           { comboName }
         );
+        return null;
       }
-      return null;
-    }
 
     const data = await res.json();
     const answers = data?.answers || {};
@@ -1767,6 +1797,7 @@ export async function classifyWithJev(body, optionsOrKey = {}, maybeOptions = {}
       source: "jev",
       raw: data,
     };
+    }
   } catch (e) {
     log?.warn?.("DIFFICULTY", `Jev request failed: ${e.message}`, { comboName });
     await recordClassifierUsage({ status: "error_network", error: e?.message || String(e) });

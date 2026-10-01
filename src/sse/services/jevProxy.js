@@ -45,7 +45,7 @@ function strategyForProvider(settings, providerId) {
  * @param {{provider:string, connectionId?:string, providerSpecificData?:object}} target
  * @returns {Promise<object|null>} proxyOptions for proxyAwareFetch, or null
  */
-export async function resolveJevProxy(target) {
+export async function resolveJevProxy(target, excludePoolIds = null) {
   if (!target?.provider) return null;
 
   try {
@@ -68,7 +68,9 @@ export async function resolveJevProxy(target) {
     // path's own rotation state for the same provider.
     psd.proxyPoolScope = `${target.provider}::jev`;
 
-    const resolved = await resolveConnectionProxyConfig(psd, target.connectionId || null);
+    // excludePoolIds lets the caller retry the classifier through a DIFFERENT egress
+    // after one pool failed, instead of giving up on the provider.
+    const resolved = await resolveConnectionProxyConfig(psd, target.connectionId || null, excludePoolIds);
     if (!resolved?.connectionProxyEnabled || !resolved?.connectionProxyUrl) return null;
 
     return {
