@@ -712,6 +712,15 @@ export const ERROR_RULES = [
   { status: 400, cooldownMs: 0, lockAll: false, shouldFallback: false },
   { status: 404, cooldownMs: 0, lockAll: false, shouldFallback: false },
   { status: 413, cooldownMs: 0, lockAll: false, shouldFallback: false },
+  // 426 Upgrade Required: the upstream rejects the CLIENT BUILD, not the request.
+  // The account itself is not necessarily bad — a different session can pass the
+  // gate — so this is neither a request error (must not fail the call outright)
+  // nor a dead credential. Without an explicit rule an unknown 4xx falls through
+  // to the final shouldFallback:false and the request dies on the first combo
+  // member. Observed with grok-cli: "version 0.2.99 is outdated, update to
+  // 1.0.13 or later" — two different accounts, 0.45s, zero rotation. Fall back to
+  // the next account/member and park this session briefly.
+  { status: 426, cooldownMs: TRANSIENT_COOLDOWN_MS, lockAll: false, shouldFallback: true },
   // Auth errors — the account/token is dead or forbidden
   { status: 401, cooldownMs: 0, lockAll: true, disableAccount: true },
   { status: 402, cooldownMs: COOLDOWN.long },
