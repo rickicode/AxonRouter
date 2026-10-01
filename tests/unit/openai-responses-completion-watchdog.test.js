@@ -64,6 +64,43 @@ describe("pending response.completed watchdog", () => {
     }
   });
 
+  // The distinction from the case above: the upstream never closes either, so the
+  // stream's own flush() cannot be the thing that terminates the turn. The watchdog
+  // has to emit response.completed while the source is still open.
+  it("emits the terminal event with the connection still open and no flush to fall back on", async () => {
+    vi.useFakeTimers();
+    try {
+      const { source, reader } = await pipe();
+      source.enqueue(encoder.encode(`data: ${JSON.stringify(FINISH_CHUNK)}\n\n`));
+      await vi.advanceTimersByTimeAsync(20);
+
+      const decoder = new TextDecoder();
+      let text = "";
+      const pump = (async () => {
+        while (!text.includes('"type":"response.completed"')) {
+          const { value, done } = await reader.read();
+          if (done) break;
+          text += decoder.decode(value, { stream: true });
+        }
+      })();
+
+      // Drive the watchdog window without ever closing the upstream.
+      for (let i = 0; i < 12 && !text.includes('"type":"response.completed"'); i++) {
+        await vi.advanceTimersByTimeAsync(500);
+      }
+
+      const completed = completedResponses(text);
+      expect(completed.length, "watchdog flushed the terminal event").toBe(1);
+      expect(completed[0].status).toBe("completed");
+      expect(completed[0].usage, "no usage was ever reported").toBeUndefined();
+
+      await reader.cancel();
+      await pump.catch(() => {});
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it("does not fire after the real usage trailer already completed the stream", async () => {
     vi.useFakeTimers();
     try {
