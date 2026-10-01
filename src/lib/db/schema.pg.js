@@ -64,25 +64,6 @@ CREATE INDEX IF NOT EXISTS idx_pc_oauth_refresh_due
   ON provider_connections (token_expires_at, id)
   WHERE is_active = true AND auth_type = 'oauth' AND token_expires_at IS NOT NULL;
 
--- getProxyPoolBoundCounts() reads the pool binding out of providerSpecificData, and
--- did so with no index behind it: a sequential scan over provider_connections, twice,
--- because the scalar and array branches are separate. Measured on this deployment at
--- 213ms per branch over 51663 rows to return nothing, since no row actually carries
--- either key today — the dashboard asked for bound counts on every proxy-pools load
--- and got an empty map after half a second of scanning.
---
--- Both are partial, so they stay small whatever provider_connections grows to: the
--- scalar index only holds rows that declare a pool, and the GIN index only rows whose
--- pool id is an array. The GIN one also serves countProxyPoolBoundConnections(), which
--- already probes with @> containment.
-CREATE INDEX IF NOT EXISTS idx_pc_proxy_pool_id
-  ON provider_connections ((data->'providerSpecificData'->>'proxyPoolId'))
-  WHERE data->'providerSpecificData'->>'proxyPoolId' IS NOT NULL
-    AND data->'providerSpecificData'->>'proxyPoolId' <> '';
-CREATE INDEX IF NOT EXISTS idx_pc_proxy_pool_ids
-  ON provider_connections USING GIN (data->'providerSpecificData'->'proxyPoolIds')
-  WHERE jsonb_typeof(data->'providerSpecificData'->'proxyPoolIds') = 'array';
-
 -- Provider Nodes
 CREATE TABLE IF NOT EXISTS provider_nodes (
   id TEXT PRIMARY KEY,
@@ -334,6 +315,42 @@ CREATE TABLE IF NOT EXISTS usage_daily (
   date_key DATE PRIMARY KEY,
   data JSONB NOT NULL
 );
+`;
+
+/**
+ * Indexes that only make queries faster, applied outside the bootstrap transaction.
+ *
+ * Kept apart from PG_SCHEMA_SQL on purpose. That constant is executed as one
+ * multi-statement exec inside a transaction that initAdapter awaits, so a single
+ * unparseable statement aborts the whole bootstrap: getAdapter never resolves and every
+ * database-backed route in the process fails at once. An index is not worth that.
+ *
+ * The proxy-pool indexes below are the reason this section exists. getProxyPoolBoundCounts
+ * reads its binding out of a jsonb path and did so with no index behind it, sequential
+ * scanning provider_connections twice because the scalar and array forms are separate
+ * branches — 213ms each over 51663 rows, to return nothing.
+ *
+ * They are partial, so they stay small however provider_connections grows: the scalar
+ * one holds only rows that declare a pool, the GIN one only rows whose pool id is an
+ * array. The GIN also serves countProxyPoolBoundConnections, which probes with @>.
+ *
+ * Note that on the current data the planner still prefers a sequential scan for that
+ * query, because it cannot estimate the selectivity of a jsonb extraction. The result
+ * is cached for a minute instead; these indexes are there for when bindings exist, not
+ * to make the empty case fast.
+ */
+export const PG_OPTIONAL_INDEX_SQL = `
+CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_pc_proxy_pool_id
+  ON provider_connections ((data->'providerSpecificData'->>'proxyPoolId'))
+  WHERE data->'providerSpecificData'->>'proxyPoolId' IS NOT NULL
+    AND data->'providerSpecificData'->>'proxyPoolId' <> '';
+
+-- The inner parentheses are required. GIN over an expression needs the inner node
+-- parenthesised, and without them Postgres rejects the statement at "->", which is
+-- exactly how this index took /api/proxy-pools down with a 500 on its first deploy.
+CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_pc_proxy_pool_ids
+  ON provider_connections USING GIN ((data->'providerSpecificData'->'proxyPoolIds'))
+  WHERE jsonb_typeof(data->'providerSpecificData'->'proxyPoolIds') = 'array';
 `;
 
 /**
