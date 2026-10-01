@@ -20,10 +20,17 @@ import { getProxyPools, updateProxyPool } from "@/lib/db/repos/proxyPoolsRepo.js
 import { testProxyPoolEntry } from "@/lib/network/proxyTest.js";
 import { classifyProxyHealth } from "@/lib/network/proxyHealthRank.js";
 
-const DEFAULT_BATCH = 40;
-const DEFAULT_CONCURRENCY = 8;
+// Budget sized against the churn, not against the pool count in isolation: the
+// auto-fetcher replaces roughly 2000 Bright Data pools every five minutes, so a
+// small batch can never converge — at 40 per pass the ~3400-pool set would take
+// over seven hours for one sweep, and half of it would be replaced before it got
+// there. 200 per pass with 12 in flight covers the set in about 85 minutes, and
+// dead proxies answer fast (ECONNRESET, or a connect timeout well short of the
+// 8s cap), so a pass finishes in roughly 25 seconds of actual work.
+const DEFAULT_BATCH = 200;
+const DEFAULT_CONCURRENCY = 12;
 const DEFAULT_STALE_MS = 30 * 60 * 1000;
-const DEFAULT_TIMEOUT_MS = 12_000;
+const DEFAULT_TIMEOUT_MS = 8_000;
 const SWEEP_INTERVAL_MS = 5 * 60 * 1000;
 
 let running = false;

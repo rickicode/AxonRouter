@@ -3,7 +3,7 @@
 // Deliberately a separate module from proxyHealth.js, which owns the runtime
 // failure counters and the disabled/degraded/dead escalation. This file only
 // answers one question — given a list of candidate pool ids and what is known
-// about each one's health, which subset should be preferred right now.
+// about each one's health, which ones should be taken out of the running.
 //
 // Why ranking at pick time rather than relying on the counters in proxyHealth.js:
 // that mechanism disables a pool after 3 consecutive failures, which assumes a
@@ -57,10 +57,19 @@ export function proxyHealthOf(pool) {
 }
 
 /**
- * Order candidate pool ids so known-good ones are considered first, dropping to the
- * next tier only when the better tier is empty. Input order is preserved within a
- * tier, because the caller's round-robin index and sticky state are positional —
- * re-sorting inside a tier would silently reshuffle that state.
+ * Drop candidates that are known-bad, keeping the rest in their original order.
+ *
+ * The deliberate choice is to NOT restrict the pick to known-good pools. An earlier
+ * version ranked good > unknown > bad and returned only the good tier when one
+ * existed; with the sweep still filling in its verdicts that concentrated every
+ * request onto the ~100 pools already confirmed while ~2,400 untested pools sat
+ * idle, which is its own failure mode — a handful of egress IPs taking all the
+ * traffic until they start tripping per-IP rate limits of their own. Excluding what
+ * is known dead is the part that actually removes the failures; leaving everything
+ * else in play keeps the load spread while the sweep keeps learning.
+ *
+ * Input order is preserved, because the caller's round-robin index and sticky state
+ * are positional — re-sorting would silently reshuffle that state.
  *
  * Fail-open by contract, matching fitPoolIds: with no health information at all the
  * input comes back untouched, so a caller that knows nothing about pool health
@@ -83,24 +92,19 @@ export function rankPoolsByHealth(ids, health) {
     return ids;
   }
 
-  const good = [];
-  const unknown = [];
+  const usable = [];
   const bad = [];
   let sawAnyStatus = false;
 
   for (const id of ids) {
     const raw = read(id);
     if (raw != null && raw !== "") sawAnyStatus = true;
-    const bucket = proxyHealthOf(raw);
-    if (bucket === "good") good.push(id);
-    else if (bucket === "bad") bad.push(id);
-    else unknown.push(id);
+    (proxyHealthOf(raw) === "bad" ? bad : usable).push(id);
   }
 
   // Nothing known about any of them: behave exactly as before.
   if (!sawAnyStatus) return ids;
-  if (good.length) return good;
-  if (unknown.length) return unknown;
+  if (usable.length) return usable;
   // Every candidate is known-bad. Returning them keeps a request alive instead of
   // failing for want of a pool; the next sweep re-probes and promotes them back.
   return bad;

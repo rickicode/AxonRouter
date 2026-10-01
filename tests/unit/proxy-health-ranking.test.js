@@ -50,22 +50,28 @@ describe("classifyProxyHealth", () => {
 describe("rankPoolsByHealth", () => {
   const ids = ["a", "b", "c", "d", "e"];
 
-  it("keeps only the known-good pools when any exist", () => {
-    const health = { a: "active", b: "failed", c: "active", d: "dead", e: "unknown" };
-    expect(rankPoolsByHealth(ids, health)).toEqual(["a", "c"]);
+  it("drops the known-bad pools and keeps everything else in order", () => {
+    const health = { a: "active", b: "failed", c: "unknown", d: "dead", e: "active" };
+    expect(rankPoolsByHealth(ids, health)).toEqual(["a", "c", "e"]);
   });
 
-  it("prefers untested over known-bad", () => {
-    // Every id gets a verdict here, so the unknown tier is exactly the one that
-    // says "unknown" — otherwise the ids left out of the map would silently join
-    // that tier too.
-    const health = { a: "failed", b: "unknown", c: "dead", d: "failed", e: "unhealthy" };
-    expect(rankPoolsByHealth(ids, health)).toEqual(["b"]);
+  it("keeps untested pools in play rather than excluding them", () => {
+    // The first version of this ranked good > unknown > bad and returned only the
+    // good tier. With the sweep still filling in verdicts that funnelled every
+    // request onto the ~100 confirmed pools while ~2400 sat idle — a handful of
+    // egress IPs taking all the traffic until they trip their own per-IP limits.
+    const health = { a: "active", b: "active", c: "failed", d: "unknown", e: "unknown" };
+    expect(rankPoolsByHealth(ids, health)).toEqual(["a", "b", "d", "e"]);
   });
 
-  it("falls back to known-bad only when nothing better exists", () => {
+  it("excludes every bad word", () => {
+    const health = { a: "degraded", b: "unhealthy", c: "dead", d: "failed", e: "active" };
+    expect(rankPoolsByHealth(ids, health)).toEqual(["e"]);
+  });
+
+  it("falls back to known-bad only when nothing else is left", () => {
     // Degrading to a suspect pool beats failing for want of one; the next sweep
-    // re-tests and promotes it back.
+    // re-probes and promotes it back.
     const health = { a: "failed", b: "dead", c: "failed", d: "unhealthy", e: "degraded" };
     expect(rankPoolsByHealth(ids, health)).toEqual(["a", "b", "c", "d", "e"]);
   });
@@ -80,16 +86,17 @@ describe("rankPoolsByHealth", () => {
     expect(rankPoolsByHealth(ids, new Map())).toEqual(ids);
   });
 
-  it("preserves input order within a tier", () => {
+  it("preserves input order", () => {
     // The caller's round-robin index and sticky state are positional; re-sorting
-    // within a tier would silently reshuffle them.
-    const health = { e: "active", a: "active", c: "active" };
-    expect(rankPoolsByHealth(ids, health)).toEqual(["a", "c", "e"]);
+    // would silently reshuffle them. Every id carries a verdict so the only thing
+    // this asserts is ordering, not membership.
+    const health = { a: "active", b: "failed", c: "active", d: "unknown", e: "active" };
+    expect(rankPoolsByHealth(ids, health)).toEqual(["a", "c", "d", "e"]);
   });
 
   it("accepts a Map as well as a plain object", () => {
-    const health = new Map([["a", "active"], ["b", "failed"]]);
-    expect(rankPoolsByHealth(ids, health)).toEqual(["a"]);
+    const health = new Map([["a", "active"], ["b", "failed"], ["c", "unknown"]]);
+    expect(rankPoolsByHealth(ids, health)).toEqual(["a", "c", "d", "e"]);
   });
 
   it("handles empty and single-element input", () => {
@@ -102,15 +109,26 @@ describe("rankPoolsByHealth", () => {
 describe("pickProxyPoolId honours pool health", () => {
   beforeEach(() => vi.restoreAllMocks());
 
-  it("never returns a known-dead pool while a healthy one is available", () => {
-    // The property that matters: across many picks, a dead pool is not chosen.
-    const poolIds = ["dead-1", "dead-2", "good-1", "good-2"];
-    const health = { "dead-1": "failed", "dead-2": "dead", "good-1": "active", "good-2": "active" };
+  it("never returns a known-dead pool while another candidate is usable", () => {
+    const poolIds = ["dead-1", "dead-2", "good-1", "untested-1"];
+    const health = { "dead-1": "failed", "dead-2": "dead", "good-1": "active", "untested-1": "unknown" };
     const picked = new Set();
     for (let i = 0; i < 40; i++) {
       picked.add(pickProxyPoolId(poolIds, "round-robin", "opencode", { health }));
     }
-    expect([...picked].sort()).toEqual(["good-1", "good-2"]);
+    expect([...picked].sort()).toEqual(["good-1", "untested-1"]);
+  });
+
+  it("keeps spreading load over the usable set", () => {
+    // Guards the traffic-concentration regression: excluding the bad must not
+    // collapse every request onto the small confirmed subset.
+    const poolIds = ["bad", "g1", "g2", "g3", "u1", "u2"];
+    const health = { bad: "failed", g1: "active", g2: "active", g3: "active", u1: "unknown", u2: "unknown" };
+    const picked = new Set();
+    for (let i = 0; i < 60; i++) {
+      picked.add(pickProxyPoolId(poolIds, "round-robin", "opencode", { health }));
+    }
+    expect([...picked].sort()).toEqual(["g1", "g2", "g3", "u1", "u2"]);
   });
 
   it("applies under every rotation strategy, not just smart", () => {
@@ -123,16 +141,6 @@ describe("pickProxyPoolId honours pool health", () => {
         expect(pickProxyPoolId(poolIds, strategy, "opencode", { health })).toBe("good");
       }
     }
-  });
-
-  it("still rotates across the healthy subset instead of sticking to one", () => {
-    const poolIds = ["bad", "g1", "g2", "g3"];
-    const health = { bad: "failed", g1: "active", g2: "active", g3: "active" };
-    const picked = new Set();
-    for (let i = 0; i < 30; i++) {
-      picked.add(pickProxyPoolId(poolIds, "round-robin", "opencode", { health }));
-    }
-    expect([...picked].sort()).toEqual(["g1", "g2", "g3"]);
   });
 
   it("releases a sticky pool once it is marked bad", () => {
