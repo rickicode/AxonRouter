@@ -665,8 +665,8 @@ const FUSION_DEFAULTS = {
 // expensive so the upstream KV prefix cache keeps hitting).
 const DIFFICULTY_DEFAULTS = {
   judgeTimeoutMs: 4000,
-  contextLockTokens: 60000,   // >= this => skip classify, keep session tier
-  classifyReuseMs: 30 * 60 * 1000, // how long a per-session tier decision is cached
+  contextLockTokens: 0,        // 0 = disabled. Coding contexts are regularly >60k, so do not skip JEV
+  classifyReuseMs: 30 * 60 * 1000, // how long a per-session tier decision is cached for fallback
   judgeMode: "two-layer",
   // Jev classifier upstream. jevModel (+ optional jevProvider) is what the combo
   // model picker stores; endpoint, family and key source are derived from the
@@ -698,8 +698,9 @@ const DIFFICULTY_DEFAULTS = {
   // Set per-combo via the strategy if a latency-sensitive combo needs it back lower.
   jevTimeoutMs: 5000,
   // Growth (in estimated body tokens) allowed before a cached per-session tier is
-  // re-classified instead of reused. See canReuseSessionTier().
+  // Growth (in estimated body tokens) allowed before a cached per-session tier is re-classified
   reuseMaxGrowthTokens: 20000,
+  reuseSessionTier: false,     // Disabled: evaluate JEV on each turn so coding tasks get routed accurately
 };
 
 // Session filter keys cache by session_id / conversation_id / x-pplx-session / user when known,
@@ -890,15 +891,17 @@ function heuristicDifficulty(body, policy = "balanced") {
   return null;
 }
 
-// 2-tier matrix (Difficulty x Ambiguity) adjusted by Policy
-// balanced (default), cost_efficient, capability_heavy
+// 2-tier matrix (Difficulty: easy | hard)
+// In this system there are ONLY two tiers: easy and hard.
 function resolveTierMatrix(difficulty, ambiguity, domain, policy = "balanced") {
   const diff = String(difficulty || "").toLowerCase();
   const amb = String(ambiguity || "").toLowerCase();
   const pol = String(policy || "balanced").toLowerCase();
 
-  // High ambiguity always escalates to hard tier
-  if (amb === "high") return "hard";
+  // High ambiguity always escalates to hard tier (unless cost_efficient with easy diff)
+  if (amb === "high") {
+    return (pol === "cost_efficient" && diff === "easy") ? "easy" : "hard";
+  }
 
   if (pol === "cost_efficient") {
     // Prefer cheaper tier whenever reasonable
@@ -912,7 +915,8 @@ function resolveTierMatrix(difficulty, ambiguity, domain, policy = "balanced") {
     return "hard";
   }
 
-  // balanced (default 2-tier matrix)
+  // balanced (default 2-tier matrix):
+  // easy + low ambiguity -> easy. Any doubt / ambiguity or medium/hard difficulty -> hard.
   if (diff === "easy") return amb === "low" ? "easy" : "hard";
   return "hard";
 }
@@ -1080,13 +1084,12 @@ export async function handleDifficultyChat({ body, models = [], handleSingleMode
     domain = h.domain;
     source = h.source;
     confidence = h.confidence;
-  } else if (cachedTier && (bodyTokens >= cfg.contextLockTokens || canReuseSessionTier(cached, bodyTokens, cfg))) {
-    // classifyReuseMs exists so a multi-turn conversation classifies once. It was
-    // only honoured for contexts >= contextLockTokens (60k tokens), so an ordinary
-    // session re-ran the classifier on every single turn — a JEV round-trip (measured
-    // p50 ~1.3s, up to jevTimeoutMs on the slow path) per turn, for a decision that barely moves. The
-    // heuristic above still wins first, so hard signals (vision, tool errors,
-    // complex coding) re-classify regardless of what is cached.
+  } else if (cachedTier && (
+    (cfg.contextLockTokens > 0 && bodyTokens >= cfg.contextLockTokens) ||
+    (cfg.reuseSessionTier && canReuseSessionTier(cached, bodyTokens, cfg))
+  )) {
+    // Only lock to cached tier if explicitly enabled via contextLockTokens > 0 or reuseSessionTier.
+    // In coding agent sessions (> 60k tokens), prompts still vary in difficulty, so JEV classifies each turn.
     tier = cachedTier;
     source = "context-lock";
     domain = typeof cached === "object" ? cached.domain : "general";

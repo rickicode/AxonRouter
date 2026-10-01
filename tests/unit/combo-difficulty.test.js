@@ -5,7 +5,7 @@
  * expensive contexts pin the route.
  */
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { handleDifficultyChat } from "../../open-sse/services/combo.js";
+import { handleDifficultyChat, clearJevCooldowns } from "../../open-sse/services/combo.js";
 
 function judgeRes(judgeContent) {
   const envelope = JSON.stringify({ choices: [{ message: { content: judgeContent } }] });
@@ -56,6 +56,7 @@ const quietLog = { info: () => {}, warn: () => {}, error: () => {} };
 describe("handleDifficultyChat (smart routing)", () => {
   beforeEach(() => {
     vi.restoreAllMocks();
+    clearJevCooldowns();
   });
 
   it("obvious-easy body runs the easy tier without calling the judge", async () => {
@@ -183,7 +184,7 @@ describe("handleDifficultyChat (smart routing)", () => {
       log: quietLog,
       comboName: "smart-model",
       judgeModel: "judge-model",
-      tuning: { easyModels: ["easy-a"], hardModels: ["hard-a"] },
+      tuning: { easyModels: ["easy-a"], hardModels: ["hard-a"], contextLockTokens: 60000 },
     });
     calls.length = 0;
     const res = await handleDifficultyChat({
@@ -193,7 +194,7 @@ describe("handleDifficultyChat (smart routing)", () => {
       log: quietLog,
       comboName: "smart-model",
       judgeModel: "judge-model",
-      tuning: { easyModels: ["easy-a"], hardModels: ["hard-a"] },
+      tuning: { easyModels: ["easy-a"], hardModels: ["hard-a"], contextLockTokens: 60000 },
     });
     expect(res.ok).toBe(true);
     expect(calls).toEqual(["hard-a"]);
