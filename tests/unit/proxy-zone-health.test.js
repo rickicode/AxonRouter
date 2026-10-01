@@ -29,6 +29,7 @@ const {
   resetZoneHealthCache,
   ZONE_FAILURE_THRESHOLD,
   ZONE_MIN_SAMPLES,
+  ZONE_FRESH_MS,
 } = await import("../../src/lib/network/proxyZoneHealth.js");
 
 const url = (zone, session = "abc") => `http:u-zone-${zone}-country-id-session-${session}@brd.superproxy.io:44445`;
@@ -139,6 +140,37 @@ describe("recordZoneProbe", () => {
     let r;
     for (let i = 0; i < 30; i++) r = await recordZoneProbe(url("datacenter_shared1"), true);
     expect(r.samples).toBeLessThanOrEqual(1000);
+  });
+
+  it("keeps the tally after a verdict goes stale, so evidence is not thrown away", async () => {
+    // The bug this locks: the tally used to be stored under the same short TTL as the
+    // verdict, so every dead zone restarted from zero evidence each cycle and flipped
+    // between bad and unknown — the picker then oscillated and transport failures kept
+    // coming back.
+    for (let i = 0; i < ZONE_MIN_SAMPLES; i++) await recordZoneProbe(url("isp_proxy1"), false);
+    // Nothing probed it for longer than the freshness window.
+    const key = "proxy:zonehealth:isp_proxy1";
+    const stale = JSON.parse(store.get(key));
+    store.set(key, JSON.stringify({ ...stale, updatedAt: Date.now() - ZONE_FRESH_MS - 1000 }));
+
+    // A stale verdict stops steering traffic...
+    expect((await getBadZones([{ proxyUrl: url("isp_proxy1") }])).has("isp_proxy1")).toBe(false);
+
+    // ...but the next probe condemns it again immediately, without re-accumulating.
+    const r = await recordZoneProbe(url("isp_proxy1"), false);
+    expect(r.state).toBe("bad");
+    expect(r.samples).toBeGreaterThan(ZONE_MIN_SAMPLES);
+  });
+
+  it("a verdict nobody re-probed eventually stops counting", async () => {
+    for (let i = 0; i < ZONE_MIN_SAMPLES; i++) await recordZoneProbe(url("unblocker1"), false);
+    expect((await getBadZones([{ proxyUrl: url("unblocker1") }])).has("unblocker1")).toBe(true);
+    const stale = JSON.parse(store.get("proxy:zonehealth:unblocker1"));
+    store.set(
+      "proxy:zonehealth:unblocker1",
+      JSON.stringify({ ...stale, updatedAt: Date.now() - ZONE_FRESH_MS - 1000 })
+    );
+    expect((await getBadZones([{ proxyUrl: url("unblocker1") }])).has("unblocker1")).toBe(false);
   });
 
   it("clearZoneHealth drops a verdict", async () => {

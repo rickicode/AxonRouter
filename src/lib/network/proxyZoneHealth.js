@@ -30,8 +30,23 @@ const MIN_SAMPLES = 4;
 // Enough samples to also forgive a zone again: a zone condemned on 4/4 failing needs
 // a few consecutive passes of good answers before traffic is trusted back.
 const RECOVERY_SAMPLES = 3;
-const VERDICT_TTL_S = 15 * 60;
-const REPROBE_TTL_S = 3 * 60;
+
+// Storage TTL for the tally, and how long a verdict stays actionable without a fresh
+// probe.
+//
+// These are deliberately separate, and conflating them was a real bug: the tally was
+// originally stored under a 3-minute TTL on the reasoning that a condemned zone
+// should be re-checked soon. But the TTL also destroyed the accumulated samples, so
+// every dead zone restarted from zero evidence each cycle and flipped between
+// "bad" and "unknown" — the tally never got past a handful of probes, and the picker
+// oscillated with it, which is why transport failures kept coming back.
+//
+// So: the tally is kept for hours, and a verdict stops counting once no probe has
+// touched it for FRESH_MS. A dead zone therefore goes quiet rather than being
+// condemned forever, and the moment a probe does arrive the verdict returns at once
+// because the evidence was never thrown away.
+const VERDICT_TTL_S = 6 * 60 * 60;
+const FRESH_MS = 10 * 60 * 1000;
 
 /**
  * The zone a proxy URL belongs to, or "" when it has none (relay pools).
@@ -92,9 +107,20 @@ export async function recordZoneProbe(proxyUrl, ok) {
       next.state = next.state || "unknown";
     }
 
-    // A condemned zone is re-checked sooner than a healthy one so it can come back.
-    const ttl = next.state === "bad" ? REPROBE_TTL_S : VERDICT_TTL_S;
-    await cacheSetRaw(key, JSON.stringify(next), ttl);
+    // A stale verdict is not a verdict: if nothing has probed this zone recently the
+    // tally is history, not evidence about the egress we are routing over right now.
+    const fresh = Number.isFinite(next.updatedAt) && Date.now() - next.updatedAt <= FRESH_MS;
+    if (!fresh) {
+      next.state = "unknown";
+    } else if (next.samples >= MIN_SAMPLES && failRate >= FAILURE_THRESHOLD) {
+      next.state = "bad";
+    } else if (next.state === "bad" && next.okStreak >= RECOVERY_SAMPLES && failRate < FAILURE_THRESHOLD) {
+      next.state = "good";
+    } else {
+      next.state = next.state || "unknown";
+    }
+
+    await cacheSetRaw(key, JSON.stringify(next), VERDICT_TTL_S);
     // `newlyBad` distinguishes a fresh condemnation from a zone that was already
     // condemned. Without it the sweep log re-reports the same zones on every pass,
     // which reads as a fresh decision each time and hides the fact that a zone can
@@ -128,7 +154,10 @@ export async function getBadZones(pools) {
       [...zones].map(async (z) => [z, verdictOf(await cacheGetRaw(zoneKey(z)))])
     );
     for (const [zone, verdict] of verdicts) {
-      if (verdict?.state === "bad") out.set(zone, "bad");
+      // Same freshness rule on the read path, so a verdict nobody has re-probed
+      // cannot keep steering traffic indefinitely.
+      const fresh = Number.isFinite(verdict?.updatedAt) && Date.now() - verdict.updatedAt <= FRESH_MS;
+      if (verdict?.state === "bad" && fresh) out.set(zone, "bad");
     }
     return out;
   } catch {
@@ -184,3 +213,4 @@ export function resetZoneHealthCache() {
 
 export const ZONE_FAILURE_THRESHOLD = FAILURE_THRESHOLD;
 export const ZONE_MIN_SAMPLES = MIN_SAMPLES;
+export const ZONE_FRESH_MS = FRESH_MS;
