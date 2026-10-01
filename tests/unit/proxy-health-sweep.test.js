@@ -28,6 +28,28 @@ vi.mock("../../src/lib/network/proxyTest.js", () => ({
   }),
 }));
 
+// Cross-process lock, so the sweep is a singleton across the gateway cluster: the
+// gateway runs 12 workers that each execute the top level of gateway/server.js, and
+// without this a dozen sweeps start together, probe the same pools concurrently and
+// lose updates on the same zone tallies. acquireLock hands back a token or null, and
+// only the holder may release.
+let lockHeld = false;
+let cacheAvailable = true;
+vi.mock("../../src/lib/cache/client.js", () => ({
+  isCacheAvailable: () => cacheAvailable,
+  acquireLock: vi.fn(async () => {
+    if (lockHeld) return null;
+    lockHeld = true;
+    return "tok";
+  }),
+  releaseLock: vi.fn(async (_key, token) => {
+    if (token === "tok") lockHeld = false;
+    return true;
+  }),
+  cacheGetRaw: vi.fn(async () => null),
+  cacheSetRaw: vi.fn(async () => true),
+}));
+
 const { sweepProxyPoolHealth, startProxyHealthSweep, stopProxyHealthSweep } = await import(
   "../../src/lib/network/proxyHealthSweep.js"
 );
@@ -46,6 +68,8 @@ beforeEach(() => {
   pools.length = 0;
   updates.length = 0;
   probeCalls = [];
+  lockHeld = false;
+  cacheAvailable = true;
   probeImpl = async () => ({ ok: true, status: 200 });
   stopProxyHealthSweep();
 });
@@ -211,6 +235,41 @@ describe("sweepProxyPoolHealth", () => {
     expect(s.failed).toBe(1);
     expect(s.written).toBe(0);
     expect(updates).toHaveLength(0);
+  });
+});
+
+describe("cluster singleton", () => {
+  it("does not sweep while another process holds the lock", async () => {
+    pools.push(pool("a"), pool("b"));
+    lockHeld = true; // another worker got there first
+    const s = await sweepProxyPoolHealth();
+    expect(s.skipped).toBe(true);
+    expect(probeCalls).toHaveLength(0);
+  });
+
+  it("releases the lock afterwards so the next pass can run", async () => {
+    pools.push(pool("a"));
+    await sweepProxyPoolHealth();
+    expect(lockHeld).toBe(false);
+    const second = await sweepProxyPoolHealth();
+    expect(second.skipped).toBe(false);
+  });
+
+  it("releases the lock even when the pass throws", async () => {
+    const { getProxyPools } = await import("../../src/lib/db/repos/proxyPoolsRepo.js");
+    getProxyPools.mockRejectedValueOnce(new Error("db down"));
+    await sweepProxyPoolHealth();
+    expect(lockHeld).toBe(false);
+  });
+
+  it("still sweeps when no shared cache is available", async () => {
+    // Refusing to sweep would mean no health data at all, which is worse than a
+    // possible duplicate pass.
+    cacheAvailable = false;
+    pools.push(pool("a"));
+    const s = await sweepProxyPoolHealth();
+    expect(s.skipped).toBe(false);
+    expect(s.scanned).toBe(1);
   });
 });
 

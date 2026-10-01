@@ -19,6 +19,7 @@
 import { getProxyPools, updateProxyPool } from "@/lib/db/repos/proxyPoolsRepo.js";
 import { testProxyPoolEntry } from "@/lib/network/proxyTest.js";
 import { recordZoneProbe } from "@/lib/network/proxyZoneHealth.js";
+import { acquireLock, releaseLock, isCacheAvailable } from "@/lib/cache/client.js";
 
 // Budget sized against the churn, not against the pool count in isolation: the
 // auto-fetcher replaces roughly 2000 Bright Data pools every five minutes, so a
@@ -36,6 +37,14 @@ const SWEEP_INTERVAL_MS = 5 * 60 * 1000;
 let running = false;
 let timer = null;
 let lastSummary = null;
+
+// The gateway runs as a cluster (GATEWAY_WORKERS=12, GATEWAY_CLUSTER=true) and each
+// worker executes this file's top level, so without a cross-process lock a dozen
+// sweeps start together, probe the same pools concurrently, and read-modify-write the
+// same zone tallies — losing updates and making the verdicts unreliable, which is the
+// one thing this module exists to get right. The lock is what makes it a singleton.
+const SWEEP_LOCK_KEY = "proxy-health-sweep";
+const SWEEP_LOCK_TTL_S = 240;
 
 /** Errors are truncated: a pool's last_error is operator-facing and a stack trace helps nobody. */
 function shortError(err) {
@@ -102,6 +111,21 @@ export async function sweepProxyPoolHealth(opts = {}) {
     summary.skipped = true;
     return summary;
   }
+
+  // Cluster-wide singleton. Without a shared cache there is no lock to take, so fall
+  // through to the in-process guard rather than refusing to sweep at all.
+  let lockToken = null;
+  let locked = false;
+  if (isCacheAvailable()) {
+    lockToken = await acquireLock(SWEEP_LOCK_KEY, SWEEP_LOCK_TTL_S).catch(() => null);
+    if (!lockToken) {
+      summary.skipped = true;
+      summary.reason = "another process is sweeping";
+      return summary;
+    }
+    locked = true;
+  }
+
   running = true;
   try {
     const now = Date.now();
@@ -141,7 +165,7 @@ export async function sweepProxyPoolHealth(opts = {}) {
         // because it is keyed by the zone in the URL.
         try {
           const z = await recordZoneProbe(pool.proxyUrl, verdict.ok);
-          if (z?.state === "bad") summary.zonesBadened.add(z.zone);
+          if (z?.newlyBad) summary.zonesBadened.add(z.zone);
         } catch {
           /* zone health is advisory; never let it fail a sweep */
         }
@@ -167,6 +191,9 @@ export async function sweepProxyPoolHealth(opts = {}) {
   } finally {
     running = false;
     lastSummary = summary;
+    if (locked && lockToken) {
+      await releaseLock(SWEEP_LOCK_KEY, lockToken).catch(() => {});
+    }
   }
 }
 
@@ -189,8 +216,8 @@ export function startProxyHealthSweep(opts = {}) {
     if (summary.active) parts.push(`${summary.active} active`);
     if (summary.failed) parts.push(`${summary.failed} failed`);
     if (summary.written) parts.push(`${summary.written} written`);
-    if (summary.zonesBadened?.size) parts.push(`zones condemned: ${[...summary.zonesBadened].join(",")}`);
-    if (summary.skipped) parts.push("skipped (already running)");
+    if (summary.skipped) parts.push(`skipped${summary.reason ? ` (${summary.reason})` : ""}`);
+    if (summary.zonesBadened?.size) parts.push(`newly condemned: ${[...summary.zonesBadened].join(",")}`);
     if (parts.length) {
       console.log(`[ProxyHealthSweep] ${parts.join(", ")}${summary.error ? ` — ${summary.error}` : ""}`);
     }

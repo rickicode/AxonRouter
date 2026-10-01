@@ -83,6 +83,7 @@ export async function recordZoneProbe(proxyUrl, ok) {
     };
 
     const failRate = next.samples ? next.fails / next.samples : 0;
+    const wasBad = prev.state === "bad";
     if (next.samples >= MIN_SAMPLES && failRate >= FAILURE_THRESHOLD) {
       next.state = "bad";
     } else if (next.state === "bad" && next.okStreak >= RECOVERY_SAMPLES && failRate < FAILURE_THRESHOLD) {
@@ -94,7 +95,12 @@ export async function recordZoneProbe(proxyUrl, ok) {
     // A condemned zone is re-checked sooner than a healthy one so it can come back.
     const ttl = next.state === "bad" ? REPROBE_TTL_S : VERDICT_TTL_S;
     await cacheSetRaw(key, JSON.stringify(next), ttl);
-    return { zone, state: next.state, samples: next.samples, failRate };
+    // `newlyBad` distinguishes a fresh condemnation from a zone that was already
+    // condemned. Without it the sweep log re-reports the same zones on every pass,
+    // which reads as a fresh decision each time and hides the fact that a zone can
+    // also be forgiven — datacenter_proxy1 was condemned on its first samples and
+    // then recovered, and the log showed it as condemned throughout.
+    return { zone, state: next.state, samples: next.samples, failRate, newlyBad: next.state === "bad" && !wasBad };
   } catch {
     return null;
   }
