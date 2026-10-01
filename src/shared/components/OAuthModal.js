@@ -759,25 +759,27 @@ export default function OAuthModal({ isOpen, provider, providerInfo, onSuccess, 
  return (
  <Modal isOpen={isOpen} title={modalTitle} onClose={handleClose} size="lg">
  <div className="flex flex-col gap-3">
- {/* Trae/Windsurf: browser OAuth (proxy) + paste-token fallback */}
- {PROXY_OAUTH_PROVIDERS.has(provider) && (step === "waiting" || step === "input" || step === "error") && (
- <>
- <div className="flex gap-2">
- <button
- type="button"
- onClick={() => { setAuthMode("browser"); setError(null); setStep("waiting"); startOAuthFlow(); }}
- className={`flex-1 rounded-sm border px-3 h-8 text-sm ${authMode === "browser" ? "border-primary bg-primary/10 text-primary" : "border-border text-text-muted hover:text-primary"}`}
- >
- 🌐 Sign in with browser
- </button>
- <button
- type="button"
- onClick={() => { setAuthMode("paste-token"); setError(null); setStep("input"); }}
- className={`flex-1 rounded-sm border px-3 h-8 text-sm ${authMode === "paste-token" ? "border-primary bg-primary/10 text-primary" : "border-border text-text-muted hover:text-primary"}`}
- >
- 🔑 Paste token
- </button>
- </div>
+{/* Proxy OAuth (trae/windsurf/zed): browser flow; paste-token only when configured */}
+        {PROXY_OAUTH_PROVIDERS.has(provider) && (step === "waiting" || step === "input" || step === "error") && (
+          <>
+            {PASTE_TOKEN_PROVIDERS[provider] && (
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => { setAuthMode("browser"); setError(null); setStep("waiting"); startOAuthFlow(); }}
+                  className={`flex-1 rounded-sm border px-3 h-8 text-sm ${authMode === "browser" ? "border-primary bg-primary/10 text-primary" : "border-border text-text-muted hover:text-primary"}`}
+                >
+                  🌐 Sign in with browser
+                </button>
+                <button
+                  type="button"
+                  onClick={() => { setAuthMode("paste-token"); setError(null); setStep("input"); }}
+                  className={`flex-1 rounded-sm border px-3 h-8 text-sm ${authMode === "paste-token" ? "border-primary bg-primary/10 text-primary" : "border-border text-text-muted hover:text-primary"}`}
+                >
+                  🔑 Paste token
+                </button>
+              </div>
+            )}
 
  {authMode === "browser" && (
  <>
@@ -807,7 +809,7 @@ export default function OAuthModal({ isOpen, provider, providerInfo, onSuccess, 
  </>
  )}
 
- {authMode === "paste-token" && (
+ {authMode === "paste-token" && PASTE_TOKEN_PROVIDERS[provider] && (
  <div className="space-y-3">
  {ideStatus && !ideStatus.installed && (
  <div className={`px-3 h-8 rounded-sm text-sm ${PASTE_TOKEN_PROVIDERS[provider].ideOptional ? "bg-primary/10 text-primary" : "bg-warning/10 text-warning"}`}>
