@@ -118,7 +118,12 @@ const RESPONSES_MODELS = new Set([
   "muse-spark-1.2-contributor-free",
   "muse-spark-1.3-contributor-free",
 ]);
-const MESSAGES_MODELS = new Set(["union-alpha"]);
+// Models served by the Claude transport (/zen/v1/messages) rather than
+// /chat/completions. Empty: union-alpha was the only one and it was removed upstream
+// (both transports answer 401 "Model union-alpha is not supported", 2026-10-01).
+// Kept as a per-model set because the routing decision is per-model, so restoring a
+// model here is a one-line change if OpenCode brings one back.
+const MESSAGES_MODELS = new Set();
 
 let lastTimestamp = 0;
 let counter = 0;

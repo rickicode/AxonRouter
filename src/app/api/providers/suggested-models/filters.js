@@ -1,9 +1,10 @@
 // Free OpenCode models that don't use the "-free" id suffix.
-// union-alpha is served via the Claude transport (/zen/v1/messages —
-// reverse-engineered from the genuine CLI 1.18.31, 2026-09-17), NOT
-// /chat/completions (500s there). Gateway routes it per registry
-// targetFormat:"claude".
-const KNOWN_FREE_OPENCODE_MODELS = ["big-pickle", "union-alpha"];
+// big-pickle answers on /chat/completions keyless (verified 4/4 through the
+// gateway, 2026-10-01).
+// union-alpha was here until it was removed upstream: /zen/v1/chat/completions
+// and /zen/v1/messages both now answer 401 "Model union-alpha is not supported",
+// which is a model-existence error rather than a free-tier gate.
+const KNOWN_FREE_OPENCODE_MODELS = ["big-pickle"];
 
 // Upstream returns "Model is unavailable" for this id (2026-09-02) — re-enable when fixed
 const DEAD_FREE_OPENCODE_MODELS = new Set(["deepseek-v4-flash-free"]);

@@ -97,7 +97,11 @@ describe("opencode gate decoy cloaking (upstream v0.5.81)", () => {
     const { isFreeTierGateModel } = await import("../../open-sse/config/opencodeAgentTools.js");
     expect(isFreeTierGateModel("mimo-v2.5-free")).toBe(true);
     expect(isFreeTierGateModel("muse-spark-1.3-contributor-free")).toBe(true);
-    expect(isFreeTierGateModel("union-alpha")).toBe(true);
+    // union-alpha was matched here while it was declared. It is gone upstream now
+    // (401 "Model union-alpha is not supported", 2026-10-01), so it is deliberately
+    // no longer treated as gated: a free-tier gate is worth retrying on another
+    // egress, a model that does not exist is not.
+    expect(isFreeTierGateModel("union-alpha")).toBe(false);
     expect(isFreeTierGateModel("mimo-v2.5-free(high)")).toBe(true);
     expect(isFreeTierGateModel("gpt-6-astra")).toBe(false);
     expect(isFreeTierGateModel("deepseek-v4-flash")).toBe(false);

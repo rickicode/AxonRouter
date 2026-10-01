@@ -9,8 +9,9 @@
 // paid-key traffic keeps its exact client payload (no quota burned).
 
 // Model ids served behind the keyless free-tier gate (suffix or family match;
-// zen thinking suffix "model(level)" is stripped before matching).
-const FREE_TIER_MODEL_RES = [/-free$/i, /muse-spark/i, /^union-alpha/i];
+// zen thinking suffix "model(level)" is stripped before matching). union-alpha was
+// matched here too and no longer is — it is gone upstream (2026-10-01), not gated.
+const FREE_TIER_MODEL_RES = [/-free$/i, /muse-spark/i];
 
 export function isFreeTierGateModel(model) {
   const id = String(model || "").replace(/\([^()]+\)\s*$/, "").trim();

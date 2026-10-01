@@ -70,9 +70,23 @@ describe("OpenCode Free endpoint routing", () => {
     expect(executor.buildUrl("hy3-free")).toBe("https://opencode.ai/zen/v1/chat/completions");
   });
 
-  it("routes union-alpha to /messages (Claude transport, like the genuine CLI)", () => {
+  it("routes no current model to /messages — union-alpha was the only one", () => {
+    // union-alpha was declared with the Claude transport and is gone upstream: both
+    // /zen/v1/chat/completions and /zen/v1/messages answer 401 "Model union-alpha is
+    // not supported" (2026-10-01). A missing model is not worth retrying on another
+    // egress the way a free-tier gate is, so it was removed from the catalogue and
+    // from MESSAGES_MODELS. The per-model mechanism itself stays — restoring a model
+    // is a one-line change — so this asserts the mechanism is intact but currently
+    // unused, rather than that it was deleted along with the model.
     const executor = new OpenCodeExecutor();
-    expect(executor.buildUrl("union-alpha")).toBe("https://opencode.ai/zen/v1/messages");
+    for (const model of [
+      "muse-spark-1.3-contributor-free",
+      "big-pickle",
+      "space-bunny-free",
+      "grok-4.7",
+    ]) {
+      expect(executor.buildUrl(model)).not.toContain("/messages");
+    }
   });
 
   it("normalizes Chat token/thinking fields only for the Responses model", () => {
