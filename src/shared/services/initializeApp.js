@@ -56,6 +56,15 @@ async function runHeavyStartup() {
       console.error("[ProxyAutoFetcher] scheduler error:", e.message);
     }
   }, 60 * 1000).unref?.();
+
+  // Periodic proxy health sweep. The auto-fetcher above replaces each group's whole
+  // pool set every five minutes and roughly a quarter of what the Bright Data feeds
+  // return is unusable, so the dead pools have to be re-identified continuously — a
+  // one-off cleanup is reverted by the next fetch. Records the verdict in
+  // proxy_pools.test_status, which the pool picker then prefers.
+  import("@/lib/network/proxyHealthSweep.js")
+    .then(({ startProxyHealthSweep }) => startProxyHealthSweep())
+    .catch((e) => console.log("[ProxyHealthSweep] scheduler start failed:", e.message));
 }
 
 
