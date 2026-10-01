@@ -498,7 +498,7 @@ export function TtsExampleCard({ providerId }) {
  </button>
  </div>
  </div>
- <pre className="rounded-sm px-3 h-8 text-xs font-mono text-text-main overflow-x-auto whitespace-pre-wrap break-all border border-border bg-surface p-3">{curlSnippet}</pre>
+ <pre className="rounded-sm px-3 min-h-8 max-h-[60vh] overflow-auto text-xs font-mono text-text-main whitespace-pre-wrap break-words border border-border bg-surface p-3">{curlSnippet}</pre>
  </div>
 
  {error && <p className="text-xs text-danger break-words">{error}</p>}
@@ -523,7 +523,7 @@ export function TtsExampleCard({ providerId }) {
  <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between mb-1.5">
  <span className="text-xs font-medium text-text-muted">JSON Response</span>
  </div>
- <pre className="rounded-sm px-3 h-8 text-xs font-mono text-text-main overflow-x-auto whitespace-pre-wrap break-all border border-border bg-surface p-3">
+ <pre className="rounded-sm px-3 min-h-8 max-h-[60vh] overflow-auto text-xs font-mono text-text-main whitespace-pre-wrap break-words border border-border bg-surface p-3">
  {JSON.stringify({
  format: jsonResponse.format,
  audio: jsonResponse.audio ? `${jsonResponse.audio.substring(0, 100)}...` : ""
@@ -535,7 +535,7 @@ export function TtsExampleCard({ providerId }) {
  ) : (
  <div>
  <span className="text-xs font-medium text-text-muted">Response</span>
- <pre className="mt-1.5 rounded-sm px-3 h-8 text-xs font-mono text-text-main overflow-x-auto whitespace-pre-wrap break-all opacity-50 border border-border bg-surface p-3">{DEFAULT_TTS_RESPONSE_EXAMPLE}</pre>
+ <pre className="mt-1.5 rounded-sm px-3 min-h-8 max-h-[60vh] overflow-auto text-xs font-mono text-text-main whitespace-pre-wrap break-words opacity-50 border border-border bg-surface p-3">{DEFAULT_TTS_RESPONSE_EXAMPLE}</pre>
  </div>
  )}
  </div>

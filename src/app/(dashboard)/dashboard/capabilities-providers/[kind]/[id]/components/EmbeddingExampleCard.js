@@ -217,7 +217,7 @@ export function EmbeddingExampleCard({ providerId, customAlias }) {
  </button>
  </div>
  </div>
- <pre className="rounded-sm px-3 h-8 text-xs font-mono text-text-main overflow-x-auto whitespace-pre-wrap break-all border border-border bg-surface p-3">{curlSnippet}</pre>
+ <pre className="rounded-sm px-3 min-h-8 max-h-[60vh] overflow-auto text-xs font-mono text-text-main whitespace-pre-wrap break-words border border-border bg-surface p-3">{curlSnippet}</pre>
  </div>
 
  {/* Error */}
@@ -239,7 +239,7 @@ export function EmbeddingExampleCard({ providerId, customAlias }) {
  </button>
  )}
  </div>
- <pre className="rounded-sm px-3 h-8 text-xs font-mono text-text-main overflow-x-auto whitespace-pre-wrap break-all opacity-70 border border-border bg-surface p-3">
+ <pre className="rounded-sm px-3 min-h-8 max-h-[60vh] overflow-auto text-xs font-mono text-text-main whitespace-pre-wrap break-words border border-border bg-surface p-3">
  {formatResultJson(result?.data)}
  </pre>
  </div>

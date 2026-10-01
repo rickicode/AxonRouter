@@ -468,7 +468,10 @@ export function GenericExampleCard({ providerId, kind }) {
  </button>
  </div>
  </div>
- <pre className="rounded-sm px-3 h-8 text-xs font-mono text-text-main overflow-x-auto whitespace-pre-wrap break-all border border-border bg-surface p-3">{curlSnippet}</pre>
+ {/* h-8 pinned the block to 32px with only horizontal overflow, so a long
+      request or a full JSON response was clipped to roughly one line. Grow with
+      the content and scroll vertically once it passes 60vh. */}
+  <pre className="rounded-sm px-3 min-h-8 max-h-[60vh] overflow-auto text-xs font-mono text-text-main whitespace-pre-wrap break-words border border-border bg-surface p-3">{curlSnippet}</pre>
  </div>
 
  {/* Streaming progress */}
@@ -515,7 +518,9 @@ export function GenericExampleCard({ providerId, kind }) {
  </button>
  )}
  </div>
- <pre className="rounded-sm px-3 h-8 text-xs font-mono text-text-main overflow-x-auto whitespace-pre-wrap break-all opacity-70 border border-border bg-surface p-3">
+ {/* Same 32px clip as the request block, and opacity-70 made the detail even
+      harder to read. Show the whole response at full contrast. */}
+ <pre className="rounded-sm px-3 min-h-8 max-h-[60vh] overflow-auto text-xs font-mono text-text-main whitespace-pre-wrap break-words border border-border bg-surface p-3">
  {result ? resultJson : exConfig.defaultResponse}
  </pre>
  {kind === "image" && (binaryImageUrl || result?.data?.data?.[0]) && (
