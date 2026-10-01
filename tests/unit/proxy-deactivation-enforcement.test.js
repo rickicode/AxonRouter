@@ -94,4 +94,47 @@ describe("Proxy 3-Failure Deactivation & Exclusion Enforcement", () => {
     expect(res.proxyPoolId).toBeNull();
     expect(res.connectionProxyEnabled).toBe(false);
   });
+
+  it("keeps strictProxy when the strict pool is unusable, so egress cannot leak direct", async () => {
+    // The pool is strict but every candidate is dead. Reporting strictProxy:false
+    // here is what let the request leave over the direct IP — the exact leak
+    // strict mode exists to prevent.
+    poolsDb.set("pool-strict-dead", {
+      id: "pool-strict-dead",
+      name: "Strict but dead",
+      proxyUrl: "http://127.0.0.1:9005",
+      isActive: true,
+      consecutiveFailures: 5,
+      testStatus: "dead",
+      strictProxy: true,
+    });
+
+    const res = await resolveConnectionProxyConfig(
+      { proxyPoolIds: ["pool-strict-dead"], proxyRotationStrategy: "round-robin" },
+      "conn-strict-1"
+    );
+
+    expect(res.proxyPool).toBeNull();
+    expect(res.connectionProxyUrl).toBe("");
+    expect(res.strictProxy).toBe(true);
+  });
+
+  it("does not invent strictProxy for a non-strict unusable pool", async () => {
+    poolsDb.set("pool-loose-dead", {
+      id: "pool-loose-dead",
+      name: "Loose and dead",
+      proxyUrl: "http://127.0.0.1:9006",
+      isActive: false,
+      consecutiveFailures: 0,
+      testStatus: "active",
+      strictProxy: false,
+    });
+
+    const res = await resolveConnectionProxyConfig(
+      { proxyPoolIds: ["pool-loose-dead"], proxyRotationStrategy: "round-robin" },
+      "conn-strict-2"
+    );
+
+    expect(res.strictProxy).toBeFalsy();
+  });
 });

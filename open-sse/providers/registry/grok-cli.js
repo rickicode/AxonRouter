@@ -1,7 +1,7 @@
 /**
  * Grok CLI / Grok Build (cli-chat-proxy.grok.com)
  *
- * Source of truth: wire capture of official @xai-official/grok (see GROK_CLI_VERSION;
+ * Source of truth: wire capture of official @xai-official/grok 1.0.44 (see GROK_CLI_VERSION;
  * cli-chat-proxy rejects builds older than 1.0.13 with HTTP 426)
  * talking to https://cli-chat-proxy.grok.com (OpenAI Responses API).
  *
