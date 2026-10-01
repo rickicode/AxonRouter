@@ -2,9 +2,15 @@
 //
 // This is a test for a bug that no single-process test could ever have caught. The
 // limiter counted in a module-level Map, so with 12 cluster workers the effective
-// limit was 3600 requests/minute against a comment that promised 300. Every worker
-// was individually correct. The property that mattered — one limit across the cluster
-// — was untestable until the counter moved to the shared store.
+// limit was WORKERS x 300 — 1200/minute on four workers, against a comment that
+// promised 300. Every worker was individually correct. The property that mattered,
+// one limit across the cluster, was untestable until the counter moved to the shared
+// store.
+//
+// The multiplier is the worker count that actually runs, not the configured value:
+// gateway/workerMode.mjs clamps GATEWAY_WORKERS to the container core count. A .env
+// asking for 12 on four cores still runs four, so reasoning from the configured
+// number overstates the bug by 3x.
 //
 // These tests therefore drive `incr` directly and assert on the decision, plus one
 // test that models several workers sharing one counter, which is the case the old
@@ -48,7 +54,8 @@ describe("rate limiting", () => {
   it("counts one limit across every worker, not one per worker", async () => {
     // The bug. 12 workers, 30 requests each = 360 requests, which is under 300 only
     // if they are counting separately. Correctly, the limit trips partway through the
-    // second worker rather than never tripping at all.
+    // later workers rather than never tripping at all. Production runs four workers,
+    // where the same shape is 4 x 100.
     const incr = sharedCounter();
     const WORKERS = 12;
     let refused = 0;

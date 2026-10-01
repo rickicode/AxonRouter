@@ -4,7 +4,10 @@
  * Extracted from gateway/server.js so it can be tested. It lived inline as a
  * module-level Map, which is where the bug lived: every worker in the cluster kept
  * its own counter, so the limit was really WORKERS x 300. On this deployment that is
- * 3600 requests/minute against a comment promising 300. No single process can observe
+ * 1200 requests/minute against a comment promising 300 — four workers times the
+ * limit. The real multiplier is whatever WORKERS resolves to, not the configured
+ * value: gateway/workerMode.mjs clamps GATEWAY_WORKERS to the container core count,
+ * so a .env asking for 12 on four cores still runs four. No single process can observe
  * the difference, so it read as correct and stayed correct-looking.
  *
  * Counting goes through the shared store so all workers see one number. The
