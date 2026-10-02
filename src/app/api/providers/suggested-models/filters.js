@@ -56,7 +56,8 @@ export const FILTERS = {
           m.id?.endsWith(":free") ||
           m.id?.endsWith("-free") ||
           m.id === "kilo-auto/free" ||
-          m.id === "openrouter/free"
+          m.id === "openrouter/free" ||
+          m.id === "stealth/space-bunny-alpha"
       )
       .map((m) => ({
         id: m.id,

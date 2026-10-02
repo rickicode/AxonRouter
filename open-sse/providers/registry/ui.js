@@ -5231,6 +5231,42 @@ export const REGISTRY_UI = [
         id: "muse-spark-1.3-contributor-free",
         name: "Muse Spark 1.3 Contributor Free",
         targetFormat: "openai-responses"
+      },
+      {
+        id: "space-bunny-free",
+        name: "Space Bunny Free"
+      },
+      {
+        id: "big-pickle",
+        name: "Big Pickle (Free)"
+      },
+      {
+        id: "longcat-2.5-preview-free",
+        name: "LongCat 2.5 Preview (Free)"
+      },
+      {
+        id: "mimo-v2.6-flash-free",
+        name: "MiMo V2.6 Flash (Free)"
+      },
+      {
+        id: "mimo-v2.5-free",
+        name: "MiMo V2.5 (Free)"
+      },
+      {
+        id: "nemotron-3.5-lightning-free",
+        name: "Nemotron 3.5 Lightning (Free)"
+      },
+      {
+        id: "nemotron-3-ultra-free",
+        name: "Nemotron 3 Ultra (Free)"
+      },
+      {
+        id: "ling-3.0-flash-fin-free",
+        name: "Ling 3.0 Flash Fin (Free)"
+      },
+      {
+        id: "fledge-alpha-free",
+        name: "Fledge Alpha (Free)"
       }
     ]
   },
@@ -10391,7 +10427,30 @@ export const REGISTRY_UI = [
         id: "kilo-auto/free",
         name: "Auto Free",
         contextLength: 256000,
-        maxTokens: 10000
+        maxTokens: 32768,
+        reasoning: true
+      },
+      {
+        id: "stealth/space-bunny-alpha",
+        name: "Space Bunny Alpha (retires Oct 5)",
+        contextLength: 1000000,
+        maxTokens: 524288,
+        vision: true,
+        reasoning: true
+      },
+      {
+        id: "poolside/laguna-s-2.1:free",
+        name: "Laguna S 2.1 (Free)",
+        contextLength: 262144,
+        maxTokens: 32768,
+        reasoning: true
+      },
+      {
+        id: "poolside/laguna-xs-2.1:free",
+        name: "Laguna XS 2.1 (Free)",
+        contextLength: 262144,
+        maxTokens: 32768,
+        reasoning: true
       },
       {
         id: "nvidia/nemotron-3-ultra-550b-a55b:free",
@@ -10408,10 +10467,25 @@ export const REGISTRY_UI = [
         reasoning: true
       },
       {
-        id: "thinkingmachines/inkling-small:free",
-        name: "Inkling Small (Free)",
-        contextLength: 1048576,
-        maxTokens: 262144,
+        id: "nvidia/nemotron-3-super-120b-a12b:free",
+        name: "Nemotron 3 Super 120B (Free)",
+        contextLength: 262144,
+        maxTokens: 235929,
+        reasoning: true
+      },
+      {
+        id: "nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free",
+        name: "Nemotron 3 Nano Omni (Free)",
+        contextLength: 256000,
+        maxTokens: 65536,
+        vision: true,
+        reasoning: true
+      },
+      {
+        id: "nvidia/nemotron-3.5-content-safety:free",
+        name: "Nemotron 3.5 Content Safety (Free)",
+        contextLength: 128000,
+        maxTokens: 8192,
         vision: true,
         reasoning: true
       },
@@ -10420,6 +10494,14 @@ export const REGISTRY_UI = [
         name: "Dots 3 Note Preview (Free)",
         contextLength: 512000,
         maxTokens: 460800,
+        vision: true,
+        reasoning: true
+      },
+      {
+        id: "thinkingmachines/inkling-small:free",
+        name: "Inkling Small (Free)",
+        contextLength: 1048576,
+        maxTokens: 262144,
         vision: true,
         reasoning: true
       },
@@ -10440,60 +10522,15 @@ export const REGISTRY_UI = [
         reasoning: true
       },
       {
-        id: "nex-agi/nex-n2.5-pro:free",
-        name: "Nex N2.5 Pro (Free)",
+        id: "apodex/apodex-1.1-mini:free",
+        name: "Apodex 1.1 Mini (Free)",
         contextLength: 262144,
         maxTokens: 235929,
-        vision: true,
-        reasoning: true
-      },
-      {
-        id: "nex-agi/nex-n2.5-mini:free",
-        name: "Nex N2.5 Mini (Free)",
-        contextLength: 262144,
-        maxTokens: 235929,
-        vision: true,
-        reasoning: true
-      },
-      {
-        id: "nvidia/nemotron-3-super-120b-a12b:free",
-        name: "Nemotron 3 Super 120B (Free)",
-        contextLength: 262144,
-        maxTokens: 235929,
-        reasoning: true
-      },
-      {
-        id: "poolside/laguna-s-2.1:free",
-        name: "Laguna S 2.1 (Free)",
-        contextLength: 262144,
-        maxTokens: 32768,
-        reasoning: true
-      },
-      {
-        id: "poolside/laguna-xs-2.1:free",
-        name: "Laguna XS 2.1 (Free)",
-        contextLength: 262144,
-        maxTokens: 32768,
-        reasoning: true
-      },
-      {
-        id: "inclusionai/ling-3.0-flash-vl:free",
-        name: "Ling 3.0 Flash VL (Free)",
-        contextLength: 262144,
-        maxTokens: 32768,
-        vision: true,
         reasoning: true
       },
       {
         id: "inclusionai/ling-3.0-flash-sante:free",
         name: "Ling 3.0 Flash Santé (Free)",
-        contextLength: 262144,
-        maxTokens: 32768,
-        reasoning: true
-      },
-      {
-        id: "inclusionai/ling-3.0-flash-fin:free",
-        name: "Ling 3.0 Flash Fin (Free)",
         contextLength: 262144,
         maxTokens: 32768,
         reasoning: true
@@ -10506,29 +10543,6 @@ export const REGISTRY_UI = [
         reasoning: true
       },
       {
-        id: "nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free",
-        name: "Nemotron 3 Nano Omni (Free)",
-        contextLength: 256000,
-        maxTokens: 65536,
-        vision: true,
-        reasoning: true
-      },
-      {
-        id: "openrouter/free",
-        name: "OpenRouter Free (Free)",
-        contextLength: 200000,
-        vision: true,
-        reasoning: true
-      },
-      {
-        id: "nvidia/nemotron-3.5-content-safety:free",
-        name: "Nemotron 3.5 Content Safety (Free)",
-        contextLength: 128000,
-        maxTokens: 8192,
-        vision: true,
-        reasoning: true
-      },
-      {
         id: "liquid/lfm-2.5-2.6b:free",
         name: "LiquidAI LFM 2.5 2.6B (Free)",
         contextLength: 65536,
@@ -10536,10 +10550,10 @@ export const REGISTRY_UI = [
         reasoning: true
       },
       {
-        id: "z-ai/glm-5.2:free",
-        name: "GLM 5.2 (Free)",
-        contextLength: 32768,
-        maxTokens: 29491,
+        id: "openrouter/free",
+        name: "OpenRouter Free (Free)",
+        contextLength: 200000,
+        vision: true,
         reasoning: true
       }
     ]

@@ -43,12 +43,16 @@ export default {
     // /chat/completions, so the format is declared per-model, not per-provider.
     { id: "muse-spark-1.2-contributor-free", name: "Muse Spark 1.2 Contributor Free", targetFormat: "openai-responses" },
     { id: "muse-spark-1.3-contributor-free", name: "Muse Spark 1.3 Contributor Free", targetFormat: "openai-responses" },
-    // union-alpha used to live here, served by /zen/v1/messages (Claude transport,
-    // reverse-engineered from the genuine CLI 1.18.31, 2026-09-17). It is gone
-    // upstream as of 2026-10-01: both /zen/v1/chat/completions and
-    // /zen/v1/messages answer 401 "Model union-alpha is not supported", which is a
-    // model-existence error and not the per-egress free-tier gate — every request to
-    // it failed, and no combo referenced it. Re-add it if OpenCode brings it back.
+    // Verified free models on /chat/completions
+    { id: "space-bunny-free", name: "Space Bunny Free" },
+    { id: "big-pickle", name: "Big Pickle (Free)" },
+    { id: "longcat-2.5-preview-free", name: "LongCat 2.5 Preview (Free)" },
+    { id: "mimo-v2.6-flash-free", name: "MiMo V2.6 Flash (Free)" },
+    { id: "mimo-v2.5-free", name: "MiMo V2.5 (Free)" },
+    { id: "nemotron-3.5-lightning-free", name: "Nemotron 3.5 Lightning (Free)" },
+    { id: "nemotron-3-ultra-free", name: "Nemotron 3 Ultra (Free)" },
+    { id: "ling-3.0-flash-fin-free", name: "Ling 3.0 Flash Fin (Free)" },
+    { id: "fledge-alpha-free", name: "Fledge Alpha (Free)" },
   ],
   modelsFetcher: { url: "https://opencode.ai/zen/v1/models", type: "opencode-free" },
   passthroughModels: true,
