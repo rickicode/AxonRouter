@@ -10,7 +10,7 @@ import { getModelTargetFormat, getModelSupportedFormats, getModelStrip, getModel
 import { PROVIDERS } from "../config/providers.js";
 import { createErrorResult, parseUpstreamError, formatProviderError } from "../utils/error.js";
 import { HTTP_STATUS, TOKEN_SAVER_HEADER, MAX_CONCURRENT_UPSTREAM, UPSTREAM_QUEUE_TIMEOUT_MS } from "../config/runtimeConfig.js";
-import { acquireUpstreamSlot, UpstreamQueueTimeout } from "../utils/upstreamSemaphore.js";
+import { createUpstreamSlotHolder, UpstreamQueueTimeout } from "../utils/upstreamSemaphore.js";
 import { handleBypassRequest } from "../utils/bypassHandler.js";
 import { trackPendingRequest as persistPendingRequest, appendRequestLog as persistRequestLog, saveRequestDetail as persistRequestDetail, saveFailedRequest as persistFailedRequest } from "@/lib/usageDb.js";
 import { observeChatAttempt } from "@/lib/observeChatAttempt.js";
@@ -342,12 +342,8 @@ const requestId = `${connectionId || "direct"}|${provider}|${model}|${requestSta
 // the slot itself is acquired just before dispatch. Retries inside one
 // attempt reuse the same slot — no nested acquire, no deadlock. Release is
 // idempotent: disconnect/error/complete paths may all fire for one request.
-const upstreamSlotHolder = { slot: null, released: false };
-const releaseUpstreamSlot = () => {
-  if (upstreamSlotHolder.released) return;
-  upstreamSlotHolder.released = true;
-  try { upstreamSlotHolder.slot?.release(); } catch { /* never break responses */ }
-};
+const upstreamSlotHolder = createUpstreamSlotHolder();
+const releaseUpstreamSlot = () => upstreamSlotHolder.release();
 // The egress in use, resolved from the credentials rather than from proxyOptions —
 // proxyOptions is built further down and this registration has to happen before it.
 // For a keyless provider the connection id is the literal "noauth", so this pool is
@@ -611,7 +607,9 @@ let providerResponse, providerUrl, providerHeaders, finalBody;
 let providerResponseFormat = targetFormat;
 try {
   try {
-    upstreamSlotHolder.slot = await acquireUpstreamSlot({ timeoutMs: UPSTREAM_QUEUE_TIMEOUT_MS, skip: isTestRequest });
+    // An abort between controller creation and here means this request is already
+    // dead; taking a slot would only have to be given back.
+    await upstreamSlotHolder.acquire({ timeoutMs: UPSTREAM_QUEUE_TIMEOUT_MS, skip: isTestRequest });
   } catch (queueErr) {
     if (queueErr instanceof UpstreamQueueTimeout) {
       const retryAfterMs = Date.now() + 15000;

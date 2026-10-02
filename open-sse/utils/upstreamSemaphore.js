@@ -64,3 +64,43 @@ function release() {
   }
   active = Math.max(0, active - 1);
 }
+
+/**
+ * Track one request's slot so release is idempotent AND safe to call before the
+ * acquire has happened.
+ *
+ * An abort can arrive between creating the stream controller and acquiring the
+ * slot (client disconnect, external combo timeout). Releasing at that moment must
+ * not mark the request as released, because the acquire is still coming: the
+ * request would then take a slot that is never given back. It is instead marked
+ * aborted, skipped at the acquire site, and the flags stay separate so a second
+ * release after the acquire still frees the slot.
+ */
+export function createUpstreamSlotHolder() {
+  let slot = null;
+  let released = false;
+  let aborted = false;
+
+  return {
+    get slot() { return slot; },
+    get released() { return released; },
+    get aborted() { return aborted; },
+
+    /** Marker for the caller: read once, right before acquiring. */
+    async acquire(options) {
+      slot = aborted ? null : await acquireUpstreamSlot(options);
+      return slot;
+    },
+
+    release() {
+      if (released) return;
+      if (!slot) {
+        // Nothing to hand back yet — remember that the request is already dead.
+        aborted = true;
+        return;
+      }
+      released = true;
+      try { slot.release(); } catch { /* never break responses */ }
+    },
+  };
+}

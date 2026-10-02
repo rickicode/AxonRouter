@@ -7,6 +7,7 @@ import { describe, it, expect, beforeEach } from "vitest";
 import {
   acquireUpstreamSlot,
   configureUpstreamSemaphore,
+  createUpstreamSlotHolder,
   upstreamSemaphoreStats,
   UpstreamQueueTimeout,
 } from "../../open-sse/utils/upstreamSemaphore.js";
@@ -60,5 +61,36 @@ describe("upstream semaphore", () => {
     a.release();
     b.release();
     expect(upstreamSemaphoreStats().active).toBe(0);
+  });
+});
+
+describe("upstream slot holder (per-request lifetime)", () => {
+  it("does not leak a slot when the request is released before it acquires one", async () => {
+    const before = upstreamSemaphoreStats().active;
+    const holder = createUpstreamSlotHolder();
+
+    // Client aborts between controller creation and the acquire.
+    holder.release();
+    expect(holder.aborted).toBe(true);
+    expect(upstreamSemaphoreStats().active).toBe(before);
+
+    // The acquire site now runs: it must not take a slot it can never give back.
+    await holder.acquire({ timeoutMs: 50 });
+    expect(holder.slot).toBeNull();
+    expect(upstreamSemaphoreStats().active).toBe(before);
+  });
+
+  it("still frees the slot for the normal path, idempotently", async () => {
+    const before = upstreamSemaphoreStats().active;
+    const holder = createUpstreamSlotHolder();
+    await holder.acquire({ timeoutMs: 50 });
+    expect(upstreamSemaphoreStats().active).toBe(before + 1);
+
+    holder.release();
+    expect(upstreamSemaphoreStats().active).toBe(before);
+    // disconnect/error/complete can all fire for one request.
+    holder.release();
+    holder.release();
+    expect(upstreamSemaphoreStats().active).toBe(before);
   });
 });
