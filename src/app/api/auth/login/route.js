@@ -29,7 +29,18 @@ export async function POST(request) {
       );
     }
 
-    const { password } = await request.json();
+    // A malformed body or a missing password is a client error, not a 500:
+    // bcrypt.compare(undefined, hash) throws "Illegal arguments", which surfaced
+    // as an internal error on the login screen.
+    let password;
+    try {
+      ({ password } = await request.json());
+    } catch {
+      return NextResponse.json({ error: "Malformed JSON body" }, { status: 400, headers: NO_STORE_HEADERS });
+    }
+    if (typeof password !== "string" || password.length === 0) {
+      return NextResponse.json({ error: "Password is required" }, { status: 400, headers: NO_STORE_HEADERS });
+    }
     const settings = await getSettings();
 
     // Block login via tunnel/tailscale if dashboard access is disabled
