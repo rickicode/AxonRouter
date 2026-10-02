@@ -1,6 +1,6 @@
 import crypto from "node:crypto";
 import { memSet, memGet, memDel, memDelPrefix, memMget, memIncr, memExpire } from "./memoryStore.js";
-import { getValkey, publishValkey, subscribeValkey, initValkey } from "./valkeyClient.js";
+import { getValkey, publishValkey, subscribeValkey } from "./valkeyClient.js";
 
 // ── Hybrid Speed Layer: Valkey (Distributed) + MemoryStore (Process-Local) ──
 // When Valkey is available (default on 127.0.0.1:6379), state is synchronized
@@ -169,7 +169,7 @@ export async function clearAccountCooldown(connId) {
 }
 
 async function deleteValkeyByPrefix(prefix) {
-  const valkey = getValkey() || (await initValkey().catch(() => null));
+  const valkey = getValkey();
   if (!valkey || !prefix) return 0;
   const keys = [];
   await new Promise((resolve, reject) => {
@@ -190,7 +190,7 @@ async function deleteValkeyByPrefix(prefix) {
 export async function clearBatchAccountCooldown(connIds) {
   if (!Array.isArray(connIds) || connIds.length === 0) return false;
   try {
-    const valkey = getValkey() || (await initValkey().catch(() => null));
+    const valkey = getValkey();
     if (valkey) {
       valkey.del(...connIds.map((id) => `cooldown:conn:${id}`)).catch(() => {});
       await Promise.all(connIds.map((id) => deleteValkeyByPrefix(`cooldown:model:${id}:`).catch(() => 0)));
@@ -796,7 +796,7 @@ export async function registerActiveRequest(requestId, detail) {
     expiresAt: Date.now() + ACTIVE_REQUEST_TTL_SECONDS * 1000,
   });
 
-  const valkey = getValkey() || (await initValkey().catch(() => null));
+  const valkey = getValkey();
   if (valkey) {
     try {
       await valkey.hset("axon:active_requests", requestId, payload);
@@ -815,7 +815,7 @@ export async function registerActiveRequest(requestId, detail) {
 
 export async function unregisterActiveRequest(requestId) {
   if (!requestId) return false;
-  const valkey = getValkey() || (await initValkey().catch(() => null));
+  const valkey = getValkey();
   if (valkey) {
     try {
       await valkey.hdel("axon:active_requests", requestId);
@@ -832,7 +832,7 @@ export async function unregisterActiveRequest(requestId) {
 }
 
 export async function getActiveRequestsDistributed() {
-  const valkey = getValkey() || (await initValkey().catch(() => null));
+  const valkey = getValkey();
   if (valkey) {
     try {
       const rawMap = await valkey.hgetall("axon:active_requests");
@@ -949,7 +949,7 @@ export async function deleteCachedQuota(connId) {
 
 export async function getCatalog(key, ttlSeconds, load) {
   if (!key || typeof load !== "function") return null;
-  const valkey = getValkey() || (await initValkey().catch(() => null));
+  const valkey = getValkey();
   if (valkey) {
     try {
       const cached = await valkey.get(key);
@@ -973,7 +973,7 @@ export async function getCatalog(key, ttlSeconds, load) {
 export async function invalidateCatalog(...keys) {
   const present = keys.filter(Boolean);
   if (present.length === 0) return false;
-  const valkey = getValkey() || (await initValkey().catch(() => null));
+  const valkey = getValkey();
   if (valkey) valkey.del(...present).catch(() => {});
   try { memDel(...present); } catch {}
   return true;

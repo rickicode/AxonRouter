@@ -3,7 +3,7 @@ import crypto from "node:crypto";
 import { getAdapter } from "../driver.js";
 import { parseJson } from "../helpers/jsonCol.js";
 import { incrementInFlight, decrementInFlight, registerActiveRequest, unregisterActiveRequest, getActiveRequestsDistributed } from "@/lib/cache/client.js";
-import { getValkey, publishValkey, subscribeValkey, initValkey } from "@/lib/cache/valkeyClient.js";
+import { getValkey, publishValkey, subscribeValkey } from "@/lib/cache/valkeyClient.js";
 
 function maskApiKey(key) {
   if (!key || typeof key !== "string") return null;
@@ -171,7 +171,7 @@ function pushToRing(entry) {
     recentRing.items = recentRing.items.slice(-RING_CAP);
   }
   const write = async () => {
-    const valkey = getValkey() || (await initValkey().catch(() => null));
+    const valkey = getValkey();
     if (!valkey) return;
     const payload = JSON.stringify(entry);
     await valkey.lpush("axon:recent_requests", payload);
@@ -329,7 +329,7 @@ function enqueueUsageWrite(item) {
 }
 
 async function readJsonCache(key, ttlSeconds, load) {
-  const valkey = getValkey() || (await initValkey().catch(() => null));
+  const valkey = getValkey();
   if (valkey) {
     try {
       const cached = await valkey.get(key);
@@ -589,7 +589,7 @@ export async function trackPendingRequest(model, provider, connectionId, started
     lastErrorProvider.provider = p;
     lastErrorProvider.ts = Date.now();
     const writeError = async () => {
-      const valkey = getValkey() || (await initValkey().catch(() => null));
+      const valkey = getValkey();
       if (valkey) await valkey.set("axon:last_error_provider", p, "EX", 10);
     };
     writeError().catch(() => {});
@@ -634,7 +634,7 @@ export async function getActiveRequests() {
   const localItems = [...liveActiveRequests.values()];
   let distItems = [];
   let dbItems = [];
-  const valkey = getValkey() || (await initValkey().catch(() => null));
+  const valkey = getValkey();
   if (valkey) {
     try {
       distItems = await getActiveRequestsDistributed();
@@ -891,7 +891,7 @@ export async function saveFailedRequest({ provider, model, connectionId, apiKey,
       lastErrorProvider.provider = p;
       lastErrorProvider.ts = Date.now();
       const writeError = async () => {
-        const valkey = getValkey() || (await initValkey().catch(() => null));
+        const valkey = getValkey();
         if (valkey) await valkey.set("axon:last_error_provider", p, "EX", 10);
       };
       writeError().catch(() => {});
@@ -1178,7 +1178,7 @@ export async function getLast10Minutes(dbArg) {
   const now = new Date();
   const currentMinuteStart = new Date(Math.floor(now.getTime() / 60000) * 60000);
   const cacheKey = `axon:last10:${currentMinuteStart.getTime()}`;
-  const valkey = getValkey() || (await initValkey().catch(() => null));
+  const valkey = getValkey();
   if (!dbArg && valkey) {
     try {
       const cached = await valkey.get(cacheKey);
