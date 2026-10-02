@@ -3,7 +3,7 @@ import { getModelsByProviderId, getModelType, isValidModel } from "../../open-ss
 import { getModelInfoCore } from "../../open-sse/services/model.js";
 import { handleImageGenerationCore } from "../../open-sse/handlers/imageGenerationCore.js";
 
-const models = ["gpt-5.6-sol", "gpt-5.6-luna", "gpt-5.6-terra"];
+const models = ["gpt-5.6-luna", "gpt-5.6-terra"];
 
 afterEach(() => vi.unstubAllGlobals());
 

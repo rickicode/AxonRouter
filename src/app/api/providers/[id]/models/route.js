@@ -3,7 +3,7 @@ import { getProviderConnectionById } from "@/models";
 import { isOpenAICompatibleProvider, isAnthropicCompatibleProvider } from "@/shared/constants/providers";
 import { GEMINI_CONFIG } from "@/lib/oauth/constants/oauth";
 import { refreshGoogleToken, refreshCodexToken, updateProviderCredentials } from "@/sse/services/tokenRefresh";
-import { resolveOllamaLocalHost } from "open-sse/config/providers.js";
+import { resolveOllamaLocalHost, PROVIDERS } from "open-sse/config/providers.js";
 import { getModelsByProviderId } from "open-sse/config/providerModels.js";
 import { resolveKiroModels } from "open-sse/services/kiroModels.js";
 import { resolveKimchiModels } from "open-sse/services/kimchiModels.js";
@@ -16,11 +16,12 @@ import { resolveClineModels, resolveClinepassModels } from "open-sse/services/cl
 
 const GEMINI_CLI_MODELS_URL = "https://cloudcode-pa.googleapis.com/v1internal:fetchAvailableModels";
 
-// The /codex/models endpoint gates each entry by minimal_client_version against this
-// value, and codex CLI's own manifest (openai/codex codex-rs/models-manager/models.json)
-// already requires 0.144.0 for its newest models, so a stale client_version here comes
-// back 200 with those entries quietly missing instead of erroring.
-const CODEX_CLIENT_VERSION = "0.144.6";
+// The /codex/models endpoint gates each entry by minimal_client_version against
+// this value: a stale client_version comes back 200 with the gated entries
+// quietly missing instead of erroring. It must match the identity the executor
+// sends on the wire (registry codex.js CODEX_CLI_VERSION) — asking as 0.144.6
+// while chatting as 0.159.0 hid every 6.x and image model from the picker.
+const CODEX_CLIENT_VERSION = PROVIDERS["codex"].cliVersion;
 const CODEX_MODELS_URL = `https://chatgpt.com/backend-api/codex/models?client_version=${CODEX_CLIENT_VERSION}`;
 
 const parseOpenAIStyleModels = (data) => {

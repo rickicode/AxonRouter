@@ -4,7 +4,6 @@ import edgeTts, { fetchEdgeTtsVoices } from "./edgeTts.js";
 import localDevice, { fetchLocalDeviceVoices } from "./localDevice.js";
 import elevenlabs, { fetchElevenLabsVoices } from "./elevenlabs.js";
 import openai from "./openai.js";
-import openrouter from "./openrouter.js";
 import gemini, { fetchGeminiVoices } from "./gemini.js";
 import xiaomiMimo from "./xiaomi-mimo.js";
 import selfhostedTts from "./selfhostedTts.js";
@@ -18,7 +17,6 @@ const SPECIAL_ADAPTERS = {
   "local-device": localDevice,
   elevenlabs,
   openai,
-  openrouter,
   gemini,
   "xiaomi-mimo": xiaomiMimo,
   "selfhosted-tts": selfhostedTts,
