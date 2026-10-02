@@ -36,13 +36,14 @@ function wrapCompression(req, res) {
   let shouldCompress = false;
   let gzip = null;
   let drainForwarded = false;
-
+  let preEncoded = false;
   function ensureGzip() {
     if (decided) return shouldCompress;
     decided = true;
     const contentType = String(res.getHeader("content-type") || "");
     const alreadyEncoded = res.getHeader("content-encoding");
     shouldCompress =
+      !preEncoded &&
       !alreadyEncoded &&
       COMPRESSIBLE_RE.test(contentType) &&
       !/text\/event-stream/i.test(String(contentType));
@@ -76,9 +77,19 @@ function wrapCompression(req, res) {
       reason = undefined;
     }
     if (hdrs && typeof hdrs === "object" && !Array.isArray(hdrs)) {
+      // Copy the caller's headers through, but remember any content-encoding:
+      // stripping it and re-compressing an already compressed body is what
+      // produced the double-gzip that broke the browser on `npm start`.
       for (const [k, v] of Object.entries(hdrs)) {
         const lk = String(k).toLowerCase();
-        if (lk === "content-length" || lk === "content-encoding") continue;
+        if (lk === "content-length") continue;
+        if (lk === "content-encoding") {
+          if (String(v).trim() !== "") {
+            preEncoded = true;
+          }
+          res.setHeader(k, v);
+          continue;
+        }
         res.setHeader(k, v);
       }
     }
