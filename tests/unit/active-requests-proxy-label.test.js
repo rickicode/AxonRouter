@@ -202,15 +202,20 @@ describe("the modal renders every field and labels the proxy", () => {
     expect(modalSrc).toMatch(/accountIsProxy \? "Proxy" : "Account"/);
     expect(modalSrc).toMatch(/accountIsProxy \? "lan" : "account_circle"/);
   });
-
   it("shows the proxy as its own field when there is a real account", () => {
-    expect(modalSrc).toMatch(/label="Proxy"/);
+    expect(modalSrc).toMatch(/req\.proxyLabel/);
   });
 
-  it("renders model, provider, account, key and elapsed", () => {
-    for (const label of ['label="Model"', 'label="Provider"', 'label="API Key"', "TimeAgo"]) {
-      expect(modalSrc).toContain(label);
-    }
+  it("renders model route with provider slash, account, proxy and elapsed without noisy api key", () => {
+    expect(modalSrc).toMatch(/formatProviderModel/);
+    expect(modalSrc).toMatch(/TimeAgo/);
+    expect(modalSrc).not.toMatch(/clientApiKey/);
+    expect(modalSrc).not.toMatch(/label="API Key"/);
+  });
+
+  it("formats provider and model with a slash prefix like ag/gemini", () => {
+    expect(modalSrc).toMatch(/formatProviderModel\(req\.provider, req\.model\)/);
+    expect(modalSrc).toMatch(/alias \? \(/);
   });
 
   it("has no field that only repeats the mode badge", () => {

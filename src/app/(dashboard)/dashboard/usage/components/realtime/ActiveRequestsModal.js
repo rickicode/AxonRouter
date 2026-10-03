@@ -23,7 +23,7 @@
 // than replacing anything.
 import Modal from "@/shared/components/Modal";
 import Badge from "@/shared/components/Badge";
-import { TimeAgo } from "./realtimeHelpers";
+import { TimeAgo, formatProviderModel } from "./realtimeHelpers";
 import Icon from "@/shared/components/Icon";
 
 const MODE_META = {
@@ -43,34 +43,6 @@ function ModeBadge({ isStream }) {
     </span>
   );
 }
-
-/**
- * A labelled value. Wraps rather than truncates.
- *
- * A missing value is spelled out rather than shown as a dash, because a dash is
- * indistinguishable from a zero-length value at a glance, and the whole point of
- * these fields is that an operator can tell "not set" from "set to nothing".
- */
-function Field({ icon, label, value, title, mono = false, tone = "" }) {
-  const missing = value == null || value === "";
-  return (
-    <div className="flex min-w-0 flex-col">
-      <span className="flex items-center gap-1 text-[9.5px] font-medium uppercase tracking-wider text-text-muted">
-        <Icon className="shrink-0 text-text-muted/70" name={icon} size={10} />
-        {label}
-      </span>
-      <span
-        className={`min-w-0 break-words text-[11px] leading-tight ${mono ? "font-mono" : ""} ${tone || "text-text-main"} ${
-          missing ? "italic text-text-muted" : ""
-        }`}
-        title={title}
-      >
-        {missing ? "not reported" : value}
-      </span>
-    </div>
-  );
-}
-
 export default function ActiveRequestsModal({
   isOpen,
   onClose,
@@ -151,26 +123,35 @@ export default function ActiveRequestsModal({
           <div className="max-h-[72vh] overflow-y-auto pr-0.5">
             <ul className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4" aria-label="Active in-flight requests">
               {activeRequests.map((req, idx) => {
-                const apiKey = req.clientApiKey || req.apiKey || "Default";
                 // A keyless provider's account is a placeholder; the egress pool is what
                 // actually identifies the request, so that is what the card leads with.
                 const accountIsProxy = req.accountIsProxy === true;
                 const accountLabel = accountIsProxy ? "Proxy" : "Account";
+                const { alias, cleanModel, full: modelDisplay } = formatProviderModel(req.provider, req.model);
+                const missingAccount = req.account == null || req.account === "";
                 return (
                   <li
                     key={req.id || req.requestId || idx}
-                    className="flex min-w-0 flex-col gap-1.5 rounded-sm border border-border/80 bg-surface-2/30 p-2 transition-colors hover:bg-surface-2/50"
+                    className="flex min-w-0 flex-col justify-between gap-1.5 rounded-sm border border-border/80 bg-surface-2/30 p-2 transition-colors hover:bg-surface-2/50"
                   >
-                    {/* Model + mode + elapsed: the identity of the request. */}
-                    <div className="flex items-start justify-between gap-1.5">
+                    {/* Provider/Model with slash + Mode & Elapsed */}
+                    <div className="flex items-start justify-between gap-1.5 min-w-0">
                       <div className="min-w-0 flex-1">
-                        <Field
-                          icon="memory"
-                          label="Model"
-                          value={req.model}
-                          title={req.model}
-                          mono
-                        />
+                        <div className="flex items-center gap-1 text-[9px] font-medium uppercase tracking-wider text-text-muted">
+                          <Icon className="shrink-0 text-text-muted/70" name="memory" size={10} />
+                          <span>Model</span>
+                        </div>
+                        <div
+                          className="truncate font-mono text-[11px] font-medium text-text-main mt-0.5"
+                          title={`${req.provider ? `${req.provider} · ` : ""}${req.model || "not reported"}`}
+                        >
+                          {alias ? (
+                            <span className="text-primary font-semibold">{alias}/</span>
+                          ) : null}
+                          <span className={cleanModel ? "" : "italic text-text-muted"}>
+                            {cleanModel || "not reported"}
+                          </span>
+                        </div>
                       </div>
                       <div className="flex shrink-0 items-center gap-1.5 pt-0.5">
                         <ModeBadge isStream={req.isStream} />
@@ -180,37 +161,33 @@ export default function ActiveRequestsModal({
                       </div>
                     </div>
 
-                    <div className="grid grid-cols-2 gap-x-2 gap-y-1.5 border-t border-border/50 pt-1.5">
-                      <Field icon="hub" label="Provider" value={req.provider} />
-                      <Field
-                        icon={accountIsProxy ? "lan" : "account_circle"}
-                        label={accountLabel}
-                        value={req.account}
-                        title={req.account}
-                      />
-                      <Field
-                        icon="key"
-                        label="API Key"
-                        value={apiKey}
-                        title={apiKey}
-                        mono
-                        tone="text-text-muted"
-                      />
-                      {/* Only for a request that has both a real account and a proxy.
-                          Two reasons the cell is not always filled: for a keyless request
-                          the account field above already shows the proxy, and without a
-                          proxy there is nothing to put here. A separate "Mode" field used
-                          to fill this slot, but it only repeated the STREAM/JSON badge that
-                          is already on the card. */}
-                      {!accountIsProxy && req.proxyLabel ? (
-                        <Field
-                          icon="lan"
-                          label="Proxy"
-                          value={req.proxyLabel}
-                          title={req.proxyLabel}
-                          mono
-                          tone="text-text-muted"
+                    {/* Account / Proxy Egress info */}
+                    <div className="flex items-center justify-between gap-1.5 border-t border-border/50 pt-1.5 text-[11px]">
+                      <div className="flex min-w-0 flex-1 items-center gap-1" title={req.account}>
+                        <Icon
+                          className="shrink-0 text-text-muted/70"
+                          name={accountIsProxy ? "lan" : "account_circle"}
+                          size={11}
                         />
+                        <span className="text-[9px] uppercase tracking-wider text-text-muted shrink-0">
+                          {accountLabel}:
+                        </span>
+                        <span
+                          className={`truncate text-[10.5px] ${
+                            missingAccount ? "italic text-text-muted" : "text-text-main break-words"
+                          }`}
+                        >
+                          {missingAccount ? "not reported" : req.account}
+                        </span>
+                      </div>
+                      {!accountIsProxy && req.proxyLabel ? (
+                        <div
+                          className="flex shrink-0 items-center gap-1 text-[10px] text-text-muted font-mono"
+                          title={req.proxyLabel}
+                        >
+                          <span className="text-[9px] uppercase tracking-wider text-text-muted">Proxy:</span>
+                          <span className="truncate max-w-[110px] break-words">{req.proxyLabel}</span>
+                        </div>
                       ) : null}
                     </div>
                   </li>

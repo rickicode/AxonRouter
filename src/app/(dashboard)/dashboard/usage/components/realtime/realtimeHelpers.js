@@ -2,6 +2,22 @@
 
 import { useState, useEffect } from "react";
 import { formatTokens } from "@/shared/utils/formatTokens";
+import { getProviderAlias } from "@/shared/constants/providers";
+
+/**
+ * Format provider and model together with slash (e.g. "ag/gemini-2.5-flash")
+ */
+export function formatProviderModel(provider, model) {
+  const p = (provider || "").toLowerCase();
+  const alias = (p ? getProviderAlias(p) : "") || p || "";
+  let cleanModel = model || "";
+  if (alias && cleanModel.toLowerCase().startsWith(`${alias.toLowerCase()}/`)) {
+    cleanModel = cleanModel.slice(alias.length + 1);
+  } else if (p && cleanModel.toLowerCase().startsWith(`${p}/`)) {
+    cleanModel = cleanModel.slice(p.length + 1);
+  }
+  return { alias, cleanModel, full: alias ? `${alias}/${cleanModel}` : cleanModel };
+}
 
 // Capability shown per request in Recent Requests. The column this backs used to
 // render a hardcoded "Completed" dot — identical for every row, so it carried no
