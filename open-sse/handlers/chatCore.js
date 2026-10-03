@@ -9,6 +9,7 @@ import { createRequestLogger } from "../utils/requestLogger.js";
 import { getModelTargetFormat, getModelSupportedFormats, getModelStrip, getModelUpstreamId, getModelType, PROVIDER_ID_TO_ALIAS } from "../config/providerModels.js";
 import { PROVIDERS } from "../config/providers.js";
 import { createErrorResult, parseUpstreamError, formatProviderError } from "../utils/error.js";
+import { upstreamResponseHeaders } from "../utils/upstreamHeaders.js";
 import { HTTP_STATUS, TOKEN_SAVER_HEADER, MAX_CONCURRENT_UPSTREAM, UPSTREAM_QUEUE_TIMEOUT_MS } from "../config/runtimeConfig.js";
 import { createUpstreamSlotHolder, UpstreamQueueTimeout } from "../utils/upstreamSemaphore.js";
 import { handleBypassRequest } from "../utils/bypassHandler.js";
@@ -778,7 +779,7 @@ if (!providerResponse.ok) {
     upstreamStatus: upstreamStatus || statusCode,
     upstreamCode,
     rawBody: parsedErr.rawBody,
-  });
+  }, upstreamResponseHeaders(providerResponse.headers));
 }
 
 const sharedCtx = { provider, model, body, stream, translatedBody, finalBody, requestStartTime, requestId, connectionId, apiKey, clientRawRequest, onRequestSuccess, pxpipe: pxpipeSummary, reqTag, log, isTestRequest, comboName };

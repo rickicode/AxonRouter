@@ -17,6 +17,7 @@ import { saveFailedRequest, saveRequestDetail } from "@/lib/usageDb.js";
 import { getModelInfo, getComboModels } from "../services/model.js";
 import { handleChatCore } from "open-sse/handlers/chatCore.js";
 import { errorResponse, unavailableResponse } from "open-sse/utils/error.js";
+import { upstreamResponseHeaders } from "open-sse/utils/upstreamHeaders.js";
 import { handleComboChat, handleFusionChat, handleDifficultyChat, detectRequiredCapabilities } from "open-sse/services/combo.js";
 import { augmentModelsWithCapacityAdapter, withCapacityAdapterStripping, getActiveAdapterStrategy } from "open-sse/services/capacityAdapter.js";
 import { handleBypassRequest } from "open-sse/utils/bypassHandler.js";
@@ -572,6 +573,7 @@ export async function handleSingleModelChat(body, modelStr, clientRawRequest = n
   const excludeConnectionIds = new Set();
   let lastError = null;
   let lastStatus = null;
+  let lastHeaders = null;
   let lastAttemptedAccount = null;
   let lastAttemptedConnectionId = null;
   // Attempts spent on THIS combo member. Dynamic fair-share: the cap is
@@ -702,7 +704,7 @@ export async function handleSingleModelChat(body, modelStr, clientRawRequest = n
           model,
           account: failedAccount,
           statusBreakdown: credentials.statusBreakdown,
-        });
+        }, lastHeaders);
       }
       if (excludeConnectionIds.size === 0) {
         if (!isTestRequest) {
@@ -753,7 +755,7 @@ export async function handleSingleModelChat(body, modelStr, clientRawRequest = n
         error: noMoreMsg,
         errorCode: noMoreStatus,
       }).catch(() => {});
-      return errorResponse(noMoreStatus, noMoreMsg);
+      return errorResponse(noMoreStatus, noMoreMsg, lastHeaders);
     }
 
     lastAttemptedConnectionId = credentials.connectionId;
@@ -1099,6 +1101,7 @@ export async function handleSingleModelChat(body, modelStr, clientRawRequest = n
       if (!isTestRequest) incrModelFailCount(modelStr, MODEL_FAILOVER_WINDOW_S).catch(() => {});
       lastError = result.error;
       lastStatus = effectiveStatus || result.status;
+      lastHeaders = upstreamResponseHeaders(result.response?.headers);
       if (excludeConnectionIds.size >= MAX_FALLBACK_ATTEMPTS) {
         log.warn("FALLBACK", `Reached maximum fallback attempts (${MAX_FALLBACK_ATTEMPTS}), stopping`);
         // The per-model capacity cooldown is promoted in the account-pool-exhausted

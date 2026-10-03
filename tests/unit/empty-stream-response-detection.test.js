@@ -200,7 +200,7 @@ describe("peekStreamHasPayload — latency: no waiting on the close", () => {
 });
 
 describe("peekStreamHasPayload — usage frames are proof of output", () => {
-  // Regression from production: antigravity/claude-opus-4-6-thinking answered
+  // Regression from production: antigravity/claude-opus-5-5-thinking answered
   // with real content (OUT 106-7830 tokens logged) but its frames exposed no
   // delta shape this probe recognises, so 64 healthy responses were flagged
   // EMPTY and thrown away. A non-zero completion count is direct evidence the
@@ -311,7 +311,7 @@ describe("stream.js counts text through the antigravity envelope", () => {
       targetFormat: "openai",
       sourceFormat: "antigravity",
       provider: "antigravity",
-      model: "claude-opus-4-6-thinking",
+      model: "claude-opus-5-5-thinking",
       onStreamComplete: (payload) => { captured.push(payload); },
     });
 

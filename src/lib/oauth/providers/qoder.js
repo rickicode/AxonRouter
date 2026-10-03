@@ -1,7 +1,10 @@
 import { QODER_CONFIG } from "../constants/oauth.js";
 
-const qoder = {
-  config: QODER_CONFIG,
+// Shared by the intl (qoder) and CN (qoder-cn) deployments: identical device
+// flow, different endpoints. `config` carries the registry `oauth` block.
+export function createQoderProvider(qoderConfig) {
+  return {
+  config: qoderConfig,
   flowType: "device_code",
   // Qoder uses a custom device flow: PKCE + nonce + machine_id are generated
   // locally, the user lands on qoder.com/device/selectAccounts in the
@@ -97,6 +100,7 @@ const qoder = {
       },
     };
   },
-};
+  };
+}
 
-export default qoder;
+export default createQoderProvider(QODER_CONFIG);

@@ -140,6 +140,8 @@ import p142 from "./agnes.js";
 import p143 from "./v1m.js";
 import p144 from "./tinyfish.js";
 import p145 from "./muse.js";
+import p146 from "./qoder-cn.js";
+
 export default [
   p0,
   p1,
@@ -282,4 +284,5 @@ export default [
   p143,
   p144,
   p145,
+  p146,
 ];

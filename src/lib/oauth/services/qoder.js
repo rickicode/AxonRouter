@@ -53,6 +53,26 @@ async function fetchWithTimeout(url, init = {}) {
 
 export class QoderService {
   /**
+   * Region-aware device flow. Pass an oauth config block (registry `oauth` →
+   * `loginUrl` / `deviceTokenUrl` / `userInfoUrl`) to target a different
+   * deployment; omitting it keeps the intl defaults.
+   */
+  constructor(config = {}) {
+    this.config = config;
+  }
+
+  get loginUrl() {
+    return this.config.loginUrl || QODER_LOGIN_URL;
+  }
+
+  get deviceTokenUrl() {
+    return this.config.deviceTokenUrl || QODER_DEVICE_TOKEN_URL;
+  }
+
+  get userInfoUrl() {
+    return this.config.userInfoUrl || QODER_USERINFO_URL;
+  }
+  /**
    * Generate a PKCE verifier + S256 challenge pair.
    * Uses 32 random bytes (matches qodercli/Veria).
    */
@@ -79,8 +99,8 @@ export class QoderService {
     });
 
     return {
-      verificationUriComplete: `${QODER_LOGIN_URL}?${params.toString()}`,
       codeVerifier: verifier,
+      verificationUriComplete: `${this.loginUrl}?${params.toString()}`,
       nonce,
       machineId,
     };
@@ -98,7 +118,7 @@ export class QoderService {
     if (!nonce || !codeVerifier) {
       throw new Error("pollDeviceToken: missing nonce or code verifier");
     }
-    const url = `${QODER_DEVICE_TOKEN_URL}?nonce=${encodeURIComponent(nonce)}&verifier=${encodeURIComponent(codeVerifier)}&challenge_method=S256`;
+    const url = `${this.deviceTokenUrl}?nonce=${encodeURIComponent(nonce)}&verifier=${encodeURIComponent(codeVerifier)}&challenge_method=S256`;
 
     const response = await fetchWithTimeout(url, {
       method: "GET",
@@ -155,7 +175,7 @@ export class QoderService {
    */
   async fetchUserInfo(accessToken) {
     try {
-      const response = await fetchWithTimeout(QODER_USERINFO_URL, {
+      const response = await fetchWithTimeout(this.userInfoUrl, {
         method: "GET",
         headers: {
           Authorization: `Bearer ${accessToken}`,

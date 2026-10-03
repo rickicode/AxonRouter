@@ -42,8 +42,14 @@ Setiap agen AI atau developer yang memeriksa status upstream **wajib membaca fil
   - Responses stream: penundaan `response.completed` hingga token usage asli tiba (watchdog 3s).
   - Strict proxy leak fix: eliminasi direct IP leak ketika pool kosong; auto-fallback TLS retry untuk self-signed cert.
   - Gemini & DeepSeek tool handling: pembersihan schema keyword `errorMessage` dan deduplikasi nama tool.
+  - **Forwarding header upstream** (2026-10-04): `open-sse/utils/upstreamHeaders.js` meneruskan `retry-after`, `x-should-retry`, dan `anthropic-ratelimit-*` ke klien. `errorResponse` / `unavailableResponse` / `createErrorResult` masing-masing gaining parameter `extraHeaders`; wiring di `chatCore.js` (error + non-streaming + streaming) dan rotasi `src/sse/handlers/chat.js` (`lastHeaders`). Catatan breaking: `createErrorResult` berubah menjadi `(status, message, resetsAtMs, extra, extraHeaders)`.
 
-### 2.3 Radar PR Komunitas di Decolua (Open, Belum Dimerge)
+### 2.3 Deviasi dari Upstream (Sengaja, AxonRouter bukan mirror)
+- **Antigravity Claude → Opus 5.5** (2026-10-04, instruksi owner): `claude-sonnet-4-6` + `claude-opus-4-6-thinking` diganti `claude-opus-5-5` + `claude-opus-5-5-thinking` di registry, quota lockout list, usage fetcher, combo `claude-latest`, dan CLI picks. Upstream masih 4.6 — AxonRouter sengaja menyimpang. **Belum diverifikasi live** (tidak ada DB/koneksi Antigravity yang bisa dijangkau dari host ini).
+- **`claude-opus-5*` di Kiro TIDAK di-port** (§2.2 upstream #4410): audit katalog live 2026-10-02 menghapus `claude-opus-5*` dari Kiro karena setiap akun membalas HTTP 400 "Invalid model" — probe 10 hari lebih baru dari klaim upstream, jadi probe kami menang.
+- **`atria.js` vs `atria-asi.js`**: upstream menamai entry `atria` (alias `atria-asi`); AxonRouter memakai `atria-asi` + `commitPeekMs` 120000 (prefill lambat terukur). Bukan gap fungsional.
+
+### 2.4 Radar PR Komunitas di Decolua (Open, Belum Dimerge)
 Terdapat 5 PR baru yang masuk pada 2026-10-03 di repo decolua (sedang dipantau):
 1. **PR #4551**: `fix(usage): keep Responses cached and reasoning token details`
 2. **PR #4550**: `fix(cursor): cover every ExecServerMessage variant in EXEC_RESULT_FIELD`
@@ -68,14 +74,19 @@ Berbasis `decolua/9router` v0.5.86 dengan sejumlah modifikasi komunitas dan prov
    - Penambahan model `mimo-v2.6-flash-free` dan endpoint usage `/zen/v1/usage`.
 
 ### 3.2 Fitur MIBP yang Berstatus BACKLOG (Belum Di-port)
-1. **`qoder-cn` (Qoder China)**:
-   - Provider regional `https://gateway.qoder.com.cn/...` dengan OAuth dan PAT khusus China (`src/lib/oauth/providers/qoder-cn.js`).
-2. **`grok-web` (Cookie Auth)**:
-   - Transport berbasis cookie browser `sso=` dari grok.com (AxonRouter sudah memiliki infrastruktur cookie di `perplexity-web`).
-3. **`xiaomi-mimo` Server-Assisted Login & 5 Regional Clusters**:
+1. **`grok-web` (Cookie Auth)**:
+   - Transport berbasis cookie browser `sso=` dari grok.com. **DITOLAK** atas permintaan owner (2026-10-04) — provider ini hanya meng scraping cookie browser.
+2. **`xiaomi-mimo` Server-Assisted Login & 5 Regional Clusters**:
    - Server-assisted desktop login (`src/lib/mimoLoginSession.js`) dan pemilihan cluster regional (`cn`, `sgp`, `ams`, `ru`, `in`).
 
-### 3.3 Fitur MIBP yang DITOLAK / TIDAK AKAN Di-port (Won't Port)
+### 3.3 Fitur yang SUDAH Di-port (2026-10-04)
+1. **`qoder-cn` (Qoder China)** — **DONE (2026-10-04)**:
+   - `open-sse/providers/registry/qoder-cn.js`: alias `qdcn`, 16 model, endpoint `gateway.qoder.com.cn` + `openapi.qoder.com.cn`, `authModes: ["oauth","apikey"]`, `usageApikey`.
+   - `QoderService` di-parameterisasi config (`loginUrl` / `deviceTokenUrl` / `userInfoUrl`); default tetap intl.
+   - `src/lib/oauth/providers/qoder.js` jadi factory `createQoderProvider(config)`; `qoder-cn.js` memakainya dengan `QODER_CN_CONFIG`.
+   - Diverifikasi: factory + routing device-flow ke region CN (test throwaway, dihapus setelah terbukti).
+
+### 3.4 Fitur MIBP yang DITOLAK / TIDAK AKAN Di-port (Won't Port)
 1. **MITM Engine (`tests/unit/mitm-root-ca.test.js`, cert injection)**:
    - Ditolak oleh policy arsitektur AxonRouter. AxonRouter fokus pada routing gateway murni tanpa MITM hijacking.
 2. **`devin-cli` (`baseUrl: devin://acp/stdio`)**:
@@ -110,4 +121,15 @@ gh api repos/decolua/9router/tags?per_page=1 -q '.[0].name'
 
 # 3. Cek commit terbaru di workspace MIBP lokal
 cd /workspaces/9router-mibp-version && git log -n 1 --oneline
+
+# 4. Bikin worktree bersih upstream master (JANGAN reset /workspaces/9router —
+#    tree itu 151 commit behind dan 48 file dirty, 46 di antaranya hasil lokal
+#    yang tidak ada di origin/master). Worktree tidak menyentuh tree utama.
+cd /workspaces/9router && git fetch origin --tags
+cd /workspaces/9router && git worktree add /workspaces/9router-upstream-ref origin/master --detach
+
+# 5. Bandingkan path-set subsystem kunci vs AxonRouter
+comm -23 \
+  <(cd /workspaces/9router-upstream-ref && find open-sse/providers open-sse/translator open-sse/services open-sse/utils -name '*.js' | sort) \
+  <(find open-sse/providers open-sse/translator open-sse/services open-sse/utils -name '*.js' | sort)
 ```

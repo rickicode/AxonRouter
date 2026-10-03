@@ -52,7 +52,7 @@ vi.mock("@/sse/utils/logger.js", () => ({ debug: vi.fn(), info: vi.fn(), warn: v
 const { getAntigravityQuotaCache, handleAntigravityQuotaError, refreshAntigravityQuota, clearAntigravityStrikes } = await import("@/sse/services/antigravityQuota.js");
 const { getProviderCredentials, clearAvailabilityMemo } = await import("@/sse/services/auth.js");
 
-const MODEL = "claude-opus-4-6-thinking";
+const MODEL = "claude-opus-5-5-thinking";
 const FUTURE_RESET = "2026-08-26T12:00:00.000Z";
 
 beforeEach(() => {

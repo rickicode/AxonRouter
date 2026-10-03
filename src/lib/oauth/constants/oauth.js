@@ -35,6 +35,9 @@ export const GEMINI_CONFIG = { ...GOOGLE_OAUTH_CLIENT, ...PROVIDER_OAUTH["gemini
 // of attempting to silently rotate.
 export const QODER_CONFIG = { ...PROVIDER_OAUTH["qoder"] };
 
+// Qoder CN (qoder.com.cn) — same device flow as the intl deployment, CN endpoints.
+export const QODER_CN_CONFIG = { ...PROVIDER_OAUTH["qoder-cn"] };
+
 // iFlow OAuth Configuration (Authorization Code)
 export const IFLOW_CONFIG = { ...PROVIDER_OAUTH["iflow"] };
 

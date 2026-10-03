@@ -251,12 +251,12 @@ export const REGISTRY_UI = [
         "name": "Gemini 3.1 Pro (Low)"
       },
       {
-        "id": "claude-sonnet-4-6",
-        "name": "Claude Sonnet 4.6 (Thinking)"
+        "id": "claude-opus-5-5",
+        "name": "Claude Opus 5.5"
       },
       {
-        "id": "claude-opus-4-6-thinking",
-        "name": "Claude Opus 4.6 (Thinking)"
+        "id": "claude-opus-5-5-thinking",
+        "name": "Claude Opus 5.5 (Thinking)"
       },
       {
         "id": "gpt-oss-120b-medium",
@@ -11173,6 +11173,98 @@ export const REGISTRY_UI = [
         "supportedFormats": [
           "openai-responses"
         ]
+      }
+    ]
+  },
+  {
+    "id": "qoder-cn",
+    "priority": 30,
+    "alias": "qdcn",
+    "uiAlias": "qdcn",
+    "category": "oauth",
+    "display": {
+      "name": "Qoder CN",
+      "icon": "water_drop",
+      "color": "#EC4899",
+      "website": "https://qoder.com.cn",
+      "notice": {
+        "signupUrl": "https://qoder.com.cn"
+      }
+    },
+    "hasOAuth": true,
+    "authModes": [
+      "oauth",
+      "apikey"
+    ],
+    "authHint": "Personal Access Token (pt-...) from https://qoder.com.cn/account/integrations",
+    "features": {
+      "usage": true,
+      "usageApikey": true
+    },
+    "models": [
+      {
+        "id": "ultimate",
+        "name": "Ultimate"
+      },
+      {
+        "id": "auto",
+        "name": "Auto"
+      },
+      {
+        "id": "performance",
+        "name": "Performance"
+      },
+      {
+        "id": "efficient",
+        "name": "Efficient"
+      },
+      {
+        "id": "lite",
+        "name": "Lite"
+      },
+      {
+        "id": "qmodel_38max",
+        "name": "Qwen3.8-Max"
+      },
+      {
+        "id": "qmodel_latest",
+        "name": "Qwen3.7-Max"
+      },
+      {
+        "id": "qmodel",
+        "name": "Qwen3.7-Plus"
+      },
+      {
+        "id": "qfmodel",
+        "name": "Qwen3.8-Flash"
+      },
+      {
+        "id": "kmodel_latest",
+        "name": "Kimi-K3"
+      },
+      {
+        "id": "kmodel",
+        "name": "Kimi-K2.7-Code"
+      },
+      {
+        "id": "gmodel",
+        "name": "GLM-5.3"
+      },
+      {
+        "id": "gfmodel",
+        "name": "GLM-5.3-Flash"
+      },
+      {
+        "id": "dmodel",
+        "name": "DeepSeek-V4-Pro"
+      },
+      {
+        "id": "dfmodel",
+        "name": "DeepSeek-V4-Flash"
+      },
+      {
+        "id": "mmodel",
+        "name": "MiniMax-M3"
       }
     ]
   }
