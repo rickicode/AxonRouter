@@ -186,31 +186,31 @@ export default function RealtimeRequestsCard({
  >
  {/* Active In-Flight Requests — summary only, details via modal */}
  {activeRequests.length > 0 && (
- <div className="flex flex-col gap-2 rounded-sm bg-primary/10 border border-primary/30 p-3">
- <div className="flex items-center justify-between gap-2">
- <div className="flex items-center gap-2">
- <span className="relative flex h-2.5 w-2.5">
- <span className="absolute inline-flex h-full w-full rounded-sm animate-ping bg-primary opacity-75"></span>
- <span className="relative inline-flex rounded-sm h-2.5 w-2.5 bg-primary"></span>
- </span>
- <span className="text-xs font-medium text-primary">
- Streaming ({activeRequests.length} active)
- </span>
- </div>
- <Button
- variant="outline"
- size="sm"
- onClick={() => setShowActiveModal(true)}
- className="font-medium inline-flex items-center gap-1"
- >
- <Icon name="visibility" size={18} />
- View Details
- </Button>
- </div>
- <span className="text-[11px] text-text-muted">
- Click View Details to inspect active in-flight requests. Closing the modal stops live polling.
- </span>
- </div>
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 rounded-sm bg-primary/10 border border-primary/30 px-3 py-2">
+          <div className="flex flex-wrap items-center gap-2 min-w-0">
+            <div className="flex items-center gap-1.5 shrink-0">
+              <span className="relative flex h-2 w-2">
+                <span className="absolute inline-flex h-full w-full rounded-sm animate-ping bg-primary opacity-75"></span>
+                <span className="relative inline-flex rounded-sm h-2 w-2 bg-primary"></span>
+              </span>
+              <span className="text-xs font-medium text-primary">
+                Streaming ({activeRequests.length} active)
+              </span>
+            </div>
+            <span className="text-[11px] text-text-muted hidden md:inline">
+              Click View Details to inspect active in-flight requests. Closing the modal stops live polling.
+            </span>
+          </div>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setShowActiveModal(true)}
+            className="font-medium inline-flex items-center gap-1 shrink-0 self-start sm:self-auto h-7 px-2.5 text-xs"
+          >
+            <Icon name="visibility" size={15} />
+            View Details
+          </Button>
+        </div>
  )}
 
  {/* In-Flight Detail Modal */}
