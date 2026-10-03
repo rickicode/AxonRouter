@@ -40,7 +40,7 @@ describe("antigravity thought signatures are scoped to the model family", () => 
   beforeEach(() => { n++; });
 
   it("classifies model families", () => {
-    expect(signatureFamily("claude-opus-5-5-thinking")).toBe("claude");
+    expect(signatureFamily("claude-opus-4-6-thinking")).toBe("claude");
     expect(signatureFamily("gemini-3.8-flash-tiered")).toBe("gemini");
     expect(signatureFamily("gpt-oss-120b-medium")).toBe("gpt-oss-120b-medium");
     expect(signatureFamily(null)).toBe(null);
@@ -49,13 +49,13 @@ describe("antigravity thought signatures are scoped to the model family", () => 
   it("does not return a Claude signature for a Gemini target (and vice versa)", () => {
     const claudeCall = uid("toolu");
     const geminiCall = uid("call");
-    storeGeminiThoughtSignature(claudeCall, "CLAUDE_SIG", "sess", "claude-opus-5-5-thinking");
+    storeGeminiThoughtSignature(claudeCall, "CLAUDE_SIG", "sess", "claude-opus-4-6-thinking");
     storeGeminiThoughtSignature(geminiCall, "GEMINI_SIG", "sess", "gemini-3.8-flash-tiered");
 
     expect(getGeminiThoughtSignatureSync(claudeCall, "sess", "gemini-3.8-flash")).toBe(null);
-    expect(getGeminiThoughtSignatureSync(claudeCall, "sess", "claude-opus-5-5-thinking")).toBe("CLAUDE_SIG");
+    expect(getGeminiThoughtSignatureSync(claudeCall, "sess", "claude-opus-4-6-thinking")).toBe("CLAUDE_SIG");
     expect(getGeminiThoughtSignatureSync(geminiCall, "sess", "gemini-3.7-flash")).toBe("GEMINI_SIG");
-    expect(getGeminiThoughtSignatureSync(geminiCall, null, "claude-opus-5-5")).toBe(null);
+    expect(getGeminiThoughtSignatureSync(geminiCall, null, "claude-opus-4-6-thinking")).toBe(null);
   });
 
   it("keeps old behaviour for untagged entries and untargeted lookups", () => {
@@ -64,13 +64,13 @@ describe("antigravity thought signatures are scoped to the model family", () => 
     expect(getGeminiThoughtSignatureSync(call, "sess", "gemini-3.8-flash")).toBe("LEGACY_SIG");
 
     const tagged = uid("toolu");
-    storeGeminiThoughtSignature(tagged, "CLAUDE_SIG", "sess", "claude-opus-5-5-thinking");
+    storeGeminiThoughtSignature(tagged, "CLAUDE_SIG", "sess", "claude-opus-4-6-thinking");
     expect(getGeminiThoughtSignatureSync(tagged, "sess")).toBe("CLAUDE_SIG");
   });
 
   it("records the producing model from the Gemini response stream", () => {
     const call = uid("toolu_vrtx");
-    const state = { model: "claude-opus-5-5-thinking", sessionId: null, toolNameMap: null };
+    const state = { model: "claude-opus-4-6-thinking", sessionId: null, toolNameMap: null };
     geminiToOpenAIResponse({
       response: {
         responseId: "r1",
@@ -78,12 +78,12 @@ describe("antigravity thought signatures are scoped to the model family", () => 
       },
     }, state);
     expect(getGeminiThoughtSignatureSync(call, null, "gemini-3.8-flash-tiered")).toBe(null);
-    expect(getGeminiThoughtSignatureSync(call, null, "claude-opus-5-5-thinking")).toBe("CLAUDE_SIG");
+    expect(getGeminiThoughtSignatureSync(call, null, "claude-opus-4-6-thinking")).toBe("CLAUDE_SIG");
   });
 
   it("switching Claude -> Gemini mid-conversation sends the default signature, not Claude's", () => {
     const call = uid("toolu_vrtx");
-    storeGeminiThoughtSignature(call, "CLAUDE_SIG", null, "claude-opus-5-5-thinking");
+    storeGeminiThoughtSignature(call, "CLAUDE_SIG", null, "claude-opus-4-6-thinking");
     const req = openaiToAntigravityRequest("gemini-3.8-flash-tiered", toolHistory(call), true);
     expect(functionCallSignatures(req)).toEqual([DEFAULT_THINKING_GEMINI_CLI_SIGNATURE]);
   });
@@ -91,7 +91,7 @@ describe("antigravity thought signatures are scoped to the model family", () => 
   it("switching Gemini -> Claude mid-conversation does not replay Gemini's signature", () => {
     const call = uid("call");
     storeGeminiThoughtSignature(call, "GEMINI_SIG", null, "gemini-3.8-flash-tiered");
-    const req = openaiToAntigravityRequest("claude-opus-5-5-thinking", toolHistory(call), true);
+    const req = openaiToAntigravityRequest("claude-opus-4-6-thinking", toolHistory(call), true);
     expect(functionCallSignatures(req)).not.toContain("GEMINI_SIG");
   });
 

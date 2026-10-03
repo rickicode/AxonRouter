@@ -286,7 +286,8 @@ const IMPORTANT_GEMINI_MODELS = [
 ];
 
 const IMPORTANT_CLAUDE_MODELS = [
-  "claude-opus-5-5", "claude-opus-5-5-thinking", "gpt-oss-120b-medium",
+  "claude-sonnet-4-6", "claude-opus-4-6-thinking",
+  "claude-3-5-sonnet", "claude-3-5-haiku", "gpt-oss-120b-medium",
 ];
 
 export async function syncAntigravityConnectionStatus(connectionId, quotas, existingConn = null) {

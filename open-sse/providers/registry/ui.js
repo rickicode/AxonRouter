@@ -251,12 +251,12 @@ export const REGISTRY_UI = [
         "name": "Gemini 3.1 Pro (Low)"
       },
       {
-        "id": "claude-opus-5-5",
-        "name": "Claude Opus 5.5"
+        "id": "claude-sonnet-4-6",
+        "name": "Claude Sonnet 4.6 (Thinking)"
       },
       {
-        "id": "claude-opus-5-5-thinking",
-        "name": "Claude Opus 5.5 (Thinking)"
+        "id": "claude-opus-4-6-thinking",
+        "name": "Claude Opus 4.6 (Thinking)"
       },
       {
         "id": "gpt-oss-120b-medium",

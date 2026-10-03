@@ -65,12 +65,15 @@ export const GENERAL_LATEST_COMBOS = {
   "gemini-pro-latest": [
     "ag/gemini-3.1-pro-low",
   ],
-  // A second tier is the fallback, not decoration: a single Opus 5.5 upstream
-  // means one exhausted account turns `claude-latest` into a hard failure
-  // ("All models failed") instead of a degraded answer.
+  // Antigravity serves Claude only as these two ids (verified live 2026-10-04:
+  // both answer; claude-opus-5-5 / -thinking 404 with model_not_found, so the
+  // Antigravity lane is 4.6 and Opus 5.5 lives on the claude/kiro providers).
+  // Opus leads, Sonnet is the fallback: a single Opus upstream means one
+  // exhausted account turns `claude-latest` into a hard failure ("All models
+  // failed") instead of a degraded answer.
   "claude-latest": [
-    "ag/claude-opus-5-5-thinking",
-    "ag/claude-opus-5-5",
+    "ag/claude-opus-4-6-thinking",
+    "ag/claude-sonnet-4-6",
   ],
   "glm-latest": [
     "cloudflare-ai/@cf/zai-org/glm-4.7-flash",
