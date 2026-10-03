@@ -33,6 +33,15 @@ Published artifacts and layout:
 - Test Suite: `cd tests && npx vitest run` or `node --test tests/unit/<file>.mjs`
 - Graph Navigation: `graft ask "<query>"`, `graft grep "<pattern>"`, `graft skeleton <file>`, `graft build`
 
+## Upstream Lineage & Sync Tracking (SSOT)
+
+AxonRouter descends from **two distinct upstream trees**, and their releases are tracked separately:
+1. **`decolua/9router`** — official public upstream (tagged releases, e.g. `v0.5.95`).
+2. **`mhiqrambg/9router-mibp-version`** — MIBP fork (`/workspaces/9router-mibp-version`), which carries features absent from official upstream (MITM engine, `qoder-cn`, `grok-web`, MiMo regional clusters).
+
+- **`docs/UPSTREAM-TRACKER.md` is the SSOT** for upstream baselines, delta status, ported/skipped/declined backlog, and per-source CLI delta checks. MUST read it before any "cek upstream / ada update?" question or porting work; update it in the same commit as any port.
+- **`CHANGELOG.md` is NOT the place to record upstream baselines** — it records AxonRouter user-visible changes only, with each source named explicitly (`decolua/9router` vs MIBP fork) so provenance stays unambiguous.
+
 ## Mandatory Code Navigation (Graft)
 
 A `graft/` context graph is maintained at repository root. Code search MUST prioritize graft over raw search:
